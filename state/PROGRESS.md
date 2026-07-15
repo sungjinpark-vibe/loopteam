@@ -38,8 +38,10 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   `git add -A` from any other project there would swallow the whole home directory. Director's call.
 - **Bot token was pasted into chat** (2026-07-16). Low risk for a personal bot, but if it matters:
   Reset Token in the Developer Portal and edit `.discord/config.json` directly.
-- **Nature of the 95-point gate**: an LLM's score is an opinion. It is paired with a mechanical gate
-  and a pre-fixed rubric, but that limit does not disappear. Stated in `VISION.md` §3.
+- **Nature of every score gate (90 lead, 90 panel)**: an LLM's score is an opinion. It is paired with a
+  mechanical gate and pre-fixed rubrics, but that limit does not disappear. `VISION.md` §3.
+- **The 5 experts cannot actually play.** They score QA's recorded evidence of a real run. Better than
+  one grader guessing from code, but **not a human playtest** — never report it as one. `VISION.md` §3.3.
 
 ## Next Run Should
 1. Delegate to `loop-scout` to find a brief. (Channel live — bot `Loop_team`, `#loop-team`.)
@@ -51,6 +53,21 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 4. Commit + push the engine repo on any change (`origin/main` tracked).
 
 ## Decisions Made
+- 2026-07-16 **Roles restructured (director rules 6-8).** Every team is member + lead; the lead gates
+  at **90** against that team's fixed rubric (`VISION.md` §3.2). App completion moved to a **5-expert
+  playtest panel: avg ≥90 AND nobody <80** (§3.3). The floor matters more than the average —
+  `95·94·92·90·79` averages to exactly 90, and that 79 is one expert saying something is badly broken.
+  An average alone would ship it.
+- 2026-07-16 **`evaluator` (95) and `judge` retired.** Superseded by team leads + the expert panel.
+  `explore` proposals are now scored by that team's own lead against the same rubric, so **every
+  deliverable is judged by one consistent standard** instead of an ad-hoc panel.
+- 2026-07-16 **Leads/experts are 2 generic agents, not 10 files.** `team-lead` and `game-expert` receive
+  their rubric/persona per call; the rubrics and the panel live in `VISION.md` §3.2/§3.3. The director
+  tunes the bar by editing one file, and ten near-duplicate agent files cannot drift apart.
+- 2026-07-16 **Agents do NOT talk over Discord.** The director allowed per-member bots but flagged the
+  token cost. Rejected: agents already exchange structured data inside the workflow, and Discord
+  chatter would refill the listener's 100-message window — re-creating the exact cursor bug fixed the
+  same day, where the director's next brief stops being read. Discord is director ↔ PM only.
 - 2026-07-16 **Director rules 1-5 adopted** (`VISION.md` §7): parent `.claude/settings.json` governs
   permissions; rtk always (hook already active); English except director reports; token-efficient;
   **Unity only**.

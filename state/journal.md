@@ -139,3 +139,33 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - result: engine consistent on Unity. Still waiting on the director's first brief.
 - **still unexercised**: the two gates against a real task. No game exists yet, and Unity MCP is not
   connected (deliberate — nothing to install it into).
+
+## Tick 1c — 2026-07-16 — roles restructured (director rules 6-8)
+- did: Rebuilt the gate structure from two gates to three, per director rules 6-8.
+  - **Gate 2 is now the team lead at 90.** Every team is member + lead; the lead scores its own
+    member's deliverable against that team's fixed rubric (`VISION.md` §3.2 — five rubrics written).
+  - **Gate 3 is new: a 5-expert playtest panel** that ends app development. avg ≥90 AND nobody <80.
+  - Gate 1 (mechanical) untouched — it is the only non-opinion signal in the whole system.
+- **The floor is the real design decision.** `95·94·92·90·79` averages to exactly 90. That 79 is one
+  expert saying something is badly wrong, and an average would ship it. The floor is what makes a
+  five-expert panel better than one grader instead of just more expensive.
+- retired: `evaluator` (single 95-point grader) and `judge`. Superseded. `explore` proposals are now
+  scored by that team's own lead against the same rubric — one consistent standard per deliverable
+  rather than an ad-hoc panel per mode.
+- built: `team-lead` and `game-expert` as **2 generic agents**, not 10. Rubrics and the expert panel
+  live in `VISION.md` §3.2/§3.3 and are passed per call. The director tunes the bar in one file, and
+  near-duplicate agent files cannot drift apart. New workflow: `playtest.js`.
+- guarded (ch.26): a lead is structurally on their team's side, which is the whole danger. Leads are
+  given the deliverable and the rubric and **never the member's reasoning** — understanding *why* a
+  shortcut was taken is exactly what makes a grader generous.
+- **declined**: the director allowed per-member Discord bots for team chatter but flagged the token
+  cost. Rejected — agents already exchange structured data inside the workflow, and Discord chatter
+  would refill the listener's 100-message window, re-creating the cursor bug fixed the same day (the
+  director's next brief stops being read). Recorded in `VISION.md` §6.
+- rule 8 adopted: **Discord is the channel** for all director requests, result summaries, and
+  permission/approval requests. It does not license blocking — send, mark `awaiting-approval`, and move
+  to the next `ready` task.
+- swept stale references (`evaluator`/`judge`/95/passMark) out of CLAUDE.md, the tick skill, BACKLOG,
+  and server-dev. Leaving them is how Goal Drift starts.
+- verified: both workflows parse; every `agentType` they call resolves to a real agent file.
+- **still unexercised**: all three gates against a real task. No game exists yet.

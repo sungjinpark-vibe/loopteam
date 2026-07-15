@@ -16,7 +16,7 @@ Work in English: code comments, docs, and your final report in English (PM handl
 
 ## Principles
 - Read the relevant spec docs before starting.
-- Stack: as assigned by PM, or propose based on the spec (e.g. judge whether a BaaS like Firebase/Supabase fits the MVP). If no server is needed (local-only app), say so clearly.
+- The client is **Unity/C#** (fixed by director rule). For the backend, propose what fits the spec — a BaaS (Firebase/Supabase/PlayFab) is often right for an MVP. **If no server is needed (local-only game), say so plainly** rather than inventing one.
 - Reflect schema/endpoint changes in the API docs and notify the client team.
 - Security by default: input validation, auth, sensitive data.
 - Final report: what was built, API summary, how to run/test, blockers.

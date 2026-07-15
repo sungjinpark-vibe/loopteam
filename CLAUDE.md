@@ -24,30 +24,45 @@ workflow. This is what makes the output trustworthy without the director reading
        loop-scout: drain inbox, reconcile approvals, pick ONE task
            ↓
        quality-loop workflow on that task
-           build:   implement → 관문1 기계 Gate → 증거 수집 → 관문2 기준표 95점 → 재작업
-           explore: 3 proposals from different angles → judge panel → winner
+           build:   구현 → 관문1 기계 Gate → QA 증거 수집 → 관문2 팀장 90점 → 재작업
+           explore: 3 proposals from different angles → 팀장이 같은 기준표로 채점 → winner
            ↓
        report to Discord (Korean) → update PROGRESS.md/journal → [sleep]
+
+   ...and when a meaningful slice is playable (a milestone, NOT every task):
+       playtest workflow → QA plays the real build → 전문가 5인 채점
+                         → 평균 90 + 전원 80 이상이면 **앱 개발 종료**
 ```
 
-## The two gates — the only definition of "done"
+## The three gates — the only definition of "done"
 
 > 12장: 검증은 실제로 실패할 수 있어야 한다. 늘 통과하는 검증은 장식이다.
 > 14장: 멈춤 조건은 에이전트의 주장 **밖**에 있어야 한다.
 > 29장: **Loop는 의견이 아니라 신호를 기준으로 멈춰야 한다.**
 
-| | 관문 1 — 기계 Gate | 관문 2 — 기준표 Gate |
-|---|---|---|
-| 무엇 | `gate/gate.ps1` 종료 코드 | `evaluator`가 매긴 100점 만점 점수 |
-| 판정 | analyze/test/build가 0을 반환하는가 | **95점 이상인가** |
-| 누가 | 아무도 (명령어) | 기획팀 채점관 (구현자와 분리) |
-| 근거 | 종료 코드 | QA가 앱을 돌려 **관찰한 사실** |
-| 실패 시 | 채점 없이 즉시 재작업 | 감점 사유 받아 재작업 |
+Two gates close a **task**; the third closes the **app**. Full spec: `VISION.md` §3.
+
+| | 관문 1 — 기계 | 관문 2 — 팀장 | 관문 3 — 전문가 플레이테스트 |
+|---|---|---|---|
+| 범위 | 작업마다 | 작업마다 | **앱 (마일스톤)** |
+| 누가 | 아무도 (명령어) | 그 팀의 팀장 | 게임 전문가 5인 |
+| 기준 | `gate/gate.ps1` exit 0 | **90점 이상** | **평균 90 이상 + 전원 80 이상** |
+| 근거 | 종료 코드 | QA가 관찰한 사실 | QA가 실제 빌드를 플레이한 기록 |
+| 실패 시 | 채점 없이 재작업 | 감점 사유 → 재작업 | 감점 사유 → 수정 → 재플레이테스트 |
+| 통과하면 | 채점 가능 | 작업 done | **앱 개발 종료** |
 
 **순서가 핵심이다. 깨진 빌드는 절대 채점하지 않는다** — 채점관을 속이는 가장 쉬운 경로이자,
 29장이 말하는 Nodding Loop로 돌아가는 지름길이다.
 
-에이전트가 "다 됐습니다"라고 말하는 것은 완료의 근거가 **아니다**. 두 관문을 통과한 것만이 완료다.
+**관문 3의 바닥선(80)이 핵심이다.** `95·94·92·90·79`는 평균이 딱 90이지만, 그 79는 전문가 한 명이
+"심각한 문제가 있다"고 말하는 신호다. 평균만 보면 그대로 출시된다. 바닥선이 그걸 막는다.
+
+에이전트가 "다 됐습니다"라고 말하는 것은 완료의 근거가 **아니다**. 관문을 통과한 것만이 완료다.
+
+> **관문 3의 정직한 한계**: 전문가 5인은 LLM이다. **실제로 게임을 플레이하거나 재미를 느끼지 못한다.**
+> `qa`가 진짜 빌드를 돌려 관찰 사실(스크린샷·로그·단계별 기록)을 남기고, 전문가들은 **그 증거를**
+> 각자의 렌즈로 채점한다. 채점관 한 명이 코드만 보고 추측하는 것보다 훨씬 낫지만, **사람의
+> 플레이테스트가 아니다.** 디렉터에게 그렇게 보고하지 말 것.
 
 ## Language policy (user directive, MUST follow)
 - **All internal work is in English**: docs (spec/design/api/qa), code comments, commit messages,
@@ -58,21 +73,27 @@ workflow. This is what makes the output trustworthy without the director reading
 
 ## Team (subagents)
 
+Every team is **member + lead**. The member produces; the lead gates at 90.
+
 | Agent | Role | Output location |
 |---|---|---|
 | `loop-scout` | Opens every tick: drains inbox, reconciles approvals, picks the next task | `backlog/` |
-| `planner` | Planning: detailed specs, user flows, gamification design | `docs/spec/` |
-| `ui-ux` | Art: design system, screen design, art-order specs | `docs/design/` |
-| `server-dev` | Server: API contracts, DB, backend | `docs/api/`, server code |
-| `client-dev` | Client: screens, interactions, client logic | client code |
-| `qa` | QA: test cases; in the loop, **gathers evidence** by driving the running app | `docs/qa/`, test code |
-| `gate-runner` | Runs 관문 1 and reports the exit code verbatim. No opinion, no fixes. | gate result JSON |
-| `evaluator` | **기획팀 채점관** — 관문 2. Scores observed behavior against the fixed rubric. | scores only |
-| `judge` | Comparative panel for `explore` mode (documents, not code) | verdicts only |
+| `planner` | 기획팀원 — specs, user flows, gamification design | `docs/spec/` |
+| `ui-ux` | 아트팀원 — design system, screen design, art-order specs | `docs/design/` |
+| `server-dev` | 서버팀원 — API contracts, DB, backend | `docs/api/`, server code |
+| `client-dev` | 클라이언트팀원 — scenes, interactions, gameplay logic (Unity/C#) | game code |
+| `qa` | QA팀원 — test cases; in the loop, **gathers evidence** by driving the real build | `docs/qa/`, test code |
+| `team-lead` | **팀장 (Gate 2)** — one agent, parameterized per team. Scores its member's deliverable ≥90 against that team's rubric (`VISION.md` §3.2). | scores only |
+| `game-expert` | **게임 전문가 (Gate 3)** — one agent, parameterized per persona. Five run as a panel. | scores only |
+| `gate-runner` | Runs Gate 1 and reports the exit code verbatim. No opinion, no fixes. | gate result JSON |
 
-**Separation is deliberate** (26장): the one who builds never grades. `evaluator` never sees the
-implementer's reasoning — understanding *why* a shortcut was taken is exactly what makes a grader
-generous.
+**Separation is deliberate** (26장): the one who builds never grades. A lead is **structurally on their
+team's side**, so it is given the deliverable and the rubric — **never the member's reasoning**.
+Understanding *why* a shortcut was taken is exactly what makes a grader generous.
+
+**Rubrics and the expert panel live in `VISION.md` §3.2/§3.3, not in the agents.** `team-lead` and
+`game-expert` are deliberately generic and receive their rubric/persona per call — so the director
+tunes the bar by editing one file, and ten near-duplicate agent files cannot drift apart.
 
 ## The tick protocol
 
@@ -93,7 +114,7 @@ the summary.
 6. **Sleep** — schedule the next wakeup.
 
 Verification and gating happen **inside** the quality loop — the workflow runs 관문 1, has `qa` drive
-the app for evidence, then has `evaluator` score it. Do not re-verify by hand; read the result.
+the build for evidence, then has the `team-lead` score it. Do not re-verify by hand; read the result.
 
 ### Context economy is the binding constraint
 A loop that runs for hours dies of context bloat, not of bad code. So:
@@ -138,22 +159,43 @@ Workflow({
     title:   'T004 leaderboard weekly reset',
     brief:   '<what to do + acceptance criteria, from the task file>',
     mode:    'build',                                   // or 'explore'
-    agent:   'client-dev',                              // planner | ui-ux | server-dev | client-dev | qa
-    appDir:  'C:\\Users\\user\\loop_engine\\<app>',     // build mode: REQUIRED
-    rubric:  [ /* VISION.md 3절에서 그대로 — 여기서 지어내지 말 것 */ ],
-    passMark: 95,
+    agent:   'client-dev',                              // the team MEMBER who produces
+    team:    '클라이언트팀장',                            // label for the lead in prompts
+    appDir:  'C:\\Users\\user\\loop_engine\\<game>',    // build mode: REQUIRED
+    rubric:  [ /* VISION.md §3.2 그 팀의 기준표 그대로 — 여기서 지어내지 말 것 */ ],
+    passMark: 90,
     maxRounds: 5,
     context: '<file paths, spec excerpts>'
   }
 })
 ```
-- `mode: 'build'` for code — implement → 관문 1 (기계) → `qa` 증거 수집 → 관문 2 (기준표 95점) → 재작업.
-  **The workflow refuses to run without `appDir` and a pre-written `rubric`** — by design. A rubric
-  invented at grading time bends to fit the result, which makes it not a gate.
-- `mode: 'explore'` for specs/design/architecture — wide solution space, output is a document. Returns a
-  winner + `grafts` (best ideas from the runners-up — fold them in, don't discard them).
-- Returns `score`, `scoreHistory`, `perCriterion`, and the evidence. Put the score in your Discord report.
-- The workflow is **background**; you get a notification when it lands.
+- `mode: 'build'` for code — 구현 → 관문 1 (기계) → `qa` 증거 수집 → 관문 2 (팀장 90점) → 재작업.
+- `mode: 'explore'` for specs/design — 3 proposals in parallel, then **that team's lead** scores them
+  all against the same rubric. Returns a winner + `grafts` (best ideas from the losers — fold them in).
+- **The workflow refuses to run without a pre-written `rubric`** (and `appDir` in build mode) — by
+  design. A rubric invented at grading time bends to fit the result, which makes it not a gate.
+- Returns `score`, `scoreHistory`, `perCriterion`, evidence. Put the score in your Discord report.
+
+### Gate 3 — the playtest (app completion)
+```
+Workflow({
+  name: 'playtest',
+  args: {
+    appDir:       'C:\\Users\\user\\loop_engine\\<game>',
+    brief:        '<what the game is meant to be — the director\'s intent>',
+    targetPlayer: '<VISION.md §2 — REQUIRED, the target-player expert scores against it>',
+    flows:        '<the flows QA must drive>',
+    experts:      [ /* VISION.md §3.3 panel — 5 personas */ ],
+    rubric:       [ /* VISION.md §3.3 shared rubric */ ],
+    passMark: 90, floor: 80, maxRounds: 5
+  }
+})
+```
+- Run it **when a meaningful slice is playable — not after every task.** Five experts × five rounds on
+  a half-built screen is pure burn (`VISION.md` §6).
+- Returns `avg` and every expert's score. `ok: true` means **app development can end.**
+
+Both workflows are **background**; you get a notification when they land.
 
 ## Stack — Unity only (director rule, 2026-07-16)
 - **Unity 6000.5.1f1 / C#**, locally installed at `C:\Program Files\Unity\Hub\Editor\6000.5.1f1`.
@@ -215,7 +257,8 @@ from `app-dev-team`'s by construction, so the two projects' listeners cannot con
 ## Dev verification / build delivery
 - **Default = run it, don't ship it.** After implementing, the quality loop's `qa` agent drives the
   actual game (Unity EditMode/PlayMode or a player build) and reports **observed facts** — that is the
-  evidence `evaluator` scores. Do not build a distributable unless the director explicitly asks.
+  evidence the `team-lead` (and, at milestones, the expert panel) scores. Do not build a distributable
+  unless the director explicitly asks.
 - **The gate never opens a project with a mismatched editor version** — that silently upgrades the
   project. `gate/gate.ps1` refuses instead.
 - **Build delivery (only on request)**: copy to `C:\Users\user\OneDrive\바탕 화면\app build\<project>\`

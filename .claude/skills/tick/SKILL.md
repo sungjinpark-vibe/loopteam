@@ -1,6 +1,6 @@
 ---
 name: tick
-description: Run one tick of the loop engine's autonomous loop — re-read the vision, drain the Discord inbox, pick the next ready task, run it through the two gates (mechanical + 95-point rubric), report to the director in Korean, and update the loop's memory. Use when asked to run a tick, run the loop, or check for new work. Wrap in `/loop /tick` to run the team unattended.
+description: Run one tick of the loop engine's autonomous loop — re-read the vision, drain the Discord inbox, pick the next ready task, run it through the gates (mechanical + team lead at 90; the 5-expert playtest at milestones), report to the director in Korean, and update the loop's memory. Use when asked to run a tick, run the loop, or check for new work. Wrap in `/loop /tick` to run the team unattended.
 ---
 
 # One tick of the loop engine
@@ -72,18 +72,32 @@ Workflow({
     brief:   '<Brief + Acceptance criteria, verbatim from the task file>',
     mode:    '<build|explore>',
     agent:   '<planner|ui-ux|server-dev|client-dev|qa>',
-    appDir:  'C:\\Users\\user\\loop_engine\\<app>',   // build mode: REQUIRED
-    rubric:  [ /* from VISION.md 3절 — pre-written, never invented here */ ],
-    passMark: 95,
+    team:    '<e.g. 클라이언트팀장 — the lead who gates this team>',
+    appDir:  'C:\\Users\\user\\loop_engine\\<game>',  // build mode: REQUIRED
+    rubric:  [ /* that team's rubric from VISION.md §3.2 — pre-written, never invented here */ ],
+    passMark: 90,
     maxRounds: 5,
     context: '<file paths, spec excerpts, prior decisions>'
   }
 })
 ```
 
-The workflow enforces both gates itself. It runs in the background; you are notified when it lands.
+The workflow enforces Gate 1 and Gate 2 itself. It runs in the background; you are notified when it lands.
 
-**On `ok: true`** — both gates passed (mechanical green, rubric ≥ 95).
+### Milestone: is a meaningful slice playable?
+If yes — and **only** at a milestone, never after every task (`VISION.md` §6) — run **Gate 3**:
+
+```
+Workflow({ name: 'playtest', args: {
+  appDir, brief, targetPlayer /* VISION.md §2 */, flows,
+  experts: [ /* VISION.md §3.3 panel */ ], rubric: [ /* §3.3 */ ],
+  passMark: 90, floor: 80, maxRounds: 5
+}})
+```
+`ok: true` → **app development ends.** Report the panel's scores to the director and ask what is next.
+Five experts × five rounds on a half-built screen is pure burn — wait for something actually playable.
+
+**On `ok: true`** — the gates passed (mechanical green, lead ≥ 90).
 - `explore` → write the winner to the right `docs/` path, folding in `grafts` (best ideas from the
   runners-up) rather than discarding them. → Step 4.
 - `build` → → Step 4.
@@ -138,7 +152,11 @@ next `ready` task. Never sit and wait for a reply.
 Confirm, concretely — do not assume:
 - [ ] `VISION.md` and `state/PROGRESS.md` were actually read this tick
 - [ ] Exactly **one** task was worked (or none, if IDLE)
-- [ ] Any task marked `done` **cleared both gates** — mechanical PASS *and* rubric ≥ 95
+- [ ] Any task marked `done` **cleared both task gates** — mechanical PASS *and* team lead ≥ 90
+- [ ] If the app was called finished, **Gate 3 actually passed** (avg ≥ 90 AND nobody < 80) — never on
+      the PM's judgment
+- [ ] Everything the director needs (results, approvals, permission requests) went to **Discord**, in
+      Korean (`VISION.md` §7 rule 8) — not left sitting in this session
 - [ ] Any escalation was **reported to the director as unfinished**, not quietly parked
 - [ ] `state/PROGRESS.md` and `state/loop.json` were updated
 - [ ] Nothing outside `loop_engine/` was modified (`VISION.md` 4절)

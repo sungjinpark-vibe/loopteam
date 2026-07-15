@@ -36,7 +36,7 @@ id: T001
 title: Short imperative title
 status: ready
 agent: client-dev        # planner | ui-ux | server-dev | client-dev | qa
-mode: build              # build (implement→judge→revise) | explore (N proposals→judge→winner)
+mode: build              # build (implement→gate→lead scores 90→revise) | explore (N proposals→lead picks winner)
 priority: 1              # 1 = highest
 created: 2026-07-15
 depends_on: []           # [T000] — task is `blocked` until these are `done`
@@ -46,7 +46,7 @@ depends_on: []           # [T000] — task is `blocked` until these are `done`
 What to do. Concrete enough for the agent to start without asking.
 
 ## Acceptance criteria
-- [ ] Specific, checkable things. The judge panel scores against these, so vague
+- [ ] Specific, checkable things. The team lead scores against these, so vague
       criteria produce vague verdicts and wasted revise rounds.
 
 ## Context
@@ -61,7 +61,8 @@ Relevant file paths, spec excerpts, links, prior decisions.
 - **`explore`** — the solution space is wide and the output is a *document or decision*: specs, feature
   design, gamification loops, architecture choices, art direction. Runs N proposals from different
   angles in parallel and picks a winner. Safe in parallel because nothing writes files.
-- **`build`** — the output is *code* and the answer is roughly known. Implements once, then three
-  judges attack it from different lenses and it revises until it passes.
+- **`build`** — the output is *code* and the answer is roughly known. Implements once, clears the
+  mechanical gate, QA gathers evidence, then the team lead scores it against that team's rubric — and
+  it revises until it clears 90.
 
 When unsure: if you could imagine three genuinely different good answers, use `explore`.
