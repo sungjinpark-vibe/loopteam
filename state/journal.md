@@ -99,3 +99,18 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   repo pushed to loopteam with no token in history; all agent references in quality-loop.js resolve.
 - what is NOT verified: a full tick, and the two gates running against a real task. Nothing has been
   built by this team yet.
+
+## Tick 1 — 2026-07-16 00:45 — first real tick
+- did: Read VISION.md + PROGRESS.md, checked kill switch (paused:false), delegated to `loop-scout`.
+- task: none
+- result: **IDLE** — no brief has arrived; VISION.md §2 is still the template, backlog is empty.
+- note: This tick existed to test one property: **does the loop invent work when there is none?**
+  It does not. The scout read the inbox, found both messages already handled, found an empty backlog,
+  and returned IDLE with an honest reason rather than manufacturing a task to look useful. That is the
+  correct behavior and the whole reason for the "브리프 없으면 일을 만들지 말 것" rule.
+- note: Team loaded correctly after the Claude Code restart — 9 agents + the /tick skill. The
+  "Agent type not found" failure from Tick 0e was purely the session-start registration issue.
+- note: Cleaned up a Do Not Repeat entry that was worded as "don't check the git toplevel", which read
+  as discouraging a safety check. Rewrote it to say what was actually meant: never `git add` from the
+  home folder. Do Not Repeat is binding, so a confusingly worded entry there is a real liability.
+- what is still unexercised: the two gates against a real task. Nothing has been built yet.

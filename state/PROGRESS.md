@@ -9,16 +9,16 @@ PM이 매 틱 끝에 갱신한다. 방향은 `VISION.md`, 작업 목록은 `back
 ---
 
 ## Current State — 지금 상태
-- **Status**: Ready — 채널 연결됨, 첫 브리프 대기 중
+- **Status**: Idle — 팀 전원 대기, 첫 브리프만 기다림
 - **Main objective**: 디렉터의 첫 브리프를 받아 앱 개발을 시작한다
 - **Current focus**: 디렉터의 첫 브리프(만들 앱/컨셉/방향) 대기. 브리프 없으면 일을 만들지 말 것.
-- **Last updated**: 2026-07-16
+- **Last updated**: 2026-07-16 00:45 (Tick 1)
 
 ## Last Run — 지난 실행
-- **Date**: 2026-07-16 (Tick 0, 부트스트랩)
-- **Summary**: 루프 엔진 구축. 팀 에이전트 7종, 품질 루프, 2단계 Gate, 방향 문서, 상태 파일, Discord 채널 포팅.
-- **Output produced**: `VISION.md`, `gate/gate.ps1`, `.claude/workflows/quality-loop.js`,
-  `.claude/skills/tick/SKILL.md`, `.claude/agents/*`, `backlog/BACKLOG.md`, 이 파일
+- **Date**: 2026-07-16 00:45 (Tick 1 — 첫 실전 틱)
+- **Summary**: 재시작 후 팀 전원(에이전트 9종 + `/tick` 스킬) 정상 로드 확인. 계약 재독 →
+  `loop-scout` 실행 → **IDLE** 반환. 브리프 없이 일을 지어내지 않는 것 확인 — 이 틱의 목적이었다.
+- **Output produced**: 없음 (의도된 결과). `state/` 갱신만.
 
 ## Open Items — 아직 열려 있는 항목
 - 앱 프로젝트 미지정. `VISION.md` 2절(현재 프로젝트) 비어 있음.
@@ -38,14 +38,11 @@ PM이 매 틱 끝에 갱신한다. 방향은 `VISION.md`, 작업 목록은 `back
   미리 고정했지만, 이 한계는 사라지지 않는다. `VISION.md` 3절에 명시해 둠.
 
 ## Next Run Should — 다음 실행이 할 일
-0. **전제**: `/tick`과 팀 에이전트(`loop-scout` 등)는 **이 파일들이 존재한 뒤에 시작된 Claude Code
-   세션에서만** 쓸 수 있다. Claude Code는 세션 시작 시 `.claude/agents/`·`.claude/skills/`를 읽고,
-   이후 추가된 것은 재시작 전까지 인식하지 못한다. (2026-07-16 확인: 구축 직후 `loop-scout` 호출이
-   "Agent type not found"로 실패했다.) 첫 틱은 반드시 **재시작 후** 돌릴 것.
-1. `.discord/incoming.log`에서 첫 브리프를 찾는다. (채널 연결 완료 — 봇 `Loop_team`, `#loop-team`)
+1. `loop-scout`에게 위임해 브리프를 찾는다. (채널 연결 완료 — 봇 `Loop_team`, `#loop-team`)
 2. 브리프가 있으면: 앱 폴더 생성 → `git init` → 루트 `.gitignore`에 추가 → 스택 결정 →
    `VISION.md` 2~3절(프로젝트 + **기준표**) 작성 → 디렉터 승인 요청 → T001(explore, planner) 개설.
-3. 브리프가 없으면 **idle**. 일을 만들어내지 말 것.
+   **기준표는 코드 한 줄 쓰기 전에 확정한다.** 나중에 쓰면 결과에 맞춰 휜다.
+3. 브리프가 없으면 **idle**. 일을 만들어내지 말 것. (Tick 1에서 이 동작 검증됨)
 4. 엔진 저장소에 변경이 있으면 커밋 + 푸시 (`origin/main` 추적 설정 완료).
 
 ## Decisions Made — 내려진 결정
@@ -67,9 +64,12 @@ PM이 매 틱 끝에 갱신한다. 방향은 `VISION.md`, 작업 목록은 `back
 ## Do Not Repeat — 다시 하지 말 것
 > 18장: 이미 실패한 시도를 적어두지 않으면 다음 실행이 같은 시도를 또 한다.
 
-- **`loop_engine`에서 `git add -A`를 하기 전에 `git rev-parse --show-toplevel`을 확인하지 말 것 —
-  이제 자체 저장소이므로 안전하다.** 단, **홈 폴더(`C:\Users\user`)에서는 절대 `git add` 금지.**
-  (2026-07-16: 최초 커밋 시도가 홈 폴더 전체를 인덱싱하려다 실패했음)
+- **홈 폴더(`C:\Users\user`)에서는 절대 `git add` 금지.** 홈 폴더가 통째로 git 저장소로 초기화돼
+  있어서, 거기서 `git add -A`를 하면 홈 전체를 인덱싱한다. (2026-07-16: 최초 커밋 시도가 실제로
+  이걸 밟고 실패했다.) `loop_engine/`은 이제 자체 저장소라 안쪽에서는 안전하다.
+- **`.claude/agents/`·`.claude/skills/`를 새로 만든 직후 그 세션에서 호출하지 말 것.** Claude Code는
+  세션 시작 시점에만 목록을 읽는다. 재시작 전까지 "Agent type not found"로 실패한다.
+  (2026-07-16 확인. Tick 1에서 재시작 후 정상 로드됨.)
 - **Git Bash에서 `grep -P` 사용 금지.** 이 PC의 로케일에서 "grep: -P supports only unibyte and
   UTF-8 locales"로 실패한다. node나 `Select-String`을 쓸 것.
 - **Git Bash 경로(`/c/...`)를 node에 인자로 넘기지 말 것.** node가 `C:\c\...`로 해석해 ENOENT.
