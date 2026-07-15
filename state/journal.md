@@ -53,8 +53,10 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - note: **Tangled Loop (24장) does not apply** — the build loop runs a single implementer, and explore
   mode's parallel agents return text without writing files. No worktree needed. Revisit only if
   implementers are ever parallelized.
-- note: 18장 says do not schedule a loop before it runs cleanly by hand. Watchdog scheduled task
-  deliberately NOT registered yet. Run `/tick` manually first.
+- note: 18장 says do not schedule a loop before it runs cleanly by hand. That applies to the LOOP
+  (`/loop /tick`), which stays manual until `/tick` proves out by hand. It does not apply to the
+  Discord listener's watchdog — that is messaging infrastructure, not the loop, and it must be up
+  before a brief can even arrive. (Registered in Tick 0c.)
 
 ## Tick 0c — Discord channel live
 - did: Wired the director's channel. Bot `Loop_team` (id 1526972090203504700) → `#loop-team`.

@@ -24,9 +24,7 @@ PM이 매 틱 끝에 갱신한다. 방향은 `VISION.md`, 작업 목록은 `back
 - 앱 프로젝트 미지정. `VISION.md` 2절(현재 프로젝트) 비어 있음.
 
 ## Blockers — 막힌 것
-- **GitHub `loopteam` 저장소가 아직 GitHub에 없음.** 리모트는 연결됐고 커밋도 쌓였지만 푸시 불가.
-  `gh` CLI 미설치, 자격증명 추출은 보안상 차단됨 → 디렉터가 github.com/new 에서 직접 생성해야 함.
-  그때까지 엔진 저장소는 **로컬에만** 존재한다 (PC 고장 시 유실 위험).
+- 없음. 채널 연결 완료, 원격 저장소 푸시 완료. 디렉터의 첫 브리프만 기다리는 중.
 
 ## Needs Human Review — 사람이 봐야 할 것
 - **app-dev-team의 `discord-daemon.ps1`에 같은 커서 버그가 잠복해 있음.** loop_engine 쪽은
@@ -45,7 +43,7 @@ PM이 매 틱 끝에 갱신한다. 방향은 `VISION.md`, 작업 목록은 `back
 2. 브리프가 있으면: 앱 폴더 생성 → `git init` → 루트 `.gitignore`에 추가 → 스택 결정 →
    `VISION.md` 2~3절(프로젝트 + **기준표**) 작성 → 디렉터 승인 요청 → T001(explore, planner) 개설.
 3. 브리프가 없으면 **idle**. 일을 만들어내지 말 것.
-4. `loopteam` 저장소가 생겼으면 `git push -u origin main`.
+4. 엔진 저장소에 변경이 있으면 커밋 + 푸시 (`origin/main` 추적 설정 완료).
 
 ## Decisions Made — 내려진 결정
 - 2026-07-16 **Discord 커서 버그 수정** (`le-daemon.ps1`). 봇 자기 메시지를 `continue`로 건너뛰기
