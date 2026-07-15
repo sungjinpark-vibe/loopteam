@@ -155,10 +155,12 @@ Workflow({
 - Returns `score`, `scoreHistory`, `perCriterion`, and the evidence. Put the score in your Discord report.
 - The workflow is **background**; you get a notification when it lands.
 
-## Stack selection
-- **Flutter/Dart** — UI-centric apps (quiz, flashcards, trackers) + gamification UI. Light gameplay.
-- **Unity/C#** — real-time gameplay, physics, animation-heavy. Primarily a "game".
-- PM decides per project based on the spec.
+## Stack — Unity only (director rule, 2026-07-16)
+- **Unity 6000.5.1f1 / C#**, locally installed at `C:\Program Files\Unity\Hub\Editor\6000.5.1f1`.
+- **This is not a per-project choice any more.** Flutter is out. Do not propose a stack change without
+  director approval (`VISION.md` §4).
+- **Unity MCP**: connect once a project exists and it is needed. Not yet connected — there is no
+  project to install the package into.
 
 ## Folder structure rules
 
@@ -210,14 +212,15 @@ from `app-dev-team`'s by construction, so the two projects' listeners cannot con
   PowerShell's default UA gets blocked by Discord's edge. Every script here sends
   `User-Agent: DiscordBot (...)`. If you ever see that exact error, this is why.
 
-## Dev verification / APK delivery
-- **Default = emulator, not APK.** After implementing, verify on the **`Pixel_9`** Android Studio
-  emulator (`flutter run -d <emulator-id>`; boot it first if down). Do **not** build or send an APK
-  unless the user explicitly asks.
-- **APK build (only on request)**: `flutter build apk --release --target-platform android-arm64` →
-  `build\app\outputs\flutter-apk\app-release.apk`. Copy to
-  `C:\Users\user\OneDrive\바탕 화면\app build\<project>\` as `<project>_v0.0.N` (increment N; check the
-  folder for the last number). Send via Discord when under 25MB; over that, folder-only + notify.
+## Dev verification / build delivery
+- **Default = run it, don't ship it.** After implementing, the quality loop's `qa` agent drives the
+  actual game (Unity EditMode/PlayMode or a player build) and reports **observed facts** — that is the
+  evidence `evaluator` scores. Do not build a distributable unless the director explicitly asks.
+- **The gate never opens a project with a mismatched editor version** — that silently upgrades the
+  project. `gate/gate.ps1` refuses instead.
+- **Build delivery (only on request)**: copy to `C:\Users\user\OneDrive\바탕 화면\app build\<project>\`
+  as `<project>_v0.0.N` (increment N; check the folder for the last number). Send via Discord when
+  under 25MB; over that, folder-only + notify.
 
 ## Git rules (user directive, MUST follow)
 - **git operates per app folder** (each app its own repo). Root is the engine-only repo.
@@ -225,13 +228,16 @@ from `app-dev-team`'s by construction, so the two projects' listeners cannot con
 - **Any change must be committed and pushed.** Auth via GCM (manager).
 - Secrets (`.discord/config.json`) are gitignored and live outside app repos.
 
-## This PC (verified 2026-07-11, inherited from app-dev-team)
-- **Flutter** 3.38.5 (`C:\develop\flutter`), Android SDK 36.1.0 (`%LOCALAPPDATA%\Android\Sdk`) —
-  `flutter doctor` all green. Unity also installed.
-- **JDK 17** `C:\develop\jdk-17.0.19+10` — user-level `JAVA_HOME` set, linked via `flutter config --jdk-dir`.
-- **Android Studio** + emulator, AVD **`Pixel_9`**. Launch:
-  `"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd Pixel_9` (background; boot ~30-90s, poll
-  `adb devices` / `flutter devices`). Default day-to-day run target.
+## This PC
+- **Unity 6000.5.1f1** — `C:\Program Files\Unity\Hub\Editor\6000.5.1f1\Editor\Unity.exe`.
+  **Batchmode verified working 2026-07-16**, license activates fine. Project creation:
+  `Unity.exe -batchmode -quit -createProject <path> -logFile <log>`.
+  ⚠️ Unity can **exit 0 with compile errors** — never trust its exit code alone (see `gate/gate.ps1`).
+  A batchmode run takes ~30-90s; budget for it.
+- **JDK 17** `C:\develop\jdk-17.0.19+10`, Android SDK 36.1.0 (`%LOCALAPPDATA%\Android\Sdk`),
+  Android Studio + AVD `Pixel_9` — available if a Unity Android build ever needs them.
+- **rtk** 0.43.0 (`~/.local/bin/rtk`). The parent `.claude/settings.json` already hooks Bash and
+  PowerShell through `rtk hook claude`, so shell output is token-filtered automatically.
 - **Python**: the Store alias `python` is a stub. Use the **`py`** launcher (Python 3.14); in Git Bash
   use `C:\Users\user\AppData\Local\Programs\Python\Python314\python.exe`.
 - **MS Office** installed (Word/Excel/PowerPoint COM) → reading briefs.

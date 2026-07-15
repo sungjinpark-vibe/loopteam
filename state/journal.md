@@ -114,3 +114,28 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   as discouraging a safety check. Rewrote it to say what was actually meant: never `git add` from the
   home folder. Do Not Repeat is binding, so a confusingly worded entry there is a real liability.
 - what is still unexercised: the two gates against a real task. Nothing has been built yet.
+
+## Tick 1b — 2026-07-16 — director rules 1-5; stack switched to Unity
+- did: Adopted five standing director rules (recorded in `VISION.md` §7).
+- rules: ① permissions follow the parent `.claude/settings.json` ② always use rtk ③ English for
+  everything except director reports ④ token-efficient ⑤ **Unity only** (MCP later, once a project
+  exists).
+- decided with director: rtk needs no new work — the global settings already hook Bash/PowerShell
+  through `rtk hook claude`, so shell output is token-filtered automatically. VISION.md/PROGRESS.md
+  translated to English; the director reads the rubric on Discord in Korean instead, which matches the
+  standing "the director does not read files" principle.
+- **Gate 1 rewritten for Unity.** The Flutter gate is gone — the stack is fixed now.
+  - Verified batchmode works on this PC and the license activates (exit 0, project created).
+  - **Unity exits 0 with compile errors is real and dangerous.** The gate therefore judges compilation
+    by exit code AND an `error CS####` log scan; either failing fails the gate. Tested: healthy
+    project → exit 0; two injected compile errors → exit 1 with exact file/line. It discriminates.
+  - The gate refuses to open a project whose editor version differs, rather than silently upgrading it.
+  - Found and fixed: `Start-Process -PassThru` returns an EMPTY `.ExitCode` unless `$p.Handle` is
+    touched before exit — it made every compile look inconclusive. The gate failed closed rather than
+    passing, which is the correct behavior, but the cause is now fixed.
+- swept every instruction file for Flutter/Pixel_9 leftovers (CLAUDE.md, tick skill, quality-loop,
+  client-dev, gate-runner). Leaving them would have been textbook Goal Drift: the next tick reads
+  CLAUDE.md and would have reached for Flutter while VISION.md said Unity.
+- result: engine consistent on Unity. Still waiting on the director's first brief.
+- **still unexercised**: the two gates against a real task. No game exists yet, and Unity MCP is not
+  connected (deliberate — nothing to install it into).

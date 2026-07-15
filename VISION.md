@@ -1,141 +1,168 @@
-# VISION — 방향 문서 (Loop Contract)
+# VISION — Direction Document (Loop Contract)
 
-> **이 파일은 매 틱마다 다시 읽는다.** 상태 파일(`state/PROGRESS.md`)이 "지금 어디까지 왔는가"를
-> 알려준다면, 이 문서는 "어디로 가야 하는가"를 알려준다. 긴 세션에서 요약이 반복되면 목표와
-> 제약이 슬그머니 사라진다(**Goal Drift**). 그걸 막는 유일한 장치가 이 문서의 재독이다.
-
-내부 작업 언어는 영어, 사용자 대면 출력만 한국어 (`CLAUDE.md` 언어 정책 참조).
-이 문서는 **디렉터(사용자)가 읽고 고치는 문서**이므로 한국어로 쓴다.
+> **Re-read this file every tick.** The state file (`state/PROGRESS.md`) says *where the loop is*;
+> this document says *where it must go*. In long sessions, repeated summarization silently drops
+> goals and constraints (**Goal Drift**). Re-reading this is the only thing that prevents it.
+>
+> Written in English per the director's rule: everything except reports to the director is English.
+> **The director never has to open this file.** Anything they must decide — the rubric, the
+> boundaries, a stack change — the PM presents in Korean on Discord and gets approval there.
 
 ---
 
-## 1. 이 루프의 목적
+## 1. Purpose of this loop
 
-디렉터가 방향(기획 의도, 컨셉, 느낌)을 던지면, 개발팀이 **기준을 넘길 때까지 스스로 반복해서**
-앱을 만든다. 디렉터는 매번 지시하지 않는다. 기준을 정하고, 결과를 승인하거나 반려한다.
+The director gives direction (intent, concept, feel). The dev team then builds — **repeating on its own
+until the work clears the bar**. The director does not issue step-by-step instructions. They set the
+bar, and approve or reject.
 
-- **디렉터 = 사용자.** 무엇을/왜 만드는지, 어떤 느낌이어야 하는지를 정한다.
-- **PM = 메인 에이전트.** 어떻게 만들지, 누가 만들지, 언제 통과인지를 집행한다.
-- 디렉터는 코드를 읽지 않는다. 판단에 필요한 것은 PM이 Discord로 보여준다.
+- **Director = the user.** Decides what to build, why, and how it should feel.
+- **PM = the main agent.** Decides how, who, and — crucially — *when it is done*.
+- The director does not read code. Whatever they need in order to decide, the PM shows on Discord.
 
-## 2. 현재 프로젝트
+## 2. Current project
 
-| 항목 | 값 |
+| Field | Value |
 |---|---|
-| 프로젝트명 | _(미지정 — 첫 브리프 대기 중)_ |
-| 스택 | _(미정)_ |
-| 한 줄 컨셉 | _(미정)_ |
-| 앱 폴더 | _(미정)_ |
+| Name | _(unassigned — awaiting first brief)_ |
+| Stack | **Unity 6000.5.1f1** (fixed by director rule — not a per-project choice) |
+| One-line concept | _(TBD)_ |
+| Project folder | _(TBD)_ |
 
-> 첫 브리프가 들어오면 PM이 이 표를 채우고, 아래 3~5절을 프로젝트에 맞게 다시 쓴다.
-> **채우기 전에는 이 루프는 코드를 만들지 않는다.**
+> When the first brief arrives, the PM fills this table and rewrites sections 3-5 for the project.
+> **Until it is filled, this loop writes no code.**
 
-## 3. 완료선 (Stop condition) — 이 루프의 헌법
+## 3. Stop condition — the loop's constitution
 
-> 14장: *"멈춤 조건은 에이전트의 주장 안이 아니라 밖에 있어야 한다."*
-> 29장: *"Loop는 의견이 아니라 신호를 기준으로 멈춰야 한다."*
+> ch.14: *"The stop condition must live OUTSIDE the agent's claim, not inside it."*
+> ch.29: *"A loop must stop on a signal, not an opinion."*
 
-작업이 **완료**되려면 아래 **두 관문을 순서대로** 통과해야 한다. 하나라도 못 넘으면 완료가 아니다.
-에이전트가 "다 됐습니다"라고 말하는 것은 완료의 근거가 **아니다**.
+Work is **done** only after clearing **both gates, in this order**. Failing either one means not done.
+An agent saying "it's finished" is **not** evidence of completion.
 
-### 관문 1 — 기계 Gate (객관적 신호, 먼저 통과해야 함)
+### Gate 1 — Mechanical (objective signal; must pass first)
 
-사람도 LLM도 개입하지 않는다. 명령어가 0을 반환하거나 아니거나다.
+No human, no LLM. A command returns 0 or it does not.
 
-- 정적 분석 통과 (에러 0)
-- 테스트 통과
-- 빌드 성공
-- **앱이 실제로 에뮬레이터에서 실행되고, 바뀐 화면이 뜬다**
+- Scripts compile with zero C# errors
+- EditMode tests pass (when the project has any)
+- The build succeeds
+- **The game actually runs and the changed screen/behavior appears**
 
-실행 방법은 `gate/gate.ps1`. **이 관문이 실패하면 채점은 아예 하지 않는다.**
-깨진 빌드에 점수를 매기는 것은 의미가 없고, 채점자를 속이는 가장 흔한 경로다.
+Run via `gate/gate.ps1`. **If this gate fails, no scoring happens at all.**
+Scoring a broken build is meaningless, and it is the most common way a grader gets fooled.
 
-### 관문 2 — 기준표 Gate (95점)
+> Unity note (do not "simplify" this away): Unity in batchmode is known to exit 0 even when scripts
+> failed to compile. The gate therefore judges compilation by **both** the exit code **and** a scan of
+> the editor log for `error CS####`, and either one failing fails the gate. Verified 2026-07-16
+> against an injected compile error.
 
-> 12장: *"정답이 하나로 떨어지지 않는 작업이라면 기준표를 만들어 점수를 매긴다."*
+### Gate 2 — Rubric (95 points)
 
-기계가 판정할 수 없는 것(재미, 완성도, 기획 의도 부합)은 **기획팀(`evaluator`)이 기준표로 채점**한다.
+> ch.12: *"For work with no single right answer, build a rubric and score it."*
 
-- **합격선: 100점 만점에 95점 이상.**
-- 채점자는 **만든 사람이 아니다.** 구현자의 설명·변명·사고 과정을 보지 않고,
-  **기준표와 실제 실행 결과(스크린샷/로그)만** 보고 채점한다.
-- 기준표는 **작업 시작 전에 미리 쓴다.** 채점하면서 만들면 결과에 맞춰 기준이 휘어진다.
-- 95점 미만이면 **감점 사유를 항목별로** 돌려주고 다시 만든다.
+What machines cannot judge — fun, polish, fidelity to intent — is **scored by the planning team
+(`evaluator`) against a rubric**.
 
-#### 기준표 (프로젝트 확정 후 디렉터가 조정)
+- **Pass mark: 95 out of 100.**
+- The grader is **not the builder**. It never sees the implementer's explanation or reasoning — only
+  the rubric and **observed behavior** (screenshots, logs, a recorded run).
+- The rubric is **written before the work starts**. A rubric written during grading bends to fit the
+  result.
+- Below 95, the grader returns **itemized deductions** and the work is redone.
 
-| # | 항목 | 배점 | 무엇을 보는가 (관찰 가능해야 함) |
+#### Rubric (director adjusts once the project is set)
+
+| # | Criterion | Max | What is examined (must be observable) |
 |---|---|---|---|
-| 1 | 기획 의도 부합 | 30 | 스펙의 핵심 의도가 실제 화면에서 구현됐는가 |
-| 2 | 핵심 루프 동작 | 25 | 주요 사용자 흐름이 처음부터 끝까지 끊기지 않는가 |
-| 3 | 완성도 | 20 | 빈 화면·깨진 레이아웃·플레이스홀더가 남아 있지 않은가 |
-| 4 | 재미/동기 | 15 | 보상·피드백·진행감이 실제로 느껴지는가 |
-| 5 | 예외 처리 | 10 | 빈 데이터·오류·연타에서 앱이 무너지지 않는가 |
+| 1 | Fidelity to intent | 30 | Does the spec's core intent actually appear on screen? |
+| 2 | Core loop works | 25 | Does the main flow run start to finish without breaking? |
+| 3 | Polish | 20 | No blank screens, broken layout, or leftover placeholders |
+| 4 | Fun / motivation | 15 | Are reward, feedback, and progress actually felt? |
+| 5 | Failure handling | 10 | Empty data, errors, and mashed input do not collapse the game |
 
-> **주의(정직하게 기록해 둠).** LLM이 매긴 95점도 본질적으로는 의견이다. 이것이 진짜 Gate가 되려면
-> ① 기계 Gate를 먼저 통과했고, ② 기준표가 미리 고정돼 있고, ③ 각 항목이 **실행 결과로 확인
-> 가능**하고, ④ 채점자가 만든 사람과 분리돼 있어야 한다. 네 조건이 깨지면 이건 Gate가 아니라
-> 서로 고개 끄덕이는 장식이다(**Nodding Loop**).
+> **Honest caveat, recorded on purpose.** A 95 from an LLM is still an opinion. For it to work as a
+> real gate: ① Gate 1 must have passed first, ② the rubric must be fixed in advance, ③ every criterion
+> must be **checkable against a real run**, and ④ the grader must be separate from the builder. Break
+> any of the four and this is not a gate — it is two agents nodding at each other (**Nodding Loop**).
 
-### 실패 브레이크 (Hard limit)
+### Failure brakes (hard limits)
 
-성공 브레이크만 있으면, 영영 성공 못 하는 작업 앞에서 루프는 멈추지 못한다.
+With only a success brake, a loop never stops on work that can never succeed.
 
-- **최대 반복: 5회.** 5회 안에 95점을 못 넘기면 멈추고 디렉터에게 넘긴다.
-- **무진전 감지**: 점수가 2회 연속 오르지 않으면(±2점 이내) 반복을 중단하고 넘긴다.
-  같은 자리를 도는 것은 반복이 아니라 낭비다.
-- 상한에 걸려서 멈춘 작업은 **절대 완료로 표시하지 않는다.** `state/PROGRESS.md`의
-  **Needs Human Review**에 올리고 Discord로 알린다.
+- **Max 5 rounds.** Not at 95 within 5 rounds → stop and hand it to the director.
+- **No-progress detection**: if the score does not move (±2) across 3 rounds, stop. Circling in place
+  is not iteration, it is waste.
+- Work stopped by a limit is **never marked done**. It goes to **Needs Human Review** in
+  `state/PROGRESS.md` and is reported on Discord.
 
-## 4. 경계 (Boundary) — 하지 말아야 할 일
+## 4. Boundaries — what not to do
 
-> 18장: *"좋은 경계는 무엇을 고치라고 지시하기보다, 어디까지 혼자 해도 되는지를 정한다."*
+> ch.18: *"A good boundary defines how far the agent may go alone, rather than dictating what to fix."*
 
-루프가 사람 없이 돌기 때문에, 혼자 해도 되는 범위를 **좁게** 못 박는다.
+The loop runs unattended, so the range it may act in alone is deliberately **narrow**.
 
-**승인 없이 해도 되는 것**
-- 앱 폴더 안의 코드 작성/수정, 문서 작성, 테스트, 에뮬레이터 실행
-- `backlog/`, `state/` 갱신, 앱 저장소 커밋·푸시
-- Discord로 보고·질문
+**Allowed without approval**
+- Writing/editing code, docs, and tests inside the project folder; running Unity
+- Updating `backlog/` and `state/`; committing and pushing the project repo
+- Reporting and asking questions on Discord
 
-**반드시 디렉터 승인이 필요한 것**
-- 스펙·기획·아트 방향·API 계약의 **확정** (제안까지는 자유, 확정은 승인 후)
-- 스택 변경, 새 유료 서비스 도입, 과금/광고 정책 변경
-- 앱 스토어 배포, APK 외부 전달
+**Requires director approval**
+- **Finalizing** a spec, design, art direction, or API contract (proposing is free; finalizing is not)
+- Changing the stack, adding a paid service, changing monetization/ads
+- Store release, or handing out a build
 
-**절대 하지 않는 것**
-- `loop_engine/` 밖의 파일 수정 (특히 홈 폴더 `C:\Users\user` — 실수로 만들어진 git 저장소가 있음)
-- `.discord/config.json` 등 비밀정보를 로그·커밋·메시지에 노출
-- 테스트를 통과시키려고 테스트를 비활성화하거나 기준표를 낮추기
-- 기계 Gate 실패를 "환경 탓"으로 넘기고 완료 처리
-- 디렉터 승인 없이 앱 저장소의 히스토리 재작성(force push)
+**Never**
+- Modifying anything outside `loop_engine/`. In particular **never `git add` from the home folder
+  (`C:\Users\user`)** — it is an accidental git repo and would swallow the whole home directory.
+  Problems found in other projects (e.g. `app-dev-team`) get **recorded, not fixed** — the director
+  ruled on this 2026-07-16.
+- Exposing secrets (`.discord/config.json`) in logs, commits, or messages
+- Disabling tests, or lowering the rubric, to make something pass
+- Writing off a Gate 1 failure as "an environment problem" and marking work done
+- Rewriting project history (force push) without director approval
 
-## 5. 실패 정책 (Failure Policy)
+## 5. Failure policy
 
-> 18장: *"나쁜 Loop 대부분은 실패 정책이 없다. 그래서 문제가 생기면 에이전트가 즉흥적으로 판단한다."*
+> ch.18: *"Most bad loops have no failure policy, so the agent improvises when something breaks."*
 
-미리 정해 둔다. 즉흥 판단 금지.
+Decided in advance. No improvising.
 
-| 상황 | 대응 |
+| Situation | Response |
 |---|---|
-| 기계 Gate 실패 | 고치고 재시도. 채점은 하지 않는다. |
-| 기준표 95점 미만 | 감점 사유를 받아 수정 후 재채점 |
-| 같은 검증이 2회 연속 실패 | 사람 검토로 넘긴다 |
-| 점수 무진전 2회 | 반복 중단, 사람 검토로 넘긴다 |
-| 최대 반복 5회 도달 | 중단, **완료로 표시 금지**, Discord 보고 |
-| 경계(4절) 위반 감지 | **즉시 중단.** 되돌리고 디렉터에게 보고 |
-| 에뮬레이터/빌드 인프라 장애 | 작업은 `ready`로 되돌리고 `Do Not Repeat`에 원인 기록 |
+| Gate 1 fails | Fix and retry. Do not score. |
+| Rubric below 95 | Take the itemized deductions, fix, re-score |
+| Same check fails twice in a row | Hand to human review |
+| Score flat for 3 rounds | Stop iterating, hand to human review |
+| 5-round limit reached | Stop. **Never mark done.** Report on Discord. |
+| Boundary (§4) violation detected | **Stop immediately.** Revert and report to the director. |
+| Unity/build infrastructure failure | Return the task to `ready`; record the cause in `Do Not Repeat` |
 
-## 6. 예산 가드레일
+## 6. Budget guardrails
 
-> 27·32장: 상한 없는 루프는 자동화가 아니라 열린 비용이다.
+> ch.27/32: a loop without limits is not automation, it is an open-ended bill.
 
-- 작업 1건당 품질 루프 **최대 5회 반복**
-- 할 일이 없으면 **반드시 idle로 자고**, 일을 만들어내지 않는다
-- 승인 대기 중 알림은 **여러 틱에 한 번만**. 매 틱 알림 금지
-- 디렉터가 `state/loop.json`의 `paused: true`로 언제든 정지시킬 수 있다
+- Max **5 quality-loop rounds** per task
+- With nothing to do, **go idle**. Never manufacture work.
+- Nudge about pending approvals **once every several ticks**, never every tick
+- The director can stop the team at any time via `paused: true` in `state/loop.json`
+
+## 7. Standing director rules (2026-07-16)
+
+1. **Permissions** follow `C:\Users\user\.claude\settings.json` (the parent `.claude`). Do not add
+   project-local permission settings that override it.
+2. **Use `rtk` always.** The global settings already hook Bash/PowerShell through `rtk hook claude`,
+   so shell commands are token-filtered automatically. Prefer `rtk read`/`rtk grep`/`rtk test` over
+   raw equivalents where a tool does not already cover it.
+3. **English for everything except reports to the director.** Docs, code, comments, commits, agent
+   prompts, backlog, state — English. Discord messages and in-session reports to the director — Korean.
+4. **Work token-efficiently.** Delegate reading; keep `PROGRESS.md` a cockpit, not a warehouse.
+5. **Unity only** (locally installed, 6000.5.1f1). Not Flutter. Connect Unity MCP when a project
+   exists and it is needed.
 
 ---
 
-## 변경 이력
-- 2026-07-16 최초 작성. 프로젝트 미지정 상태의 템플릿.
+## Change log
+- 2026-07-16 Created (project unassigned template).
+- 2026-07-16 Director rules 1-5 added. Stack fixed to Unity (was PM's choice between Flutter/Unity);
+  Gate 1 rewritten for Unity; document translated to English per rule 3.

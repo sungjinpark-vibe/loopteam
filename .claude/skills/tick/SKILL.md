@@ -44,7 +44,7 @@ It returns `WORK`, `REPLY`, or `IDLE`.
 If `VISION.md` section 2 is still `_(미지정)_` and the scout found a **new brief**:
 
 1. Create the app folder, `git init` inside it, add it to the root `.gitignore`.
-2. Decide the stack (CLAUDE.md: Flutter vs Unity) and record why.
+2. The stack is **Unity** — fixed by director rule, not a decision to make (`VISION.md` §7).
 3. **Write `VISION.md` sections 2-3**: project, concept, and the **rubric** — adapted to this app.
    The rubric must be written **now, before any code**. A rubric written later bends to fit the result.
 4. Open `T001` as an `explore` task for `planner` (the detailed spec).

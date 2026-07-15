@@ -386,7 +386,9 @@ ${BRIEF}${CONTEXT}
 ${impl.howToVerify}
 
 ## Your job
-1. Launch the app on the Pixel_9 emulator (boot it first if it is down; see CLAUDE.md).
+1. Run the game. Unity is the stack (see CLAUDE.md) — drive it via PlayMode/EditMode or a player
+   build, whichever actually exercises the flow. The mechanical gate already confirmed it compiles;
+   your job is to confirm it *behaves*.
 2. Drive the flow above, step by step.
 3. For each step record: what you did, and what ACTUALLY happened on screen.
 4. Capture screenshots of the changed screens. Report absolute paths.
