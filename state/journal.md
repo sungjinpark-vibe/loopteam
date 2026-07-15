@@ -75,3 +75,13 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   Review — not ours to change unasked.
 - note: `loopteam` repo still does not exist on GitHub; engine is committed locally only. gh CLI is not
   installed and credential extraction was (correctly) blocked, so the director must create it.
+
+## Tick 0d — receive verified; app-dev-team left alone
+- did: Director sent two "테스트" messages; both landed in incoming.log and last-id advanced to the
+  newest. Full round trip now proven: send, receive, cursor advance, self-heal.
+- decision: Offered to fix the same cursor bug in app-dev-team's daemon. **Director said no
+  ("건드리지 마"). Closed — do not propose it again.** Recorded in PROGRESS.md → Do Not Repeat.
+  The bug stays live there; that project is chat-driven, so it is far less exposed than a loop.
+- did: Marked the two test messages as handled so the first real tick does not mistake "테스트" for a
+  project brief.
+- result: engine ready. Waiting on the director's first brief. Nothing blocking.
