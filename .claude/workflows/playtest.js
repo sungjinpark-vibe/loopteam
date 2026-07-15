@@ -1,10 +1,10 @@
+// NOTE: `meta` must be a PURE LITERAL — no string concatenation, no variables,
+// no template interpolation. The loader parses it statically and rejects even
+// `'a' + 'b'` (a BinaryExpression).
 export const meta = {
   name: 'playtest',
   description: 'Gate 3 — five game experts playtest the build and score it; avg >= 90 with an 80 floor ends app development',
-  whenToUse:
-    'The app-completion gate (VISION.md 3.3). The PM runs this when a meaningful slice is playable — ' +
-    'NOT after every task. QA drives the real build once, then five experts with different lenses score ' +
-    'that evidence independently. Below the bar, the team fixes and it re-runs.',
+  whenToUse: 'The app-completion gate (VISION.md 3.3). The PM runs this when a meaningful slice is playable — NOT after every task. QA drives the real build once, then five experts with different lenses score that evidence independently. Below the bar, the team fixes and it re-runs.',
   phases: [
     { title: 'Evidence' },
     { title: 'Panel' },
@@ -41,7 +41,18 @@ export const meta = {
 //   maxRounds   number   default 5
 //   context     string   extra context
 
-const a = args ?? {}
+// `args` arrives as a JSON STRING in this environment, not an object (verified
+// 2026-07-16 — see quality-loop.js for the same guard and the evidence).
+// Accept either rather than depending on which one is true today.
+function coerceArgs(x) {
+  if (typeof x === 'string') {
+    try { return JSON.parse(x) } catch (e) { return { __parseError: e.message } }
+  }
+  return x ?? {}
+}
+const a = coerceArgs(args)
+if (a.__parseError) return { ok: false, error: `args was a string but not valid JSON: ${a.__parseError}` }
+
 const APP_DIR = a.appDir
 const BRIEF = a.brief ?? ''
 const TARGET = a.targetPlayer ?? ''

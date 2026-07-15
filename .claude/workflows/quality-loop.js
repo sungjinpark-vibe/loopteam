@@ -1,11 +1,10 @@
+// NOTE: `meta` must be a PURE LITERAL. No string concatenation, no variables,
+// no template interpolation — the loader parses it statically and rejects even
+// `'a' + 'b'` (a BinaryExpression). Keep every value a single literal.
 export const meta = {
   name: 'quality-loop',
   description: 'Run one task until it clears Gate 1 (mechanical) and Gate 2 (team lead, 90 points)',
-  whenToUse:
-    'The inner loop of the loop engine. The PM calls this for a single backlog task. ' +
-    'mode:"build" = implement -> mechanical gate -> evidence -> team lead scores 90 -> revise. ' +
-    'mode:"explore" = N proposals from different angles -> the team lead scores them all -> winner. ' +
-    'The app-completion gate (5 expert playtest) is a separate workflow: playtest.',
+  whenToUse: 'The inner loop of the loop engine. The PM calls this for a single backlog task. mode:"build" = implement -> mechanical gate -> evidence -> team lead scores 90 -> revise. mode:"explore" = N proposals from different angles -> the team lead scores them all -> winner. The app-completion gate (5 expert playtest) is a separate workflow: playtest.',
   phases: [
     { title: 'Implement' },
     { title: 'Gate' },
@@ -46,7 +45,20 @@ export const meta = {
 //   angles     string[] explore mode: the distinct angles to attempt from
 //   context    string   extra context (file paths, spec excerpts)
 
-const a = args ?? {}
+// `args` arrives as a JSON STRING in this environment, not an object — verified
+// 2026-07-16 with both a large and a minimal payload; both landed as strings and
+// died on `args.brief` being undefined before a single agent ran. The tool docs
+// say to pass an object; the runtime disagrees. Accept either rather than
+// depending on which one is true today.
+function coerceArgs(x) {
+  if (typeof x === 'string') {
+    try { return JSON.parse(x) } catch (e) { return { __parseError: e.message, __raw: x } }
+  }
+  return x ?? {}
+}
+const a = coerceArgs(args)
+if (a.__parseError) return { ok: false, error: `args was a string but not valid JSON: ${a.__parseError}` }
+
 const MODE = a.mode ?? 'build'
 const TITLE = a.title ?? 'untitled task'
 const BRIEF = a.brief ?? ''

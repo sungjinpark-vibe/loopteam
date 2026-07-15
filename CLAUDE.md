@@ -152,9 +152,16 @@ it is the single failure mode this whole design exists to prevent.
 
 ## Running the quality loop
 
+> ⚠️ **Two real traps (both hit 2026-07-16 — `state/PROGRESS.md` → Do Not Repeat):**
+> 1. A workflow's `meta` must be a **pure literal** — even `'a' + 'b'` is rejected. A workflow whose
+>    meta won't parse is **invisible, not loudly broken**: it silently fails to register and
+>    `Workflow({name:'x'})` then reports "not found", which looks like a discovery problem but isn't.
+>    Diagnose "not found" as a meta error first. We call by `scriptPath` because it fails loudly.
+> 2. `args` arrives as a **JSON string**, not an object. Our scripts coerce it — don't "fix" that away.
+
 ```
 Workflow({
-  name: 'quality-loop',
+  scriptPath: 'C:\\Users\\user\\loop_engine\\.claude\\workflows\\quality-loop.js',
   args: {
     title:   'T004 leaderboard weekly reset',
     brief:   '<what to do + acceptance criteria, from the task file>',

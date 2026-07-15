@@ -191,3 +191,30 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   created, not discovered after the gate starts failing.
 - declined: third-party Unity MCPs (CoplayDev, CoderGamester) — the official one exists.
 - next: starting `/loop /tick` so the inbox is actually read from now on.
+
+## Tick 3 — 2026-07-16 08:40 — first project brief; T001 launched
+- did: Monitor fired on the director's 08:25 message — the loop woke on the event, not on the 30-min
+  heartbeat. That is the responsiveness fix working.
+- task: T001 (explore, planner) — spec the Life Town Unity rebuild
+- result: project created, T001 running.
+- brief: rebuild `lifetown` in Unity, but "make it better achieve the app's purpose" — not a port.
+- **survey finding (delegated, read-only)**: the repo notes claimed lifetown "shipped through v0.0.5".
+  **It never shipped** — that is an internal label; debug signing, test AdMob IDs, no developer account.
+  It is 34,344 lines / 210 files / 27 screens of real, polished work. But **the integrity system does
+  not exist**: no caps, no focus enforcement, no clock-tamper defense, and **no server at all** (no
+  Cloud Functions). `economy.dart:10-12` admits it. The spec marks all of it Must.
+- **the insight worth keeping**: the purpose is "내 시간과 노력을 눈에 보이게". If the timer can be
+  cheated, the village mirrors nothing and becomes decoration — the purpose collapses. Making the
+  village *trustworthy* may serve the brief more than any feature. **Not assumed** — handed to planner
+  as one of three competing angles (trust / feel / ship) for the lead to score.
+- scope deliberately NOT decided by the PM. 34k lines is not automatically the MVP; that is the
+  director's call, and the winning proposal will go to Discord for approval.
+- **three infrastructure bugs found and fixed** (all in our own code/usage, see Do Not Repeat):
+  1. `meta` must be a pure literal — our `whenToUse` used `'a' + 'b'` concatenation. A broken meta makes
+     a workflow **invisible**, so `name:` lookup says "not found" and *looks* like a discovery problem.
+     Nearly recorded as the wrong lesson before both workflows appeared by name once meta parsed.
+  2. `args` arrives as a **JSON string**, not an object — verified with both a large and a minimal
+     payload. Died before any agent ran. Both workflows now coerce it.
+  3. `Start-Process -PassThru` empty `.ExitCode` (fixed earlier, Tick 1b).
+- note: Unity project created via batchmode (exit 0) and git-initialised with a Unity .gitignore —
+  24 files tracked, Library/ excluded. Root `.gitignore` now excludes `/lifetown/`.

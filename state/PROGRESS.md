@@ -107,6 +107,20 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 - **Do not call agents/skills in the same session that created them.** Claude Code registers
   `.claude/agents/` and `.claude/skills/` at session start; until a restart, calls fail with
   "Agent type not found". (Confirmed 2026-07-16; loaded fine after restart in Tick 1.)
+- **A workflow whose `meta` fails to parse is INVISIBLE, not loudly broken.** It silently does not
+  register, so `Workflow({name:'x'})` reports "not found. Available: deep-research, code-review" — which
+  looks like `.claude/workflows/` isn't discoverable at all. It is. The real cause was the `meta` bug
+  below. Once fixed, both workflows appeared by name immediately.
+  **Diagnose "workflow not found" as a meta/parse error first**, not as a discovery limitation.
+  (2026-07-16, Tick 3 — this nearly got written down as the wrong lesson.)
+  `scriptPath` works either way and is what our docs use, since it fails loudly instead of silently.
+- **Pass `args` to Workflow as a real JSON OBJECT, not a JSON-encoded string.** A stringified object
+  arrives as one string, so `args.brief` is undefined and the workflow dies instantly with 0 agents
+  run. (2026-07-16, Tick 3 — cost one failed launch.)
+- **A workflow's `meta` must be a PURE LITERAL.** Even `'a' + 'b'` string concatenation fails with
+  "meta must be a pure literal: non-literal node type in meta: BinaryExpression". No variables, no
+  template interpolation, no concatenation — every value a single literal. (2026-07-16, Tick 3: both
+  workflows had multi-line concatenated `whenToUse` strings and neither would load.)
 - **Do not trust Unity's batchmode exit code alone.** It can exit 0 with compile errors. Always also
   scan the editor log for `error CS####`. (This is why `gate/gate.ps1` checks both.)
 - **Do not install Unity MCP without solving the project-lock conflict first.** Unity MCP needs a

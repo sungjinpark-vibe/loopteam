@@ -24,7 +24,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 
 | ID | Title | Status | Agent | Mode | Priority | Notes |
 |---|---|---|---|---|---|---|
-| — | _(empty — no app assigned yet)_ | — | — | — | — | Waiting on the user's first project brief |
+| T001 | Spec the Life Town Unity rebuild — sharpened toward the app's purpose | `in-progress` | planner | explore | 1 | 3 angles (trust / feel / ship) → 기획팀장 scores P1-P5 at 90. Its output needs director approval before anything downstream starts. |
 
 ## Task file format
 

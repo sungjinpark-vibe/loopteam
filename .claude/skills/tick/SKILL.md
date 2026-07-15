@@ -64,9 +64,15 @@ Sharpen before launching: **the rubric and the acceptance criteria are the whole
 scores against them, so vague criteria produce vague scores and burn rounds. If they are not checkable
 against *observable behavior*, fix them first and write the sharpened version back to the task file.
 
+> ⚠️ **Two traps, both hit for real on 2026-07-16 — see `state/PROGRESS.md` → Do Not Repeat:**
+> 1. A workflow's `meta` must be a **pure literal** (even `'a' + 'b'` is rejected). A broken meta makes
+>    the workflow **invisible**, and `Workflow({name:'x'})` then says "not found" — which looks like a
+>    discovery problem but is a parse error. We use `scriptPath` because it fails loudly.
+> 2. `args` arrives as a **JSON string**, not an object. Our scripts coerce it; don't "fix" that away.
+
 ```
 Workflow({
-  name: 'quality-loop',
+  scriptPath: 'C:\\Users\\user\\loop_engine\\.claude\\workflows\\quality-loop.js',
   args: {
     title:   '<id> <title>',
     brief:   '<Brief + Acceptance criteria, verbatim from the task file>',
@@ -88,11 +94,14 @@ The workflow enforces Gate 1 and Gate 2 itself. It runs in the background; you a
 If yes — and **only** at a milestone, never after every task (`VISION.md` §6) — run **Gate 3**:
 
 ```
-Workflow({ name: 'playtest', args: {
-  appDir, brief, targetPlayer /* VISION.md §2 */, flows,
-  experts: [ /* VISION.md §3.3 panel */ ], rubric: [ /* §3.3 */ ],
-  passMark: 90, floor: 80, maxRounds: 5
-}})
+Workflow({
+  scriptPath: 'C:\\Users\\user\\loop_engine\\.claude\\workflows\\playtest.js',
+  args: {
+    appDir, brief, targetPlayer /* VISION.md §2 — REQUIRED */, flows,
+    experts: [ /* VISION.md §3.3 panel */ ], rubric: [ /* §3.3 */ ],
+    passMark: 90, floor: 80, maxRounds: 5
+  }
+})
 ```
 `ok: true` → **app development ends.** Report the panel's scores to the director and ask what is next.
 Five experts × five rounds on a half-built screen is pure burn — wait for something actually playable.
