@@ -38,6 +38,10 @@ PM이 매 틱 끝에 갱신한다. 방향은 `VISION.md`, 작업 목록은 `back
   미리 고정했지만, 이 한계는 사라지지 않는다. `VISION.md` 3절에 명시해 둠.
 
 ## Next Run Should — 다음 실행이 할 일
+0. **전제**: `/tick`과 팀 에이전트(`loop-scout` 등)는 **이 파일들이 존재한 뒤에 시작된 Claude Code
+   세션에서만** 쓸 수 있다. Claude Code는 세션 시작 시 `.claude/agents/`·`.claude/skills/`를 읽고,
+   이후 추가된 것은 재시작 전까지 인식하지 못한다. (2026-07-16 확인: 구축 직후 `loop-scout` 호출이
+   "Agent type not found"로 실패했다.) 첫 틱은 반드시 **재시작 후** 돌릴 것.
 1. `.discord/incoming.log`에서 첫 브리프를 찾는다. (채널 연결 완료 — 봇 `Loop_team`, `#loop-team`)
 2. 브리프가 있으면: 앱 폴더 생성 → `git init` → 루트 `.gitignore`에 추가 → 스택 결정 →
    `VISION.md` 2~3절(프로젝트 + **기준표**) 작성 → 디렉터 승인 요청 → T001(explore, planner) 개설.

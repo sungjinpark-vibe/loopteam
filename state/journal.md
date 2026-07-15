@@ -85,3 +85,17 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - did: Marked the two test messages as handled so the first real tick does not mistake "테스트" for a
   project brief.
 - result: engine ready. Waiting on the director's first brief. Nothing blocking.
+
+## Tick 0e — engine complete; team wakes on restart
+- did: Tried to validate the loop by hand (18장: prove it by hand before scheduling). Attempted to run
+  `loop-scout` and it failed: "Agent type 'loop-scout' not found".
+- cause: Claude Code reads `.claude/agents/` and `.claude/skills/` at session start. This session began
+  before those files existed, so the team is not registered in it. Not a defect in the files —
+  frontmatter names all verified against filenames.
+- result: **The engine is complete but unexercised. The first real `/tick` must run in a fresh Claude
+  Code session.** Recorded in PROGRESS.md → Next Run Should step 0.
+- what IS verified: mechanical gate end-to-end (passes healthy, catches an injected error, fails
+  closed); Discord round trip (send, receive, cursor advance, no self-echo, watchdog self-heal);
+  repo pushed to loopteam with no token in history; all agent references in quality-loop.js resolve.
+- what is NOT verified: a full tick, and the two gates running against a real task. Nothing has been
+  built by this team yet.
