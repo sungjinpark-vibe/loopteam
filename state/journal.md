@@ -55,3 +55,21 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   implementers are ever parallelized.
 - note: 18장 says do not schedule a loop before it runs cleanly by hand. Watchdog scheduled task
   deliberately NOT registered yet. Run `/tick` manually first.
+
+## Tick 0c — Discord channel live
+- did: Wired the director's channel. Bot `Loop_team` (id 1526972090203504700) → `#loop-team`.
+  Verified auth, channel access, send, and no self-echo. Registered scheduled task
+  `LoopEngine-DiscordDaemon-Watchdog` (1 min) and proved self-heal by killing the daemon — the
+  watchdog revived it (PID 14356 → 10752). Three project listeners now coexist without collision.
+- result: channel ready; loop can report. Waiting on the director's first brief.
+- found + fixed: **Discord cursor bug**, inherited latent from app-dev-team. `le-daemon.ps1` skipped
+  the bot's own messages with `continue` BEFORE advancing `$lastId`, so our own sends never moved the
+  cursor. Since `?after=<id>&limit=100` returns the OLDEST 100 after the cursor, an autonomous loop —
+  which reports far more often than the director replies — would fill that window with its own reports
+  and never read the director's next message, waiting forever on an approval already given. Chat-driven
+  use hides this; a loop walks straight into it. Fixed by advancing the cursor for every message and
+  filtering only the logging. Verified: last-id went 0 → real message id after the fix.
+- note: the same bug is still live in app-dev-team's `discord-daemon.ps1`. Logged under Needs Human
+  Review — not ours to change unasked.
+- note: `loopteam` repo still does not exist on GitHub; engine is committed locally only. gh CLI is not
+  installed and credential extraction was (correctly) blocked, so the director must create it.

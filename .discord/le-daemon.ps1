@@ -107,8 +107,19 @@ while ((Get-Date) -lt $deadline) {
     # oldest-first and advance last-id.txt to the true max seen.
     $sorted = $msgs | Sort-Object -Property @{ Expression = { [System.Numerics.BigInteger]::Parse($_.id) } }
     foreach ($m in $sorted) {
-      if ($m.author.id -eq $botId) { continue }  # skip our own sent messages
+      # Advance the cursor for EVERY message, including our own, BEFORE the
+      # skip. Only the logging is filtered — not the cursor.
+      #
+      # This ordering is load-bearing (bug found 2026-07-16, inherited from
+      # app-dev-team where it was latent): `?after=<id>&limit=100` returns the
+      # OLDEST 100 messages after the cursor. If our own sends never advanced
+      # the cursor, an autonomous loop — which reports far more often than the
+      # director replies — would fill that 100-message window with its own
+      # reports. The director's next message would fall outside the window and
+      # never be read, and the loop would wait forever on an approval that was
+      # already given. Chat-driven use hides this; a loop walks straight into it.
       $lastId = $m.id
+      if ($m.author.id -eq $botId) { continue }  # skip logging our own sends
       $when = (Get-Date $m.timestamp).ToLocalTime().ToString("HH:mm:ss")
       $name = if ($m.author.global_name) { $m.author.global_name } else { $m.author.username }
       $block = "### MESSAGE $($m.id) $when from $name`r`n"
