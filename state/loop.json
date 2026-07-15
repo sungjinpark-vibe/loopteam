@@ -1,10 +1,10 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 1,
+  "tick": 2,
   "project": null,
   "active_task": null,
-  "last_tick_at": "2026-07-16 00:45",
-  "consecutive_idle_ticks": 1,
+  "last_tick_at": "2026-07-16 06:45",
+  "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],

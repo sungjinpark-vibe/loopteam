@@ -169,3 +169,25 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   and server-dev. Leaving them is how Goal Drift starts.
 - verified: both workflows parse; every `agentType` they call resolves to a real agent file.
 - **still unexercised**: all three gates against a real task. No game exists yet.
+
+## Tick 2 — 2026-07-16 06:45 — REPLY (tooling research)
+- did: Scout drained the inbox and classified the director's 06:30 message as a question, correctly
+  refusing to stretch a tooling request into a game brief. PM researched and replied on Discord.
+- task: none (REPLY)
+- result: replied.
+- **why the director saw no answer for hours**: the listener was healthy the whole time and the message
+  was sitting in `incoming.log` since 06:30. Nothing read it because **no tick was running**. Discord is
+  an inbox, not a chat — the loop must be turning for anything to happen. `/loop /tick` was never
+  started (deliberately: prove it by hand first, then the session ended). This is the failure mode the
+  autonomous loop exists to remove, demonstrated live.
+- findings (recommendation): the team already has what it needs — rtk is already hooked, 17 community
+  skills installed. **One thing worth adding: the OFFICIAL Unity MCP** (`com.unity.ai.assistant`,
+  needs Unity 6000.0+; we are on 6000.5.1f1 — verified in Unity's own docs). It would let QA read
+  scene/console/tests directly instead of a 30-90s batchmode round trip, which is where Gate 3's
+  evidence cost lives. Still pre-release (2.7.0-pre.3).
+- **⚠️ real conflict found**: Unity MCP needs a **running Editor**, and a running Editor **holds the
+  project lock** — the exact thing that makes `gate/gate.ps1` fail. Turning MCP on naively would break
+  Gate 1 every run. Recorded in Do Not Repeat; the sequencing must be designed when the project is
+  created, not discovered after the gate starts failing.
+- declined: third-party Unity MCPs (CoplayDev, CoderGamester) — the official one exists.
+- next: starting `/loop /tick` so the inbox is actually read from now on.

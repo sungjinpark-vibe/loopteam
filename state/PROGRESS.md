@@ -27,6 +27,12 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 - No project assigned. `VISION.md` §2 still the template.
 - **Unity MCP not connected.** Director ruled: connect once a project exists and it is needed
   (`VISION.md` §7 rule 5). Not a blocker while there is no project.
+  - **Use the OFFICIAL one**: `com.unity.ai.assistant`, requires Unity 6000.0+ (we are on 6000.5.1f1 —
+    supported, verified in Unity's docs 2026-07-16). Setup: Edit > Project Settings > AI > Unity MCP
+    Server; the bridge auto-starts and installs a relay binary to `~/.unity/relay/` which Claude Code
+    points at. Do not use third-party Unity MCPs; the official one exists.
+  - Still **pre-release** (2.7.0-pre.3). Verify when actually installing.
+  - **⚠️ It conflicts with our gate — design the sequencing before installing.** See Do Not Repeat.
 
 ## Blockers
 - None. Channel wired, remote pushed, Unity gate verified. Waiting on the first brief.
@@ -103,6 +109,12 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   "Agent type not found". (Confirmed 2026-07-16; loaded fine after restart in Tick 1.)
 - **Do not trust Unity's batchmode exit code alone.** It can exit 0 with compile errors. Always also
   scan the editor log for `error CS####`. (This is why `gate/gate.ps1` checks both.)
+- **Do not install Unity MCP without solving the project-lock conflict first.** Unity MCP needs a
+  **running Editor**, and a running Editor **holds the project lock** — which is exactly what stops
+  `gate/gate.ps1` from opening the project in batchmode. Naively turning MCP on makes Gate 1 fail every
+  time. Decide the sequencing (e.g. QA gathers evidence via MCP with the Editor up, then the Editor
+  closes before the gate runs) as part of creating the project — not after Gate 1 starts failing.
+  (Found 2026-07-16 while researching; not yet hit because no project exists.)
 - **`Start-Process -PassThru` gives an EMPTY `.ExitCode`** unless `$p.Handle` is touched before the
   process exits. (2026-07-16: made every Unity compile look inconclusive until fixed.)
 - **Do not use `grep -P` in Git Bash** — this PC's locale fails with "grep: -P supports only unibyte
