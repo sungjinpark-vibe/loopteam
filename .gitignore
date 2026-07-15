@@ -1,0 +1,37 @@
+# ── App projects: each gets its OWN git repo — do NOT track here ──
+# (add each app folder as it is created, same rule as app-dev-team)
+
+# ── From .claude, track team agents + skills + workflows ──
+.claude/*
+!.claude/agents/
+!.claude/skills/
+!.claude/workflows/
+
+# ── Secrets: NEVER commit ──
+.discord/config.json
+
+# ── Discord runtime state (per-PC, not shareable) ──
+.discord/last-id.txt
+.discord/inbox/
+.discord/incoming.log
+.discord/handled.txt
+.discord/le-daemon-pid.txt
+.discord/le-daemon-heartbeat.txt
+.discord/le-daemon-error.log
+.discord/le-watchdog.log
+
+# ── Gate output: regenerated every run, not memory ──
+state/gate-result.json
+
+# ── Loop state: TRACKED on purpose ──
+# backlog/, state/journal.md and state/loop.json are the loop's memory. Its
+# context is wiped regularly; these files are the only thing that isn't, so they
+# must survive a machine move and are worth the git churn. Nothing to ignore here.
+
+# ── Build / binaries / OS / temp ──
+**/build/
+*.apk
+*.aab
+Thumbs.db
+.DS_Store
+*.log

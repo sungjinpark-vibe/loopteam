@@ -1,0 +1,12 @@
+{
+  "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
+  "tick": 0,
+  "project": null,
+  "active_task": null,
+  "last_tick_at": null,
+  "consecutive_idle_ticks": 0,
+  "paused": false,
+  "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
+  "escalations": [],
+  "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done."
+}
