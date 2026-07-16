@@ -27,7 +27,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T001 | Spec the Life Town Unity rebuild | `done` | planner | explore | 1 | **93/90** (83→93). Approved with overrides 2026-07-16 (D1/D11 keep, D7 defer ship). Spec + 01-decisions-resolved.md. |
 | T002 | Build Economy.Core — pure-C# spine | `done` | client-dev | build | 1 | **99/90** r1. Gate green (55/55 tests). Committed a9238c2. |
 | T003 | Build LifeTown.Platform — Android clock + save-file IO | `done` | client-dev | build | 1 | **99/90** r1. Gate green (81/81 tests). Committed 99db431. |
-| T004 | Art design system — village + core screens | `in-progress` | ui-ux | explore | 1 | Unblocks the App layer. 3 angles (readability/delight/cohesion) within the locked identity. 아트팀장 A1-A5. Director taste input welcome. |
+| T004 | Art design system — village + core screens | `done` | ui-ux | explore | 1 | **92/90** r1 (cohesion won; readability+delight grafted per director). Committed. |
 
 ## Task file format
 

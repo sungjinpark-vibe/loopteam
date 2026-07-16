@@ -387,3 +387,20 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   every message.
 - pending: confirm the final look with the director via mockups before T004 is done; asked if they want
   a weighting (e.g. 6:4) or an even split.
+
+## Tick 11 — 2026-07-16 21:00 — T004 art system PASSED 92; mockups next
+- task: T004 (explore, ui-ux) → **PASSED 92/90 r1.** Cohesion won (92); readability 91, delight 87.
+- design doc saved to lifetown/docs/design/00-art-design-system.md (40k), committed 35753fc.
+- **the director's blend directive is honored via grafts, not a re-run**: the cohesion winner already
+  grafted readability's "Legibility Layer" (identity indicators excluded from Light2D so always legible
+  — literally readability's core idea, marked "winner's biggest steal") + delight's night window-glow and
+  coin-fly beats. So the deliverable is cohesion-substrate + readability-legibility + delight-charm ≈ the
+  1+2 blend the director asked for, on a consistent spine. Honest caveat: cohesion is still the headline,
+  so the DIRECTOR judges the actual balance on mockups, not on my say-so.
+- **finding (ui-ux caught my brief's error)**: the 7 category hex are NOT in Core — T002 built only
+  economy math, no CategoryDef color config exists. The design doc is now the color source of truth.
+  Recorded in Do Not Repeat so the App layer doesn't assume Core has colors.
+- **next = T005 mockups** for the director's visual sign-off (I promised images). Not a gated task —
+  the director is the judge of a mockup, not the art lead. Delegating to ui-ux to build HTML mockups of
+  village + timer + receipt in the readability+delight blend; PM renders HTML→PNG (render-html.ps1 +
+  Chrome both verified present) and sends to Discord. Render pipeline confirmed working before launch.

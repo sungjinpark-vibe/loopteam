@@ -138,6 +138,11 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   **Diagnose "workflow not found" as a meta/parse error first**, not as a discovery limitation.
   (2026-07-16, Tick 3 — this nearly got written down as the wrong lesson.)
   `scriptPath` works either way and is what our docs use, since it fails loudly instead of silently.
+- **The 7 category hex colors are NOT in Core yet.** T002 built only economy math (EconomyConfig,
+  Settlement, …) — there is no `CategoryDef`/color ScriptableObject. `lifetown/docs/design/00-art-design-system.md`
+  (T004) is the color source of truth; bake those hex into `CategoryDef.color` when the App layer builds
+  that ScriptableObject. (Do not assume Core has colors — my T004 brief wrongly claimed it did; ui-ux
+  caught it. 2026-07-16.)
 - **build mode requires `rubric` too — not just explore.** Easy to forget because explore is where the
   rubric feels central; build refuses just as hard (`requires args.rubric`, 0 agents, 5ms). The
   client rubric is C1-C5 in `VISION.md` §3.2. (2026-07-16, T002 — one wasted launch.)
