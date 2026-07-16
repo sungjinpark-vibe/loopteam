@@ -351,3 +351,22 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - lifetown remote: still none; director said he'll provide it later. Committing locally, as before.
 - note: scout had already created the T003 file and backlog row (good — that is its job); PM only set
   status in-progress and launched. No duplication.
+
+## Tick 9 — 2026-07-16 20:52 — T003 PASSED 99; T004 (art) launched
+- task: T003 (build) → **PASSED 99/90 r1.** Gate: compile 0 errors, 81/81 tests (55 Core + 26 Platform).
+  Committed 99db431 (33 files). C2 -1 (round-trip on sampled fields, not full equality).
+- **verified independently, and a false alarm worth noting**: my grep for §7.4 boundary leaks flagged
+  RebootTamperGuard.cs — but the only hit was a DOC-COMMENT (`<see cref="Settlement.CommitRecovered"/>`)
+  stating the boundary it does NOT cross. Real code is just `WallMs-ElapsedMs` and `Abs(...) > tol`. The
+  lead was right; my grep was coarse. Checked the actual context before trusting the alarm — a coarse
+  grep is a lead, not a verdict.
+- **milestone**: the decision-stable code spine (Core + Platform) is DONE and gate-proven. 81 tests.
+  Two 99/90 builds, both one-round. The gates are working on real code, repeatedly.
+- **next = T004 art design system (explore, ui-ux, 아트팀장).** Reasoning: the App layer (screens) is
+  now the only forward path, and the village — the payoff screen — is blocked on visual direction. So
+  art is the bottleneck. Mode is explore (a design DOC, no Unity code → no mechanical gate, same as
+  T001's spec). 3 execution angles WITHIN the locked identity (readability / delight / cohesion) —
+  the palette/style are locked, so the divergence is in execution, not identity.
+- **flagged to the director**: unlike Core/Platform (decision-stable, my call), the visual direction is
+  the game director's domain. Proceeding on "계속 진행해" but explicitly inviting taste input.
+- lifetown remote: still none (director will provide). Local commits only.
