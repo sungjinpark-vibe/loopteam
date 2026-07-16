@@ -24,6 +24,11 @@ namespace LifeTown.App.Editor
     /// Also saves the built scene to Assets/LifeTown.App/Scenes/SpikeLibrary.unity so it
     /// can be opened and inspected directly in the editor, not just as a screenshot.
     ///
+    /// RenderGymPng is the same pipeline pointed at the Gym building (see
+    /// GymBuildingBuilder) -- swap -executeMethod for
+    /// LifeTown.App.Editor.SpikeRenderer.RenderGymPng to get
+    /// Logs\spike-gym.png / Assets/LifeTown.App/Scenes/SpikeGym.unity instead.
+    ///
     /// Deliberately does NOT pass -nographics: batchmode camera.Render() needs a real
     /// graphics device on Windows to produce non-empty pixels.
     /// </summary>
@@ -33,10 +38,31 @@ namespace LifeTown.App.Editor
         const int Height = 1280;
         const string ScenesFolder = "Assets/LifeTown.App/Scenes";
         const string SceneAssetPath = ScenesFolder + "/SpikeLibrary.unity";
+        const string GymSceneAssetPath = ScenesFolder + "/SpikeGym.unity";
         const string OutputFileName = "spike-building.png";
+        const string GymOutputFileName = "spike-gym.png";
 
         [MenuItem("LifeTown/Spike/Render Library PNG")]
         public static void RenderPng()
+        {
+            RenderBuilding(SceneAssetPath, OutputFileName, focusHeight: 1.0f,
+                footprintCenter => LibraryBuildingBuilder.Build(null, footprintCenter));
+        }
+
+        /// <summary>
+        /// Same pipeline as <see cref="RenderPng"/>, pointed at the Gym instead of the
+        /// Library. Lower focusHeight than the Library's (1.0) because the Gym's whole
+        /// silhouette tops out around 0.65 vs. the Library's ~2.07 -- centring the camera
+        /// on the same world-space focus height would leave the Gym low in frame.
+        /// </summary>
+        [MenuItem("LifeTown/Spike/Render Gym PNG")]
+        public static void RenderGymPng()
+        {
+            RenderBuilding(GymSceneAssetPath, GymOutputFileName, focusHeight: 0.45f,
+                footprintCenter => GymBuildingBuilder.Build(null, footprintCenter));
+        }
+
+        static void RenderBuilding(string sceneAssetPath, string outputFileName, float focusHeight, System.Action<Vector3> buildBuilding)
         {
             RenderTexture rt = null;
             Texture2D tex = null;
@@ -47,10 +73,10 @@ namespace LifeTown.App.Editor
                 var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
                 var footprintCenter = Vector3.zero;
-                cam = IsoSceneSetup.BuildScene(footprintCenter, focusHeight: 1.0f);
-                LibraryBuildingBuilder.Build(null, footprintCenter);
+                cam = IsoSceneSetup.BuildScene(footprintCenter, focusHeight);
+                buildBuilding(footprintCenter);
 
-                SaveSceneAsset(scene);
+                SaveSceneAsset(scene, sceneAssetPath);
 
                 rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
@@ -64,7 +90,7 @@ namespace LifeTown.App.Editor
                 RenderTexture.active = prevActive;
 
                 byte[] png = tex.EncodeToPNG();
-                string outPath = Path.Combine(LogsDir(), OutputFileName);
+                string outPath = Path.Combine(LogsDir(), outputFileName);
                 File.WriteAllBytes(outPath, png);
 
                 Debug.Log($"[SpikeRenderer] wrote {png.Length} bytes to {outPath}");
@@ -87,11 +113,11 @@ namespace LifeTown.App.Editor
             }
         }
 
-        static void SaveSceneAsset(UnityEngine.SceneManagement.Scene scene)
+        static void SaveSceneAsset(UnityEngine.SceneManagement.Scene scene, string sceneAssetPath)
         {
             if (!AssetDatabase.IsValidFolder(ScenesFolder))
                 AssetDatabase.CreateFolder("Assets/LifeTown.App", "Scenes");
-            EditorSceneManager.SaveScene(scene, SceneAssetPath);
+            EditorSceneManager.SaveScene(scene, sceneAssetPath);
         }
 
         static string LogsDir()
