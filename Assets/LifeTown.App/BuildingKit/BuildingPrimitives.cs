@@ -25,9 +25,111 @@ namespace LifeTown.App.BuildingKit
         /// </summary>
         public static GameObject CreateShadedBox(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color base500)
         {
+            var (topC, frontC, sideC) = CategoryPalette.ComputeFaceTones(base500);
+            return CreateShadedBoxCustomTones(name, parent, size, baseCenter, topC, frontC, sideC);
+        }
+
+        /// <summary>
+        /// Same tri-tone box as <see cref="CreateShadedBox"/>, but the caller supplies the
+        /// three face colors directly instead of deriving all three from one base500 --
+        /// needed for archetypes where a face's color isn't a tint/shade of the body color
+        /// at all (e.g. <see cref="CreateBookVolume"/>'s cream page-block front face).
+        /// </summary>
+        public static GameObject CreateShadedBoxCustomTones(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color topColor, Color frontColor, Color sideColor)
+        {
             var pb = ShapeGenerator.GenerateCube(PivotLocation.Center, size);
-            ApplyIsoShadingByNormal(pb, base500);
+            var top = MaterialFactory.CreateFlat(name + "_Top", topColor);
+            var front = MaterialFactory.CreateFlat(name + "_Front", frontColor);
+            var side = MaterialFactory.CreateFlat(name + "_Side", sideColor);
+
+            foreach (var face in pb.faces)
+            {
+                Vector3 n = PBMath.Normal(pb, face);
+                if (n.y > 0.5f) face.submeshIndex = 0;
+                else if (n.z > 0.3f) face.submeshIndex = 1;
+                else face.submeshIndex = 2;
+            }
+            // Same critical-order fix as CreateGableRoof: materials before ToMesh()/Refresh().
+            pb.GetComponent<MeshRenderer>().sharedMaterials = new[] { top, front, side };
+            pb.ToMesh();
+            pb.Refresh();
+
             return Finish(pb, name, parent, baseCenter + Vector3.up * (size.y * 0.5f));
+        }
+
+        /// <summary>
+        /// The book-stack archetype's core volume (docs/design "form expresses meaning" v2
+        /// note): a box whose front (+Z) face is a cream page-block with several thin ink
+        /// striations -- the #1 cue that reads as "book" at iso render scale -- instead of
+        /// the usual tri-tone front, and whose side (+X) face is a darkened "spine" tone
+        /// instead of the usual pure base500. Top keeps a standard lightened tone. Pure
+        /// function of size/position/three colors, so any future book-shaped building
+        /// (a bookstore, a library annex) reuses it by calling with different numbers, same
+        /// as every other primitive in this file. Striation lines are parented under the
+        /// returned book GameObject (not the caller's `parent`) so a caller who yaws the
+        /// returned object afterward (see LibraryBuildingBuilder's stacked-and-nudged books)
+        /// carries the lines along with the face they belong to.
+        /// </summary>
+        public static GameObject CreateBookVolume(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color coverColor, Color pageColor, Color inkColor, int pageLineCount = 4)
+        {
+            Color topTone = Color.Lerp(coverColor, Color.white, 0.45f);
+            Color spineTone = Color.Lerp(coverColor, Color.black, 0.22f);
+            var book = CreateShadedBoxCustomTones(name, parent, size, baseCenter, topTone, pageColor, spineTone);
+
+            float frontZ = baseCenter.z + size.z * 0.5f + 0.006f; // proud of the front face, avoids z-fighting
+            float lineThickness = 0.014f;
+            float lineWidth = size.x * 0.82f;
+            for (int i = 1; i <= pageLineCount; i++)
+            {
+                float t = i / (float)(pageLineCount + 1);
+                float lineY = baseCenter.y + size.y * t;
+                CreateAccentBox($"{name}_PageLine{i}", book.transform,
+                    new Vector3(lineWidth, lineThickness, 0.012f),
+                    new Vector3(baseCenter.x, lineY - lineThickness * 0.5f, frontZ),
+                    inkColor);
+            }
+            return book;
+        }
+
+        /// <summary>
+        /// The book-stack archetype's crown: one open book perched on top, built as two
+        /// cream page-slabs hinged at a shared ridge (ridge along local Z, matching
+        /// <see cref="CreateGableRoof"/>'s convention) and tilted down and outward from it
+        /// -- a gentle tent/V, not a filled triangular roof volume -- with an ink spine
+        /// accent at the ridge and a few page-edge striations riding along each slab's own
+        /// tilt. Sized generously per the director's v2 form note: this REPLACES the old
+        /// peaked-roof archetype, it does not sit under one.
+        /// `ridgeCenter` is the world-space hinge point both wings rotate around.
+        /// </summary>
+        public static void CreateOpenBookCrown(Transform parent, Vector3 ridgeCenter, float wingLength, float wingThickness, float wingDepth, float tiltDegrees, Color pageColor, Color inkColor)
+        {
+            CreateAccentBox("Crown_Spine", parent, new Vector3(0.045f, 0.035f, wingDepth * 0.96f), ridgeCenter, inkColor);
+
+            foreach (var side in new[] { -1f, 1f })
+            {
+                string tag = side < 0f ? "Left" : "Right";
+                float angleDeg = -side * tiltDegrees;
+                var rotation = Quaternion.Euler(0f, 0f, angleDeg);
+
+                Vector3 wingCenter = ridgeCenter + rotation * new Vector3(side * wingLength * 0.5f, 0f, 0f);
+                var wing = CreateAccentBox($"Crown_Page{tag}", parent,
+                    new Vector3(wingLength, wingThickness, wingDepth),
+                    wingCenter - Vector3.up * (wingThickness * 0.5f), pageColor);
+                wing.transform.rotation = rotation;
+
+                for (int i = 1; i <= 3; i++)
+                {
+                    float t = i / 4f; // 0.25 / 0.5 / 0.75 of the way from ridge to tip
+                    Vector3 alongSlope = rotation * new Vector3(side * wingLength * t, 0f, 0f);
+                    Vector3 nudgeAboveSurface = rotation * (Vector3.up * (wingThickness * 0.5f + 0.006f));
+                    Vector3 linePivot = ridgeCenter + alongSlope + nudgeAboveSurface;
+
+                    var line = CreateAccentBox($"Crown_Page{tag}_Line{i}", parent,
+                        new Vector3(0.03f, 0.01f, wingDepth * 0.9f),
+                        linePivot - Vector3.up * 0.005f, inkColor);
+                    line.transform.rotation = rotation;
+                }
+            }
         }
 
         /// <summary>
@@ -90,32 +192,6 @@ namespace LifeTown.App.BuildingKit
             var pb = ShapeGenerator.GenerateIcosahedron(PivotLocation.Center, radius, 1);
             pb.GetComponent<MeshRenderer>().sharedMaterial = MaterialFactory.CreateFlat(name + "_Mat", color);
             return Finish(pb, name, parent, worldCenter);
-        }
-
-        /// <summary>
-        /// Classifies every face by its own normal: top(y&gt;0.5)=brightest, +Z(front,
-        /// z&gt;0.3)=medium, everything else=pure/darkest. Correct for axis-aligned boxes
-        /// (all normals are exactly +/-1 on one axis), matched to IsoSceneSetup's camera
-        /// direction (1,1,1) which makes +Z and +X the two visible vertical faces.
-        /// </summary>
-        static void ApplyIsoShadingByNormal(ProBuilderMesh pb, Color base500)
-        {
-            var (topC, frontC, sideC) = CategoryPalette.ComputeFaceTones(base500);
-            var top = MaterialFactory.CreateFlat("Top", topC);
-            var front = MaterialFactory.CreateFlat("Front", frontC);
-            var side = MaterialFactory.CreateFlat("Side", sideC);
-
-            foreach (var face in pb.faces)
-            {
-                Vector3 n = PBMath.Normal(pb, face);
-                if (n.y > 0.5f) face.submeshIndex = 0;
-                else if (n.z > 0.3f) face.submeshIndex = 1;
-                else face.submeshIndex = 2;
-            }
-            // Same critical-order fix as CreateGableRoof above: materials before ToMesh().
-            pb.GetComponent<MeshRenderer>().sharedMaterials = new[] { top, front, side };
-            pb.ToMesh();
-            pb.Refresh();
         }
 
         static GameObject Finish(ProBuilderMesh pb, string name, Transform parent, Vector3 worldPosition)

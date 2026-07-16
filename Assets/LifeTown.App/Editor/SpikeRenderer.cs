@@ -45,7 +45,11 @@ namespace LifeTown.App.Editor
         [MenuItem("LifeTown/Spike/Render Library PNG")]
         public static void RenderPng()
         {
-            RenderBuilding(SceneAssetPath, OutputFileName, focusHeight: 1.0f,
+            // focusHeight lowered from 1.0 (v1's tall tower, ~2.07 total height) to 0.45
+            // for v2's book-stack archetype: 4 flat stacked books + a shallow open-book
+            // crown top out around ~0.90 total, so the old focus height would leave the
+            // building low in frame the same way the Gym's does at its own scale.
+            RenderBuilding(SceneAssetPath, OutputFileName, focusHeight: 0.45f,
                 footprintCenter => LibraryBuildingBuilder.Build(null, footprintCenter));
         }
 
