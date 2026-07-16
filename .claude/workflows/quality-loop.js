@@ -496,7 +496,10 @@ Command (run exactly this):
 
 Then read C:\\Users\\user\\loop_engine\\state\\gate-result.json and report its contents verbatim, plus
 the exit code. pass = (exit code was 0). Copy the detail strings as-is.`,
-    { label: `gate r${round}`, phase: 'Gate', agentType: 'gate-runner', schema: GATE_SCHEMA },
+    // gate-runner is a thin wrapper (run gate.ps1, report its JSON verbatim) — no reasoning needed,
+    // so a cheap model handles it fine. Token-economy directive 2026-07-16. The grading agents
+    // (team-lead) stay on the strong session model — they must be sharp.
+    { label: `gate r${round}`, phase: 'Gate', agentType: 'gate-runner', model: 'haiku', schema: GATE_SCHEMA },
   )
 
   if (!gate || !gate.pass) {

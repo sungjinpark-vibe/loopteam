@@ -568,3 +568,6 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 
 ## Tick 20 — 2026-07-16 23:05 — token-economy directive
 - Director: "토큰 많이 사용하지 말아줘". Recorded concrete levers in PROGRESS Decisions. Biggest lever: stop spawning a full loop-scout for obvious single messages (handle inline). T007 still running; no new work this tick.
+
+## Tick 21 — 2026-07-16 23:16 — token optimization + rtk confirm
+- Director: "토큰 최적화 진행해줘. rtk 쓰지?" Confirmed rtk IS hooked project-wide (parent settings.json, Bash+PowerShell → rtk hook claude, verified). Applied one durable optimization: gate-runner now uses model:haiku in the quality loop (thin command-wrapper, no reasoning; called up to 5x/build). Grading agents stay strong. Handled inline (no scout — the token rule from Tick 20 in practice).
