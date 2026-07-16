@@ -28,7 +28,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T002 | Build Economy.Core — pure-C# spine | `done` | client-dev | build | 1 | **99/90** r1. Gate green (55/55 tests). Committed a9238c2. |
 | T003 | Build LifeTown.Platform — Android clock + save-file IO | `done` | client-dev | build | 1 | **99/90** r1. Gate green (81/81 tests). Committed 99db431. |
 | T004 | Art design system — village + core screens | `done` | ui-ux | explore | 1 | **92/90** r1 (cohesion won; readability+delight grafted per director). Committed. |
-| T005 | Art mockups for director sign-off (village/timer/receipt) | `in-progress` | ui-ux | — | 1 | R2: director said village buildings do not read as buildings + need variety. Revising village.html only; timer/receipt approved-by-silence. |
+| T005 | Art mockups for director sign-off (village) | `in-progress` | ui-ux | — | 1 | R2 village: buildings now read, but 아트팀장 scored 75 (dead space, thin variety, no coquette). R3 revising. Gated by 아트팀장 90 before director sees it. |
 
 ## Task file format
 

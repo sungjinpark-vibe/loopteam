@@ -458,3 +458,22 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   appending to the journal + Decisions but letting the cockpit top rot — exactly the failure the file
   warns about. The cockpit must reflect NOW, not accumulate.
 - next: when the village revision lands → render → 아트팀장 gate ≥90 → then director. Not before.
+
+## Tick 15 — 2026-07-16 21:45 — village R2 gated at 75 by 아트팀장 → R3
+- did: ui-ux round-2 village mockup landed (7 building types with real roofs/doors/windows). PM rendered
+  it (village-v2.png) and LOOKED — buildings genuinely read as buildings now, the round-1 cube problem
+  is fixed. Then, per the new rule, sent it to 아트팀장 to gate BEFORE the director.
+- result: **아트팀장 scored 75/90 — did NOT pass.** The gate did exactly its job: caught real problems
+  before spending the director's attention. Deductions: M1 25/30 (yellow building still boxy, details
+  near legibility threshold at small scale), M2 14/20 (only ~4 forms visible vs 7 claimed; pink+teal
+  share a silhouette), M3 16/20 (coquette identity absent — no ribbon/lace/bow), M4 11/15, M5 9/15
+  (~half the canvas is dead space, village cramped small — the weakest row).
+- **this validates the director's process instruction.** If I'd sent R2 straight to the director (as I
+  did in R1), they'd have burned another review cycle on it. The art lead caught the same "cramped +
+  empty" issue I'd noticed and named it the topFix. The gate is worth its cost.
+- action: resumed ui-ux for round 3 with the lead's 5 deductions in priority order — topFix first
+  (enlarge the village to fill the frame). Did NOT send R2 to the director. R3 will re-gate.
+- note on cost: this mockup has now taken ui-ux ~430k tokens over 3 rounds + 2 lead reviews. Worth it
+  for the game's visual identity, but if R3 also fails the gate I should consider whether the HTML-mockup
+  medium is fighting us (faking isometric buildings in CSS is inherently limited) and whether to move to
+  actual Unity sprites sooner rather than perfecting an HTML approximation.
