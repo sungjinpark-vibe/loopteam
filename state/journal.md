@@ -422,3 +422,22 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   waiting.
 - verified before sending: mockups self-contained (no external refs — offline render), render pipeline
   present. Sent via send-file.ps1 (images render inline in Discord).
+
+## Tick 13 — 2026-07-16 21:20 — director rejected village mockup (buildings don't read)
+- did: Monitor fired on director msg 1527288064743968919 (21:17). Scout classified it correctly as
+  ADJUSTMENT, not approval: "건물이 안보여. 누가봐도 건물스럽게... 종류도 다양해야해."
+- **the taste gate did its job.** The director looked at pixels and gave concrete, fair feedback: the
+  village 'buildings' were colored isometric cubes, not recognizable buildings, and all one shape
+  recolored. The loop did NOT proceed to the App build — it revises. Guessing "close enough" here would
+  have shipped a village that fails the app's whole "눈에 보이게" purpose.
+- task: T005 round 2. Resumed the SAME ui-ux agent (af5f8b50b991546fb) via SendMessage so it keeps the
+  design-system + village.html context instead of a cold restart. Scoped to village.html ONLY — timer
+  and receipt were not criticized, so they are approved-by-silence and left untouched (don't re-do what
+  wasn't flagged).
+- direction given: real architectural silhouettes (roof/walls/windows/door), and genuine type variety
+  (distinct forms per category, not one cube in 7 colors), keeping the locked palette + tier + ghost
+  mechanics.
+- next: PM re-renders the revised village.html, reviews it, re-sends for sign-off. Timer/receipt stay.
+- note: this is the second useful correction the director has made on a deliverable (first: the 83->93
+  spec was the team's own lead; this one is the director on visuals). Both times the system revised
+  instead of shipping the first attempt. That is the whole point.
