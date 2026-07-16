@@ -586,3 +586,6 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 ## Tick 25 — 2026-07-17 00:20 — director: add rooftop type-emblems (book, dumbbell)
 - Director: "cannot tell it is a gym; put an object on the roof signifying the type (dumbbell/book)." Not approval — a change request. Good idea: readable type by a recognizable rooftop symbol, not just shape/color. This becomes a standing pattern for all 7 buildings.
 - Frugal: resumed the SAME client-dev agent (has BuildingKit context) via SendMessage to add a book emblem (Library) + dumbbell emblem (Gym) reusing kit primitives, re-render both. No new workflow, no scout.
+
+## Tick 26 — 2026-07-17 00:40 — rooftop emblems added (book/dumbbell), sent to director
+- Same client-dev agent added book (Library) + dumbbell (Gym) rooftop emblems, 97k, reusing kit primitives. Both render clean, gate PASS, 81 tests intact. PM viewed both — emblems read clearly. Committed locally. Sent to director. Rooftop emblem is now the standing pattern for all 7 buildings.
