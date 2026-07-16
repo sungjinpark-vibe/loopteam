@@ -404,3 +404,21 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   the director is the judge of a mockup, not the art lead. Delegating to ui-ux to build HTML mockups of
   village + timer + receipt in the readability+delight blend; PM renders HTML→PNG (render-html.ps1 +
   Chrome both verified present) and sends to Discord. Render pipeline confirmed working before launch.
+
+## Tick 12 — 2026-07-16 21:15 — mockups rendered, reviewed, sent for director sign-off
+- did: Delegated to ui-ux → built 3 self-contained HTML mockups (village/timer/receipt) from the T004
+  design system, tuned to the director's readability+delight blend. PM rendered them to PNG
+  (render-html.ps1 + Chrome, 390x844 @2x) and **looked at all three before sending** — village's
+  inline-script isometric actually rendered (buildings, category colors, tier stages, construction
+  ring, HUD), timer and receipt clean, Mongsil present, no red/punitive hues.
+- **this is the taste-gate done right**: the director asked to SEE it, not read it. A 40k-char design
+  doc is not what a non-technical game director evaluates — pixels are. Sent 3 images + a plain
+  "does this direction work? 👍/🔧" so the decision is a glance, not a homework assignment.
+- committed mockups to lifetown (454ea03). T005 → awaiting-approval.
+- **the loop is now genuinely blocked on the director** — the App-layer screen build needs the visual
+  direction confirmed, and that is a taste call only they can make. Nothing else is ready (Core +
+  Platform done, spec approved). So the loop idles until they respond. Correct behavior: a taste gate
+  is one of the few places an autonomous loop SHOULD wait, because guessing wrong wastes far more than
+  waiting.
+- verified before sending: mockups self-contained (no external refs — offline render), render pipeline
+  present. Sent via send-file.ps1 (images render inline in Discord).

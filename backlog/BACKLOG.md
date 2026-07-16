@@ -28,6 +28,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T002 | Build Economy.Core — pure-C# spine | `done` | client-dev | build | 1 | **99/90** r1. Gate green (55/55 tests). Committed a9238c2. |
 | T003 | Build LifeTown.Platform — Android clock + save-file IO | `done` | client-dev | build | 1 | **99/90** r1. Gate green (81/81 tests). Committed 99db431. |
 | T004 | Art design system — village + core screens | `done` | ui-ux | explore | 1 | **92/90** r1 (cohesion won; readability+delight grafted per director). Committed. |
+| T005 | Art mockups for director sign-off (village/timer/receipt) | `awaiting-approval` | ui-ux | — | 1 | 3 PNGs rendered + sent to Discord. Director judges the visual direction. On approval → App-layer screen build. |
 
 ## Task file format
 
