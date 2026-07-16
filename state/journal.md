@@ -500,3 +500,24 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   medium fights isometric and a mockup is a comms tool, not a shippable asset. For future visual
   direction: gate mockups at a lower "does it communicate the direction" bar, or go to the real engine
   sooner. Don't apply the shippable-art 90 to a throwaway.
+
+## Tick 17 — 2026-07-16 22:25 — director chose C; T005 dropped, T006 (asset research) launched
+- did: Monitor fired on director msg 1527304211208081510 (22:21). Scout: director chose **option C**
+  (stop HTML mockup, build in Unity) + a new request — review free Asset Store / GitHub assets, or the
+  art team building Fortune City-quality buildings in Unity, before locking the asset approach.
+- **escalation resolved by the director**, exactly as intended — I surfaced the medium decision instead
+  of grinding, and the director made the call. T005 → dropped (not failed; it proved the building-form
+  direction and surfaced the asset question). Escalation cleared from loop.json.
+- T006 launched (explore, ui-ux, 아트팀장): 3 angles — Asset Store / GitHub / custom-build — with a
+  recommendation for T007. T007 (real Unity village build) created as blocked on T006 so the asset
+  choice isn't made twice.
+- **fixed a dangerous error in the scout's T006 draft**: it said "no Unity project exists, T007 will
+  create it." WRONG — the project exists since Tick 3 with Core+Platform + 81 tests. A future agent
+  reading that would create a new project and clobber the code. Corrected to "adds to the existing
+  project." This is exactly the kind of stale/wrong state that causes real damage — caught it.
+- **two guardrails added to T006**: (1) license claims must be VERIFIED via WebSearch/WebFetch, not
+  asserted — a hallucinated free-for-commercial asset is a legal landmine, and A2 is worth 25 points
+  and auto-fails on fabrication; (2) Fortune City is a real commercial game — approach-inspiration only,
+  never asset-copying. Both because these are the ways this specific research task goes wrong.
+- may revisit D6 (in-house geometric). If the research recommends an asset pack, that's a director
+  decision — T006 recommends, director approves before T007 commits.

@@ -1,9 +1,9 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 16,
+  "tick": 17,
   "project": "lifetown (Life Town — Unity rebuild)",
-  "active_task": "T005",
-  "last_tick_at": "2026-07-16 22:00",
+  "active_task": "T006",
+  "last_tick_at": "2026-07-16 22:25",
   "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
