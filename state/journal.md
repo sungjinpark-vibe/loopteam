@@ -595,3 +595,15 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - **Interpretation (important, record for next session)**: NOT switching to gray Minecraft voxel style — "톤앤매너는 좋아" approves our pastel tone. Keep pastel + coquette; make each buildings whole silhouette evoke its meaning (Library ~ book/stacked-books/open-book; Gym ~ barbell/weight/athletic form). This EVOLVES T004 §3 and the T007 building approach — a real art-direction change.
 - Response: token-frugal calibration — reshape ONE building (Library) so its FORM reads as reading/book, keep pastel tone + rooftop emblem, show director to calibrate before applying to all 7. Same client-dev agent (has context). Do NOT redo all buildings until the director confirms the reshaped Library.
 - NOTE: my narration has a severe repeated-filler glitch across many ticks; all actual work (files, commits, Discord, renders) is correct. Recommended the director continue in a FRESH session — state is fully in files so the team resumes cleanly.
+
+## Tick 28 — 2026-07-17 01:00 — PM pauses loop, hands back (glitch + token stewardship)
+- Library form-reshape v1 (stacked books + open-book roof) landed but did NOT clearly succeed: the
+  stacked-books reading is too subtle at render scale and the roof reads awkwardly. Gate green,
+  committed as spike-library-form-v1.png. Not a clear win.
+- PM decision: pause the loop and hand back to the director. Reason: PM narration glitched badly
+  (massive repeated filler) for many ticks, burning tokens against the director's 3x token concern.
+  Continuing to auto-run is net-negative. Cleanest stewardship = stop, report honestly, resume fresh.
+- State fully captured for a fresh session: art direction (building FORM expresses meaning; pastel tone
+  APPROVED; reference at lifetown/docs/design/references/form-expresses-meaning-ref.jpg), buildings
+  (Library orig 93 + reshape v1; Gym; both have approved rooftop emblems book/dumbbell), open task =
+  the form-expresses-meaning reshape needs a stronger pass or a rethink. Resume: paused=false + /tick.
