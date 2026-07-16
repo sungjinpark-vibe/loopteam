@@ -97,37 +97,49 @@
 
 <script>
 (function(){
-  var TILE_W = 64, TILE_H = 32;
-  var originX = 195, originY = 428;
+  // Bigger grid, bigger tiles — the village now fills the middle zone instead of
+  // sitting as a small model between the HUD and the FAB.
+  var TILE_W = 84, TILE_H = 42;
+  var GRID_N = 4; // 4x4 = 16 lots; fewer, much bigger tiles than before
+  var originX = 195, originY = 325;
   var world = document.getElementById('world');
 
-  // Category faces = the tile grammar's shading formula, computed once (§3.1):
-  // top = 500 + 60% white · right = 500 + 25% white · left = pure 500
+  // Category faces = the tile grammar's shading formula (§3.1):
+  // top = 500 + 60% white · right(front) = 500 + 25% white · left = pure 500
+  // roofL/roofR = the same family, darkened, so the roof reads as a distinct material from the walls.
   var CATS = {
-    reading:  {name:'독서',     c500:'#B6A0EF', ink:'#5A3FA0', top:'#E2D9F9', right:'#C8B8F3', left:'#B6A0EF'},
-    study:    {name:'공부',     c500:'#6FD0E8', ink:'#1C7C93', top:'#C5ECF6', right:'#93DCEE', left:'#6FD0E8'},
-    work:     {name:'일',       c500:'#FFD066', ink:'#8A6104', top:'#FFECC2', right:'#FFDC8C', left:'#FFD066'},
-    exercise: {name:'운동',     c500:'#8AD3B4', ink:'#1F7A61', top:'#D0EDE1', right:'#A7DEC7', left:'#8AD3B4'},
-    hobby:    {name:'취미창작', c500:'#6FBFA6', ink:'#1E6E58', top:'#C5E5DB', right:'#93CFBC', left:'#6FBFA6'},
-    mind:     {name:'마음챙김', c500:'#FFB37A', ink:'#A5570F', top:'#FFE1CA', right:'#FFC69B', left:'#FFB37A'},
-    game:     {name:'게임',     c500:'#FF8FA3', ink:'#B03A54', top:'#FFD2DA', right:'#FFABBA', left:'#FF8FA3'}
+    reading:  {c500:'#B6A0EF', ink:'#5A3FA0', top:'#E2D9F9', right:'#C8B8F3', left:'#B6A0EF', roofL:'#9583C4', roofR:'#A793DC'},
+    study:    {c500:'#6FD0E8', ink:'#1C7C93', top:'#C5ECF6', right:'#93DCEE', left:'#6FD0E8', roofL:'#5BABBE', roofR:'#66BFD5'},
+    work:     {c500:'#FFD066', ink:'#8A6104', top:'#FFECC2', right:'#FFDC8C', left:'#FFD066', roofL:'#D1AB54', roofR:'#EBBF5E'},
+    exercise: {c500:'#8AD3B4', ink:'#1F7A61', top:'#D0EDE1', right:'#A7DEC7', left:'#8AD3B4', roofL:'#71AD94', roofR:'#7FC2A6'},
+    hobby:    {c500:'#6FBFA6', ink:'#1E6E58', top:'#C5E5DB', right:'#93CFBC', left:'#6FBFA6', roofL:'#5B9D88', roofR:'#66B099'},
+    mind:     {c500:'#FFB37A', ink:'#A5570F', top:'#FFE1CA', right:'#FFC69B', left:'#FFB37A', roofL:'#D19364', roofR:'#EBA570'},
+    game:     {c500:'#FF8FA3', ink:'#B03A54', top:'#FFD2DA', right:'#FFABBA', left:'#FF8FA3', roofL:'#D17586', roofR:'#EB8496'}
   };
 
+  // 7 categories = 7 distinct little-building archetypes — every one gets its own
+  // footprint, height AND roofline, not a shared shape recoloured:
+  //  reading  -> Library     (tallest, narrowest, steep pitched roof, arched window, oculus)
+  //  study    -> Cottage     (medium gable roof, brick chimney, smoke)
+  //  work     -> Workshop    (wide-ish box, LOW-pitch hip roof, sign + scalloped awning + bunting)
+  //  exercise -> Gym hall    (widest, lowest hall, very-low-pitch roof, big glass wall)
+  //  hobby    -> Atelier     (steep A-frame, roof skylight, scalloped awning + bow; also the Tier2 example)
+  //  mind     -> Tea pavilion(smallest footprint, permanent 2-tier pagoda roof, lantern, bow, heart)
+  //  game     -> Arcade      (low-med hip roof, rooftop marquee sign with lights)
   var buildings = [
-    {r:1,c:1, cat:'reading',  tier:1, stage:3}, // maxed — cap + windows + flag
-    {r:0,c:3, cat:'study',    tier:1, stage:2}, // mid — signage plate
-    {r:3,c:0, cat:'work',     tier:1, stage:1}, // bare cube
-    {r:2,c:3, cat:'exercise', tier:1, stage:3}, // maxed
-    {r:1,c:4, cat:'game',     tier:1, stage:2}, // leisure, mid
-    {r:4,c:2, cat:'mind',     tier:1, stage:1}, // leisure, bare
-    {r:3,c:3, cat:'hobby',    tier:2, stage:1}  // Tier2 base, bigger footprint
+    {r:1,c:1, cat:'reading',  tier:1, stage:3},
+    {r:0,c:3, cat:'study',    tier:1, stage:2},
+    {r:1,c:0, cat:'work',     tier:1, stage:1},
+    {r:3,c:1, cat:'exercise', tier:1, stage:3},
+    {r:2,c:3, cat:'game',     tier:1, stage:2},
+    {r:0,c:0, cat:'mind',     tier:1, stage:1},
+    {r:2,c:1, cat:'hobby',    tier:2, stage:2}
   ];
-  var ghost = {r:4, c:0, cat:'mind'};
-  var bushes = [{r:2,c:0},{r:0,c:1}];
+  var ghost = {r:3, c:3, cat:'study'};
+  var bushes = [{r:0,c:2},{r:3,c:0}];
 
   function key(r,c){ return r+','+c; }
-  var bMap = {}, bushMap = {};
-  buildings.forEach(function(b){ bMap[key(b.r,b.c)] = b; });
+  var bushMap = {};
   bushes.forEach(function(p){ bushMap[key(p.r,p.c)] = true; });
 
   function tilePos(r,c){
@@ -141,19 +153,21 @@
     return d;
   }
 
-  function drawTile(r,c,x,y,isGhost){
+  function drawTile(r,c,x,y){
     var shade = ((r+c)%2===0) ? '#DEF3E4' : '#D3EEDC';
     world.appendChild(el('tile',
       'left:'+(x-TILE_W/2)+'px;top:'+(y-TILE_H/2)+'px;width:'+TILE_W+'px;height:'+TILE_H+'px;'+
       'background:'+shade+';clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);'));
     if (bushMap[key(r,c)]){
-      world.appendChild(el('', 'position:absolute;left:'+(x-13)+'px;top:'+(y-14)+'px;width:16px;height:12px;border-radius:50% 50% 40% 40%;background:#8AD3B4;'));
-      world.appendChild(el('', 'position:absolute;left:'+(x-2)+'px;top:'+(y-18)+'px;width:14px;height:11px;border-radius:50% 50% 40% 40%;background:#6FBFA6;'));
+      world.appendChild(el('', 'position:absolute;left:'+(x-15)+'px;top:'+(y-16)+'px;width:18px;height:14px;border-radius:50% 50% 40% 40%;background:#8AD3B4;'));
+      world.appendChild(el('', 'position:absolute;left:'+(x-2)+'px;top:'+(y-21)+'px;width:16px;height:13px;border-radius:50% 50% 40% 40%;background:#6FBFA6;'));
     }
   }
 
-  // Draws one 3-face prism (§3.1 grammar), foot anchored at (ax,ay). Returns stacking data.
-  function drawBlock(ax, ay, w, h, cat){
+  // ---- low-level architectural primitives -----------------------------
+
+  // One wall block (§3.1 3-face prism), foot anchored at (ax,ay).
+  function drawWallBlock(ax, ay, w, h, cat){
     var footH = w/2;
     var containerH = footH + h;
     var left = ax - w/2;
@@ -179,81 +193,323 @@
 
     return {
       topCenter: {x: ax, y: top},
-      rightFaceRect: {left: rLeft, top: rTop, w: w/2, h: lfH}
+      rightFaceRect: {left: rLeft, top: rTop, w: w/2, h: lfH},
+      leftFaceRect: {left: lLeft, top: lTop, w: w/2, h: lfH}
     };
+  }
+
+  // Pitched hip roof: two triangular slopes meeting at a front ridge — always reads as a roof,
+  // never a floating slab. Steepness (roofH) is the main lever for roofline variety.
+  function drawHipRoof(topX, topY, w, roofH, roofL, roofR){
+    var boxW = w/2, boxH = w/4+roofH;
+    var RH = roofH/boxH*100;
+    var boxTop = topY+w/4-roofH;
+    world.appendChild(el('',
+      'position:absolute;left:'+(topX-w/2)+'px;top:'+boxTop+'px;width:'+boxW+'px;height:'+boxH+'px;background:'+roofL+';'+
+      'clip-path:polygon(0% '+RH+'%,100% 0%,100% 100%);'));
+    world.appendChild(el('',
+      'position:absolute;left:'+topX+'px;top:'+boxTop+'px;width:'+boxW+'px;height:'+boxH+'px;background:'+roofR+';'+
+      'clip-path:polygon(0% 0%,100% '+RH+'%,0% 100%);'));
+    return { peak: {x: topX, y: boxTop} };
+  }
+
+  function drawFoundation(rect, color){
+    world.appendChild(el('', 'position:absolute;left:'+rect.left+'px;top:'+(rect.top+rect.h-4)+'px;width:'+rect.w+'px;height:4px;background:'+color+';opacity:0.55;'));
+  }
+
+  function drawDoor(rect, fx, ww, wh){
+    var left = rect.left+rect.w*fx-ww/2;
+    var top = rect.top+rect.h-wh;
+    world.appendChild(el('', 'position:absolute;left:'+left+'px;top:'+top+'px;width:'+ww+'px;height:'+wh+'px;'+
+      'background:#9C7350;border-radius:'+(ww/2)+'px '+(ww/2)+'px 2px 2px;box-shadow:inset 0 0 0 1px rgba(122,86,56,0.6);'));
+    world.appendChild(el('', 'position:absolute;left:'+(left+ww*0.72)+'px;top:'+(top+wh*0.5)+'px;width:2.5px;height:2.5px;border-radius:50%;background:#FFD98A;'));
+  }
+
+  function drawWindow(rect, fx, fyFromBottom, ww, wh, lit, shape){
+    var left = rect.left + rect.w*fx - ww/2;
+    var top = rect.top + rect.h - fyFromBottom - wh;
+    var bg = lit ? '#FFE9A8' : '#EAFAFF';
+    var border = lit ? '2px solid #FFD98A' : '2px solid #FFFFFF';
+    var radius = shape==='round' ? '50%' : (shape==='arch' ? '5px 5px 2px 2px' : '2px');
+    var glow = lit ? 'box-shadow:0 0 8px 2px rgba(255,214,140,0.55);' : '';
+    world.appendChild(el('', 'position:absolute;left:'+left+'px;top:'+top+'px;width:'+ww+'px;height:'+wh+'px;'+
+      'background:'+bg+';border:'+border+';border-radius:'+radius+';'+glow));
+  }
+
+  // Awning with a scalloped trim — the coquette touch, also fixes the old "floating card" risk
+  // by always sitting flush against the wall face it's drawn on.
+  function drawAwning(rect, fx, ww, cat){
+    var left = rect.left+rect.w*fx-ww/2;
+    var top = rect.top+rect.h*0.55;
+    world.appendChild(el('', 'position:absolute;left:'+left+'px;top:'+top+'px;width:'+ww+'px;height:7px;border-radius:3px 3px 0 0;'+
+      'background:repeating-linear-gradient(90deg,'+cat.ink+' 0 4px, #FFFFFF 4px 8px);box-shadow:0 2px 4px rgba(90,74,106,0.15);'));
+    var scallops = Math.max(2, Math.round(ww/6));
+    var sw = ww/scallops;
+    for (var i=0;i<scallops;i++){
+      world.appendChild(el('', 'position:absolute;left:'+(left+i*sw)+'px;top:'+(top+6)+'px;width:'+sw+'px;height:5px;border-radius:0 0 50% 50%;background:'+cat.ink+';opacity:0.85;'));
+    }
+  }
+
+  function drawSignage(rect, cat){
+    world.appendChild(el('', 'position:absolute;left:'+(rect.left+rect.w*0.12)+'px;top:'+(rect.top+rect.h*0.12)+'px;'+
+      'width:'+(rect.w*0.55)+'px;height:8px;border-radius:2px;background:'+cat.ink+';opacity:0.9;'));
+  }
+
+  function drawChimney(peak, dx, brickColor, withSmoke){
+    var cx = peak.x+dx, top = peak.y-10;
+    world.appendChild(el('', 'position:absolute;left:'+(cx-3)+'px;top:'+top+'px;width:7px;height:18px;background:'+brickColor+';border-radius:1px;'));
+    if (withSmoke){
+      [0,1,2].forEach(function(i){
+        world.appendChild(el('', 'position:absolute;left:'+(cx-3+i*2)+'px;top:'+(top-9-i*8)+'px;width:'+(6+i)+'px;height:'+(6+i)+'px;'+
+          'border-radius:50%;background:rgba(255,255,255,'+(0.6-i*0.12)+');'));
+      });
+    }
+  }
+
+  function drawSkylight(peak, w, roofH, lit){
+    var left = peak.x - w*0.3, top = peak.y + roofH*0.55;
+    var bg = lit?'#FFE9A8':'#EAFAFF';
+    world.appendChild(el('', 'position:absolute;left:'+left+'px;top:'+top+'px;width:9px;height:7px;border-radius:2px;'+
+      'background:'+bg+';border:1.5px solid #FFFFFF;'+(lit?'box-shadow:0 0 6px 2px rgba(255,214,140,0.5);':'')));
+  }
+
+  function drawMarquee(topCenter, cat, lit){
+    var mw=32, mh=17, left=topCenter.x-mw/2, top=topCenter.y-mh-2;
+    world.appendChild(el('', 'position:absolute;left:'+left+'px;top:'+top+'px;width:'+mw+'px;height:'+mh+'px;border-radius:3px;'+
+      'background:'+cat.ink+';box-shadow:0 3px 8px rgba(90,74,106,0.25);'));
+    if (lit){
+      for(var i=0;i<4;i++){
+        world.appendChild(el('', 'position:absolute;left:'+(left+4+i*7.5)+'px;top:'+(top+mh-4)+'px;width:4px;height:4px;border-radius:50%;'+
+          'background:#FFE9A8;box-shadow:0 0 5px 1px rgba(255,214,140,0.7);'));
+      }
+    }
+  }
+
+  function drawFlagpole(peak, cat){
+    var poleTop = peak.y-18;
+    world.appendChild(el('', 'position:absolute;left:'+(peak.x-1)+'px;top:'+poleTop+'px;width:2px;height:18px;background:'+cat.ink+';opacity:0.85;'));
+    world.appendChild(el('', 'position:absolute;left:'+(peak.x+1)+'px;top:'+poleTop+'px;width:10px;height:7px;background:'+cat.ink+';clip-path:polygon(0 0,100% 22%,0 44%);'));
+  }
+
+  function drawLantern(peak, cat){
+    var lx = peak.x+9, ly = peak.y+6;
+    world.appendChild(el('', 'position:absolute;left:'+(lx-1)+'px;top:'+(ly-6)+'px;width:2px;height:8px;background:'+cat.ink+';opacity:0.7;'));
+    world.appendChild(el('', 'position:absolute;left:'+(lx-4)+'px;top:'+ly+'px;width:9px;height:10px;border-radius:2px;background:#FFE9A8;'+
+      'box-shadow:0 0 8px 2px rgba(255,214,140,0.6);border:1px solid '+cat.ink+';'));
+  }
+
+  // ---- coquette accents -------------------------------------------------
+
+  function drawBow(p, color){
+    var x=p.x, y=p.y;
+    world.appendChild(el('', 'position:absolute;left:'+(x-9)+'px;top:'+(y-4)+'px;width:9px;height:7px;border-radius:50% 50% 50% 10%;'+
+      'background:'+color+';transform:rotate(-18deg);box-shadow:0 1px 2px rgba(90,74,106,0.2);'));
+    world.appendChild(el('', 'position:absolute;left:'+x+'px;top:'+(y-4)+'px;width:9px;height:7px;border-radius:50% 50% 10% 50%;'+
+      'background:'+color+';transform:rotate(18deg);box-shadow:0 1px 2px rgba(90,74,106,0.2);'));
+    world.appendChild(el('', 'position:absolute;left:'+(x-2.5)+'px;top:'+(y-2.5)+'px;width:5px;height:5px;border-radius:50%;background:#FF9EC4;'));
+  }
+
+  // small triangular bunting/garland — a party-ribbon topper, an alternative to the flagpole
+  function drawBunting(top, cat){
+    var colors = ['#FF9EC4','#FFFFFF','#FF9EC4'];
+    world.appendChild(el('', 'position:absolute;left:'+(top.x-11)+'px;top:'+(top.y-13)+'px;width:22px;height:2px;background:'+cat.ink+';opacity:0.55;'));
+    for (var i=0;i<3;i++){
+      var px = top.x-10+i*8.5;
+      world.appendChild(el('', 'position:absolute;left:'+px+'px;top:'+(top.y-12)+'px;width:8px;height:8px;background:'+colors[i]+';'+
+        'clip-path:polygon(0 0,100% 0,50% 100%);box-shadow:0 1px 2px rgba(90,74,106,0.15);'));
+    }
+  }
+
+  function drawSparkle(x,y,size,color,opacity){
+    world.appendChild(el('', 'position:absolute;left:'+(x-size/2)+'px;top:'+(y-size/2)+'px;width:'+size+'px;height:'+size+'px;'+
+      'background:'+color+';opacity:'+(opacity||0.85)+';'+
+      'clip-path:polygon(50% 0%,65% 35%,100% 50%,65% 65%,50% 100%,35% 65%,0% 50%,35% 35%);'));
+  }
+
+  function drawTierRibbon(x, topY, cat){
+    var d = el('', 'position:absolute;left:'+(x-24)+'px;top:'+topY+'px;padding:2px 8px;border-radius:999px;'+
+      'background:'+cat.ink+';color:#fff;font-size:9px;font-weight:800;letter-spacing:0.03em;white-space:nowrap;');
+    d.textContent = 'TIER 2';
+    world.appendChild(d);
+  }
+
+  function drawShadow(x, y, w){
+    world.appendChild(el('bldg-shadow', 'left:'+(x-w*0.42)+'px;top:'+(y-w*0.15)+'px;width:'+(w*0.84)+'px;height:'+(w*0.3)+'px;'));
+  }
+
+  // ---- the 7 archetypes -------------------------------------------------
+
+  function buildLibrary(x,y,spec,cat){ // 독서 — tallest & narrowest, steep roof, arched window, oculus
+    var stage=spec.stage, w=52, h = stage>=3?76:(stage===2?70:63);
+    drawShadow(x,y,w);
+    var base = drawWallBlock(x,y,w,h,cat);
+    drawFoundation(base.rightFaceRect, cat.roofL);
+    drawFoundation(base.leftFaceRect, cat.roofL);
+    drawDoor(base.rightFaceRect, 0.5, 13, 20);
+    var roof = drawHipRoof(base.topCenter.x, base.topCenter.y, w, 46, cat.roofL, cat.roofR);
+    if (stage>=2) drawWindow(base.rightFaceRect, 0.5, 26, 11, stage>=3?20:18, stage>=3, 'arch');
+    if (stage>=3){
+      world.appendChild(el('', 'position:absolute;left:'+(roof.peak.x-5)+'px;top:'+(roof.peak.y+16)+'px;width:10px;height:10px;'+
+        'border-radius:50%;background:#FFE9A8;border:2px solid #FFFFFF;box-shadow:0 0 7px 2px rgba(255,214,140,0.5);'));
+      drawFlagpole(roof.peak, cat);
+      drawSparkle(roof.peak.x+18, roof.peak.y+6, 7, '#FFD066', 0.75);
+    }
+    if (spec.tier===2) drawTierRibbon(x, roof.peak.y-14, cat);
+  }
+
+  function buildStudyCottage(x,y,spec,cat){ // 공부 — medium gable roof, chimney always present
+    var stage=spec.stage, w=64, h = stage>=3?50:(stage===2?47:42);
+    drawShadow(x,y,w);
+    var base = drawWallBlock(x,y,w,h,cat);
+    drawFoundation(base.rightFaceRect, cat.roofL);
+    drawFoundation(base.leftFaceRect, cat.roofL);
+    drawDoor(base.rightFaceRect, 0.34, 13, 17);
+    var roof = drawHipRoof(base.topCenter.x, base.topCenter.y, w, 30, cat.roofL, cat.roofR);
+    drawChimney(roof.peak, w*0.20, '#B5836A', stage>=2);
+    if (stage>=2) drawWindow(base.rightFaceRect, 0.72, 17, 11, 11, stage>=3, 'rect');
+    if (stage>=3) drawFlagpole(roof.peak, cat);
+    if (spec.tier===2) drawTierRibbon(x, roof.peak.y-14, cat);
+  }
+
+  function buildWorkshop(x,y,spec,cat){ // 일 — wide-ish box, LOW hip roof, sign + scalloped awning + bunting
+    var stage=spec.stage, w=78, h = stage>=3?38:(stage===2?36:33);
+    drawShadow(x,y,w);
+    var base = drawWallBlock(x,y,w,h,cat);
+    drawFoundation(base.rightFaceRect, cat.roofL);
+    drawFoundation(base.leftFaceRect, cat.roofL);
+    drawDoor(base.rightFaceRect, 0.30, 13, 15);
+    var roof = drawHipRoof(base.topCenter.x, base.topCenter.y, w, 17, cat.roofL, cat.roofR);
+    if (stage>=2){
+      drawWindow(base.rightFaceRect, 0.68, 15, 11, 9, stage>=3, 'rect');
+      drawSignage(base.rightFaceRect, cat);
+      drawAwning(base.rightFaceRect, 0.30, 20, cat);
+    }
+    if (stage>=3) drawBunting(roof.peak, cat);
+    if (spec.tier===2) drawTierRibbon(x, roof.peak.y-14, cat);
+  }
+
+  function buildGym(x,y,spec,cat){ // 운동 — widest & lowest hall, big glass wall
+    var stage=spec.stage, w=100, h = stage>=3?32:(stage===2?30:27);
+    drawShadow(x,y,w);
+    var base = drawWallBlock(x,y,w,h,cat);
+    drawFoundation(base.rightFaceRect, cat.roofL);
+    drawFoundation(base.leftFaceRect, cat.roofL);
+    drawDoor(base.rightFaceRect, 0.20, 15, 17);
+    var roof = drawHipRoof(base.topCenter.x, base.topCenter.y, w, 13, cat.roofL, cat.roofR);
+    if (stage>=2) drawWindow(base.rightFaceRect, 0.62, 15, 26, 13, stage>=3, 'rect');
+    if (stage>=3){
+      drawWindow(base.rightFaceRect, 0.90, 15, 9, 9, true, 'rect');
+      drawFlagpole(roof.peak, cat);
+      drawSparkle(roof.peak.x-24, roof.peak.y+10, 6, '#FF9EC4', 0.7);
+    }
+    if (spec.tier===2) drawTierRibbon(x, roof.peak.y-14, cat);
+  }
+
+  function buildAtelier(x,y,spec,cat){ // 취미창작 — steep A-frame, skylight, scalloped awning + bow (Tier2 example)
+    var stage=spec.stage, scale = spec.tier===2 ? 1.6 : 1;
+    var w=60*scale, h=(stage>=3?52:(stage===2?49:44))*scale;
+    var roofH = 38*(spec.tier===2?1.2:1);
+    drawShadow(x,y,w);
+    var base = drawWallBlock(x,y,w,h,cat);
+    drawFoundation(base.rightFaceRect, cat.roofL);
+    drawFoundation(base.leftFaceRect, cat.roofL);
+    drawDoor(base.rightFaceRect, 0.5, 12*scale, 17*scale);
+    var roof = drawHipRoof(base.topCenter.x, base.topCenter.y, w, roofH, cat.roofL, cat.roofR);
+    if (stage>=2) drawWindow(base.rightFaceRect, 0.78, 17*scale, 10*scale, 11*scale, stage>=3, 'rect');
+    if (stage>=2 || spec.tier===2){
+      drawSkylight(roof.peak, w, roofH, stage>=3);
+      drawAwning(base.rightFaceRect, 0.5, 18*scale, cat);
+    }
+    if (spec.tier===2){
+      drawSkylight({x:roof.peak.x+16, y:roof.peak.y+4}, w*0.6, roofH*0.8, true);
+      drawTierRibbon(x, roof.peak.y-14, cat);
+    } else if (stage>=3){
+      drawBow(roof.peak, '#FFFFFF');
+    }
+  }
+
+  function buildPavilion(x,y,spec,cat){ // 마음챙김 — smallest footprint, PERMANENT 2-tier pagoda roof, lantern, heart
+    var stage=spec.stage, w=46, h = stage>=3?27:(stage===2?26:24);
+    drawShadow(x,y,w);
+    var base = drawWallBlock(x,y,w,h,cat);
+    drawFoundation(base.rightFaceRect, cat.roofL);
+    drawFoundation(base.leftFaceRect, cat.roofL);
+    drawDoor(base.rightFaceRect, 0.5, 10, 13);
+    var roof1 = drawHipRoof(base.topCenter.x, base.topCenter.y, w, 18, cat.roofL, cat.roofR);
+    var roof2 = drawHipRoof(roof1.peak.x, roof1.peak.y+6, w*0.52, 14, cat.roofL, cat.roofR); // pagoda tier — always present
+    var topPeak = roof2.peak;
+    if (stage>=2){
+      drawLantern(topPeak, cat);
+      drawBow({x: roof1.peak.x + w*0.24, y: roof1.peak.y+10}, '#FFFFFF');
+      var heart = el('', 'position:absolute;left:'+(base.rightFaceRect.left+base.rightFaceRect.w*0.5-4)+'px;top:'+(base.rightFaceRect.top+base.rightFaceRect.h-13-13)+'px;'+
+        'font-size:10px;color:#FF9EC4;line-height:1;');
+      heart.textContent = '♡';
+      world.appendChild(heart);
+    }
+    if (stage>=3){
+      world.appendChild(el('', 'position:absolute;left:'+(base.rightFaceRect.left+base.rightFaceRect.w*0.5-4)+'px;top:'+(base.rightFaceRect.top+base.rightFaceRect.h-26)+'px;'+
+        'width:8px;height:8px;border-radius:50%;background:#FFE9A8;border:2px solid #FFFFFF;box-shadow:0 0 6px 2px rgba(255,214,140,0.5);'));
+    }
+    if (spec.tier===2) drawTierRibbon(x, topPeak.y-14, cat);
+  }
+
+  function buildArcade(x,y,spec,cat){ // 게임 — low-med hip roof, rooftop marquee sign + lights
+    var stage=spec.stage, w=68, h = stage>=3?46:(stage===2?43:39);
+    drawShadow(x,y,w);
+    var base = drawWallBlock(x,y,w,h,cat);
+    drawFoundation(base.rightFaceRect, cat.roofL);
+    drawFoundation(base.leftFaceRect, cat.roofL);
+    drawDoor(base.rightFaceRect, 0.28, 13, 16);
+    var roof = drawHipRoof(base.topCenter.x, base.topCenter.y, w, 19, cat.roofL, cat.roofR);
+    if (stage>=2){
+      drawWindow(base.rightFaceRect, 0.70, 16, 11, 10, stage>=3, 'rect');
+      drawMarquee(roof.peak, cat, stage>=3);
+    }
+    if (spec.tier===2) drawTierRibbon(x, roof.peak.y-14, cat);
   }
 
   function placeBuilding(x, y, spec){
     var cat = CATS[spec.cat];
-    var w = spec.tier===2 ? TILE_W*1.5 : TILE_W*0.8;
-    var h = spec.tier===2 ? 46 : 34;
-
-    world.appendChild(el('bldg-shadow',
-      'left:'+(x-w*0.42)+'px;top:'+(y-w*0.15)+'px;width:'+(w*0.84)+'px;height:'+(w*0.3)+'px;'));
-
-    var res = drawBlock(x, y, w, h, cat);
-    var top = res.topCenter;
-    var upperRes = res;
-
-    if (spec.stage >= 2){
-      var w2 = w*0.8, h2 = 26;
-      upperRes = drawBlock(top.x, top.y, w2, h2, cat);
-      top = upperRes.topCenter;
-      // signage plate — "occupied/signed", reads without needing text
-      var rf = upperRes.rightFaceRect;
-      world.appendChild(el('',
-        'position:absolute;left:'+(rf.left+rf.w*0.14)+'px;top:'+(rf.top+rf.h*0.18)+'px;'+
-        'width:'+(rf.w*0.6)+'px;height:9px;border-radius:2px;background:'+cat.ink+';opacity:0.9;'));
-    }
-
-    if (spec.stage >= 3){
-      // pitched roof cap
-      var capW = w*0.5, capH = 14;
-      world.appendChild(el('',
-        'position:absolute;left:'+(top.x-capW/2)+'px;top:'+(top.y-capH)+'px;width:'+capW+'px;height:'+capH+'px;'+
-        'background:'+cat.ink+';clip-path:polygon(50% 0%,100% 100%,0% 100%);'));
-      // flag / lantern (recolour-only primitive)
-      var poleTop = top.y - capH - 18;
-      world.appendChild(el('', 'position:absolute;left:'+(top.x-1)+'px;top:'+poleTop+'px;width:2px;height:18px;background:'+cat.ink+';opacity:0.8;'));
-      world.appendChild(el('', 'position:absolute;left:'+(top.x+1)+'px;top:'+poleTop+'px;width:10px;height:7px;background:'+cat.ink+';clip-path:polygon(0 0,100% 22%,0 44%);'));
-      // window-lights — warm glow, "occupied" signal (S3), pre-fades brighter at night per §5
-      var rf2 = upperRes.rightFaceRect;
-      [0.26, 0.58].forEach(function(fx){
-        world.appendChild(el('',
-          'position:absolute;left:'+(rf2.left+rf2.w*fx)+'px;top:'+(rf2.top+rf2.h*0.42)+'px;width:8px;height:8px;'+
-          'border-radius:50%;background:#FFE9A8;box-shadow:0 0 7px 2px rgba(255,214,140,0.55);'));
-      });
-    }
-
-    if (spec.tier === 2){
-      world.appendChild(el('',
-        'position:absolute;left:'+(x-24)+'px;top:'+(top.y-24)+'px;padding:2px 8px;border-radius:999px;'+
-        'background:'+cat.ink+';color:#fff;font-size:9px;font-weight:800;letter-spacing:0.03em;white-space:nowrap;'));
-      world.lastChild.textContent = 'TIER 2';
-    }
+    if (spec.cat==='reading') buildLibrary(x,y,spec,cat);
+    else if (spec.cat==='study') buildStudyCottage(x,y,spec,cat);
+    else if (spec.cat==='work') buildWorkshop(x,y,spec,cat);
+    else if (spec.cat==='exercise') buildGym(x,y,spec,cat);
+    else if (spec.cat==='hobby') buildAtelier(x,y,spec,cat);
+    else if (spec.cat==='mind') buildPavilion(x,y,spec,cat);
+    else if (spec.cat==='game') buildArcade(x,y,spec,cat);
   }
 
+  // Construction site — a translucent, dashed WALL + ROOF + DOOR silhouette wrapped in
+  // scaffolding, so it reads as "a building taking shape," not abstract stacked bars.
   function placeGhost(x, y, cat){
-    var w = TILE_W*0.85;
+    var w = 48, h = 30;
+    var ghostTones = { top: cat.c500+'30', right: cat.c500+'55', left: cat.c500+'80' };
+    var base = drawWallBlock(x, y, w, h, ghostTones);
+
     var L = w*0.7071;
-    world.appendChild(el('',
-      'position:absolute;left:'+(x-L/2)+'px;top:'+(y-L/2)+'px;width:'+L+'px;height:'+L+'px;'+
-      'border:2px dashed '+cat.c500+';background:'+cat.c500+'22;'+
-      'transform:rotate(45deg) scaleY(0.5);transform-origin:center;border-radius:4px;'));
-    // scaffold poles
-    [-0.22,0,0.22].forEach(function(dx){
-      world.appendChild(el('',
-        'position:absolute;left:'+(x+w*dx-1.5)+'px;top:'+(y-30)+'px;width:3px;height:30px;'+
-        'background:rgba(138,122,149,0.55);border-radius:2px;'));
+    world.appendChild(el('', 'position:absolute;left:'+(x-L/2)+'px;top:'+(y-L/2)+'px;width:'+L+'px;height:'+L+'px;'+
+      'border:2px dashed '+cat.c500+';transform:rotate(45deg) scaleY(0.5);transform-origin:center;border-radius:4px;'));
+
+    var roof = drawHipRoof(base.topCenter.x, base.topCenter.y, w, 20, cat.c500+'45', cat.c500+'70');
+
+    world.appendChild(el('', 'position:absolute;left:'+(base.rightFaceRect.left+base.rightFaceRect.w*0.5-6)+'px;top:'+(base.rightFaceRect.top+base.rightFaceRect.h-15)+'px;'+
+      'width:12px;height:15px;border:2px dashed rgba(90,74,106,0.45);border-radius:6px 6px 2px 2px;'));
+
+    var poleTop = roof.peak.y-6, poleH = y-poleTop;
+    [-0.32, 0.32].forEach(function(dx){
+      world.appendChild(el('', 'position:absolute;left:'+(x+w*dx-1.5)+'px;top:'+poleTop+'px;width:3px;height:'+poleH+'px;'+
+        'background:rgba(138,122,149,0.6);border-radius:2px;'));
     });
-    // radial progress ring (pie + inner punch), clear of the scaffold above it
-    var ringY = y-76;
-    world.appendChild(el('',
-      'position:absolute;left:'+(x-18)+'px;top:'+ringY+'px;width:36px;height:36px;border-radius:50%;'+
+    [0.32, 0.62].forEach(function(fy){
+      world.appendChild(el('', 'position:absolute;left:'+(x-w*0.32)+'px;top:'+(poleTop+poleH*fy)+'px;width:'+(w*0.64)+'px;height:2.5px;'+
+        'background:rgba(138,122,149,0.55);'));
+    });
+
+    var ringY = poleTop-42;
+    world.appendChild(el('', 'position:absolute;left:'+(x-18)+'px;top:'+ringY+'px;width:36px;height:36px;border-radius:50%;'+
       'background:conic-gradient('+cat.c500+' 0% 65%, #EFE6F6 65% 100%);'));
-    world.appendChild(el('',
-      'position:absolute;left:'+(x-11)+'px;top:'+(ringY+7)+'px;width:22px;height:22px;border-radius:50%;background:#FFFDFE;'));
-    var label = el('', 'position:absolute;left:'+(x-30)+'px;top:'+(ringY-17)+'px;width:60px;text-align:center;'+
+    world.appendChild(el('', 'position:absolute;left:'+(x-11)+'px;top:'+(ringY+7)+'px;width:22px;height:22px;border-radius:50%;background:#FFFDFE;'));
+    var label = el('', 'position:absolute;left:'+(x-32)+'px;top:'+(ringY-17)+'px;width:64px;text-align:center;'+
       'font-size:10px;font-weight:700;color:#6B5C7C;');
     label.textContent = '짓는 중 · 65%';
     world.appendChild(label);
@@ -261,8 +517,8 @@
 
   // painter's algorithm: sort strictly by (r+c), tiles before buildings at equal key
   var jobs = [];
-  for (var r=0;r<5;r++){
-    for (var c=0;c<5;c++){
+  for (var r=0;r<GRID_N;r++){
+    for (var c=0;c<GRID_N;c++){
       (function(r,c){
         var p = tilePos(r,c);
         jobs.push({k:r+c, fn:function(){ drawTile(r,c,p.x,p.y); }});
@@ -280,6 +536,11 @@
 
   jobs.sort(function(a,b){ return a.k-b.k; });
   jobs.forEach(function(j){ j.fn(); });
+
+  // ambient sparkles over the whole scene, last so they sit on top
+  drawSparkle(96, 200, 7, '#FFD066', 0.7);
+  drawSparkle(330, 250, 6, '#B6A0EF', 0.65);
+  drawSparkle(270, 195, 5, '#FF9EC4', 0.7);
 })();
 </script>
 </body>
