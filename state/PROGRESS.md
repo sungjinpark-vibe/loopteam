@@ -12,47 +12,34 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: 🛑 **PAUSED at the director's request.** They said "멈춰줘" on Discord 2026-07-16 09:58
-  (msg 1527117309070671972). `state/loop.json` → `paused: true`. **A tick that starts while this is
-  true must sleep immediately and do nothing** (`.claude/skills/tick/SKILL.md` Step 0).
-  - **"멈춰줘" was not an approval.** It answered none of D1/D5/D7/D9/D11. Do not treat an unanswered
-    decision as an approved one when the loop resumes.
-  - To resume: set `paused: false` and run `/tick` or `/loop /tick`. The Discord listener stayed on, so
-    anything the director sent while paused is already in `incoming.log`; `handled.txt` is at the stop
-    message, so a resume picks up cleanly from whatever came after it.
-- **Was**: Idle — T001 `awaiting-approval`; nothing else is `ready`
-- **Main objective**: Ship Life Town (Unity) to a real player. Done = "a stranger installed it from a
-  store link and logged a session" — a stop condition outside the team's own claims.
-- **Current focus**: The director's answer on **D7 (Play Console: personal vs organization)**.
-  **Nothing ships until that is answered** — a personal account needs 12 opted-in testers for 14
-  *continuous* days, which is the longest-lead item on the project and is not a coding task.
-- **Last updated**: 2026-07-16 09:15 (Tick 4)
+- **Status**: Running (`paused: false`), tick 14. **T005 round-2 in progress**: a ui-ux agent is
+  revising the village mockup because the director found the buildings read as colored cubes, not
+  buildings. When it lands → **gate through 아트팀장 (≥90) BEFORE showing the director** (new rule 21:22,
+  see Decisions).
+- **Main objective**: Build Life Town (Unity) to the point the 5-expert playtest gate passes (avg ≥90,
+  floor 80). Shipping to a store is **deferred** (D7 — director said "일단 만들기만"), so completion is
+  the playtest gate, not a store install.
+- **Progress**: T001 spec (93) · T002 Economy.Core (99) · T003 Platform (99) · T004 art system (92) —
+  all done and gate-passed. Now on the art mockups (T005) for the village's visual direction.
+- **Last updated**: 2026-07-16 21:23 (Tick 14)
 
 ## Last Run
-- **Date**: 2026-07-16 09:15 (Tick 4)
-- **Summary**: T001 **PASSED 93/90** (83 → 93 over 2 rounds). Ship-first spec won. Written to
-  `lifetown/docs/spec/00-mvp-spec.md` and committed. Approval request sent to Discord.
-- **Output**: the MVP spec (81,839 bytes) + 11 director decisions (D1-D11), each with a
-  recommendation, a cost, and a default so the loop never blocks on them.
+- **Date**: 2026-07-16 21:20 (Tick 13)
+- **Summary**: Director rejected the round-1 village mockup ("건물이 안보여... 종류도 다양해야해").
+  ui-ux resumed to revise village.html only (timer/receipt were not criticised). Then director added
+  (21:22) that visual deliverables must clear 아트팀장's score before reaching them.
+- **Output**: T005 in revision; a new standing rule (art-lead-gate visuals before the director).
 
 ## Open Items
-- **T001 awaiting director approval.** Three answers needed to start (D7 dev account, D5 EXP curve,
-  D9 leisure multiplier); two more (D1 cloud sync, D11 landmarks) override locked decisions and need
-  explicit approval. The other six have defaults and proceed silently if unanswered.
-- **Unity MCP not connected.** Director ruled: connect once a project exists and it is needed
-  (`VISION.md` §7 rule 5). Not a blocker while there is no project.
-  - **Use the OFFICIAL one**: `com.unity.ai.assistant`, requires Unity 6000.0+ (we are on 6000.5.1f1 —
-    supported, verified in Unity's docs 2026-07-16). Setup: Edit > Project Settings > AI > Unity MCP
-    Server; the bridge auto-starts and installs a relay binary to `~/.unity/relay/` which Claude Code
-    points at. Do not use third-party Unity MCPs; the official one exists.
-  - Still **pre-release** (2.7.0-pre.3). Verify when actually installing.
-  - **⚠️ It conflicts with our gate — design the sequencing before installing.** See Do Not Repeat.
+- **T005 village mockup** being revised → will be art-lead-gated → then sent to director.
+- **lifetown has NO git remote.** Local commits only (T001-T005 + code). Director said 2026-07-16 20:18
+  he'll provide the repo URL later. A disk failure loses the app until then. Not blocking the build.
+- **Unity MCP not connected** (see the Do Not Repeat note on its gate conflict). Connect when the App
+  layer actually needs live editor introspection; not yet.
 
 ## Blockers
-- **D7 — Play Console account.** Personal (~$25, but 12 testers × 14 continuous days) vs organization
-  (exempt from the 12-tester rule, needs a D-U-N-S number, slower approval). **This is the gate that
-  silently held the original at zero players for a year** — it was never on anyone's plan. It cannot be
-  shortened by coding, so it starts in week 1, before the product exists. Waiting on the director.
+- None hard. T005 is mid-revision (not blocked, in flight). Everything downstream (App-layer Unity
+  screens) waits on the director approving the village visual direction — a taste gate, correct to wait on.
 
 ## Needs Human Review
 - ~~app-dev-team cursor bug~~ → **Director ruled "건드리지 마" 2026-07-16. Closed.** See Do Not Repeat.
@@ -67,18 +54,25 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   one grader guessing from code, but **not a human playtest** — never report it as one. `VISION.md` §3.3.
 
 ## Next Run Should
-1. Delegate to `loop-scout`. If the director answered the approval request, reconcile it.
-2. **On approval**: fold the answers into `lifetown/docs/spec/00-mvp-spec.md` (§12 D1-D11), set T001
-   `done`, and open the next tasks from the spec's ship plan (§11). The spec's own §11.3 asks for the
-   MVP scope to become a **`VISION.md` boundary** so the gate rejects out-of-scope work — do that; it
-   is the rule whose absence let the original build 9 social screens that were locked out of MVP.
-3. **If D7 is answered "personal"**: recruiting 12 testers starts immediately and is not a coding task.
-   It is on the critical path — surface it every time, it is the thing that killed the original.
-4. **If no answer**: stay idle. Nothing else is `ready`; everything depends on this spec. Do not
-   manufacture work, and do not nudge every tick (`VISION.md` §6).
-5. Commit + push both repos on any change (`origin/main` tracked in each).
+1. **When the T005 village revision lands**: render village.html → PNG, LOOK at it, then have 아트팀장
+   score the render (A1-A5, ≥90). Only if it clears 90 → send to the director (rule 21:22). If <90 →
+   deductions back to ui-ux, revise, re-gate. Do NOT send an ungated mockup to the director again.
+2. **On director approval of the village direction**: open the App-layer build. First buildable screen
+   is likely the village itself (client-dev, build mode, Unity) — it consumes Core (T002) + Platform
+   (T003) + the design system (T004). Remember §11.3: make the MVP scope a `VISION.md` boundary so the
+   gate rejects out-of-scope work (the original built 9 locked-out social screens).
+3. **If the director gives more art feedback**: fold it into the same revision; don't start a new task.
+4. **If nothing ready**: idle. Do not manufacture work; do not nudge every tick (`VISION.md` §6).
+5. Commit both repos on any change. **Push the engine repo** (has a remote); lifetown is local-only
+   until the director provides its remote — commit it locally every time regardless.
 
 ## Decisions Made
+- 2026-07-16 **Visual deliverables get art-lead-gated BEFORE the director sees them** (director
+  instruction 21:22: "아트팀장 기준 점수 넘기면 나에게 보여줘"). Round-1 mockups were sent to the
+  director ungated — the director overruled that. Now: ui-ux produces → render to PNG → 아트팀장 scores
+  A1-A5 ≥90 (it must SEE the render) → only then send to the director. Catches problems like "buildings
+  don't read as buildings" before spending the director's attention. Applies to mockups too, not just
+  the design system doc.
 - 2026-07-16 **Roles restructured (director rules 6-8).** Every team is member + lead; the lead gates
   at **90** against that team's fixed rubric (`VISION.md` §3.2). App completion moved to a **5-expert
   playtest panel: avg ≥90 AND nobody <80** (§3.3). The floor matters more than the average —

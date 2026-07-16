@@ -441,3 +441,20 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - note: this is the second useful correction the director has made on a deliverable (first: the 83->93
   spec was the team's own lead; this one is the director on visuals). Both times the system revised
   instead of shipping the first attempt. That is the whole point.
+
+## Tick 14 — 2026-07-16 21:23 — new rule: art-lead-gate visuals before the director
+- did: Monitor fired on director msg 1527289220106948708 (21:22): "아트팀장 기준 점수 넘기면 나에게
+  보여줘." Scout classified it as a reporting-workflow instruction (not new art, not a stop) and stayed
+  IDLE (T005 already in-progress).
+- **process correction accepted**: round-1 mockups were sent to the director UNGATED — I had decided
+  "the director is the judge of a mockup." The director overruled that: visuals must clear 아트팀장's
+  score (90) before reaching them. It is the right call — an art-lead scoring A1-A5 would have caught
+  "buildings don't read as buildings" before it cost the director a review cycle. Recorded as a
+  standing rule in PROGRESS Decisions and Next Run Should.
+- **also fixed a real cockpit rot**: PROGRESS.md's Current State / Last Run / Blockers were STALE from
+  tick 4-5 — it still said "PAUSED" and "waiting on D7". At tick 14 that is dangerously wrong: a
+  context-reset tick would read "paused" and stop, or chase a resolved blocker. Rewrote those sections
+  to tick-14 reality (T001-T004 done, T005 mid-revision, D7 resolved as "defer shipping"). I had been
+  appending to the journal + Decisions but letting the cockpit top rot — exactly the failure the file
+  warns about. The cockpit must reflect NOW, not accumulate.
+- next: when the village revision lands → render → 아트팀장 gate ≥90 → then director. Not before.
