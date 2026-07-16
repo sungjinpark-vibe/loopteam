@@ -12,7 +12,15 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: Idle — T001 `awaiting-approval`; nothing else is `ready`
+- **Status**: 🛑 **PAUSED at the director's request.** They said "멈춰줘" on Discord 2026-07-16 09:58
+  (msg 1527117309070671972). `state/loop.json` → `paused: true`. **A tick that starts while this is
+  true must sleep immediately and do nothing** (`.claude/skills/tick/SKILL.md` Step 0).
+  - **"멈춰줘" was not an approval.** It answered none of D1/D5/D7/D9/D11. Do not treat an unanswered
+    decision as an approved one when the loop resumes.
+  - To resume: set `paused: false` and run `/tick` or `/loop /tick`. The Discord listener stayed on, so
+    anything the director sent while paused is already in `incoming.log`; `handled.txt` is at the stop
+    message, so a resume picks up cleanly from whatever came after it.
+- **Was**: Idle — T001 `awaiting-approval`; nothing else is `ready`
 - **Main objective**: Ship Life Town (Unity) to a real player. Done = "a stranger installed it from a
   store link and logged a session" — a stop condition outside the team's own claims.
 - **Current focus**: The director's answer on **D7 (Play Console: personal vs organization)**.

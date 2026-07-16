@@ -276,3 +276,17 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   asks for the MVP scope to become a `VISION.md` boundary so the gate can reject that — worth doing.
 - next: awaiting the director. T001 is `awaiting-approval`; nothing else is `ready`, so the loop idles.
   Blocking answer is D7. D1 and D11 override locked decisions and need explicit approval.
+
+## Tick 5 — 2026-07-16 10:00 — STOPPED at the director's request
+- did: Monitor fired on the director's 09:58 message. Scout read it: **"멈춰줘"**.
+- task: none
+- result: **loop halted.** `paused: true`, `/loop` stopped, Monitor stopped. Discord listener left
+  running (director rule: "작업 끝나면 리스너 켜줘") so messages keep landing while the loop sleeps.
+- **the scout got the important part right**: it did NOT read "멈춸줘" as approval. T001 stays
+  `awaiting-approval` with D1/D5/D7/D9/D11 all unanswered. An unanswered decision is not an approved
+  one, and a stop command is not a yes. That distinction is exactly what a tired loop would blur.
+- `handled.txt` advanced to the stop message, so a resume starts clean from whatever comes after it
+  rather than re-reading "멈춰줘" as new work.
+- state at halt: both repos committed and pushed, 0 uncommitted. T001 passed at 93 and its spec is in
+  `lifetown/docs/spec/00-mvp-spec.md`. Nothing in flight, nothing half-done.
+- to resume: set `paused: false`, then `/tick` or `/loop /tick`.
