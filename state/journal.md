@@ -370,3 +370,20 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - **flagged to the director**: unlike Core/Platform (decision-stable, my call), the visual direction is
   the game director's domain. Proceeding on "계속 진행해" but explicitly inviting taste input.
 - lifetown remote: still none (director will provide). Local commits only.
+
+## Tick 10 — 2026-07-16 20:47 — art blend directive captured (T004 still running)
+- did: Monitor fired on director msg 1527280384453115936 (20:46): "1과 2가 적절하게 섞여야해".
+- decision: this is taste guidance for the RUNNING T004, not a new task or a stop. Scout correctly went
+  IDLE (T004 in-progress, nothing else ready) and captured the guidance without interrupting.
+- interpretation: 1=readability, 2=delight (matches the PM's own Discord numbering) → director wants a
+  **readability+delight blend**, not a single winning angle. Confirmed the mapping back to the director.
+- **how this is handled without wasting the running work**: the explore workflow already returns
+  `grafts` (best ideas from the losing angles). So when T004 lands, the winner-handling takes the
+  higher-scored of readability/delight as the spine and grafts in the other, rather than shipping one
+  angle. The blend is a director instruction → it outranks raw score order. Recorded as a PM directive
+  in T004.md. Do NOT restart T004 — steer at completion.
+- **why not interrupt**: T004 is ~mid-flight and restarting burns the proposals already generated. The
+  blend is a finishing step, not a re-scope. This is the whole point of not blocking/restarting on
+  every message.
+- pending: confirm the final look with the director via mockups before T004 is done; asked if they want
+  a weighting (e.g. 6:4) or an even split.
