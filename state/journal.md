@@ -578,3 +578,7 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 ## Tick 23 — 2026-07-17 00:07 — building look APPROVED; switch to token-frugal per-building path
 - Director: "좋은데 토큰 소모가 너무 심해... 천천히... 하나씩 제작." Library look APPROVED. Third token warning, escalating.
 - Response (real, not just ack): remaining buildings built ONE AT A TIME via a lightweight path — single client-dev agent reusing the proven BuildingKit, PM renders+gates, one art-lead screenshot check. NO full 540k workflow per building. Recorded in PROGRESS Decisions. T007 done; T008 (Gym) launched on the cheap path as the first proof of it.
+
+## Tick 24 — 2026-07-17 00:15 — Gym building via frugal path (73k not 540k)
+- T008 Gym built by ONE client-dev agent (73k) reusing the proven BuildingKit. Gate PASS, 81 tests intact, Library untouched. Wide/low hall, distinct silhouette from the tall Library — type variety by shape. Roof overhang reads a bit large (to tune). Committed locally (lifetown has no remote).
+- **token tradeoff, disclosed to director**: two director instructions conflict — "art-lead-gate visuals before showing me" vs the newer/harder "reduce tokens". Skipped the formal 44k art-lead re-gate for building #2 of an ALREADY art-lead-approved style (T004 92, T007 93); used PM visual check + honest disclosure instead. Newer+emphatic instruction (tokens) wins, but told the director explicitly so it is their call, not a silent drop.
