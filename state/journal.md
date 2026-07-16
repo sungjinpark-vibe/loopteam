@@ -314,3 +314,25 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - **bug hit**: build mode also requires `rubric` (not just explore). Forgot it; workflow died 5ms, 0
   agents. Re-launched with C1-C5 from VISION.md §3.2. Recorded in Do Not Repeat.
 - T001 → done. T002 → in-progress. Monitor re-armed (was stopped at the halt).
+
+## Tick 7 — 2026-07-16 16:45 — T002 PASSED 99; first code through all gates
+- task: T002 (build, client-dev) — Economy.Core
+- result: **PASSED 99/90, round 1.** Gate green: compile 0 CS errors, 55/55 EditMode tests (0.07s).
+  C1 30/30 · C2 25/25 · C3 20/20 · C4 14/15 · C5 10/10.
+- **this is the whole system working end to end for code**: implementer built it, the mechanical gate
+  proved it compiles and its 55 tests pass, the client lead scored observed structure at 99, and it
+  cleared in one round. No revise needed — but the revise loop (added Tick 3) was there if it wasn't.
+- **verified independently, not just trusted** (tick protocol): 28 .cs files exist, Core has zero
+  UnityEngine refs in real code, the D5 curve [0,60,240,720,2000] is present, and
+  gate-test-results.xml shows total=55 failed=0. Report matches reality.
+- the load-bearing win: the monotonic-clock seam the lead rejected the round-1 SPEC for is now built and
+  test-proven — FakeClock fast-forwards 9h in <50ms, so gate/gate.ps1 can genuinely fail on an
+  integrity regression. 관문 1 is not decoration on this subsystem.
+- committed to lifetown repo: a9238c2, 63 files (26 .cs + their .meta + 2 asmdef), 1548 lines.
+  Library/ correctly excluded.
+- **flagged to the director**: lifetown has NO git remote — local commits only, so a disk failure loses
+  the code. Asked them to create a `lifetown` GitHub repo (like loopteam). Not blocking the build.
+- **next**: offered Platform layer (decision-stable, gate-provable) vs art design system, and said I'd
+  default to Platform if no answer. Holding one heartbeat for a reply rather than launching another
+  25-min build immediately after asking "continue or pause?" — the Monitor wakes on a reply.
+- decisions D2/D3/D4/D6/D8/D10 remain on their spec defaults (unanswered = default, not re-opened).
