@@ -67,6 +67,14 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
    until the director provides its remote — commit it locally every time regardless.
 
 ## Decisions Made
+- 2026-07-16 **Token economy — director directive 22:56 "토큰 많이 사용하지 말아줘".** Concrete levers,
+  in priority order: (1) **Do NOT spawn `loop-scout` for an obvious single message** — the message is
+  already in the notification; read and act inline. Reserve the scout for a genuinely full/ambiguous
+  inbox. A scout tick is ~30k tokens; most director replies are one line. (2) **Cap workflow rounds** —
+  pass a lower `maxRounds` where the answer is fairly determined; don't run 3 explore angles for a
+  near-decided question. (3) **Tighter journal/Discord/commit prose.** (4) Verify only what matters
+  (a wrong result is costlier than a light check, but don't re-verify everything). Workflows (200-500k
+  each) and scout ticks are the big costs — spend them deliberately.
 - 2026-07-16 **Visual deliverables get art-lead-gated BEFORE the director sees them** (director
   instruction 21:22: "아트팀장 기준 점수 넘기면 나에게 보여줘"). Round-1 mockups were sent to the
   director ungated — the director overruled that. Now: ui-ux produces → render to PNG → 아트팀장 scores

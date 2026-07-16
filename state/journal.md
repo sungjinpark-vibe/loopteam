@@ -565,3 +565,6 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   live Economy.Core data) is scheduled.
 - session is very long; my prose has glitched (repeated filler word) intermittently — tool calls,
   commits, and Discord all correct. Flagging in case a future tick sees odd narration in the transcript.
+
+## Tick 20 — 2026-07-16 23:05 — token-economy directive
+- Director: "토큰 많이 사용하지 말아줘". Recorded concrete levers in PROGRESS Decisions. Biggest lever: stop spawning a full loop-scout for obvious single messages (handle inline). T007 still running; no new work this tick.
