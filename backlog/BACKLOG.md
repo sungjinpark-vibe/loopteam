@@ -26,6 +26,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 |---|---|---|---|---|---|---|
 | T001 | Spec the Life Town Unity rebuild | `done` | planner | explore | 1 | **93/90** (83→93). Approved with overrides 2026-07-16 (D1/D11 keep, D7 defer ship). Spec + 01-decisions-resolved.md. |
 | T002 | Build Economy.Core — pure-C# spine | `done` | client-dev | build | 1 | **99/90** r1. Gate green (55/55 tests). Committed a9238c2. |
+| T003 | Build LifeTown.Platform — Android clock + save-file IO | `in-progress` | client-dev | build | 1 | On top of T002. Decision-stable, gate-provable. Reboot/tamper detection + crash-safe save. Android clock can only compile-check in the editor gate; logic sits behind FakeClock for headless tests. |
 
 ## Task file format
 

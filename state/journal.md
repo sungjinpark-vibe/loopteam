@@ -336,3 +336,18 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   default to Platform if no answer. Holding one heartbeat for a reply rather than launching another
   25-min build immediately after asking "continue or pause?" — the Monitor wakes on a reply.
 - decisions D2/D3/D4/D6/D8/D10 remain on their spec defaults (unanswered = default, not re-opened).
+
+## Tick 8 — 2026-07-16 20:20 — T003 (Platform) launched
+- did: Monitor fired on director's 20:18 "계속 진행해. 저장소는 추후에 알려줄게." Scout classified it:
+  general go-ahead + repo deferred. No explicit Platform-vs-art pick → PM's stated default (Platform).
+- task: T003 (build, client-dev) — LifeTown.Platform. Launched.
+- scope: AndroidMonotonicClock (§7.3.1), reboot/tamper detection (§7.3.2, >5000ms drift → clock_untrusted),
+  crash-safe SaveFile JSON IO (temp + atomic replace). Additive on T002's Core; no economy math in Platform.
+- **testability caveat put in the brief up front**: the gate runs in the editor, not on real Android, so
+  AndroidJavaClass returns nothing real there. The reboot/tamper LOGIC must sit behind IMonotonicClock
+  (FakeClock-injectable) to be EditMode-testable; the device clock itself only compile-checks. Told the
+  lead this so it scores C5 on "is the logic gate-provable", not on "did it run on a phone" (it can't).
+  Also reported this limit to the director honestly.
+- lifetown remote: still none; director said he'll provide it later. Committing locally, as before.
+- note: scout had already created the T003 file and backlog row (good — that is its job); PM only set
+  status in-progress and launched. No duplication.
