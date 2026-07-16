@@ -24,7 +24,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 
 | ID | Title | Status | Agent | Mode | Priority | Notes |
 |---|---|---|---|---|---|---|
-| T001 | Spec the Life Town Unity rebuild — sharpened toward the app's purpose | `in-progress` | planner | explore | 1 | 3 angles (trust / feel / ship) → 기획팀장 scores P1-P5 at 90. Its output needs director approval before anything downstream starts. |
+| T001 | Spec the Life Town Unity rebuild — sharpened toward the app's purpose | `awaiting-approval` | planner | explore | 1 | **PASSED 93/90** (83 → 93). Spec at `lifetown/docs/spec/00-mvp-spec.md`. Sent to director. Blocking on D7 (dev account). D1/D11 override locked decisions → need explicit approval. |
 
 ## Task file format
 

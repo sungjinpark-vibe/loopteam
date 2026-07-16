@@ -246,3 +246,33 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   scoring replay from cache — no re-burn of 241k tokens.
 - also fixed: the success path reported round-1 `perCriterion`, which goes stale after a revision.
 - cost so far on T001: 4 agents, 241k subagent tokens, ~15 min.
+
+## Tick 4 — 2026-07-16 09:15 — T001 PASSED 93; awaiting director approval
+- task: T001 (explore, planner)
+- result: **PASSED 93/90.** scoreHistory [83, 93], 2 rounds. Spec written to
+  `lifetown/docs/spec/00-mvp-spec.md` (81,839 bytes) and committed to the app repo.
+- score: P1 24/25 · P2 23/25 · P3 18/20 · **P4 15/15** · P5 13/15
+- **the revise loop paid for itself immediately.** The bug I fixed this same tick was the difference
+  between shipping an 83 as an escalation and shipping a 93. The lead's own round-2 note: "The prior
+  round's two blockers are gone. §7.3 makes the load-bearing monotonic clock implementable."
+- resume worked as designed: `workflowProgress` confirms the 3 proposals + round-1 lead replayed from
+  cache (`cached: true`) and only revise + re-score ran live. 133k tokens instead of another 241k.
+- **the planner found the thing nobody had measured**: Google Play personal developer accounts need
+  **12 opted-in testers for 14 continuous days** before production. Unshortenable by coding, never on
+  anyone's plan. At every moment of that year the original was — at best — an account + 12 humans + 14
+  days away from a player. **That is why it sat at zero.** Shipping is now the longest-lead step and
+  starts in week 1, before the product exists.
+- other findings worth keeping:
+  - The director's own 07-11 EXP curve `[0,30,120,360,1000]` lets one 25-min session take a building
+    Lv1→Lv5 max, killing the EXP axis after session 1. The spec defaults to **his own earlier 07-10
+    value**, not a planner's invention, and flags it. That is the right way to not-drift.
+  - Landmark arithmetic: 2 × Tier2 Lv10 = ~25 h of logged time. A 14-day test at 1 h/day = 14 h.
+    **No tester can reach one.** Cutting it is not laziness; building it would be content for zero humans.
+  - D9: the spec was explicitly *permitted* to pay leisure less, and refused — "a leisure penalty is
+    the exact mechanism that converts a neutral mirror back into a productivity app, quietly, through a
+    constant, with no document ever saying so." Surfaced as the director's call rather than taken.
+- **note on the count**: 14 of the original's 27 screens (52%) are social + mini-games, both locked
+  OUT of MVP. The team built the half locked out and skipped the half locked in. §11.3 of the new spec
+  asks for the MVP scope to become a `VISION.md` boundary so the gate can reject that — worth doing.
+- next: awaiting the director. T001 is `awaiting-approval`; nothing else is `ready`, so the loop idles.
+  Blocking answer is D7. D1 and D11 override locked decisions and need explicit approval.

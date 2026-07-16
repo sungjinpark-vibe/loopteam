@@ -12,19 +12,25 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: Idle — team standing by, waiting on the first brief
-- **Main objective**: Receive the director's first brief and start building
-- **Current focus**: Waiting for the brief (what game, concept, feel). Build nothing without one.
-- **Last updated**: 2026-07-16 (Tick 1 + director rules 1-5)
+- **Status**: Idle — T001 `awaiting-approval`; nothing else is `ready`
+- **Main objective**: Ship Life Town (Unity) to a real player. Done = "a stranger installed it from a
+  store link and logged a session" — a stop condition outside the team's own claims.
+- **Current focus**: The director's answer on **D7 (Play Console: personal vs organization)**.
+  **Nothing ships until that is answered** — a personal account needs 12 opted-in testers for 14
+  *continuous* days, which is the longest-lead item on the project and is not a coding task.
+- **Last updated**: 2026-07-16 09:15 (Tick 4)
 
 ## Last Run
-- **Date**: 2026-07-16 00:45 (Tick 1 — first real tick)
-- **Summary**: Team loaded after restart (9 agents + `/tick`). Contract re-read → `loop-scout` →
-  **IDLE**. Confirmed the loop does not manufacture work when no brief exists — the point of the tick.
-- **Output**: none (intended). State updated only.
+- **Date**: 2026-07-16 09:15 (Tick 4)
+- **Summary**: T001 **PASSED 93/90** (83 → 93 over 2 rounds). Ship-first spec won. Written to
+  `lifetown/docs/spec/00-mvp-spec.md` and committed. Approval request sent to Discord.
+- **Output**: the MVP spec (81,839 bytes) + 11 director decisions (D1-D11), each with a
+  recommendation, a cost, and a default so the loop never blocks on them.
 
 ## Open Items
-- No project assigned. `VISION.md` §2 still the template.
+- **T001 awaiting director approval.** Three answers needed to start (D7 dev account, D5 EXP curve,
+  D9 leisure multiplier); two more (D1 cloud sync, D11 landmarks) override locked decisions and need
+  explicit approval. The other six have defaults and proceed silently if unanswered.
 - **Unity MCP not connected.** Director ruled: connect once a project exists and it is needed
   (`VISION.md` §7 rule 5). Not a blocker while there is no project.
   - **Use the OFFICIAL one**: `com.unity.ai.assistant`, requires Unity 6000.0+ (we are on 6000.5.1f1 —
@@ -35,7 +41,10 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   - **⚠️ It conflicts with our gate — design the sequencing before installing.** See Do Not Repeat.
 
 ## Blockers
-- None. Channel wired, remote pushed, Unity gate verified. Waiting on the first brief.
+- **D7 — Play Console account.** Personal (~$25, but 12 testers × 14 continuous days) vs organization
+  (exempt from the 12-tester rule, needs a D-U-N-S number, slower approval). **This is the gate that
+  silently held the original at zero players for a year** — it was never on anyone's plan. It cannot be
+  shortened by coding, so it starts in week 1, before the product exists. Waiting on the director.
 
 ## Needs Human Review
 - ~~app-dev-team cursor bug~~ → **Director ruled "건드리지 마" 2026-07-16. Closed.** See Do Not Repeat.
@@ -50,13 +59,16 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   one grader guessing from code, but **not a human playtest** — never report it as one. `VISION.md` §3.3.
 
 ## Next Run Should
-1. Delegate to `loop-scout` to find a brief. (Channel live — bot `Loop_team`, `#loop-team`.)
-2. If a brief exists: create the Unity project folder → `git init` → add to root `.gitignore` →
-   fill `VISION.md` §2-3 (project + **rubric**) → send the rubric to the director for approval in
-   Korean → open T001 (`explore`, `planner`).
-   **Fix the rubric before a line of code.** Written later, it bends to fit the result.
-3. If no brief: **idle**. Do not manufacture work. (Verified in Tick 1.)
-4. Commit + push the engine repo on any change (`origin/main` tracked).
+1. Delegate to `loop-scout`. If the director answered the approval request, reconcile it.
+2. **On approval**: fold the answers into `lifetown/docs/spec/00-mvp-spec.md` (§12 D1-D11), set T001
+   `done`, and open the next tasks from the spec's ship plan (§11). The spec's own §11.3 asks for the
+   MVP scope to become a **`VISION.md` boundary** so the gate rejects out-of-scope work — do that; it
+   is the rule whose absence let the original build 9 social screens that were locked out of MVP.
+3. **If D7 is answered "personal"**: recruiting 12 testers starts immediately and is not a coding task.
+   It is on the critical path — surface it every time, it is the thing that killed the original.
+4. **If no answer**: stay idle. Nothing else is `ready`; everything depends on this spec. Do not
+   manufacture work, and do not nudge every tick (`VISION.md` §6).
+5. Commit + push both repos on any change (`origin/main` tracked in each).
 
 ## Decisions Made
 - 2026-07-16 **Roles restructured (director rules 6-8).** Every team is member + lead; the lead gates
@@ -95,8 +107,12 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   returns them as text; the PM records the winner. No worktree needed, no conflicts.
 - 2026-07-16 **Awaiting-approval never stops the team.** It stops that *task*; the loop moves to the
   next `ready` one. The single rule that lets an approval gate coexist with an autonomous loop.
-- 2026-07-16 **Two gates.** Rubric scoring (95) only after the mechanical gate is green. Broken builds
-  are never scored — ch.29's Nodding Loop defense.
+- 2026-07-16 **Gate order.** Rubric scoring happens only after the mechanical gate is green. Broken
+  builds are never scored — ch.29's Nodding Loop defense. (Superseded on bars only: it is now three
+  gates, team lead at 90 and the expert panel at 90/floor-80. See the rules-6-8 entry above.)
+- 2026-07-16 **The gates are real — proven, not asserted.** T001 scored 83 and was refused. Not
+  "basically there", not nudged to 90. It was revised against the itemized deductions and passed at 93.
+  If a future tick is tempted to soften a bar, this is the entry that says the bar works.
 
 ## Do Not Repeat
 > ch.18: if a failed attempt is not written down, the next run repeats it.
