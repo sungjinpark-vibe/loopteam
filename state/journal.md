@@ -290,3 +290,27 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - state at halt: both repos committed and pushed, 0 uncommitted. T001 passed at 93 and its spec is in
   `lifetown/docs/spec/00-mvp-spec.md`. Nothing in flight, nothing half-done.
 - to resume: set `paused: false`, then `/tick` or `/loop /tick`.
+
+## Tick 6 — 2026-07-16 16:15 — RESUMED; T001 approved w/ overrides; T002 launched
+- did: Director un-paused via "루프 다시 시작". Confirmed the listener held all messages during the halt.
+- inbox: director answered the approval (msg 1527210387135528991, 16:08) + sent "/loop".
+- **T001 APPROVED with overrides.** Answers → D-numbers:
+  - D5 = accept planner → EXP curve [0,60,240,720,2000]
+  - D9 = accept planner → leisure ×1.0
+  - D1 = **keep cloud sync** (director's "4,5는 유지" = keep the features; PM confirmed via AskUserQuestion)
+  - D11 = **keep landmarks**
+  - D7 = **defer the dev account; build only** ("일단 만들기만"; PM confirmed "출시는 나중, 일단 만들기만")
+- **honest consequence, told to the director plainly**: these overrides invert the spec's *ship-first
+  thesis* (cut hard, ship week 1). But they are internally coherent — D7 (no ship) dissolves the very
+  objections behind cutting D1/D11 ("no 14-day test → no one-reaches-25h problem, no device-loss-for-12
+  -testers problem"). The spec's scaffolding survives; only its thesis + scope-cuts are overridden.
+  Scope is now LARGER than the 93-pt spec; its 8-9 week timeline is void; completion is now Gate 3
+  (5-expert playtest), not a store install. Recorded in docs/spec/01-decisions-resolved.md (newer
+  record wins on conflicts) and VISION.md §2.
+- **build sequencing (PM call)**: build the decision-stable spine first — the parts no decision touched.
+  T002 = Economy.Core (pure C#, no UnityEngine): monotonic-clock seam, economy w/ D5+D9 baked in, I1-I7
+  clamps, session commit. Fully unit-testable → the ideal first mechanical-gate target. Cloud sync (D1)
+  and landmarks (D11) are additive and become their own later tasks; the core loop needs neither.
+- **bug hit**: build mode also requires `rubric` (not just explore). Forgot it; workflow died 5ms, 0
+  agents. Re-launched with C1-C5 from VISION.md §3.2. Recorded in Do Not Repeat.
+- T001 → done. T002 → in-progress. Monitor re-armed (was stopped at the halt).

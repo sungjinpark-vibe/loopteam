@@ -33,7 +33,9 @@ bar, and approve or reject.
 | Project folder | `C:\Users\user\loop_engine\lifetown` (own git repo) |
 | Source material | `C:\Users\user\app-dev-team\lifetown\` — **read-only**. Never modify it (§4). |
 | Director's brief | 2026-07-16: rebuild the same app in Unity, **but make it better achieve its purpose** — not a straight port. |
-| Scope | **UNDECIDED — awaiting director approval.** The original is 34k lines / 27 screens; the loop must not assume the whole thing is the MVP. |
+| Spec | `lifetown/docs/spec/00-mvp-spec.md` (ship-first, scored 93/90) + `01-decisions-resolved.md` (director's answers — **the newer record wins on conflicts**). |
+| Scope | **Approved with overrides (2026-07-16).** Base = the 93-point ship-first spec, MINUS its ship-first thesis: the director kept **cloud sync (D1)** and **landmarks (D11)**, and **deferred shipping — build only (D7)**. So scope is *larger* than the spec proposed, and completion is **Gate 3 (5-expert playtest ≥90)**, not a store install. Decisions D5=`[0,60,240,720,2000]`, D9=leisure ×1.0. |
+| Completion | **The 5-expert playtest gate (§3.3).** No store dependency while D7 is deferred. |
 
 ### The purpose, in the source's own words
 `docs/spec/00-overview.md` §2: *"보이지 않는 노력(집중 시간)을 가시적 성취(마을)로 전환해 습관 형성을

@@ -24,7 +24,8 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 
 | ID | Title | Status | Agent | Mode | Priority | Notes |
 |---|---|---|---|---|---|---|
-| T001 | Spec the Life Town Unity rebuild — sharpened toward the app's purpose | `awaiting-approval` | planner | explore | 1 | **PASSED 93/90** (83 → 93). Spec at `lifetown/docs/spec/00-mvp-spec.md`. Sent to director. Blocking on D7 (dev account). D1/D11 override locked decisions → need explicit approval. |
+| T001 | Spec the Life Town Unity rebuild | `done` | planner | explore | 1 | **93/90** (83→93). Approved with overrides 2026-07-16 (D1/D11 keep, D7 defer ship). Spec + 01-decisions-resolved.md. |
+| T002 | Build Economy.Core — pure-C# spine (economy + monotonic clock) | `in-progress` | client-dev | build | 1 | First code build. Decision-stable, gate-provable. D5 curve + D9 x1.0 baked in. Scored by 클라이언트팀장 C1-C5. |
 
 ## Task file format
 

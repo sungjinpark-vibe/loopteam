@@ -1,13 +1,12 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 5,
+  "tick": 6,
   "project": "lifetown (Life Town — Unity rebuild)",
-  "active_task": null,
-  "last_tick_at": "2026-07-16 10:00",
+  "active_task": "T002",
+  "last_tick_at": "2026-07-16 16:15",
   "consecutive_idle_ticks": 0,
-  "paused": true,
+  "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],
-  "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done.",
-  "_paused_reason": "Director said \"멈춰줘\" on Discord 2026-07-16 09:58 (msg 1527117309070671972). Halted at their request. NOT an approval of anything — T001 is still awaiting-approval with D1/D5/D7/D9/D11 unanswered."
+  "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done."
 }
