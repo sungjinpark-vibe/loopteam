@@ -30,7 +30,8 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T004 | Art design system — village + core screens | `done` | ui-ux | explore | 1 | **92/90** r1 (cohesion won; readability+delight grafted per director). Committed. |
 | T005 | Art mockups — village visual direction | `dropped` | ui-ux | — | 1 | Director chose C (build in Unity). Mockup retired; building-form direction proven → carried into T006/T007. |
 | T006 | Unity building asset strategy | `done` | ui-ux | explore | 1 | **93/90**. Rec: custom ProBuilder (confirms D6). Free packs rejected on identity fit. ~2wk. Doc committed. |
-| T007 | One-building ProBuilder spike (Unity) | `awaiting-approval` | client-dev | build | 1 | **93/90** (85→93). Real Unity 3D Library building, batchmode screenshot. Sent to director for go/no-go. |
+| T007 | One-building ProBuilder spike | `done` | client-dev | build | 1 | **93/90**. Library approved by director. Kit proven → reuse for rest. |
+| T008 | Add Gym building (lightweight, reuse BuildingKit) | `in-progress` | client-dev | — | 1 | Token-frugal path: 1 agent reusing kit, PM renders+gates, 1 art-lead check. No full workflow. |
 
 ## Task file format
 

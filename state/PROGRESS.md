@@ -67,6 +67,14 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
    until the director provides its remote — commit it locally every time regardless.
 
 ## Decisions Made
+- 2026-07-17 **Token economy, THIRD directive 00:05 "토큰 소모가 너무 심해... 천천히... 하나씩 제작".**
+  Building look APPROVED. But the cadence must change. **The quality-loop workflow (200-540k each) is the
+  cost driver.** For the remaining 6 buildings + village fill, DO NOT run a full workflow per building —
+  the BuildingKit is proven + parameterized (CategoryPalette.Get + archetype params), so build them
+  **one at a time via a LIGHTWEIGHT process**: a single `client-dev` Agent call reusing the kit → PM
+  renders + runs gate.ps1 (cheap) → ONE `team-lead`(아트팀장) screenshot check → show director. That is
+  ~2 substantive agents vs a workflow's 4-8 × multiple rounds. Reserve full workflows for genuinely
+  risky/novel work, not proven-pattern repetition. Go slowly; one building per beat; report and pace.
 - 2026-07-16 **Token economy — director directive 22:56 "토큰 많이 사용하지 말아줘".** Concrete levers,
   in priority order: (1) **Do NOT spawn `loop-scout` for an obvious single message** — the message is
   already in the notification; read and act inline. Reserve the scout for a genuinely full/ambiguous

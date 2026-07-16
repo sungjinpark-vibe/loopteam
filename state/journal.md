@@ -574,3 +574,7 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 
 ## Tick 22 — 2026-07-16 23:35 — T007 PASSED 93; first real Unity building
 - T007 (build, client-dev, 아트팀장 gate) PASSED 93/90 (85→93, 2 rounds). Real 3D ProBuilder Library building rendered in batchmode; reads as a building in our identity. Gate green, 81 tests intact. Root cause of R1 fail: ProBuilder ToMesh() submesh clamp before material assign (fixed by reorder). Committed. Screenshot sent to director for go/no-go before the full village. gate-runner-on-haiku (Tick 21) applied to future runs, not this one.
+
+## Tick 23 — 2026-07-17 00:07 — building look APPROVED; switch to token-frugal per-building path
+- Director: "좋은데 토큰 소모가 너무 심해... 천천히... 하나씩 제작." Library look APPROVED. Third token warning, escalating.
+- Response (real, not just ack): remaining buildings built ONE AT A TIME via a lightweight path — single client-dev agent reusing the proven BuildingKit, PM renders+gates, one art-lead screenshot check. NO full 540k workflow per building. Recorded in PROGRESS Decisions. T007 done; T008 (Gym) launched on the cheap path as the first proof of it.
