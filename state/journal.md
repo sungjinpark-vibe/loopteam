@@ -628,3 +628,17 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   director instead. Will attach the formal gate once the direction is locked. Told the director plainly.
 - Agent note: v2 removed the door/window/lantern (they competed with the page striations); flagged to
   the director as a possible detail pass once the form is approved. Committed to lifetown (local-only).
+
+## Tick 29 (cont.) — 08:12 — director feedback loop on the book form (v2 -> v3)
+- Director replied to v2 (08:07): "책이 책처럼 안보여. 책을 쌓는다는 컨셉은 좋지만 책처럼 보이게 만들어줘"
+  — stack CONCEPT approved; individual volumes read as striped slabs, not books.
+- Diagnosis: v2's cream+striations covered every face; a book needs a colored COVER framing the pages.
+  Continued the SAME client-dev agent (still had BuildingKit context) via SendMessage with pointed fix:
+  solid cover on top+spine, cream page-block INSET with a framing lip, finer/muted striations on
+  fore-edges only. Frugal — no new agent, tuned the existing builder.
+- v3 (158k): gate green (compile 0, 81/81), no editor lock left. Bottom 3 books now read unmistakably
+  as hardcover books — the director's exact fix. Committed to lifetown (0712367).
+- Remaining flaw: the mint OPEN-BOOK CROWN sprawls past the stack + has a stray floating strip — reads
+  messy. Did NOT preemptively spin another round (token concern); instead showed the director v3 and
+  proactively flagged the crown with an offer to tidy the top only. Awaiting his call.
+- Handled cursor advanced to 1527451737357811833. Listener confirmed running (pid 8976).

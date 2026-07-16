@@ -2,7 +2,7 @@
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
   "tick": 29,
   "project": "lifetown (Life Town — Unity rebuild)",
-  "active_task": "awaiting-approval: Library form-reshape v2 (stack-of-books monument) sent to director for go/no-go on the form-expresses-meaning direction",
+  "active_task": "awaiting-approval: Library form v3 sent. Bottom 3 books now read clearly as hardcover books (director's fix landed). Flagged the messy open-book crown to the director + offered to tidy it. Awaiting his call. If YES to the book direction -> apply archetype to Gym (barbell form) on the frugal path; if he wants the crown tidied -> resume client-dev ae38e5432a455370b for a top-only cleanup.",
   "last_tick_at": "2026-07-17 08:08",
   "consecutive_idle_ticks": 0,
   "paused": false,
