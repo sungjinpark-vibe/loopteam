@@ -582,3 +582,7 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 ## Tick 24 — 2026-07-17 00:15 — Gym building via frugal path (73k not 540k)
 - T008 Gym built by ONE client-dev agent (73k) reusing the proven BuildingKit. Gate PASS, 81 tests intact, Library untouched. Wide/low hall, distinct silhouette from the tall Library — type variety by shape. Roof overhang reads a bit large (to tune). Committed locally (lifetown has no remote).
 - **token tradeoff, disclosed to director**: two director instructions conflict — "art-lead-gate visuals before showing me" vs the newer/harder "reduce tokens". Skipped the formal 44k art-lead re-gate for building #2 of an ALREADY art-lead-approved style (T004 92, T007 93); used PM visual check + honest disclosure instead. Newer+emphatic instruction (tokens) wins, but told the director explicitly so it is their call, not a silent drop.
+
+## Tick 25 — 2026-07-17 00:20 — director: add rooftop type-emblems (book, dumbbell)
+- Director: "cannot tell it is a gym; put an object on the roof signifying the type (dumbbell/book)." Not approval — a change request. Good idea: readable type by a recognizable rooftop symbol, not just shape/color. This becomes a standing pattern for all 7 buildings.
+- Frugal: resumed the SAME client-dev agent (has BuildingKit context) via SendMessage to add a book emblem (Library) + dumbbell emblem (Gym) reusing kit primitives, re-render both. No new workflow, no scout.
