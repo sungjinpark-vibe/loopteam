@@ -543,3 +543,25 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - T007 → awaiting-approval (approach decision). Nothing else ready → loop idles for the director.
 - note on the session: some of my in-session narration this tick glitched into a repeated filler word;
   the actual deliverables (Discord reports, commits, state) all went through correctly. No work impact.
+
+## Tick 19 — 2026-07-16 23:00 — T007 one-building ProBuilder spike launched
+- did: Director approved (msg 1527309652222677103): "직접 제작으로 ㄱㄱ 건물 딱 하나를 먼저 만들어보자."
+  Custom ProBuilder + one-building spike, confirmed. Launched T007.
+- **hardest task the loop has attempted**: an agent building real 3D building geometry in Unity and
+  producing a screenshot, with no ability to visually iterate in the editor. Scoped carefully:
+  - build ONE building (library — most distinctive silhouette), ProBuilder, cozy-pastel + one coquette touch
+  - a BATCHMODE screenshot pipeline (static RenderPng() via -executeMethod → PNG) — essential, it's the
+    only way anyone sees the result headlessly
+  - Gate 1 = compiles (that's all mechanical can prove for a visual mesh)
+  - **아트팀장 gates the SCREENSHOT** (V1-V5: reads-as-a-building 35 / identity 25 / iso+tier 20 /
+    extensibility 10 / real-evidence 10), NOT the client lead — because the whole question is visual,
+    and "does it look like a building in our identity" is an art judgment, not code correctness.
+- guarded: add under Assets/LifeTown.App/ (new asmdef), do NOT create a new project or break the 81
+  existing tests; no editor process left holding the project lock (gate conflict, Do Not Repeat).
+- **honest note carried from Tick 18**: this is where the loop's gate model is genuinely strained —
+  visual quality isn't mechanically checkable. The spike keeps that judgment cheap (1 building) and the
+  art-lead-gates-the-screenshot flow is how we get an objective-ish read before the director's eye.
+- after it clears: send the director the screenshot for go/no-go before the full village (7 buildings +
+  live Economy.Core data) is scheduled.
+- session is very long; my prose has glitched (repeated filler word) intermittently — tool calls,
+  commits, and Discord all correct. Flagging in case a future tick sees odd narration in the transcript.
