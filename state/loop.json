@@ -1,13 +1,13 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 28,
+  "tick": 29,
   "project": "lifetown (Life Town — Unity rebuild)",
-  "active_task": null,
-  "last_tick_at": "2026-07-17 01:00",
+  "active_task": "awaiting-approval: Library form-reshape v2 (stack-of-books monument) sent to director for go/no-go on the form-expresses-meaning direction",
+  "last_tick_at": "2026-07-17 08:08",
   "consecutive_idle_ticks": 0,
-  "paused": true,
+  "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done.",
-  "_paused_reason": "PM paused 2026-07-17 01:00: PM narration was glitching badly (repeated filler) and burning tokens against the director's explicit token concern. Handed back to the director cleanly. Library form-reshape v1 (stacked books) did NOT clearly land — subtle reading, awkward roof; needs a stronger pass or rethink. RESUME IN A FRESH SESSION: set paused=false and /tick. All state is in files. Building direction so far: pastel tone APPROVED; buildings need FORM that expresses meaning (ref at lifetown/docs/design/references/). Library=93 (original), Gym done, both have rooftop emblems (book/dumbbell) approved; the form-expresses-meaning reshape is the open task."
+  "_state_reason": "Resumed 2026-07-17 08:08 (fresh session, tick 29). Library form-reshape v2 (whole building = stack-of-books monument) built on the frugal path, gate green (compile 0, 81/81), reads clearly as books, sent to director for go/no-go. AWAITING that decision — if YES, apply the form-expresses-meaning archetype to the remaining buildings (Gym=barbell/weight form next); if NO, iterate the Library form. Direction context: pastel tone APPROVED; buildings need FORM that expresses meaning (ref at lifetown/docs/design/references/form-expresses-meaning-ref.jpg). Renders: v1=weak (spike-library-form-v1.png), v2=strong (spike-library-form-v2.png)."
 }

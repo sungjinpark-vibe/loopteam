@@ -607,3 +607,24 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   APPROVED; reference at lifetown/docs/design/references/form-expresses-meaning-ref.jpg), buildings
   (Library orig 93 + reshape v1; Gym; both have approved rooftop emblems book/dumbbell), open task =
   the form-expresses-meaning reshape needs a stronger pass or a rethink. Resume: paused=false + /tick.
+
+## Tick 29 — 2026-07-17 08:08 — resumed fresh session; Library form v2 (stack-of-books) lands strong
+- Director resumed the loop in a fresh session ("루프 시작하고 지난 작업 계속해줘") + "리스너도 켜줘". Ran
+  the watchdog → Discord daemon confirmed running (pid 8976). No new unhandled Discord messages (cursor
+  already at the tick-27 art-direction reference), so no scout — resumed the open task directly.
+- Open task was the form-expresses-meaning reshape; v1 (book-roof on a house) had read as an awkward
+  broken roof. Compared v1 vs the reference (a voxel MONUMENT where the whole form IS the concept) and
+  reframed: make the WHOLE building the object, not a house + emblem.
+- ONE client-dev agent (frugal path, 130k) rebuilt the Library body as a **stack of 4 oversized
+  hardcover books** — cream page-block front faces with ink striations (the #1 readability cue), spine
+  side-tone, distinct pastel covers, alternating offsets, an open-book crown replacing the roof, and a
+  pink bookmark ribbon as the coquette touch. New REUSABLE BuildingKit primitives added
+  (CreateBookVolume, CreateOpenBookCrown, CreateShadedBoxCustomTones) so the archetype extends to other
+  buildings. Gate PASS (compile 0, 81/81 tests), no editor left holding the lock.
+- PM viewed spike-library-form-v2.png: reads UNMISTAKABLY as books, pastel tone preserved — a decisive
+  win over v1. Sent to director for go/no-go before applying the archetype to the rest (Gym=barbell next).
+- Token tradeoff (same as Tick 24, disclosed): skipped the formal ~44k 아트팀장 re-gate for this
+  direction-calibration render of an already-approved style; PM visual check + honest disclosure to the
+  director instead. Will attach the formal gate once the direction is locked. Told the director plainly.
+- Agent note: v2 removed the door/window/lantern (they competed with the page striations); flagged to
+  the director as a possible detail pass once the form is approved. Committed to lifetown (local-only).

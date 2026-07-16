@@ -12,28 +12,34 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: Running (`paused: false`), tick 14. **T005 round-2 in progress**: a ui-ux agent is
-  revising the village mockup because the director found the buildings read as colored cubes, not
-  buildings. When it lands → **gate through 아트팀장 (≥90) BEFORE showing the director** (new rule 21:22,
-  see Decisions).
+- **Status**: Running (`paused: false`), tick 29. **Library form-reshape v2 is DONE and sent to the
+  director** for a go/no-go on the "building FORM expresses meaning" art direction. Awaiting his call.
 - **Main objective**: Build Life Town (Unity) to the point the 5-expert playtest gate passes (avg ≥90,
   floor 80). Shipping to a store is **deferred** (D7 — director said "일단 만들기만"), so completion is
   the playtest gate, not a store install.
-- **Progress**: T001 spec (93) · T002 Economy.Core (99) · T003 Platform (99) · T004 art system (92) —
-  all done and gate-passed. Now on the art mockups (T005) for the village's visual direction.
-- **Last updated**: 2026-07-16 21:23 (Tick 14)
+- **Progress**: T001 spec (93) · T002 Economy.Core (99) · T003 Platform (99) · T004 art system (92) ·
+  T007 Library building (93) · T008 Gym building — all gate-passed. Now iterating the **building art
+  direction**: whole silhouette must express category (director rule, tick 27). Library v2 (stack-of-
+  books monument) reads clearly as books; pastel tone preserved. Gym reshape (barbell/weight form) is
+  the next building once the director OKs the direction.
+- **Last updated**: 2026-07-17 08:08 (Tick 29)
 
 ## Last Run
-- **Date**: 2026-07-16 21:20 (Tick 13)
-- **Summary**: Director rejected the round-1 village mockup ("건물이 안보여... 종류도 다양해야해").
-  ui-ux resumed to revise village.html only (timer/receipt were not criticised). Then director added
-  (21:22) that visual deliverables must clear 아트팀장's score before reaching them.
-- **Output**: T005 in revision; a new standing rule (art-lead-gate visuals before the director).
+- **Date**: 2026-07-17 08:08 (Tick 29)
+- **Summary**: Director resumed the loop in a fresh session + asked to turn the listener on (done —
+  daemon pid 8976). Rebuilt the Library so its whole form is a **stack of books** (page striations =
+  the key readability cue), fixing v1's weak book-roof-on-a-house. Frugal path (one client-dev agent),
+  gate green, 81 tests intact. Sent v2 render to the director for go/no-go.
+- **Output**: `spike-library-form-v2.png`; reusable BuildingKit primitives (CreateBookVolume,
+  CreateOpenBookCrown); task now `awaiting-approval`.
 
 ## Open Items
-- **T005 village mockup** being revised → will be art-lead-gated → then sent to director.
-- **lifetown has NO git remote.** Local commits only (T001-T005 + code). Director said 2026-07-16 20:18
-  he'll provide the repo URL later. A disk failure loses the app until then. Not blocking the build.
+- **Library v2 direction** awaiting the director's go/no-go. If YES → apply the form-expresses-meaning
+  archetype to the remaining buildings (Gym=barbell first). If NO → iterate the Library form.
+- **Detail pass flagged**: v2 dropped the door/window/lantern (they competed with the page striations).
+  Told the director; add them back only if he wants them once the form is locked.
+- **lifetown has NO git remote.** Local commits only. Director said 2026-07-16 20:18 he'll provide the
+  repo URL later. A disk failure loses the app until then. Not blocking the build.
 - **Unity MCP not connected** (see the Do Not Repeat note on its gate conflict). Connect when the App
   layer actually needs live editor introspection; not yet.
 
@@ -54,17 +60,21 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
   one grader guessing from code, but **not a human playtest** — never report it as one. `VISION.md` §3.3.
 
 ## Next Run Should
-1. **When the T005 village revision lands**: render village.html → PNG, LOOK at it, then have 아트팀장
-   score the render (A1-A5, ≥90). Only if it clears 90 → send to the director (rule 21:22). If <90 →
-   deductions back to ui-ux, revise, re-gate. Do NOT send an ungated mockup to the director again.
-2. **On director approval of the village direction**: open the App-layer build. First buildable screen
-   is likely the village itself (client-dev, build mode, Unity) — it consumes Core (T002) + Platform
-   (T003) + the design system (T004). Remember §11.3: make the MVP scope a `VISION.md` boundary so the
-   gate rejects out-of-scope work (the original built 9 locked-out social screens).
-3. **If the director gives more art feedback**: fold it into the same revision; don't start a new task.
-4. **If nothing ready**: idle. Do not manufacture work; do not nudge every tick (`VISION.md` §6).
-5. Commit both repos on any change. **Push the engine repo** (has a remote); lifetown is local-only
-   until the director provides its remote — commit it locally every time regardless.
+1. **If the director says YES to the Library v2 form**: apply the form-expresses-meaning archetype to
+   the next building on the **frugal path** (one client-dev agent reusing BuildingKit → PM render +
+   gate.ps1 → PM visual check → show director). Gym first = a barbell/weight/dumbbell silhouette, pastel
+   tone, page-striation-equivalent readability cue, one coquette touch. Do NOT run a full workflow per
+   building (token directive, tick 23).
+2. **If the director says NO / wants changes**: iterate the Library form only (same frugal path); don't
+   start new buildings until the direction is locked.
+3. **If the director asks to restore door/window/lantern**: fold it into the Library builder as a detail
+   pass; keep the page striations dominant.
+4. **When the building direction is locked** and enough buildings + the village layout are playable:
+   open the App-layer village screen (client-dev, build mode) consuming Core (T002) + Platform (T003) +
+   design system (T004), then run Gate 3 (5-expert playtest) — NOT before a meaningful slice is playable.
+5. **If nothing ready**: idle. Do not manufacture work; do not nudge every tick (`VISION.md` §6).
+6. Commit on any change. **Push the engine repo** (has a remote); lifetown is local-only until the
+   director provides its remote — commit it locally every time regardless.
 
 ## Decisions Made
 - 2026-07-17 **Token economy, THIRD directive 00:05 "토큰 소모가 너무 심해... 천천히... 하나씩 제작".**
