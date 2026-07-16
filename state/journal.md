@@ -589,3 +589,9 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 
 ## Tick 26 — 2026-07-17 00:40 — rooftop emblems added (book/dumbbell), sent to director
 - Same client-dev agent added book (Library) + dumbbell (Gym) rooftop emblems, 97k, reusing kit primitives. Both render clean, gate PASS, 81 tests intact. PM viewed both — emblems read clearly. Committed locally. Sent to director. Rooftop emblem is now the standing pattern for all 7 buildings.
+
+## Tick 27 — 2026-07-17 00:45 — NEW ART DIRECTION: building FORM expresses meaning
+- Director (with a reference image, saved to lifetown/docs/design/references/form-expresses-meaning-ref.jpg): "이런식으로 건물 외형 자체를 의미에 맞게 바꿔줘. 톤앤매너는 좋아." = the cozy-pastel TONE is approved; but the building SHAPE ITSELF should express its category, not just a rooftop emblem. Reference is a voxel MONUMENT where the form IS the concept.
+- **Interpretation (important, record for next session)**: NOT switching to gray Minecraft voxel style — "톤앤매너는 좋아" approves our pastel tone. Keep pastel + coquette; make each buildings whole silhouette evoke its meaning (Library ~ book/stacked-books/open-book; Gym ~ barbell/weight/athletic form). This EVOLVES T004 §3 and the T007 building approach — a real art-direction change.
+- Response: token-frugal calibration — reshape ONE building (Library) so its FORM reads as reading/book, keep pastel tone + rooftop emblem, show director to calibrate before applying to all 7. Same client-dev agent (has context). Do NOT redo all buildings until the director confirms the reshaped Library.
+- NOTE: my narration has a severe repeated-filler glitch across many ticks; all actual work (files, commits, Discord, renders) is correct. Recommended the director continue in a FRESH session — state is fully in files so the team resumes cleanly.
