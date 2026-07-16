@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Life Town — Village</title>
+<style>
+  :root{
+    --primary:#FF9EC4; --primary-grad-top:#FFA9C7; --primary-grad-bottom:#FF7FAE; --primary-tint:#FFE0EC; --primary-ink:#D6447A;
+    --secondary:#B6A0EF; --secondary-deep:#8A7BD8;
+    --coin:#FFD066; --coin-ink:#8A6104;
+    --text-primary:#5A4A6A; --text-secondary:#6B5C7C; --text-tertiary:#8A7A95;
+    --surface:#FFFDFE; --surface-raised:#FFFFFF;
+    --border:#EFE6F6; --border-strong:#D8C9E6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:390px;height:844px;overflow:hidden;
+    font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .screen{position:relative;width:390px;height:844px;
+    background:linear-gradient(180deg,#EAFAFF 0%,#E6FBEF 55%,#DFF6E6 100%);overflow:hidden;}
+
+  /* ambient sky decoration — cheap, code-drawn coziness */
+  .sun-glow{position:absolute;top:-70px;left:-30px;width:280px;height:280px;border-radius:50%;
+    background:radial-gradient(circle, rgba(255,246,223,0.9) 0%, rgba(255,246,223,0) 68%);}
+  .cloud{position:absolute;background:rgba(255,255,255,0.6);border-radius:50%;filter:blur(2px);}
+
+  /* HUD — Screen-Space-Overlay analog: always full-contrast regardless of world lighting */
+  .hud{position:absolute;top:20px;left:16px;right:16px;display:flex;gap:8px;z-index:500;}
+  .pill{height:32px;background:rgba(255,253,254,0.92);border-radius:999px;display:flex;align-items:center;
+    gap:5px;padding:0 12px;box-shadow:0 2px 8px rgba(90,74,106,0.14);font-size:13px;font-weight:700;color:var(--text-primary);}
+  .pill .ico{font-size:14px;line-height:1;}
+  .pill.coin{color:var(--coin-ink);}
+  .pill.streak{color:var(--text-secondary);}
+  .pill.days{color:var(--text-secondary);}
+
+  .exp-row{position:absolute;top:60px;left:16px;right:16px;z-index:500;display:flex;align-items:center;gap:8px;}
+  .exp-label{font-size:11px;font-weight:700;color:var(--secondary-deep);letter-spacing:0.02em;}
+  .exp-track{flex:1;height:10px;background:var(--border);border-radius:999px;overflow:hidden;}
+  .exp-fill{height:100%;width:62%;border-radius:999px;
+    background:linear-gradient(90deg,var(--secondary),var(--secondary-deep));}
+  .exp-tag{font-size:11px;font-weight:700;color:var(--text-secondary);white-space:nowrap;}
+
+  /* 건설 — pulses + glows when affordable, never the same button as the FAB */
+  .btn-build{position:absolute;top:112px;left:16px;z-index:400;height:40px;padding:0 16px;border-radius:999px;
+    background:var(--surface-raised);border:1.5px solid var(--primary);display:flex;align-items:center;gap:6px;
+    font-size:13px;font-weight:700;color:var(--primary-ink);
+    animation:pulseGlow 2.2s ease-in-out infinite;}
+  @keyframes pulseGlow{
+    0%,100%{box-shadow:0 3px 10px rgba(255,158,196,0.30);}
+    50%{box-shadow:0 4px 18px rgba(255,158,196,0.60), 0 0 0 6px rgba(255,158,196,0.14);}
+  }
+
+  #world{position:absolute;inset:0;z-index:10;}
+  .face{position:absolute;}
+  .tile{position:absolute;}
+  .bldg-shadow{position:absolute;background:rgba(90,74,106,0.16);border-radius:50%;filter:blur(3px);}
+
+  /* bottom chrome */
+  .fab{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);height:60px;min-width:156px;
+    padding:0 30px;border-radius:999px;z-index:500;
+    background:linear-gradient(180deg,var(--primary-grad-top),var(--primary-grad-bottom));
+    box-shadow:0 8px 22px rgba(255,127,174,0.45);
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    font-size:17px;font-weight:800;color:#fff;letter-spacing:0.02em;}
+  .icon-btn{position:absolute;bottom:24px;width:44px;height:44px;border-radius:50%;background:var(--surface-raised);
+    box-shadow:0 2px 8px rgba(90,74,106,0.16);display:flex;align-items:center;justify-content:center;
+    font-size:18px;z-index:500;}
+  .icon-btn.report{left:20px;}
+  .icon-btn.settings{right:20px;}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="sun-glow"></div>
+  <div class="cloud" style="top:34px;left:250px;width:70px;height:26px;"></div>
+  <div class="cloud" style="top:96px;left:34px;width:54px;height:20px;"></div>
+
+  <div class="hud">
+    <div class="pill coin"><span class="ico">🪙</span>12,340</div>
+    <div class="pill streak"><span class="ico">🔥</span>7</div>
+    <div class="pill days">기록 12일</div>
+  </div>
+  <div class="exp-row">
+    <span class="exp-label">EXP</span>
+    <div class="exp-track"><div class="exp-fill"></div></div>
+    <span class="exp-tag">Lv.4 → 5</span>
+  </div>
+
+  <div class="btn-build"><span class="ico">🔨</span>건설</div>
+
+  <div id="world"></div>
+
+  <div class="fab">▶&nbsp; 시작</div>
+  <div class="icon-btn report">📊</div>
+  <div class="icon-btn settings">⚙️</div>
+</div>
+
+<script>
+(function(){
+  var TILE_W = 64, TILE_H = 32;
+  var originX = 195, originY = 428;
+  var world = document.getElementById('world');
+
+  // Category faces = the tile grammar's shading formula, computed once (§3.1):
+  // top = 500 + 60% white · right = 500 + 25% white · left = pure 500
+  var CATS = {
+    reading:  {name:'독서',     c500:'#B6A0EF', ink:'#5A3FA0', top:'#E2D9F9', right:'#C8B8F3', left:'#B6A0EF'},
+    study:    {name:'공부',     c500:'#6FD0E8', ink:'#1C7C93', top:'#C5ECF6', right:'#93DCEE', left:'#6FD0E8'},
+    work:     {name:'일',       c500:'#FFD066', ink:'#8A6104', top:'#FFECC2', right:'#FFDC8C', left:'#FFD066'},
+    exercise: {name:'운동',     c500:'#8AD3B4', ink:'#1F7A61', top:'#D0EDE1', right:'#A7DEC7', left:'#8AD3B4'},
+    hobby:    {name:'취미창작', c500:'#6FBFA6', ink:'#1E6E58', top:'#C5E5DB', right:'#93CFBC', left:'#6FBFA6'},
+    mind:     {name:'마음챙김', c500:'#FFB37A', ink:'#A5570F', top:'#FFE1CA', right:'#FFC69B', left:'#FFB37A'},
+    game:     {name:'게임',     c500:'#FF8FA3', ink:'#B03A54', top:'#FFD2DA', right:'#FFABBA', left:'#FF8FA3'}
+  };
+
+  var buildings = [
+    {r:1,c:1, cat:'reading',  tier:1, stage:3}, // maxed — cap + windows + flag
+    {r:0,c:3, cat:'study',    tier:1, stage:2}, // mid — signage plate
+    {r:3,c:0, cat:'work',     tier:1, stage:1}, // bare cube
+    {r:2,c:3, cat:'exercise', tier:1, stage:3}, // maxed
+    {r:1,c:4, cat:'game',     tier:1, stage:2}, // leisure, mid
+    {r:4,c:2, cat:'mind',     tier:1, stage:1}, // leisure, bare
+    {r:3,c:3, cat:'hobby',    tier:2, stage:1}  // Tier2 base, bigger footprint
+  ];
+  var ghost = {r:4, c:0, cat:'mind'};
+  var bushes = [{r:2,c:0},{r:0,c:1}];
+
+  function key(r,c){ return r+','+c; }
+  var bMap = {}, bushMap = {};
+  buildings.forEach(function(b){ bMap[key(b.r,b.c)] = b; });
+  bushes.forEach(function(p){ bushMap[key(p.r,p.c)] = true; });
+
+  function tilePos(r,c){
+    return { x: originX + (c-r)*TILE_W/2, y: originY + (c+r)*TILE_H/2 };
+  }
+
+  function el(cls, css){
+    var d = document.createElement('div');
+    d.className = cls;
+    d.style.cssText = css;
+    return d;
+  }
+
+  function drawTile(r,c,x,y,isGhost){
+    var shade = ((r+c)%2===0) ? '#DEF3E4' : '#D3EEDC';
+    world.appendChild(el('tile',
+      'left:'+(x-TILE_W/2)+'px;top:'+(y-TILE_H/2)+'px;width:'+TILE_W+'px;height:'+TILE_H+'px;'+
+      'background:'+shade+';clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);'));
+    if (bushMap[key(r,c)]){
+      world.appendChild(el('', 'position:absolute;left:'+(x-13)+'px;top:'+(y-14)+'px;width:16px;height:12px;border-radius:50% 50% 40% 40%;background:#8AD3B4;'));
+      world.appendChild(el('', 'position:absolute;left:'+(x-2)+'px;top:'+(y-18)+'px;width:14px;height:11px;border-radius:50% 50% 40% 40%;background:#6FBFA6;'));
+    }
+  }
+
+  // Draws one 3-face prism (§3.1 grammar), foot anchored at (ax,ay). Returns stacking data.
+  function drawBlock(ax, ay, w, h, cat){
+    var footH = w/2;
+    var containerH = footH + h;
+    var left = ax - w/2;
+    var top = ay - containerH;
+
+    world.appendChild(el('face',
+      'left:'+left+'px;top:'+top+'px;width:'+w+'px;height:'+footH+'px;background:'+cat.top+';'+
+      'clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);'));
+
+    var lfH = footH/2 + h;
+    var pMid = (footH/2)/lfH*100;
+    var pBot = h/lfH*100;
+
+    var lLeft = left, lTop = top+footH/2;
+    world.appendChild(el('face',
+      'left:'+lLeft+'px;top:'+lTop+'px;width:'+(w/2)+'px;height:'+lfH+'px;background:'+cat.left+';'+
+      'clip-path:polygon(0% 0%,100% '+pMid+'%,100% 100%,0% '+pBot+'%);'));
+
+    var rLeft = left+w/2, rTop = top+footH/2;
+    world.appendChild(el('face',
+      'left:'+rLeft+'px;top:'+rTop+'px;width:'+(w/2)+'px;height:'+lfH+'px;background:'+cat.right+';'+
+      'clip-path:polygon(0% '+pMid+'%,100% 0%,100% '+pBot+'%,0% 100%);'));
+
+    return {
+      topCenter: {x: ax, y: top},
+      rightFaceRect: {left: rLeft, top: rTop, w: w/2, h: lfH}
+    };
+  }
+
+  function placeBuilding(x, y, spec){
+    var cat = CATS[spec.cat];
+    var w = spec.tier===2 ? TILE_W*1.5 : TILE_W*0.8;
+    var h = spec.tier===2 ? 46 : 34;
+
+    world.appendChild(el('bldg-shadow',
+      'left:'+(x-w*0.42)+'px;top:'+(y-w*0.15)+'px;width:'+(w*0.84)+'px;height:'+(w*0.3)+'px;'));
+
+    var res = drawBlock(x, y, w, h, cat);
+    var top = res.topCenter;
+    var upperRes = res;
+
+    if (spec.stage >= 2){
+      var w2 = w*0.8, h2 = 26;
+      upperRes = drawBlock(top.x, top.y, w2, h2, cat);
+      top = upperRes.topCenter;
+      // signage plate — "occupied/signed", reads without needing text
+      var rf = upperRes.rightFaceRect;
+      world.appendChild(el('',
+        'position:absolute;left:'+(rf.left+rf.w*0.14)+'px;top:'+(rf.top+rf.h*0.18)+'px;'+
+        'width:'+(rf.w*0.6)+'px;height:9px;border-radius:2px;background:'+cat.ink+';opacity:0.9;'));
+    }
+
+    if (spec.stage >= 3){
+      // pitched roof cap
+      var capW = w*0.5, capH = 14;
+      world.appendChild(el('',
+        'position:absolute;left:'+(top.x-capW/2)+'px;top:'+(top.y-capH)+'px;width:'+capW+'px;height:'+capH+'px;'+
+        'background:'+cat.ink+';clip-path:polygon(50% 0%,100% 100%,0% 100%);'));
+      // flag / lantern (recolour-only primitive)
+      var poleTop = top.y - capH - 18;
+      world.appendChild(el('', 'position:absolute;left:'+(top.x-1)+'px;top:'+poleTop+'px;width:2px;height:18px;background:'+cat.ink+';opacity:0.8;'));
+      world.appendChild(el('', 'position:absolute;left:'+(top.x+1)+'px;top:'+poleTop+'px;width:10px;height:7px;background:'+cat.ink+';clip-path:polygon(0 0,100% 22%,0 44%);'));
+      // window-lights — warm glow, "occupied" signal (S3), pre-fades brighter at night per §5
+      var rf2 = upperRes.rightFaceRect;
+      [0.26, 0.58].forEach(function(fx){
+        world.appendChild(el('',
+          'position:absolute;left:'+(rf2.left+rf2.w*fx)+'px;top:'+(rf2.top+rf2.h*0.42)+'px;width:8px;height:8px;'+
+          'border-radius:50%;background:#FFE9A8;box-shadow:0 0 7px 2px rgba(255,214,140,0.55);'));
+      });
+    }
+
+    if (spec.tier === 2){
+      world.appendChild(el('',
+        'position:absolute;left:'+(x-24)+'px;top:'+(top.y-24)+'px;padding:2px 8px;border-radius:999px;'+
+        'background:'+cat.ink+';color:#fff;font-size:9px;font-weight:800;letter-spacing:0.03em;white-space:nowrap;'));
+      world.lastChild.textContent = 'TIER 2';
+    }
+  }
+
+  function placeGhost(x, y, cat){
+    var w = TILE_W*0.85;
+    var L = w*0.7071;
+    world.appendChild(el('',
+      'position:absolute;left:'+(x-L/2)+'px;top:'+(y-L/2)+'px;width:'+L+'px;height:'+L+'px;'+
+      'border:2px dashed '+cat.c500+';background:'+cat.c500+'22;'+
+      'transform:rotate(45deg) scaleY(0.5);transform-origin:center;border-radius:4px;'));
+    // scaffold poles
+    [-0.22,0,0.22].forEach(function(dx){
+      world.appendChild(el('',
+        'position:absolute;left:'+(x+w*dx-1.5)+'px;top:'+(y-30)+'px;width:3px;height:30px;'+
+        'background:rgba(138,122,149,0.55);border-radius:2px;'));
+    });
+    // radial progress ring (pie + inner punch), clear of the scaffold above it
+    var ringY = y-76;
+    world.appendChild(el('',
+      'position:absolute;left:'+(x-18)+'px;top:'+ringY+'px;width:36px;height:36px;border-radius:50%;'+
+      'background:conic-gradient('+cat.c500+' 0% 65%, #EFE6F6 65% 100%);'));
+    world.appendChild(el('',
+      'position:absolute;left:'+(x-11)+'px;top:'+(ringY+7)+'px;width:22px;height:22px;border-radius:50%;background:#FFFDFE;'));
+    var label = el('', 'position:absolute;left:'+(x-30)+'px;top:'+(ringY-17)+'px;width:60px;text-align:center;'+
+      'font-size:10px;font-weight:700;color:#6B5C7C;');
+    label.textContent = '짓는 중 · 65%';
+    world.appendChild(label);
+  }
+
+  // painter's algorithm: sort strictly by (r+c), tiles before buildings at equal key
+  var jobs = [];
+  for (var r=0;r<5;r++){
+    for (var c=0;c<5;c++){
+      (function(r,c){
+        var p = tilePos(r,c);
+        jobs.push({k:r+c, fn:function(){ drawTile(r,c,p.x,p.y); }});
+      })(r,c);
+    }
+  }
+  buildings.forEach(function(b){
+    var p = tilePos(b.r,b.c);
+    jobs.push({k:b.r+b.c, fn:function(){ placeBuilding(p.x,p.y,b); }});
+  });
+  (function(){
+    var p = tilePos(ghost.r, ghost.c);
+    jobs.push({k:ghost.r+ghost.c, fn:function(){ placeGhost(p.x,p.y,CATS[ghost.cat]); }});
+  })();
+
+  jobs.sort(function(a,b){ return a.k-b.k; });
+  jobs.forEach(function(j){ j.fn(); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Life Town — Session Result</title>
+<style>
+  :root{
+    --primary:#FF9EC4; --primary-grad-top:#FFA9C7; --primary-grad-bottom:#FF7FAE; --primary-ink:#D6447A;
+    --secondary:#B6A0EF; --secondary-deep:#8A7BD8;
+    --coin:#FFD066; --coin-ink:#8A6104;
+    --success:#4FAE82; --success-bg:#EAF8F1;
+    --text-primary:#5A4A6A; --text-secondary:#6B5C7C; --text-tertiary:#8A7A95;
+    --surface-raised:#FFFFFF; --border:#EFE6F6; --border-strong:#D8C9E6;
+    --reading-500:#B6A0EF; --reading-ink:#5A3FA0; --reading-tint:#EFE6F6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:390px;height:844px;overflow:hidden;
+    font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .screen{position:relative;width:390px;height:844px;overflow:hidden;
+    background:linear-gradient(160deg,#DFF1FF 0%,#FFE9F3 55%,#FFF5E6 100%);}
+
+  .spark{position:absolute;border-radius:50%;}
+
+  .hero{position:absolute;top:118px;left:0;right:0;text-align:center;z-index:5;}
+  .hero-num{font-size:64px;font-weight:800;letter-spacing:-0.01em;line-height:1;
+    background:linear-gradient(180deg,var(--primary-grad-top),var(--secondary-deep));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+    text-shadow:0 3px 0 rgba(255,255,255,0.35);}
+  .hero-sub{margin-top:6px;font-size:13px;font-weight:700;color:var(--text-tertiary);letter-spacing:0.02em;}
+
+  .reward-row{position:absolute;top:236px;left:0;right:0;display:flex;justify-content:center;gap:10px;z-index:5;}
+  .reward-pill{height:38px;padding:0 16px;border-radius:999px;display:flex;align-items:center;gap:6px;
+    font-size:15px;font-weight:800;box-shadow:0 3px 10px rgba(90,74,106,0.10);}
+  .reward-pill.exp{background:#F1EAFC;color:var(--secondary-deep);}
+  .reward-pill.coin{background:#FFF6DF;color:var(--coin-ink);}
+
+  .divider{position:absolute;top:320px;left:32px;right:32px;display:flex;align-items:center;gap:10px;z-index:5;}
+  .divider .line{flex:1;height:1px;background:var(--border-strong);}
+  .divider .label{font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap;}
+
+  .cards{position:absolute;top:356px;left:20px;right:20px;display:flex;gap:10px;z-index:5;}
+  .card{flex:1;background:var(--surface-raised);border-radius:20px;box-shadow:0 4px 14px rgba(90,74,106,0.10);
+    padding:14px 8px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .card.selected{border:2px solid var(--primary);background:#FFF6FA;}
+  .card .icon{width:36px;height:36px;position:relative;overflow:visible;}
+  .card .name{font-size:12px;font-weight:800;color:var(--text-primary);text-align:center;}
+  .card .meta{font-size:11px;font-weight:700;color:var(--text-tertiary);}
+  .card.new .icon-plus{width:36px;height:36px;border-radius:10px;border:2px dashed var(--border-strong);
+    display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-tertiary);}
+
+  /* mini house glyph: roof triangle + body — legible at small size, category-tinted */
+  .house-body{position:absolute;left:5px;bottom:0;width:26px;height:20px;border-radius:3px;}
+  .house-roof{position:absolute;left:2px;bottom:19px;width:0;height:0;
+    border-left:16px solid transparent;border-right:16px solid transparent;}
+
+  /* Mongsil — simple geometric mascot placeholder (real art TBD, per art-order spec) */
+  .mongsil{position:absolute;top:560px;left:50%;transform:translateX(-50%);width:76px;height:74px;z-index:4;}
+  .mg-shadow{position:absolute;bottom:-6px;left:14px;width:48px;height:12px;border-radius:50%;
+    background:rgba(90,74,106,0.14);filter:blur(2px);}
+  .mg-ear{position:absolute;top:0;width:15px;height:30px;border-radius:50%;background:linear-gradient(180deg,#FFE0EC,#FF9EC4);}
+  .mg-body{position:absolute;top:16px;left:8px;width:60px;height:52px;border-radius:50%;
+    background:linear-gradient(180deg,#FFE0EC,#FF9EC4);box-shadow:0 4px 12px rgba(255,127,174,0.30);}
+  .mg-eye{position:absolute;top:38px;width:4px;height:5px;border-radius:50%;background:#5A4A6A;}
+  .mg-cheek{position:absolute;top:44px;width:8px;height:6px;border-radius:50%;background:#FF9EC4;opacity:0.55;}
+  .mg-spark{position:absolute;border-radius:50%;background:#FFD066;}
+
+  .cta{position:absolute;bottom:44px;left:20px;right:20px;height:56px;border-radius:24px;z-index:5;
+    background:linear-gradient(180deg,var(--primary-grad-top),var(--primary-grad-bottom));
+    box-shadow:0 8px 20px rgba(255,127,174,0.40);
+    display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#fff;}
+</style>
+</head>
+<body>
+<div class="screen">
+  <!-- celebratory confetti — sparse, warm palette only, never punitive -->
+  <div class="spark" style="top:70px;left:56px;width:8px;height:8px;background:#FFD066;opacity:0.85;"></div>
+  <div class="spark" style="top:96px;left:320px;width:6px;height:6px;background:#B6A0EF;opacity:0.85;"></div>
+  <div class="spark" style="top:60px;left:250px;width:5px;height:5px;background:#FF9EC4;opacity:0.8;"></div>
+  <div class="spark" style="top:150px;left:40px;width:5px;height:5px;background:#8AD3B4;opacity:0.8;"></div>
+  <div class="spark" style="top:190px;left:340px;width:7px;height:7px;background:#FFB37A;opacity:0.75;"></div>
+  <div class="spark" style="top:52px;left:170px;width:6px;height:6px;background:#6FD0E8;opacity:0.8;"></div>
+
+  <div class="hero">
+    <div class="hero-num">25분</div>
+    <div class="hero-sub">오늘의 기록 · 독서</div>
+  </div>
+
+  <div class="reward-row">
+    <div class="reward-pill exp">+1,500 EXP</div>
+    <div class="reward-pill coin">🪙 +1,500</div>
+  </div>
+
+  <!-- no adjustment rows: a clean session renders none — the emptiness IS the message -->
+
+  <div class="divider">
+    <div class="line"></div>
+    <div class="label">EXP를 어디에?</div>
+    <div class="line"></div>
+  </div>
+
+  <div class="cards">
+    <div class="card selected">
+      <div class="icon">
+        <div class="house-roof" style="border-bottom:14px solid #5A3FA0;"></div>
+        <div class="house-body" style="background:#B6A0EF;"></div>
+      </div>
+      <div class="name">도서관</div>
+      <div class="meta">Lv.4</div>
+    </div>
+    <div class="card">
+      <div class="icon">
+        <div class="house-roof" style="border-bottom:14px solid #5A3FA0;"></div>
+        <div class="house-body" style="background:#C8B8F3;"></div>
+      </div>
+      <div class="name">독서방</div>
+      <div class="meta">Lv.2</div>
+    </div>
+    <div class="card new">
+      <div class="icon-plus">+</div>
+      <div class="name">새로 짓기</div>
+      <div class="meta">🪙 100</div>
+    </div>
+  </div>
+
+  <div class="mongsil">
+    <div class="mg-shadow"></div>
+    <div class="mg-ear" style="left:10px;transform:rotate(-8deg);"></div>
+    <div class="mg-ear" style="left:51px;transform:rotate(8deg);"></div>
+    <div class="mg-body"></div>
+    <div class="mg-eye" style="left:26px;"></div>
+    <div class="mg-eye" style="left:42px;"></div>
+    <div class="mg-cheek" style="left:18px;"></div>
+    <div class="mg-cheek" style="left:50px;"></div>
+    <div class="mg-spark" style="top:2px;left:2px;width:6px;height:6px;"></div>
+    <div class="mg-spark" style="top:14px;left:66px;width:5px;height:5px;background:#B6A0EF;"></div>
+  </div>
+
+  <div class="cta">확인</div>
+</div>
+</body>
+</html>
