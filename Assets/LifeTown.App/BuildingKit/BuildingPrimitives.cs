@@ -58,52 +58,92 @@ namespace LifeTown.App.BuildingKit
         }
 
         /// <summary>
-        /// The book-stack archetype's core volume (docs/design "form expresses meaning" v2
-        /// note): a box whose front (+Z) face is a cream page-block with several thin ink
-        /// striations -- the #1 cue that reads as "book" at iso render scale -- instead of
-        /// the usual tri-tone front, and whose side (+X) face is a darkened "spine" tone
-        /// instead of the usual pure base500. Top keeps a standard lightened tone. Pure
-        /// function of size/position/three colors, so any future book-shaped building
-        /// (a bookstore, a library annex) reuses it by calling with different numbers, same
-        /// as every other primitive in this file. Striation lines are parented under the
-        /// returned book GameObject (not the caller's `parent`) so a caller who yaws the
-        /// returned object afterward (see LibraryBuildingBuilder's stacked-and-nudged books)
-        /// carries the lines along with the face they belong to.
+        /// The book-stack archetype's core volume -- v3 revision (director feedback on v2:
+        /// "the concept reads, but each volume reads as a striped slab, not a book -- a
+        /// real book is a colored COVER wrapping a cream PAGE block, the cover frames the
+        /// pages"). So unlike v2 (whole front face = cream + bold lines), v3 keeps the
+        /// front face itself a lightened COVER tone (same family as top/spine, no pages),
+        /// and the page block is a separate cream panel INSET from that face's edges --
+        /// leaving a visible cover-colored lip on all four sides, which is the single cue
+        /// that turns "slab" into "book with pages inside its cover." Striations live only
+        /// on that inset panel, fine and muted (pages are a texture, not the hero) -- never
+        /// on the top (solid cover board) or the +X side (the spine, kept plain and darker,
+        /// with its own proud ridge strip so it reads as the bound edge, not just a dark
+        /// face). Pure function of size/position/three colors, so any future book-shaped
+        /// building reuses it by calling with different numbers. The page panel, its
+        /// striations, and the spine ridge are parented under the returned book GameObject
+        /// (not the caller's `parent`) so a caller who yaws the returned object afterward
+        /// (see LibraryBuildingBuilder's stacked-and-nudged books) carries them all along
+        /// with the face they belong to.
         /// </summary>
         public static GameObject CreateBookVolume(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color coverColor, Color pageColor, Color inkColor, int pageLineCount = 4)
         {
-            Color topTone = Color.Lerp(coverColor, Color.white, 0.45f);
+            Color topTone = Color.Lerp(coverColor, Color.white, 0.35f);
+            Color frontCoverTone = Color.Lerp(coverColor, Color.white, 0.16f);
             Color spineTone = Color.Lerp(coverColor, Color.black, 0.22f);
-            var book = CreateShadedBoxCustomTones(name, parent, size, baseCenter, topTone, pageColor, spineTone);
+            var book = CreateShadedBoxCustomTones(name, parent, size, baseCenter, topTone, frontCoverTone, spineTone);
 
-            float frontZ = baseCenter.z + size.z * 0.5f + 0.006f; // proud of the front face, avoids z-fighting
-            float lineThickness = 0.014f;
-            float lineWidth = size.x * 0.82f;
+            // Page block: a cream panel inset from the cover's own edges on every side --
+            // the cover-colored lip left showing (front face tone peeking around the
+            // panel) is what reads as "pages sitting inside a cover" instead of "pages
+            // running edge to edge".
+            float marginX = size.x * 0.11f;
+            float marginY = size.y * 0.16f;
+            float pageWidth = size.x - marginX * 2f;
+            float pageHeight = size.y - marginY * 2f;
+            float frontZ = baseCenter.z + size.z * 0.5f + 0.005f; // proud of the front face, avoids z-fighting
+            Vector3 pageBase = new Vector3(baseCenter.x, baseCenter.y + marginY, frontZ);
+            CreateAccentBox($"{name}_PageBlock", book.transform, new Vector3(pageWidth, pageHeight, 0.01f), pageBase, pageColor);
+
+            // Page striations: fine and low-contrast -- a soft muted line blended toward
+            // the page color, not the bold dark-purple ink v2 used, and confined to the
+            // inset panel so they never touch the cover lip, top, or spine.
+            Color lineColor = Color.Lerp(pageColor, inkColor, 0.35f);
+            float lineThickness = 0.008f;
+            float lineWidth = pageWidth * 0.84f;
+            float lineZ = frontZ + 0.006f;
             for (int i = 1; i <= pageLineCount; i++)
             {
                 float t = i / (float)(pageLineCount + 1);
-                float lineY = baseCenter.y + size.y * t;
+                float lineY = pageBase.y + pageHeight * t;
                 CreateAccentBox($"{name}_PageLine{i}", book.transform,
-                    new Vector3(lineWidth, lineThickness, 0.012f),
-                    new Vector3(baseCenter.x, lineY - lineThickness * 0.5f, frontZ),
-                    inkColor);
+                    new Vector3(lineWidth, lineThickness, 0.006f),
+                    new Vector3(baseCenter.x, lineY - lineThickness * 0.5f, lineZ),
+                    lineColor);
             }
+
+            // Spine ridge: a thin, slightly proud strip along the +X edge -- the bound
+            // edge sticking out a hair further than the rest of the cover, the "slightly
+            // thicker" cue a real hardcover spine has. Plain spineTone, no lines.
+            float spineOuterX = baseCenter.x + size.x * 0.5f + 0.006f;
+            CreateAccentBox($"{name}_SpineRidge", book.transform,
+                new Vector3(0.022f, size.y * 0.96f, size.z * 0.94f),
+                new Vector3(spineOuterX - 0.011f, baseCenter.y + size.y * 0.02f, baseCenter.z),
+                spineTone);
+
             return book;
         }
 
         /// <summary>
-        /// The book-stack archetype's crown: one open book perched on top, built as two
-        /// cream page-slabs hinged at a shared ridge (ridge along local Z, matching
-        /// <see cref="CreateGableRoof"/>'s convention) and tilted down and outward from it
-        /// -- a gentle tent/V, not a filled triangular roof volume -- with an ink spine
-        /// accent at the ridge and a few page-edge striations riding along each slab's own
-        /// tilt. Sized generously per the director's v2 form note: this REPLACES the old
-        /// peaked-roof archetype, it does not sit under one.
-        /// `ridgeCenter` is the world-space hinge point both wings rotate around.
+        /// The book-stack archetype's crown: one open book perched on top -- v3 revision
+        /// (director feedback on v2: the crown was two tilted striped planes with no
+        /// visible cover, so it read as roof shingles, not a book). Each wing is now a
+        /// cream page-slab riding on top of a slightly larger, slightly thicker
+        /// cover-colored board underneath it -- the same "cover wraps pages" cue
+        /// <see cref="CreateBookVolume"/> uses, just tilted -- and the ridge is a solid
+        /// cover-colored spine block (not a thin ink line), so the hinge reads as an
+        /// actual binding. Wings hinge at a shared ridge (ridge along local Z, matching
+        /// <see cref="CreateGableRoof"/>'s convention) and tilt down and outward -- a
+        /// gentle tent/V, not a filled triangular roof volume. Page-edge striations are
+        /// muted and reduced to two per wing (pages are texture, cover is the hero, same
+        /// balance as CreateBookVolume). `ridgeCenter` is the world-space hinge point both
+        /// wings and their cover boards rotate around.
         /// </summary>
-        public static void CreateOpenBookCrown(Transform parent, Vector3 ridgeCenter, float wingLength, float wingThickness, float wingDepth, float tiltDegrees, Color pageColor, Color inkColor)
+        public static void CreateOpenBookCrown(Transform parent, Vector3 ridgeCenter, float wingLength, float wingThickness, float wingDepth, float tiltDegrees, Color coverColor, Color pageColor, Color inkColor)
         {
-            CreateAccentBox("Crown_Spine", parent, new Vector3(0.045f, 0.035f, wingDepth * 0.96f), ridgeCenter, inkColor);
+            Color spineTone = Color.Lerp(coverColor, Color.black, 0.15f);
+            Color lineColor = Color.Lerp(pageColor, inkColor, 0.35f);
+            CreateAccentBox("Crown_Spine", parent, new Vector3(0.10f, 0.055f, wingDepth * 0.98f), ridgeCenter, spineTone);
 
             foreach (var side in new[] { -1f, 1f })
             {
@@ -112,21 +152,33 @@ namespace LifeTown.App.BuildingKit
                 var rotation = Quaternion.Euler(0f, 0f, angleDeg);
 
                 Vector3 wingCenter = ridgeCenter + rotation * new Vector3(side * wingLength * 0.5f, 0f, 0f);
+
+                // Cover board: larger + thicker than the page wing, sitting just beneath
+                // it (offset along the wing's own rotated "down"), so a rim of cover
+                // color shows past the page edge on every side -- the crown's "cover
+                // wraps pages" cue.
+                float boardThickness = wingThickness * 0.7f;
+                Vector3 boardCenter = wingCenter - rotation * (Vector3.up * (wingThickness * 0.5f + boardThickness * 0.5f + 0.004f));
+                var board = CreateAccentBox($"Crown_Cover{tag}", parent,
+                    new Vector3(wingLength * 1.06f, boardThickness, wingDepth * 1.06f),
+                    boardCenter - Vector3.up * (boardThickness * 0.5f), coverColor);
+                board.transform.rotation = rotation;
+
                 var wing = CreateAccentBox($"Crown_Page{tag}", parent,
                     new Vector3(wingLength, wingThickness, wingDepth),
                     wingCenter - Vector3.up * (wingThickness * 0.5f), pageColor);
                 wing.transform.rotation = rotation;
 
-                for (int i = 1; i <= 3; i++)
+                for (int i = 1; i <= 2; i++)
                 {
-                    float t = i / 4f; // 0.25 / 0.5 / 0.75 of the way from ridge to tip
+                    float t = i / 3f; // 0.33 / 0.67 of the way from ridge to tip
                     Vector3 alongSlope = rotation * new Vector3(side * wingLength * t, 0f, 0f);
-                    Vector3 nudgeAboveSurface = rotation * (Vector3.up * (wingThickness * 0.5f + 0.006f));
+                    Vector3 nudgeAboveSurface = rotation * (Vector3.up * (wingThickness * 0.5f + 0.005f));
                     Vector3 linePivot = ridgeCenter + alongSlope + nudgeAboveSurface;
 
                     var line = CreateAccentBox($"Crown_Page{tag}_Line{i}", parent,
-                        new Vector3(0.03f, 0.01f, wingDepth * 0.9f),
-                        linePivot - Vector3.up * 0.005f, inkColor);
+                        new Vector3(0.022f, 0.007f, wingDepth * 0.86f),
+                        linePivot - Vector3.up * 0.0035f, lineColor);
                     line.transform.rotation = rotation;
                 }
             }

@@ -5,30 +5,24 @@ using LifeTown.App.Scene;
 namespace LifeTown.App.Buildings
 {
     /// <summary>
-    /// Library (독서/Reading category) -- v2 reshape per the director's "whole FORM must
-    /// read as books, not a house with an emblem" note. v1 (kept for reference at
-    /// docs/design/spike-library-form-v1.png) turned only the ROOF into a tilted open
-    /// book on top of an otherwise ordinary house body; at iso render scale that read as
-    /// a knocked-over card, not a book. v2 rebuilds the whole body as the concept:
+    /// Library (독서/Reading category) -- book-stack archetype, now on its third round.
+    /// v1 (docs/design/spike-library-form-v1.png) turned only the ROOF into a tilted open
+    /// book on top of an otherwise ordinary house body; at iso scale that read as a
+    /// knocked-over card, not a book. v2 (spike-library-form-v2.png) rebuilt the whole
+    /// body as a stack of books, which the director approved as a CONCEPT -- but each
+    /// volume's front face was cream-and-striations edge to edge, so it read as a striped
+    /// slab, not a book with a cover. v3 fixes that specific gap: a real book is a
+    /// colored cover WRAPPING a cream page block, and that wrap (the cover framing the
+    /// pages, plus a plain spine) is the cue v2 was missing. See <see
+    /// cref="BuildingPrimitives.CreateBookVolume"/> and <see
+    /// cref="BuildingPrimitives.CreateOpenBookCrown"/> for the actual fix; this builder's
+    /// composition (4-book stack, alternating offsets, open-book crown, ribbon bookmark)
+    /// is unchanged from v2 -- the director approved the concept, this round only tunes
+    /// how each volume renders.
     ///
-    /// 1. Body = a stack of 4 oversized hardcover books (<see
-    ///    cref="BuildingPrimitives.CreateBookVolume"/>), each a distinct pastel cover
-    ///    color, each with a cream page-block + ink striations on its front face (the #1
-    ///    "this is a book" cue) and a darkened spine tone on its side face.
-    /// 2. Books alternate left/right X offsets and yaw a few degrees each, so the pile
-    ///    reads as slightly irregular -- like a real stack, not a clean tower.
-    /// 3. Crown = ONE generously-sized open book (<see
-    ///    cref="BuildingPrimitives.CreateOpenBookCrown"/>), replacing the old
-    ///    peaked-roof archetype outright rather than disguising it as one.
-    /// 4. One coquette touch: a pink ribbon bookmark hanging out between two books
-    ///    (swapped in for the tied bow used elsewhere -- a bookmark reads as "reading",
-    ///    a bow does not).
-    ///
-    /// Door/window/lantern from the prior rounds are dropped in this pass: with the
-    /// front faces now carrying the page-striation cue (the brief's #1 priority), extra
-    /// ink accents competing for the same face risk burying it, and the old detail
-    /// density is exactly what made v1 read as fussy rather than legible. Camera, ground
-    /// tile, tier ring and lighting are unchanged from the prior rounds.
+    /// Door/window/lantern remain dropped (as in v2): with the front faces carrying the
+    /// page cue, extra ink accents competing for the same face risk burying it. Camera,
+    /// ground tile, tier ring and lighting are unchanged from the prior rounds.
     /// </summary>
     public static class LibraryBuildingBuilder
     {
@@ -88,13 +82,14 @@ namespace LifeTown.App.Buildings
             // ---- Crown: one open book, generously sized (wingLength 0.62 is wider than
             // Book4's own 0.52 width, so its tips overhang past Book4's footprint into
             // open air rather than clipping through it) -- reads clearly as "pages
-            // splayed open" at iso scale, per the brief's #4. Ridge centred on the main
+            // splayed open" at iso scale. Cover color reuses Book4's softMint for visual
+            // continuity with the book it rests directly on. Ridge centred on the main
             // baseOrigin axis (not Book4's own small offset), same convention the prior
             // round used for the roof, so the crown sits visually centred on the pile. ----
             Vector3 ridgeCenter = new Vector3(baseOrigin.x, top4Y + 0.02f, baseOrigin.z);
             BuildingPrimitives.CreateOpenBookCrown(root.transform, ridgeCenter,
                 wingLength: 0.62f, wingThickness: 0.075f, wingDepth: 0.46f, tiltDegrees: 20f,
-                pageColor: pageCream, inkColor: ink);
+                coverColor: softMint, pageColor: pageCream, inkColor: ink);
 
             // ---- Coquette touch: a pink ribbon bookmark hanging out from the seam
             // between Book1 and Book2, pinned to Book1's front face (the widest/most
