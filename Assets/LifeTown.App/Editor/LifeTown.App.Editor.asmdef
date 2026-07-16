@@ -1,0 +1,20 @@
+{
+    "name": "LifeTown.App.Editor",
+    "rootNamespace": "LifeTown.App.Editor",
+    "references": [
+        "LifeTown.App",
+        "LifeTown.Economy.Core",
+        "Unity.ProBuilder"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

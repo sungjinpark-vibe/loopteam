@@ -32,6 +32,12 @@
 *.aab
 *.unitypackage
 *.app
+# *.app above targets macOS app bundles, but Windows git (core.ignorecase=true
+# by default) also matches it against any path *component* ending in ".app" --
+# including our own Assets/LifeTown.App/ asmdef folder. Explicitly un-ignore
+# our source folder so it isn't silently dropped from tracking.
+!/Assets/LifeTown.App/
+!/Assets/LifeTown.App/**
 
 # OS
 .DS_Store

@@ -1,0 +1,17 @@
+{
+    "name": "LifeTown.App",
+    "rootNamespace": "LifeTown.App",
+    "references": [
+        "LifeTown.Economy.Core",
+        "Unity.ProBuilder"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

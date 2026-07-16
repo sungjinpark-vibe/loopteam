@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.unity.probuilder": "6.1.2",
     "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.test-framework": "1.7.0",
     "com.unity.multiplayer.center": "1.0.1",
