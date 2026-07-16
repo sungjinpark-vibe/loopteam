@@ -11,6 +11,7 @@ export const meta = {
     { title: 'Evidence' },
     { title: 'Lead Review' },
     { title: 'Explore' },
+    { title: 'Revise' },
   ],
 }
 
@@ -273,31 +274,152 @@ it. The winner still has to clear ${PASS_MARK}: a best-of-three that is still we
   if (!verdict) return { ok: false, mode: 'explore', error: 'team lead failed to report' }
 
   const wi = verdict.winnerIndex ?? 0
-  const winner = proposals[wi]
-  const winnerScore = verdict.scores?.[wi]?.score ?? 0
+  const grafts = verdict.grafts ?? []
+  let winner = proposals[wi]
+  let scored = verdict.scores?.[wi] ?? { score: 0, deductions: [], topFix: '' }
+  const scoreHistory = [scored.score ?? 0]
+  let round = 1
+
+  // ── REVISE LOOP ─────────────────────────────────────────────────────────
+  // VISION.md §5 failure policy: "Gate 2 below 90 -> take the itemized
+  // deductions, fix, re-score." That applies to documents too, and this loop
+  // was missing (bug found 2026-07-16 when T001 scored 83 and gave up on the
+  // spot, contradicting the contract). Build mode revised; explore did not.
+  //
+  // Revising the winner is far cheaper than three fresh proposals — the lead's
+  // deductions are already a work order, and the losers' grafts are free.
+  while ((scored.score ?? 0) < PASS_MARK && round < MAX_ROUNDS) {
+    round++
+    phase('Revise')
+    log(`Explore round ${round}/${MAX_ROUNDS}: winner at ${scored.score}/${PASS_MARK} — revising`)
+
+    const revised = await agent(
+      `Your proposal won the panel but did NOT clear the bar. Revise it.
+
+## Task brief
+${BRIEF}${CONTEXT}
+
+## Your proposal (the winner — keep its angle and its spine)
+${winner.proposal}
+
+## Your lead scored it ${scored.score}/${PASS_MARK}. Deductions:
+${(scored.deductions ?? []).map((d, i) => `${i + 1}. [${d.criterion}] ${d.what}\n   observed at: ${d.where}\n   -${d.points}`).join('\n')}
+
+## Highest-value fix (do this first — it moves the score most)
+${scored.topFix}
+
+## Best ideas from the proposals that lost — graft these in rather than reinventing
+${grafts.length ? grafts.map((g) => `- ${g}`).join('\n') : '(none reported)'}
+
+## Rules
+- Fix every deduction. Do not re-litigate them — your lead scored the document, not your reasoning.
+  If a finding is genuinely wrong, say so concretely with evidence from the source material.
+- **Keep your angle.** You won on it. This is a revision, not a new proposal, and hedging toward the
+  middle to dodge criticism will score worse, not better.
+- Where a deduction says a decision belongs to the director, do not invent an answer — surface it
+  properly instead (that is what P5 rewards).
+- Return the FULL revised proposal, not a diff. Do NOT write any files.`,
+      { label: `revise r${round}`, phase: 'Revise', agentType: a.agent ?? 'planner', schema: {
+        type: 'object',
+        required: ['angle', 'proposal', 'tradeoffs'],
+        properties: {
+          angle: { type: 'string' },
+          proposal: { type: 'string', description: 'The FULL revised proposal in markdown' },
+          tradeoffs: { type: 'string' },
+        },
+      } },
+    )
+    if (!revised) { log(`Round ${round}: reviser failed — stopping`); break }
+    winner = revised
+
+    phase('Lead Review')
+    const v2 = await agent(
+      `You are the ${TEAM}. You scored this proposal ${scored.score}/${PASS_MARK} last round and sent it
+back. It has been revised. Score the REVISED version.
+
+## Task brief
+${BRIEF}${CONTEXT}
+
+## Your rubric (FIXED — same as last round; do not extend, reweight, or reinterpret)
+${rubricText}
+
+Pass mark: ${PASS_MARK}/100
+
+## What you flagged last round
+${(scored.deductions ?? []).map((d, i) => `${i + 1}. [${d.criterion}] ${d.what} (@ ${d.where}, -${d.points})`).join('\n')}
+
+## The revised proposal
+${revised.proposal}
+
+## Rules
+- Score the document in front of you, from scratch, against the rubric. Do not award points for
+  "effort" or for having responded to you.
+- Check whether your findings were actually fixed — or merely acknowledged in prose. A deduction that
+  is discussed but not resolved is still a deduction.
+- Do not invent NEW objections at the same weight just to keep the score down; but if the revision
+  broke something that previously worked, say so.
+- ${PASS_MARK} or above passes. ${PASS_MARK - 1} does not. Do not nudge it up because it improved.`,
+      { label: `lead r${round}`, phase: 'Lead Review', agentType: 'team-lead', schema: SCORE_SCHEMA },
+    )
+    if (!v2) { log(`Round ${round}: lead failed to report — stopping`); break }
+    scored = v2
+    scoreHistory.push(v2.score ?? 0)
+
+    if (v2.verdict === 'cannot-score') {
+      return {
+        ok: false, mode: 'explore', title: TITLE, escalate: true, rounds: round,
+        reason: `Cannot score: ${v2.cannotScoreReason}`,
+        outstanding: 'The rubric does not fit this task. VISION.md §3.2 needs the director.',
+        score: scored.score, scoreHistory,
+      }
+    }
+
+    // No-progress brake (VISION.md §3.4)
+    if (scoreHistory.length >= 3) {
+      const [x, y, z] = scoreHistory.slice(-3)
+      if (Math.abs(y - x) <= 2 && Math.abs(z - y) <= 2) {
+        log(`No progress: ${x} -> ${y} -> ${z}. Stopping; a human has to look.`)
+        return {
+          ok: false, mode: 'explore', title: TITLE, escalate: true, rounds: round,
+          reason: `No progress: 3 rounds within ±2 (${scoreHistory.join(' -> ')}). More rounds will not help.`,
+          score: scored.score, scoreHistory,
+          outstanding: (scored.deductions ?? []).map((d, i) => `${i + 1}. [${d.criterion}] ${d.what} (@ ${d.where}, -${d.points})`).join('\n'),
+          topFix: scored.topFix,
+          winner: { angle: winner.angle, proposal: winner.proposal },
+        }
+      }
+    }
+  }
+
+  const winnerScore = scored.score ?? 0
 
   if (winnerScore < PASS_MARK) {
-    log(`Explore: best proposal scored ${winnerScore}/${PASS_MARK} — not good enough, escalating`)
+    log(`Explore: still ${winnerScore}/${PASS_MARK} after ${round} round(s) — escalating`)
     return {
-      ok: false, mode: 'explore', title: TITLE, escalate: true,
-      reason: `Best of ${proposals.length} proposals scored ${winnerScore}, below the ${PASS_MARK} bar`,
-      score: winnerScore,
-      outstanding: (verdict.scores?.[wi]?.deductions ?? []).map((d, i) => `${i + 1}. [${d.criterion}] ${d.what} (@ ${d.where}, -${d.points})`).join('\n'),
-      topFix: verdict.scores?.[wi]?.topFix,
+      ok: false, mode: 'explore', title: TITLE, escalate: true, rounds: round,
+      reason: `Best proposal scored ${winnerScore} after ${round} round(s), below the ${PASS_MARK} bar`,
+      score: winnerScore, scoreHistory,
+      outstanding: (scored.deductions ?? []).map((d, i) => `${i + 1}. [${d.criterion}] ${d.what} (@ ${d.where}, -${d.points})`).join('\n'),
+      topFix: scored.topFix,
       winner: { angle: winner?.angle, proposal: winner?.proposal },
     }
   }
 
-  log(`Explore: proposal ${wi + 1} wins with ${winnerScore}/100`)
+  log(`Explore: winner cleared the bar at ${winnerScore}/100 after ${round} round(s)`)
   return {
     ok: true,
     mode: 'explore',
     title: TITLE,
+    rounds: round,
     score: winnerScore,
+    scoreHistory,
     winner: { angle: winner.angle, proposal: winner.proposal, tradeoffs: winner.tradeoffs },
-    perCriterion: verdict.scores?.[wi]?.perCriterion,
+    // `scored`, not verdict.scores[wi] — after a revise round the first-round
+    // scoring is stale, and reporting it would misdescribe what passed.
+    perCriterion: scored.perCriterion,
     // Runners-up matter: graft their best ideas rather than discarding them.
-    grafts: verdict.grafts ?? [],
+    grafts,
+    // Round-1 ranking of the original three angles — how the winner was chosen.
     ranking: (verdict.scores ?? []).map((s, i) => ({ proposal: i + 1, angle: proposals[i]?.angle, score: s.score })),
   }
 }

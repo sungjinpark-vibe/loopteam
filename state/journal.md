@@ -218,3 +218,31 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   3. `Start-Process -PassThru` empty `.ExitCode` (fixed earlier, Tick 1b).
 - note: Unity project created via batchmode (exit 0) and git-initialised with a Unity .gitignore —
   24 files tracked, Library/ excluded. Root `.gitignore` now excludes `/lifetown/`.
+
+## Tick 3b — 2026-07-16 09:00 — T001 scored 83, rejected; explore revise loop added
+- task: T001 (explore, planner)
+- result: **NOT passed.** Best of 3 proposals scored **83/90**. 기획팀장 refused it.
+- **the gate worked.** An 83 was not waved through as "basically there". That refusal is the whole
+  reason this system exists — worth recording as evidence the bar is real, not decoration.
+- winner: SHIP-FIRST. Its thesis: the original's failure was not missing features — it was 34,344
+  lines / 27 screens / 61 test files reaching **zero players in a year**. Cut to 7 screens, ship a
+  signed build to a store track in week 1, and treat "a stranger installed it and logged a session"
+  as the only definition of done.
+- lead's deductions (specific and fair):
+  - **-4 P2: the integrity position is unimplementable as written.** The whole trust argument rests on
+    a monotonic clock, and the spec never says how to get one in Unity (no SystemClock.elapsedRealtime
+    JNI call, no Editor fallback, no injection seam). The lead's own words: that makes 관문 1
+    decoration on the exact subsystem the proposal argued hardest for. Sharp catch.
+  - -2 P1: defers the '보이게' half of the purpose; -2 P1: a 30-min "still there?" ping is policing,
+    contradicting a target user defined as "무거운 생산성 앱엔 지친 사람".
+  - -2 P2: ui-ux cannot start (village art direction unresolved); -3 P3: weakest return hook, admits it;
+    -2 P3: ships a known-broken economy axis (25 min = Lv1→Lv5); -1 P4: 8-week timeline optimistic;
+    -1 P5: cut Landmark without flagging it overrides a locked decision.
+- **bug found in our own workflow**: `VISION.md` §5 says "Gate 2 below 90 → take the deductions, fix,
+  re-score" — but **explore mode had no revise loop**. It escalated on the spot. Build mode revised;
+  explore did not. Contract and code disagreed, and the code was wrong.
+- fixed: explore now revises the winner with the lead's deductions + the losers' grafts, re-scores, and
+  carries the same no-progress brake. Resumed via `resumeFromRunId` so the 3 proposals and round-1
+  scoring replay from cache — no re-burn of 241k tokens.
+- also fixed: the success path reported round-1 `perCriterion`, which goes stale after a revision.
+- cost so far on T001: 4 agents, 241k subagent tokens, ~15 min.
