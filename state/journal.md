@@ -521,3 +521,25 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   never asset-copying. Both because these are the ways this specific research task goes wrong.
 - may revisit D6 (in-house geometric). If the research recommends an asset pack, that's a director
   decision — T006 recommends, director approves before T007 commits.
+
+## Tick 18 — 2026-07-16 22:55 — T006 recommends custom ProBuilder (93); reported for steer
+- task: T006 (explore, ui-ux) → **PASSED 93/90 r1.** Recommendation: Option C, custom ProBuilder low-poly
+  buildings — CONFIRMS D6 (executes it, doesn't reverse it). Doc: lifetown/docs/design/01-asset-strategy.md.
+- the research was honestly uncertain where it should be: flagged a Kenney fetch 404 as "high-confidence
+  not fetch-verified", and refused to claim a free Asset Store building pack it couldn't confirm. That is
+  exactly the A2 behavior the guardrail wanted — scored 24/25.
+- why C: paid Store packs don't fit identity + cost reconciliation ~= building it right; free CC0 packs
+  (KayKit/Kenney, licenses verified) are "kit soup" identity-drift risk; ProBuilder is Unity's own tool
+  (zero license risk) and real 3D geometry gets roof/wall/window for free — solving the T005 "reads as
+  blocks" problem that a team with no pixel artist can't reliably fake in 2D.
+- **PM decision: did NOT auto-launch T007.** The director asked for this research specifically to decide
+  the asset approach, and it's a ~2-week commitment with a real speed/identity tradeoff (a CC0 fallback
+  exists). Auto-starting a hard multi-round Unity art build off my own reading of "just build" would be
+  presumptuous on a call the director reserved. Reported the recommendation + a "go/no-go spike" plan
+  (build ONE building → screenshot → confirm before the full build) and asked them to steer.
+- **flagged an honest limit to the director**: from here the loop's gate model weakens — "compiles +
+  tests pass" is mechanical, but "does the building look good" needs a screenshot + an eye (art lead +
+  director). The spike-first plan is how we keep that judgment cheap: 1 building, not 7, before commit.
+- T007 → awaiting-approval (approach decision). Nothing else ready → loop idles for the director.
+- note on the session: some of my in-session narration this tick glitched into a repeated filler word;
+  the actual deliverables (Discord reports, commits, state) all went through correctly. No work impact.

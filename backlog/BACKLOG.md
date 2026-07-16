@@ -29,8 +29,8 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T003 | Build LifeTown.Platform — Android clock + save-file IO | `done` | client-dev | build | 1 | **99/90** r1. Gate green (81/81 tests). Committed 99db431. |
 | T004 | Art design system — village + core screens | `done` | ui-ux | explore | 1 | **92/90** r1 (cohesion won; readability+delight grafted per director). Committed. |
 | T005 | Art mockups — village visual direction | `dropped` | ui-ux | — | 1 | Director chose C (build in Unity). Mockup retired; building-form direction proven → carried into T006/T007. |
-| T006 | Research free/open Unity building assets + Fortune City reference feasibility | `ready` | ui-ux | explore | 1 | New from director msg 1527304211208081510 (22:21): review GitHub libraries, free Unity Asset Store assets, and replicating reference game "Fortune City"'s buildings in Unity. Feeds the asset strategy for T007. |
-| T007 | Build the real village screen in Unity | `blocked` | client-dev | build | 1 | depends_on T006 (needs asset strategy first). Replaces the HTML mockup with an actual Unity isometric village screen, consuming Core (T002) + Platform (T003) + design system (T004). This is the director's "C" — the real deliverable. |
+| T006 | Unity building asset strategy | `done` | ui-ux | explore | 1 | **93/90**. Rec: custom ProBuilder (confirms D6). Free packs rejected on identity fit. ~2wk. Doc committed. |
+| T007 | Build the real village screen in Unity (ProBuilder) | `awaiting-approval` | client-dev | build | 1 | Approach = custom ProBuilder per T006. Plan: go/no-go spike (1 building) first. Awaiting director steer before committing ~2wk build. |
 
 ## Task file format
 
