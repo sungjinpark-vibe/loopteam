@@ -57,6 +57,11 @@ namespace LifeTown.App.Buildings
             BuildingPrimitives.CreateShadedBox("Roof", root.transform, roofSize, roofOrigin, base500);
             float roofTopY = roofOrigin.y + roofSize.y;
 
+            // ---- Rooftop emblem: a small dumbbell, centred on the flat roof so it's the
+            // first thing seen (director feedback -- building TYPE must read from a
+            // recognizable rooftop object, not just silhouette/color). ----
+            BuildDumbbellEmblem(root.transform, new Vector3(baseOrigin.x, roofTopY + 0.03f, baseOrigin.z), ink);
+
             // ---- Big entrance door: wide flat ink panel on the base block's front (+Z)
             // wall, sized up from the Library's door per the brief's "big entrance". ----
             float baseFrontZ = baseOrigin.z + baseSize.z * 0.5f;
@@ -151,6 +156,37 @@ namespace LifeTown.App.Buildings
                 loop.transform.localScale = new Vector3(1.35f, 1.0f, 0.55f);
             }
             BuildingPrimitives.CreateAccentBlob("BowKnot", bow.transform, 0.04f, center + IsoSceneSetup.IsoDirection * 0.02f, pink);
+        }
+
+        /// <summary>
+        /// A small dumbbell: a thin bar box rotated to lie along IsoSceneSetup.ScreenRight
+        /// (the true on-screen horizontal axis, same technique the Library's bow uses for
+        /// its two loops) with a round plate blob at each end. Quaternion.FromToRotation
+        /// maps the box's default local +X edge onto that axis directly, so this is correct
+        /// regardless of Unity's rotation-sign convention -- no hand-derived angle needed.
+        /// </summary>
+        static void BuildDumbbellEmblem(Transform parent, Vector3 center, Color color)
+        {
+            var emblem = new GameObject("DumbbellEmblem");
+            emblem.transform.SetParent(parent, false);
+            emblem.transform.position = center;
+
+            Vector3 axis = IsoSceneSetup.ScreenRight;
+            const float plateOffset = 0.11f;
+            const float plateRadius = 0.055f;
+
+            var bar = BuildingPrimitives.CreateAccentBox(
+                "DumbbellBar", emblem.transform,
+                new Vector3(plateOffset * 2f, 0.03f, 0.03f),
+                center, color);
+            bar.transform.rotation = Quaternion.FromToRotation(Vector3.right, axis);
+
+            foreach (var side in new[] { -1f, 1f })
+            {
+                Vector3 plateCenter = center + axis * (plateOffset * side);
+                var plate = BuildingPrimitives.CreateAccentBlob("DumbbellPlate", emblem.transform, plateRadius, plateCenter, color);
+                plate.transform.localScale = new Vector3(0.8f, 1.25f, 0.8f); // taller than wide -- reads as a weight-plate disc, not a ball
+            }
         }
     }
 }

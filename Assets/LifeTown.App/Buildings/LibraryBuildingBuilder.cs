@@ -56,6 +56,12 @@ namespace LifeTown.App.Buildings
             // (the prism's local +Z plane), regardless of height within the roof.
             float roofApexFrontZ = baseOrigin.z + roofSize.z * 0.5f;
 
+            // ---- Rooftop emblem: a small book on the ridge (director feedback --
+            // building TYPE must read from a recognizable rooftop object, not just
+            // silhouette/color). Sits at mid-ridge (roof center Z, apex Y), clear of the
+            // bow which lives lower and further forward on the gable face. ----
+            BuildBookEmblem(root.transform, new Vector3(baseOrigin.x, roofOrigin.y + roofSize.y + 0.015f, roofOrigin.z), ink, colors.Tint);
+
             // ---- Door: flat ink-coloured panel on the base block's front (+Z) wall. ----
             float baseFrontZ = baseOrigin.z + baseSize.z * 0.5f;
             BuildingPrimitives.CreateAccentBox(
@@ -189,6 +195,29 @@ namespace LifeTown.App.Buildings
                 loop.transform.localScale = new Vector3(1.35f, 1.0f, 0.55f); // puffy, not a thin petal
             }
             BuildingPrimitives.CreateAccentBlob("BowKnot", bow.transform, 0.04f, center + IsoSceneSetup.IsoDirection * 0.02f, pink);
+        }
+
+        /// <summary>
+        /// A small closed book: ink cover / tint pages / ink cover, three flat boxes
+        /// stacked bottom-up (T004's "flat coloured rectangle" accent convention, same as
+        /// the door and signage plate -- no new geometry). The top cover gets a small yaw
+        /// so it reads as sitting slightly askew rather than a plain flat slab, which is
+        /// what actually sells "book" instead of "box" at this render scale.
+        /// `ridgeCenter` is the book's bottom-center resting point.
+        /// </summary>
+        static void BuildBookEmblem(Transform parent, Vector3 ridgeCenter, Color coverColor, Color pageColor)
+        {
+            Vector3 coverSize = new Vector3(0.20f, 0.035f, 0.13f);
+            Vector3 pageSize = new Vector3(0.17f, 0.028f, 0.10f);
+
+            BuildingPrimitives.CreateAccentBox("BookCoverBottom", parent, coverSize, ridgeCenter, coverColor);
+            float pagesY = ridgeCenter.y + coverSize.y;
+
+            BuildingPrimitives.CreateAccentBox("BookPages", parent, pageSize, new Vector3(ridgeCenter.x, pagesY, ridgeCenter.z), pageColor);
+            float topCoverY = pagesY + pageSize.y;
+
+            var topCover = BuildingPrimitives.CreateAccentBox("BookCoverTop", parent, coverSize, new Vector3(ridgeCenter.x, topCoverY, ridgeCenter.z), coverColor);
+            topCover.transform.rotation = Quaternion.Euler(0f, 12f, 0f);
         }
     }
 }
