@@ -477,3 +477,26 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   for the game's visual identity, but if R3 also fails the gate I should consider whether the HTML-mockup
   medium is fighting us (faking isometric buildings in CSS is inherently limited) and whether to move to
   actual Unity sprites sooner rather than perfecting an HTML approximation.
+
+## Tick 16 — 2026-07-16 22:00 — village R3 = 76 (flat); escalating the medium decision
+- did: ui-ux R3 landed (enlarged, more forms, coquette, rebuilt construction ghost). PM rendered
+  (village-v3.png), looked, sent to 아트팀장. **Score 76/90 — FAIL.** Scores now 75 → 76 = FLAT = the
+  no-progress signal (VISION §3.4).
+- art lead's read: 4 of 5 buildings read cleanly and real variety now exists (the director's core
+  concern IS addressed), but held at 76 on: the pink center building still a roofless cube (a specific
+  bug), coquette under-delivered (bow/lace/heart don't read; sparkles+bunting do), and persistent
+  lower-center dead space + a central overlap/clutter pile.
+- **PM call: do NOT grind round 4 silently.** This is the exact risk I flagged in Tick 15. Reasoning:
+  (1) the mockup is a THROWAWAY comms tool — Unity redraws all of it; (2) the director's actual feedback
+  (buildings read + variety) is met; (3) the gap to 90 is polish, partly HTML-medium artifacts (faked-
+  isometric overlap, fixed-position dead space); (4) scores are flat; (5) ~740k tokens already spent on
+  ui-ux rounds + 3 lead reviews for this one mockup. Grinding a throwaway to an artificial 90 is poor
+  stewardship.
+- **escalated to the director as a decision** (their ≥90 rule vs diminishing returns is theirs to
+  resolve): one more targeted micro-fix / glance-approve the direction now at 76 / skip mockup polish
+  and build it in Unity for real. Recommended moving to Unity — the mockup already proved the building-
+  form direction works.
+- **lesson (Do Not Repeat)**: HTML mockups hit diminishing returns against a 90 ART bar because the
+  medium fights isometric and a mockup is a comms tool, not a shippable asset. For future visual
+  direction: gate mockups at a lower "does it communicate the direction" bar, or go to the real engine
+  sooner. Don't apply the shippable-art 90 to a throwaway.
