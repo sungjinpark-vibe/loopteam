@@ -571,3 +571,6 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 
 ## Tick 21 — 2026-07-16 23:16 — token optimization + rtk confirm
 - Director: "토큰 최적화 진행해줘. rtk 쓰지?" Confirmed rtk IS hooked project-wide (parent settings.json, Bash+PowerShell → rtk hook claude, verified). Applied one durable optimization: gate-runner now uses model:haiku in the quality loop (thin command-wrapper, no reasoning; called up to 5x/build). Grading agents stay strong. Handled inline (no scout — the token rule from Tick 20 in practice).
+
+## Tick 22 — 2026-07-16 23:35 — T007 PASSED 93; first real Unity building
+- T007 (build, client-dev, 아트팀장 gate) PASSED 93/90 (85→93, 2 rounds). Real 3D ProBuilder Library building rendered in batchmode; reads as a building in our identity. Gate green, 81 tests intact. Root cause of R1 fail: ProBuilder ToMesh() submesh clamp before material assign (fixed by reorder). Committed. Screenshot sent to director for go/no-go before the full village. gate-runner-on-haiku (Tick 21) applied to future runs, not this one.
