@@ -1,13 +1,13 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 46,
-  "project": "lifetown (Life Town — Unity rebuild)",
-  "active_task": "awaiting-approval / next-step: Village v2 (polish) sent. Both asks delivered - all buildings' object-walls now face camera (dropped door-rotation), ground is real land (beveled edge, grass variation, comb-path, flowers). Gate green 81/81, committed lifetown a77584d. Asked director: lock village -> proceed to real GAMEPLAY (tap building -> timer -> growth/build), or more polish. NEXT BIG ARC = interaction/data (Economy.Core T002 + Platform T003 wiring) toward a playable slice -> Gate 3 playtest.",
-  "last_tick_at": "2026-07-17 17:37",
-  "consecutive_idle_ticks": 2,
+  "tick": 47,
+  "project": "touchRPG (new game — brief pending)",
+  "active_task": null,
+  "last_tick_at": "2026-07-17 18:15",
+  "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done.",
-  "_state_reason": "As of 2026-07-17 14:03 (tick 37): ALL 7 BUILDINGS DONE + director-shown as a village lineup (docs/design/village-lineup-7buildings.png). Locked archetype = cozy stylized-3D iso cottage BUILT of each category's objects + a roof icon, DENSE walls (Gym-sparseness lesson fixed via CreateItemWall + cell-sized object primitives), category-color tier ring. Buildings: Library(book roof), Gym(barbell), Study(grad cap), Work(briefcase), Hobby(palette+brush), Mind(lotus), Game(controller). Renders: docs/design/spike-<cat>-cottage-v1.png (+ library v5). Gate green 81/81, lifetown 621b4e1. AWAITING director's go on the NEXT MILESTONE: the actual App-layer VILLAGE SCREEN (grid placement, consuming Economy.Core T002 + Platform T003 + design system T004) -> playable slice -> eventually Gate 3 playtest. Deliberately NOT starting that big build speculatively (token stewardship; teed it up as a question). Open small item: Work building wall items read a bit less crisp (offered targeted polish). RESUME: paused=false + /tick; on director yes, build the village screen (client-dev, build mode)."
+  "_state_reason": "2026-07-17 18:15 (tick 47): PROJECT SWITCH. Director paused Life Town and started touchRPG, reusing the same team+system unchanged. DONE: touchRPG/ folder + own git repo + docs/{spec,design,api,qa}; gitignored from engine; VISION.md section 2 rewritten for touchRPG; PROGRESS.md + backlog reset; Life Town contract state archived to lifetown/docs/paused-state/ (VISION section 2, PROGRESS, backlog+tasks) so it is fully resumable. BLOCKED ON: the director's concept brief — asked on Discord (4 questions: genre/touch meaning, one-line concept, target player, references). The name 'touchRPG' is NOT a brief; per VISION section 2/4 the PM must NOT invent the concept, genre, or target player. WHEN THE BRIEF LANDS: fill VISION section 2, open T001 (explore, planner, 기획팀장 rubric from VISION section 3.2 verbatim, passMark 90) via quality-loop, send proposed scope to director for approval. LIFE TOWN RESUME: restore section 2 + backlog from lifetown/docs/paused-state/, point loop.json.project back; it stopped with 7 buildings + village v2 gate-green, awaiting a lock-or-gameplay decision."
 }

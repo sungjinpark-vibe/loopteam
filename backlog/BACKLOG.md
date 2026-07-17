@@ -6,6 +6,9 @@ context gets summarized and reset, but this file survives. If it isn't written h
 Owned by `loop-scout` (writes) and the PM (reads, and marks done). One row per task, highest priority
 at the top. Reorder rows to reprioritize.
 
+**Current project: touchRPG.** Life Town is paused (resumable); its finished backlog + task files are
+archived at `lifetown/docs/paused-state/backlog/`.
+
 ## Status values
 
 | Status | Meaning | Loop picks it up? |
@@ -20,22 +23,17 @@ at the top. Reorder rows to reprioritize.
 **The rule that makes the loop autonomous:** `awaiting-approval` and `blocked` tasks are *skipped*, not
 waited on. The loop always moves to the next `ready` task. It only goes idle when nothing at all is ready.
 
-## Queue
+## Queue — touchRPG
 
 | ID | Title | Status | Agent | Mode | Priority | Notes |
 |---|---|---|---|---|---|---|
-| T001 | Spec the Life Town Unity rebuild | `done` | planner | explore | 1 | **93/90** (83→93). Approved with overrides 2026-07-16 (D1/D11 keep, D7 defer ship). Spec + 01-decisions-resolved.md. |
-| T002 | Build Economy.Core — pure-C# spine | `done` | client-dev | build | 1 | **99/90** r1. Gate green (55/55 tests). Committed a9238c2. |
-| T003 | Build LifeTown.Platform — Android clock + save-file IO | `done` | client-dev | build | 1 | **99/90** r1. Gate green (81/81 tests). Committed 99db431. |
-| T004 | Art design system — village + core screens | `done` | ui-ux | explore | 1 | **92/90** r1 (cohesion won; readability+delight grafted per director). Committed. |
-| T005 | Art mockups — village visual direction | `dropped` | ui-ux | — | 1 | Director chose C (build in Unity). Mockup retired; building-form direction proven → carried into T006/T007. |
-| T006 | Unity building asset strategy | `done` | ui-ux | explore | 1 | **93/90**. Rec: custom ProBuilder (confirms D6). Free packs rejected on identity fit. ~2wk. Doc committed. |
-| T007 | One-building ProBuilder spike | `done` | client-dev | build | 1 | **93/90**. Library approved by director. Kit proven → reuse for rest. |
-| T008 | Add Gym building (lightweight) | `awaiting-approval` | client-dev | — | 1 | Done via single agent ~73k (vs 540k workflow). Wide/low hall, distinct from Library. Sent to director. |
+| — | _(empty — waiting on the director's concept brief)_ | — | — | — | — | `T001` (spec · `explore` · `planner`) opens the moment the brief lands. **Do not invent the concept** (`VISION.md` §2/§4). |
+
+> **Numbering restarts at `T001` for touchRPG.** Life Town's T001-T008 live in its archive, not here.
 
 ## Task file format
 
-Every task gets `backlog/tasks/<id>.md`. ID = `T###` (zero-padded, never reused).
+Every task gets `backlog/tasks/<id>.md`. ID = `T###` (zero-padded, never reused within a project).
 
 ```markdown
 ---
@@ -45,7 +43,7 @@ status: ready
 agent: client-dev        # planner | ui-ux | server-dev | client-dev | qa
 mode: build              # build (implement→gate→lead scores 90→revise) | explore (N proposals→lead picks winner)
 priority: 1              # 1 = highest
-created: 2026-07-15
+created: 2026-07-17
 depends_on: []           # [T000] — task is `blocked` until these are `done`
 ---
 
@@ -60,7 +58,7 @@ What to do. Concrete enough for the agent to start without asking.
 Relevant file paths, spec excerpts, links, prior decisions.
 
 ## Log
-- 2026-07-15 created from Discord message 123456789
+- 2026-07-17 created from Discord message 123456789
 ```
 
 ## Choosing `mode`
@@ -73,3 +71,8 @@ Relevant file paths, spec excerpts, links, prior decisions.
   it revises until it clears 90.
 
 When unsure: if you could imagine three genuinely different good answers, use `explore`.
+
+> **Token economy (director, 2026-07-17):** for *proven-pattern* work prefer the **frugal path** — one
+> subagent + `gate/gate.ps1` + a PM check + honest disclosure — and reserve the full quality-loop
+> workflow for genuinely novel or risky work. This is a cost rule, not a quality rule: the gates still
+> decide "done."

@@ -808,3 +808,23 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - PM view: clear win on both asks (walls visible + real ground). Sent to director; asked to lock the
   village and move to real GAMEPLAY (tap->timer->growth/build) or flag more polish. That gameplay build
   is the next big arc (wires Economy.Core T002 + Platform T003) toward a playable slice -> Gate 3.
+
+## Tick 47 — 2026-07-17 18:15 — PROJECT SWITCH: Life Town paused, touchRPG scaffolded
+- Director: "이 프로젝트는 잠시 중단하고 새로운 게임 개발을 시작. touchRPG라는 폴더 생성해서 신규 개발
+  준비. 게임 개발은 현재 개발팀과 시스템을 그대로 사용할거야."
+- Life Town PAUSED, not cancelled — made fully resumable: archived its contract state (VISION §2,
+  PROGRESS cockpit, backlog + T001-T007 task files) into its OWN repo at lifetown/docs/paused-state/
+  (committed db4115d), so it travels with the project. It stopped at: 7 category buildings + polished
+  village v2, gate-green 81/81, awaiting a lock-or-gameplay decision.
+- touchRPG scaffolded: folder + own git repo + docs/{spec,design,api,qa,design/references} + README
+  recording that the concept is pending (committed 4c13839). Added /touchRPG/ to root .gitignore
+  (one-app-one-repo rule).
+- Contract updated: VISION §2 rewritten for touchRPG with concept/target/scope marked PENDING and an
+  explicit "do NOT invent the concept" instruction + a Paused-project section for Life Town. §3 gates/
+  rubrics, §4 boundaries, §5 failure policy, §6 budget, §7 rules ALL UNCHANGED — the director said the
+  team and system carry over as-is. Changelog entry added. PROGRESS.md + BACKLOG.md reset to touchRPG
+  (task numbering restarts at T001; carried the engine-level Do Not Repeat + token-economy decisions).
+- BLOCKED ON THE BRIEF: "touchRPG" is a name, not a brief. Asked the director on Discord for genre/what
+  'touch' means, one-line concept, target player, and references (references were decisive on Life Town).
+  Did NOT invent a concept (VISION §2/§4). When it lands: fill §2 -> open T001 (explore/planner/기획팀장
+  rubric verbatim, passMark 90) -> send proposed scope for approval.

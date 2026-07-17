@@ -1,6 +1,7 @@
 # ── App projects: each gets its OWN git repo — do NOT track here ──
 # (add each app folder as it is created, same rule as app-dev-team)
 /lifetown/
+/touchRPG/
 
 # ── From .claude, track team agents + skills + workflows ──
 .claude/*
