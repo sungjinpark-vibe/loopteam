@@ -900,3 +900,25 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   장식주) — that IS the Monster Hunter structure he cited, and it preserves §8.1's 60% axis untouched.
   TBD-10 → keep ±0.15/±0.35 weapon-common; differentiate by rhythm/range/part-break affinity only.
 - T001 unaffected (parry core doesn't touch skills/weapons) and still running — did not disturb it.
+
+## Tick 49 (cont.) — 2026-07-17 23:30 — GDD v0.3: director resolved TBD-8/9/10; weapons cut to 3
+- Director's 4 calls: (1) DELETE active skills, (2) TBD-9 = option B (socket), (3) TBD-10 = PM's rec
+  (weapon-common judgment), (4) weapons -> 총/창/검과 방패 only, "다시 검증해줘".
+- v0.3 written. Notable: (1) is the cleanest kind of decision — it removed the P-2 collision's CAUSE
+  instead of compromising the pillar. Active skills needed a trigger input; §4.1/§6.3 forbid new
+  buttons; deleting actives keeps "탭 하나" intact and makes the whole skill system passive-only.
+  TBD-8/9/10 retired; §8.1's 60/30/10 growth split survives untouched because cards are the 탈리스만
+  axis's internal structure, not a 4th axis.
+- RE-VERIFIED the 3-weapon set as asked. Verdict: 3 > 4. 총/창/검과 방패 split the engagement-DISTANCE
+  axis cleanly with no overlap; 대검(근접·고위력) had overlapped 검과 방패(근접), and once judgment went
+  weapon-common its only remaining differentiator was "slow and heavy" — one shallow axis. Dropping it
+  sharpened the set.
+- But the re-verification surfaced 2 REAL gaps — filed as TBDs, not invented:
+  · TBD-12 검과 방패의 "방패" has nothing to do: tap-only + weapon-common judgment means there is NO
+    defensive input (parry IS the defense). The shield's identity needs a non-§4.3 expression.
+  · TBD-13 (bigger) the doc has NO range concept at all — only IN-4 이동. A ranged 총 could structurally
+    dodge 람팡 P2 꼬리치기 / P3 구르기 돌진, which is the mirror image of the §4.6 MUST ("a weapon that
+    out-damages is wrong") and would let weapon choice replace P-1's skill. If a range axis is adopted,
+    EVERY §7 pattern sheet must state its distance behaviour (람팡 included).
+- VISION §2 now points at v0.3, carries a "Locked by the director" block (no actives / socket cards /
+  3 weapons / weapon-common judgment), and lists 10 live TBDs. T001 untouched and still running.

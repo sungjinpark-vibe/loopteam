@@ -24,8 +24,8 @@ bar, and approve or reject.
 
 ## 2. Current project — touchRPG (working title "람팡")
 
-> **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.2.md` (director-authored;
-> v0.2, 2026-07-17 — supersedes v0.1, which stays as the record). Its §0 says so outright — if code comments, past conversation, or inferred
+> **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.3.md` (director-authored;
+> v0.3, 2026-07-17 — supersedes v0.2/v0.1, which stay as the record). Its §0 says so outright — if code comments, past conversation, or inferred
 > convention conflict with that document, **the document wins**. This §2 is a compact pointer for the
 > loop, **not a replacement**. When they disagree, the GDD is right. Read it before briefing any agent.
 
@@ -40,7 +40,7 @@ bar, and approve or reject.
 | Session | One hunt 10-15 min; 30-60 min/day recommended. Party 1-4 |
 | References | Monster Hunter / Vindictus (big single-target hunts, part-breaking, mastery-through-repetition); Clair Obscur: Expedition 33 (precise timing input as the heart of combat). **Differentiator**: that feel, rebuilt as portrait + single-tap gesture + party relay parry |
 | Project folder | `C:\Users\user\loop_engine\touchRPG` (own git repo, gitignored from the engine) |
-| Spec | `touchRPG/docs/spec/00-gdd-v0.2.md` (v0.1 kept as history) |
+| Spec | `touchRPG/docs/spec/00-gdd-v0.3.md` (v0.1/v0.2 kept as history) |
 | Completion | **The 5-expert playtest gate (§3.3)** — unchanged |
 
 ### The four pillars (GDD §2 — if a feature conflicts with a pillar, the feature is wrong)
@@ -56,6 +56,19 @@ Two supporting rules, both MUST: **"화면이 아니라 몬스터를 보게 만�
 lives in the monster's animation, never in a UI marker (GDD §6.2/§7.2). **"마커가 있는 곳은 탭, 없는
 곳은 이동"**. Gameplay colour is fixed at 4 channels (yellow=parry, blue=dodge, red=relay, gold=reward);
 adding a gameplay colour is MUST NOT.
+
+### Locked by the director on 2026-07-17 (GDD v0.3 — do not re-open without him)
+- **No active skills at all.** Growth is passive-centric. This was chosen to *remove* the collision with
+  P-2 rather than compromise it: activatable skills would have needed a trigger input, and §4.1/§6.3
+  forbid new buttons/gestures. **In-combat input remains exactly §4.1 — nothing else.**
+- **Passive cards = 장식주 socketed into the 탈리스만 slots** (Monster Hunter gear→decoration structure).
+  Cards are *not* a new growth axis — §8.1's 60/30/10 split stands unchanged. Set in the pre-hunt 대기실;
+  **locked at hunt start, never changed mid-combat**.
+- **Weapons = 3: 총(원거리) / 창(중거리) / 검과 방패(근접)** — they split the engagement-distance axis
+  cleanly. **Judgment windows (±0.15 / ±0.35) are weapon-common — per-weapon judgment is MUST NOT.**
+  Weapons differ only by **rhythm/speed, engagement distance, part-break affinity**.
+- **A weapon that structurally dodges patterns is as wrong as one that out-damages them** (§4.6 MUST).
+  This is the live risk with 총 — see TBD-13.
 
 ### P0 — the only thing that matters right now (GDD §10)
 P0 = the vertical slice: the full input grammar (IN-1~6), 람팡 + its complete pattern sheet, the 3-phase
@@ -83,13 +96,14 @@ landscape mode, and **any monetization model at all** (a separate doc will cover
 hardcoded. A gameplay-affecting number that is not in the doc MUST be asked, never invented; a
 presentation-only number (effect length, etc.) MAY be chosen and recorded.
 
-**The `[TBD]` rule (GDD §0/§13) — treat this as a gate.** **Eleven** items are *deliberately* undecided:
+**The `[TBD]` rule (GDD §0/§13) — treat this as a gate.** **Ten** items are *deliberately* undecided:
 combo cap (TBD-1), damage curve (TBD-2), 람팡 유대 material part (TBD-3), enhance curve (TBD-4), daily
-blessing count (TBD-5), final naming (TBD-6), network architecture (TBD-7), **active-skill trigger input
-(TBD-8), passive-card ↔ 탈리스만 relationship (TBD-9), weapon differentiation scope (TBD-10), skill/weapon
-dev priority (TBD-11)**. **MUST NOT fill them in.**
+blessing count (TBD-5), final naming (TBD-6), network architecture (TBD-7), skill/weapon dev priority
+(TBD-11), **the shield's game-mechanical identity (TBD-12)**, **whether a range axis exists + how the
+gun's ranged advantage is controlled (TBD-13)**. **MUST NOT fill them in.**
 The GDD names the failure mode itself: *"그럴듯한 보간(hallucinated design)은 이 프로젝트에서 가장
-경계하는 실패 모드다."* That is this loop's **Nodding Loop** under another name — the exact thing §3
+경계하는 실패 모드다."*
+That is this loop's **Nodding Loop** under another name — the exact thing §3
 exists to prevent. An agent that invents a TBD has failed the task, however good the result looks.
 
 ### Paused project — Life Town (resumable, not cancelled)
