@@ -798,3 +798,13 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   several behind plain gable-ends), and a real ground (beveled edge + grass tone variation + cohesive
   path + small flower/stone details) vs v1's flat mint slab. Buildings unchanged. -> spike-village-v2.png.
 - Frugal refine (no workflow). On landing: view -> gate -> show director. Cursor -> 1527575715984183377.
+
+## Tick 44 — 2026-07-17 16:52 — village v2 polish landed, sent to director
+- a4425 v2 (325k): dropped the door-facing rotation (the real cause of v1's hidden walls) so every
+  building's dense object-wall faces the camera; balanced 4-front/3-back layout; ground rebuilt as
+  grass-over-soil with beveled edge + tone patches + softened corners + comb-path linking all buildings
+  + flower/bush details. Buildings unchanged. RenderVillageV2Png -> spike-village-v2.png. Gate PASS
+  81/81, all other renders intact, no lock. Committed lifetown a77584d.
+- PM view: clear win on both asks (walls visible + real ground). Sent to director; asked to lock the
+  village and move to real GAMEPLAY (tap->timer->growth/build) or flag more polish. That gameplay build
+  is the next big arc (wires Economy.Core T002 + Platform T003) toward a playable slice -> Gate 3.
