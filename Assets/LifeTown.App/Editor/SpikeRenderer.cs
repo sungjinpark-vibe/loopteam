@@ -56,14 +56,15 @@ namespace LifeTown.App.Editor
 
         /// <summary>
         /// Same pipeline as <see cref="RenderPng"/>, pointed at the Gym instead of the
-        /// Library. Lower focusHeight than the Library's (1.0) because the Gym's whole
-        /// silhouette tops out around 0.65 vs. the Library's ~2.07 -- centring the camera
-        /// on the same world-space focus height would leave the Gym low in frame.
+        /// Library. The Gym cottage now matches the Library's massing exactly (same body
+        /// size, same roof size/position -- the two are siblings in the same cottage
+        /// archetype), so it uses the identical focusHeight (0.36) rather than the old
+        /// pre-cottage Gym's own 0.45.
         /// </summary>
         [MenuItem("LifeTown/Spike/Render Gym PNG")]
         public static void RenderGymPng()
         {
-            RenderBuilding(GymSceneAssetPath, GymOutputFileName, focusHeight: 0.45f,
+            RenderBuilding(GymSceneAssetPath, GymOutputFileName, focusHeight: 0.36f,
                 footprintCenter => GymBuildingBuilder.Build(null, footprintCenter));
         }
 

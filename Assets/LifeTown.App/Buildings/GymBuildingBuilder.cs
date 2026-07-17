@@ -5,16 +5,35 @@ using LifeTown.App.Scene;
 namespace LifeTown.App.Buildings
 {
     /// <summary>
-    /// Building #2: a Gym (운동/Exercise category), built to be the deliberate silhouette
-    /// counterpoint to <see cref="LibraryBuildingBuilder"/> -- tall/narrow gable tower vs.
-    /// wide/low flat-roof hall. Same BuildingKit calls, same tri-tone formula, same
-    /// base+upper+roof+prop+ring composition rhythm as the Library (rubric V4:
-    /// extensibility means a new category is new numbers, not new code), just with a
-    /// different silhouette recipe: a low wall block, a shallow "clerestory" setback block
-    /// (a raised strip for high windows -- the real-gym reason a wide box gets a second,
-    /// shorter tier instead of a taller one), and a flat overhanging roof slab (built with
-    /// the same <see cref="BuildingPrimitives.CreateShadedBox"/> used for walls -- a flat
-    /// roof is just a short, wide, wide-footprint box; no new primitive was needed).
+    /// Gym (운동/Exercise category) -- the cottage-built-from-<i>material</i> archetype's
+    /// second sibling, matching <see cref="LibraryBuildingBuilder"/> 1:1 in massing and
+    /// style (director: "build it as the Gym's sibling... reuse everything structural").
+    /// Body size, roof size/position, door/window layout, chimney, and tier-ring
+    /// convention are the exact same numbers as the Library cottage -- only the "material"
+    /// theme changes, books to gym equipment:
+    ///
+    /// 1. Walls = <see cref="BuildingPrimitives.CreateEquipmentWall"/> (the direct
+    ///    equipment-set counterpart to CreateBookSpineWall, same cell-based structure):
+    ///    weight-plate stacks (the strongest cue, most cells), a few horizontal dumbbell
+    ///    racks, a couple of kettlebells.
+    /// 2. Roof = a PLAIN <see cref="BuildingPrimitives.CreateGableRoof"/> (deliberately not
+    ///    an equipment-themed roof surface -- the brief's own call: "keep the gable roof
+    ///    surface itself simple/warm... let the ridge [icon] be the icon") with a big
+    ///    <see cref="BuildingPrimitives.CreateBarbell"/> laid along the ridge -- the
+    ///    Library's open-book roof has a direct equivalent, not a re-skin of the same
+    ///    primitive, because a barbell has no "pages" analog worth forcing.
+    /// 3. Coquette touch: one pink gym towel draped over a small rail by the door (the
+    ///    equipment-set equivalent of the Library's ribbon bookmark).
+    /// 4. Cozy extras matching the Library's list: warm amber-glass arched windows (no
+    ///    awnings this round -- the brief's own Gym cozy-detail list omits them, unlike
+    ///    the Library's explicit ask), a chimney with smoke, a potted plant, a hanging
+    ///    sign with a small dumbbell emblem, and loose weight-plate/dumbbell clusters on
+    ///    the ground by the entrance (the equipment equivalent of the Library's book
+    ///    piles).
+    ///
+    /// Tier ring stays the category's own tone (Exercise mint-green base500), same
+    /// "material palette can go rich, the ring stays the category identity color"
+    /// convention the Library's purple ring established.
     /// </summary>
     public static class GymBuildingBuilder
     {
@@ -25,168 +44,192 @@ namespace LifeTown.App.Buildings
             root.transform.position = footprintCenter;
 
             var colors = CategoryPalette.Get(BuildingCategory.Exercise);
-            Color base500 = colors.Base500;
-            Color ink = colors.Ink;
 
-            // Same warm "lit from within" glass tone as the Library -- an "occupied"
-            // signal that reads independent of category (T004 #5).
-            Color glass = CategoryPalette.FromHex("#FFEFC2");
+            // Warm athletic palette -- bumper-plate colors (saturated but not candy),
+            // matte charcoal plate bodies, a soft chrome-grey for bars/handles, and the
+            // same warm-wood tones the Library used for its own rack/trim, so the two
+            // buildings read as siblings in the same village (brief's item 5).
+            Color[] plateColors =
+            {
+                CategoryPalette.FromHex("#C1443F"), // bumper red
+                CategoryPalette.FromHex("#3D6FA8"), // bumper blue
+                CategoryPalette.FromHex("#4C9A5B"), // bumper green
+                CategoryPalette.FromHex("#D9B23C"), // bumper yellow
+            };
+            Color plateBody = CategoryPalette.FromHex("#33302C");   // matte charcoal plate body
+            Color hubColor = CategoryPalette.FromHex("#1C1A18");    // dark hub
+            Color handleGrey = CategoryPalette.FromHex("#C7C8C5");  // soft chrome handle/bar
+            Color wallBacking = CategoryPalette.FromHex("#5C4430"); // same warm wood backing as the Library
+            Color woodTrim = CategoryPalette.FromHex("#8B6B4A");    // same warm wood body tone as the Library
+            Color roofCover = CategoryPalette.FromHex("#B5764A");   // plain warm clay/mat roof tone (brief: keep the roof surface simple)
+            Color windowFrame = CategoryPalette.FromHex("#5C4430");
+            Color windowGlow = CategoryPalette.FromHex("#FFCE7A");  // same warm amber as the Library
+            Color doorColor = CategoryPalette.FromHex("#4A3220");
+            Color stoneColor = CategoryPalette.FromHex("#9C8878");
+            Color smokeColor = new Color(0.88f, 0.88f, 0.86f, 1f);
+            Color potColor = CategoryPalette.FromHex("#B5602E");
+            Color leafColor = CategoryPalette.FromHex("#5FA06A");
+            Color towelPink = CategoryPalette.PrimaryPink;
+            Color tierRingColor = colors.Base500; // brief: ring stays the category's own tone
 
-            // ---- Base block (S1): wide, low hall -- the opposite proportions from the
-            // Library's tall/narrow tower (1.50 wide x 0.85 deep x only 0.40 tall). ----
-            Vector3 baseSize = new Vector3(1.50f, 0.40f, 0.85f);
             Vector3 baseOrigin = root.transform.position;
-            BuildingPrimitives.CreateShadedBox("Walls", root.transform, baseSize, baseOrigin, base500);
-            float baseTopY = baseOrigin.y + baseSize.y;
 
-            // ---- Clerestory block (S2 addition): a shorter, setback upper strip (a real
-            // gym's raised high-window band) instead of the Library's full-height second
-            // storey -- keeps the tier-evolution language (base + added block) while the
-            // building stays low overall. ----
-            Vector3 upperSize = new Vector3(baseSize.x * 0.62f, 0.14f, baseSize.z * 0.62f);
-            Vector3 upperOrigin = new Vector3(baseOrigin.x, baseTopY, baseOrigin.z);
-            BuildingPrimitives.CreateShadedBox("Clerestory", root.transform, upperSize, upperOrigin, base500);
-            float upperTopY = upperOrigin.y + upperSize.y;
+            // ---- Cottage body: identical size to the Library's, per the brief's "match
+            // 1:1 in massing". ----
+            Vector3 bodySize = new Vector3(1.30f, 0.50f, 1.00f);
+            BuildingPrimitives.CreateShadedBox("CottageWalls", root.transform, bodySize, baseOrigin, woodTrim);
+            float wallTopY = baseOrigin.y + bodySize.y;
+            float frontZ = baseOrigin.z + bodySize.z * 0.5f;
+            float sideX = baseOrigin.x + bodySize.x * 0.5f;
 
-            // ---- Roof (S3 addition): a flat, overhanging slab -- deliberately NOT the
-            // Library's steep gable, per the brief's "distinct silhouette by shape" ask.
-            // Built with the same CreateShadedBox used for walls: a flat roof is just a
-            // wide, short box, so it still gets the tri-tone shading for free. ----
-            Vector3 roofSize = new Vector3(baseSize.x * 1.15f, 0.11f, baseSize.z * 1.15f);
-            Vector3 roofOrigin = new Vector3(baseOrigin.x, upperTopY, baseOrigin.z);
-            BuildingPrimitives.CreateShadedBox("Roof", root.transform, roofSize, roofOrigin, base500);
-            float roofTopY = roofOrigin.y + roofSize.y;
+            // ---- Front wall: packed gym equipment, same proud-of-the-body convention as
+            // the Library's book spines. ----
+            Vector3 frontWallSize = new Vector3(bodySize.x * 0.93f, bodySize.y * 0.74f, 0.05f);
+            Vector3 frontWallBase = new Vector3(baseOrigin.x, baseOrigin.y + bodySize.y * 0.10f, frontZ + 0.012f);
+            BuildingPrimitives.CreateEquipmentWall("FrontEquip", root.transform, frontWallSize, frontWallBase,
+                plateColors, plateBody, hubColor, handleGrey, wallBacking, columns: 8, rows: 2);
 
-            // ---- Rooftop emblem: a small dumbbell, centred on the flat roof so it's the
-            // first thing seen (director feedback -- building TYPE must read from a
-            // recognizable rooftop object, not just silhouette/color). ----
-            BuildDumbbellEmblem(root.transform, new Vector3(baseOrigin.x, roofTopY + 0.03f, baseOrigin.z), ink);
+            // ---- Side wall (+X, the face the iso camera actually sees): same panel,
+            // rotated 90 degrees around its own already-correctly-placed pivot -- the
+            // exact technique the Library's side spine wall uses. ----
+            Vector3 sideWallSize = new Vector3(bodySize.z * 0.90f, bodySize.y * 0.74f, 0.05f);
+            Vector3 sideWallBase = new Vector3(sideX + 0.012f, baseOrigin.y + bodySize.y * 0.10f, baseOrigin.z);
+            var sideEquip = BuildingPrimitives.CreateEquipmentWall("SideEquip", root.transform, sideWallSize, sideWallBase,
+                plateColors, plateBody, hubColor, handleGrey, wallBacking, columns: 5, rows: 2);
+            sideEquip.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
 
-            // ---- Big entrance door: wide flat ink panel on the base block's front (+Z)
-            // wall, sized up from the Library's door per the brief's "big entrance". ----
-            float baseFrontZ = baseOrigin.z + baseSize.z * 0.5f;
-            BuildingPrimitives.CreateAccentBox(
-                "Door", root.transform,
-                new Vector3(0.46f, 0.28f, 0.045f),
-                new Vector3(baseOrigin.x, baseOrigin.y, baseFrontZ + 0.02f),
-                ink);
+            // ---- Roof: a PLAIN gable (same size/position as the Library's roof, for
+            // matching massing) -- the brief's own call to keep the roof surface simple
+            // and let the ridge barbell be the icon, rather than forcing an
+            // equipment-themed re-skin of the open-book roof archetype. ----
+            Vector3 roofBaseCenter = new Vector3(baseOrigin.x, wallTopY, baseOrigin.z);
+            Vector3 roofSize = new Vector3(1.66f, 0.48f, 1.20f);
+            BuildingPrimitives.CreateGableRoof("Roof", root.transform, roofSize, roofBaseCenter, roofCover);
+            float ridgeTopY = wallTopY + roofSize.y;
 
-            // ---- Signage plate: same T004 #3.2 S2 rule as the Library -- a flat
-            // category.ink rectangle reading "occupied" with no text needed. ----
-            BuildingPrimitives.CreateAccentBox(
-                "SignagePlate", root.transform,
-                new Vector3(0.55f, 0.09f, 0.02f),
-                new Vector3(baseOrigin.x, baseOrigin.y + 0.32f, baseFrontZ + 0.015f),
-                ink);
+            // ---- Ridge icon: a big barbell laid along the ridge (world Z, matching the
+            // roof's own ridge axis exactly -- see CreateBarbell's doc comment on why this
+            // is the one safe axis for its plates to face correctly). This is the Gym's
+            // answer to the Library's open-book roof: the one silhouette element that
+            // reads "gym" at a glance. ----
+            Vector3 barbellCenter = new Vector3(baseOrigin.x, ridgeTopY + 0.05f, baseOrigin.z);
+            BuildingPrimitives.CreateBarbell("RidgeBarbell", root.transform, barbellCenter, Vector3.forward,
+                barLength: roofSize.z * 0.92f, barThickness: 0.035f, plateRadius: 0.135f, platesPerSide: 3,
+                barColor: handleGrey, plateColors: plateColors, plateBodyColor: plateBody, hubColor: hubColor);
 
-            // ---- Two square windows flanking the door: framed the same way as the
-            // Library's window (an ink frame pane behind a smaller glass pane) for the same
-            // reason -- an unframed glass rectangle skews into an unreadable parallelogram
-            // under true-iso projection. Square (no arch cap) here on purpose: it reads as
-            // a plainer, modern gym-hall window rather than the Library's arched one. ----
-            float windowY = baseOrigin.y + 0.22f;
-            float windowXOffset = baseSize.x * 0.30f;
-            Vector3 paneSize = new Vector3(0.16f, 0.16f, 0.045f);
-            float frameMargin = 0.03f;
-            Vector3 frameSize = new Vector3(paneSize.x + frameMargin * 2f, paneSize.y + frameMargin * 2f, paneSize.z * 0.6f);
+            // ---- Door: same arched-panel-as-door reuse the Library uses (frame color ==
+            // glass color collapses CreateArchedWindow into a solid door). ----
+            BuildingPrimitives.CreateArchedWindow("Door", root.transform,
+                paneWidth: 0.20f, paneHeight: 0.28f, paneDepth: 0.05f,
+                paneBottomCenter: new Vector3(baseOrigin.x, baseOrigin.y, frontZ + 0.05f),
+                frameColor: doorColor, glassColor: doorColor);
+            BuildHangingSign(root.transform, new Vector3(baseOrigin.x, baseOrigin.y + 0.34f, frontZ + 0.05f), doorColor, handleGrey, plateColors[0]);
+
+            // ---- Windows: warm amber-glass arches flanking the door -- same position as
+            // the Library's, no awnings this round (the brief's Gym cozy-detail list
+            // doesn't ask for them, unlike the Library's explicit "open-book awning" ask). ----
+            float windowY = baseOrigin.y + bodySize.y * 0.40f;
+            float windowXOffset = bodySize.x * 0.30f;
+            float windowFrontZ = frontZ + 0.05f;
             foreach (float side in new[] { -1f, 1f })
             {
-                float x = baseOrigin.x + windowXOffset * side;
-                BuildingPrimitives.CreateAccentBox(
-                    "WindowFrame", root.transform, frameSize,
-                    new Vector3(x, windowY, baseFrontZ + 0.012f), ink);
-                BuildingPrimitives.CreateAccentBox(
-                    "WindowPane", root.transform, paneSize,
-                    new Vector3(x, windowY, baseFrontZ + 0.03f), glass);
+                string tag = side < 0f ? "L" : "R";
+                float wx = baseOrigin.x + windowXOffset * side;
+                Vector3 paneBottomCenter = new Vector3(wx, windowY, windowFrontZ);
+                BuildingPrimitives.CreateArchedWindow($"Window{tag}", root.transform,
+                    paneWidth: 0.14f, paneHeight: 0.16f, paneDepth: 0.04f, paneBottomCenter, windowFrame, windowGlow);
             }
 
-            // ---- Prop: the Library's wall-mounted lantern, same geometry, just recoloured
-            // via the category tokens above and moved beside this building's wider door
-            // (T004 #5's "one recolour-only prop, identical geometry across categories"). ----
-            float lanternX = baseOrigin.x + baseSize.x * 0.5f - 0.08f;
-            float lanternY = baseOrigin.y + 0.16f;
-            BuildingPrimitives.CreateAccentBox(
-                "WallLanternArm", root.transform,
-                new Vector3(0.05f, 0.03f, 0.05f),
-                new Vector3(lanternX, lanternY, baseFrontZ + 0.02f),
-                ink);
-            BuildingPrimitives.CreateAccentBlob(
-                "WallLanternHead", root.transform,
-                0.045f,
-                new Vector3(lanternX, lanternY + 0.06f, baseFrontZ + 0.05f),
-                glass);
+            // ---- Chimney: same construction and position as the Library's, recoloured to
+            // match this cottage's stone tone (unchanged from the Library's, both already
+            // warm-neutral). ----
+            Vector3 chimneyBase = new Vector3(baseOrigin.x + 0.34f, ridgeTopY - 0.10f, baseOrigin.z - 0.18f);
+            BuildChimney(root.transform, chimneyBase, stoneColor, smokeColor);
 
-            // ---- Coquette touch: the Library's exact tied-bow construction (proven to
-            // render correctly under true-iso), moved from a gable apex (which this
-            // building doesn't have) to the flat roof's front edge, so the identity
-            // language ("one coquette touch per building") holds without gambling on new
-            // unproven geometry. ----
-            float roofFrontZ = baseOrigin.z + roofSize.z * 0.5f;
-            Vector3 bowCenter = new Vector3(baseOrigin.x, roofTopY + 0.03f, roofFrontZ - 0.06f);
-            BuildCoquetteBow(root.transform, bowCenter);
+            // ---- Entrance dressing: a potted plant, plus loose weight-plate/dumbbell
+            // clusters on the ground -- the equipment equivalent of the Library's loose
+            // book piles. ----
+            BuildPottedPlant(root.transform, new Vector3(baseOrigin.x + 0.40f, baseOrigin.y, frontZ + 0.10f), potColor, leafColor);
 
-            // ---- Tier ring: same maxed-tier convention as the Library, sized up to sit
-            // under this building's wider footprint. ----
+            BuildingPrimitives.CreateWeightPlateStack("GroundStackA", root.transform,
+                new Vector3(baseOrigin.x - 0.46f, baseOrigin.y, frontZ + 0.02f), 0.075f, 3, plateColors, plateBody, hubColor);
+            BuildingPrimitives.CreateWeightPlateStack("GroundStackB", root.transform,
+                new Vector3(baseOrigin.x - 0.60f, baseOrigin.y, frontZ - 0.05f), 0.06f, 2, plateColors, plateBody, hubColor);
+            BuildingPrimitives.CreateDumbbell("GroundDumbbell", root.transform,
+                new Vector3(sideX + 0.03f, baseOrigin.y + 0.045f, baseOrigin.z + 0.32f), Vector3.forward,
+                barLength: 0.22f, barThickness: 0.03f, bellRadius: 0.05f, barColor: handleGrey, bellColor: plateColors[2]);
+
+            // ---- Coquette touch: one pink gym towel draped over a small rail beside the
+            // door -- the equipment-set equivalent of the Library's ribbon bookmark. ----
+            Vector3 railCenter = new Vector3(baseOrigin.x - 0.26f, baseOrigin.y + 0.24f, frontZ + 0.04f);
+            BuildTowelOnRail(root.transform, railCenter, handleGrey, towelPink);
+
+            // ---- Tier ring: same convention as the Library, sized to enclose this
+            // cottage's identical footprint, colored the category's own tone. ----
             MeshPrimitives.CreateFlatRing(
                 "TierRing", root.transform,
                 0.85f, 0.95f,
                 new Vector3(baseOrigin.x, baseOrigin.y + 0.01f, baseOrigin.z),
-                base500);
+                tierRingColor);
 
             return root;
         }
 
-        /// <summary>Identical construction to LibraryBuildingBuilder.BuildCoquetteBow --
-        /// duplicated rather than shared to keep each builder a self-contained, copyable
-        /// pattern per T004's "call shape, not shared bespoke code" extensibility note.</summary>
-        static void BuildCoquetteBow(Transform parent, Vector3 center)
+        /// <summary>Small stone chimney with a two-puff smoke curl -- identical
+        /// construction to the Library's, kept as a self-contained copy per this kit's
+        /// established "call shape, not shared bespoke code" convention.</summary>
+        static void BuildChimney(Transform parent, Vector3 baseCenter, Color stoneColor, Color smokeColor)
         {
-            Color pink = CategoryPalette.PrimaryPink;
-            var bow = new GameObject("CoquetteBow");
-            bow.transform.SetParent(parent, false);
-            bow.transform.position = center;
+            Vector3 chimneySize = new Vector3(0.09f, 0.16f, 0.09f);
+            BuildingPrimitives.CreateShadedBox("Chimney", parent, chimneySize, baseCenter, stoneColor);
+            float topY = baseCenter.y + chimneySize.y;
+            BuildingPrimitives.CreateAccentBlob("SmokePuff1", parent, 0.032f, new Vector3(baseCenter.x, topY + 0.03f, baseCenter.z), smokeColor);
+            BuildingPrimitives.CreateAccentBlob("SmokePuff2", parent, 0.048f, new Vector3(baseCenter.x + 0.02f, topY + 0.09f, baseCenter.z), smokeColor);
+        }
 
-            Vector3 spreadAxis = IsoSceneSetup.ScreenRight;
-            const float loopOffset = 0.065f;
+        /// <summary>A small wooden sign hanging from a short bracket, with a tiny dumbbell
+        /// emblem in front of it -- the Gym's readable-at-a-glance rooftop-emblem idea
+        /// from the original T004 spike, carried over as a door-sign accent instead.</summary>
+        static void BuildHangingSign(Transform parent, Vector3 doorTopCenter, Color woodColor, Color barColor, Color bellColor)
+        {
+            Vector3 bracketSize = new Vector3(0.03f, 0.03f, 0.05f);
+            BuildingPrimitives.CreateAccentBox("SignBracket", parent, bracketSize, doorTopCenter, woodColor);
+            Vector3 signSize = new Vector3(0.22f, 0.055f, 0.02f);
+            Vector3 signBase = new Vector3(doorTopCenter.x, doorTopCenter.y + bracketSize.y - 0.015f, doorTopCenter.z + 0.02f);
+            BuildingPrimitives.CreateAccentBox("SignBoard", parent, signSize, signBase, woodColor);
 
-            foreach (var side in new[] { -1f, 1f })
-            {
-                Vector3 loopCenter = center + spreadAxis * (loopOffset * side) + Vector3.up * 0.01f;
-                var loop = BuildingPrimitives.CreateAccentBlob("BowLoop", bow.transform, 0.06f, loopCenter, pink);
-                loop.transform.localScale = new Vector3(1.35f, 1.0f, 0.55f);
-            }
-            BuildingPrimitives.CreateAccentBlob("BowKnot", bow.transform, 0.04f, center + IsoSceneSetup.IsoDirection * 0.02f, pink);
+            Vector3 emblemCenter = new Vector3(doorTopCenter.x, signBase.y + signSize.y * 1.4f, signBase.z + 0.015f);
+            BuildingPrimitives.CreateDumbbell("SignEmblem", parent, emblemCenter, Vector3.right,
+                barLength: 0.10f, barThickness: 0.012f, bellRadius: 0.022f, barColor: barColor, bellColor: bellColor);
+        }
+
+        /// <summary>A small potted plant: identical construction to the Library's.</summary>
+        static void BuildPottedPlant(Transform parent, Vector3 baseCenter, Color potColor, Color leafColor)
+        {
+            Vector3 potSize = new Vector3(0.07f, 0.06f, 0.07f);
+            BuildingPrimitives.CreateAccentBox("PlantPot", parent, potSize, baseCenter, potColor);
+            var leaf = BuildingPrimitives.CreateAccentBlob("PlantLeaf", parent, 0.055f,
+                new Vector3(baseCenter.x, baseCenter.y + potSize.y + 0.035f, baseCenter.z), leafColor);
+            leaf.transform.localScale = new Vector3(1f, 1.3f, 1f);
         }
 
         /// <summary>
-        /// A small dumbbell: a thin bar box rotated to lie along IsoSceneSetup.ScreenRight
-        /// (the true on-screen horizontal axis, same technique the Library's bow uses for
-        /// its two loops) with a round plate blob at each end. Quaternion.FromToRotation
-        /// maps the box's default local +X edge onto that axis directly, so this is correct
-        /// regardless of Unity's rotation-sign convention -- no hand-derived angle needed.
+        /// The Gym's one coquette touch: a short wall-mounted rail (a thin horizontal bar,
+        /// echoing the equipment theme) with a pink towel draped over it -- a single flat
+        /// strip hanging down the front face, same "thin proud accent box" technique the
+        /// Library's ribbon bookmark uses, without the swallowtail (a towel's cut end is
+        /// straight, not notched).
         /// </summary>
-        static void BuildDumbbellEmblem(Transform parent, Vector3 center, Color color)
+        static void BuildTowelOnRail(Transform parent, Vector3 railCenter, Color railColor, Color towelPink)
         {
-            var emblem = new GameObject("DumbbellEmblem");
-            emblem.transform.SetParent(parent, false);
-            emblem.transform.position = center;
+            BuildingPrimitives.CreateAccentBox("TowelRail", parent,
+                new Vector3(0.14f, 0.016f, 0.016f), railCenter, railColor);
 
-            Vector3 axis = IsoSceneSetup.ScreenRight;
-            const float plateOffset = 0.11f;
-            const float plateRadius = 0.055f;
-
-            var bar = BuildingPrimitives.CreateAccentBox(
-                "DumbbellBar", emblem.transform,
-                new Vector3(plateOffset * 2f, 0.03f, 0.03f),
-                center, color);
-            bar.transform.rotation = Quaternion.FromToRotation(Vector3.right, axis);
-
-            foreach (var side in new[] { -1f, 1f })
-            {
-                Vector3 plateCenter = center + axis * (plateOffset * side);
-                var plate = BuildingPrimitives.CreateAccentBlob("DumbbellPlate", emblem.transform, plateRadius, plateCenter, color);
-                plate.transform.localScale = new Vector3(0.8f, 1.25f, 0.8f); // taller than wide -- reads as a weight-plate disc, not a ball
-            }
+            float towelWidth = 0.075f, towelDepth = 0.014f, towelLength = 0.16f;
+            Vector3 towelTop = new Vector3(railCenter.x, railCenter.y + 0.01f, railCenter.z + 0.014f);
+            BuildingPrimitives.CreateAccentBox("Towel", parent,
+                new Vector3(towelWidth, towelLength, towelDepth),
+                new Vector3(towelTop.x, towelTop.y - towelLength, towelTop.z), towelPink);
         }
     }
 }

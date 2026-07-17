@@ -347,6 +347,254 @@ namespace LifeTown.App.BuildingKit
         }
 
         /// <summary>
+        /// One weight plate, front-facing: a colored rim disc (a squashed icosahedron --
+        /// the exact same "flatten a blob into a coin" technique the original Gym spike's
+        /// dumbbell emblem already proved out, see <see cref="CreateDumbbell"/>'s own
+        /// note) with a smaller charcoal body disc proud in front of it, leaving a thin
+        /// colored ring showing at the rim, and a darker hub disc proud again in front of
+        /// that -- a real bumper plate's black rubber body with a colored edge ring and a
+        /// center hub, in three layered discs. Faces world +Z (the camera-front
+        /// direction) always; not general to an arbitrary axis (a documented scope limit,
+        /// matching <see cref="CreateBarbell"/>'s same assumption).
+        /// </summary>
+        public static GameObject CreatePlateDisc(string name, Transform parent, Vector3 worldCenter, float radius, float thickness, Color rimColor, Color bodyColor, Color hubColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = worldCenter;
+
+            var rim = CreateAccentBlob($"{name}_Rim", group.transform, radius, worldCenter, rimColor);
+            rim.transform.localScale = new Vector3(1f, 1f, thickness / radius);
+
+            var body = CreateAccentBlob($"{name}_Body", group.transform, radius * 0.80f,
+                worldCenter + Vector3.forward * (thickness * 0.5f * 0.6f), bodyColor);
+            body.transform.localScale = new Vector3(1f, 1f, (thickness * 0.85f) / (radius * 0.80f));
+
+            var hub = CreateAccentBlob($"{name}_Hub", group.transform, radius * 0.22f,
+                worldCenter + Vector3.forward * (thickness * 0.5f + 0.008f), hubColor);
+            hub.transform.localScale = new Vector3(1f, 1f, 0.42f);
+
+            return group;
+        }
+
+        /// <summary>
+        /// A vertical stack of weight plates (<see cref="CreatePlateDisc"/>) -- the
+        /// equipment-wall archetype's strongest cue, mirroring how the book wall's title
+        /// bands did the most work: a colored rim, a black plate body, and a dark hub on
+        /// every plate. Plates overlap slightly (a small negative gap) so the stack reads
+        /// as packed and racked rather than floating apart. `baseCenter` is the stack's
+        /// bottom-center in world space -- the first plate's own center sits `plateRadius`
+        /// above it, same "don't clip the ground" convention every round primitive uses.
+        /// Returns the total stack height so callers (see <see cref="CreateEquipmentWall"/>)
+        /// can fill any remaining cell space with a rack-shadow accent.
+        /// </summary>
+        public static float CreateWeightPlateStack(string name, Transform parent, Vector3 baseCenter, float plateRadius, int count, Color[] rimColors, Color bodyColor, Color hubColor)
+        {
+            float thickness = plateRadius * 0.46f;
+            float spacing = thickness * 0.92f; // slight overlap -- packed, not floating
+            float y = baseCenter.y + plateRadius;
+            for (int i = 0; i < count; i++)
+            {
+                CreatePlateDisc($"{name}_Plate{i}", parent, new Vector3(baseCenter.x, y, baseCenter.z),
+                    plateRadius, thickness, rimColors[i % rimColors.Length], bodyColor, hubColor);
+                y += spacing;
+            }
+            return (y - spacing + plateRadius) - baseCenter.y;
+        }
+
+        /// <summary>
+        /// A dumbbell: a bar (box, rotated to lie along `axis`) with a round bell at each
+        /// end (<see cref="CreateAccentBlob"/>, squashed taller-than-wide) -- identical
+        /// construction to the original T004 Gym spike's own dumbbell rooftop emblem
+        /// (`Quaternion.FromToRotation(Vector3.right, axis)` to orient the bar regardless
+        /// of Unity's rotation-sign convention, non-uniform blob scale to read as a
+        /// weight-plate disc rather than a ball) -- generalized here into a reusable
+        /// primitive instead of a one-off private method, per the brief's ask that the
+        /// equipment set be as reusable as the book-stack set. `axis` should be
+        /// normalized-able (any length); pass <c>Vector3.right</c> for a plain
+        /// world-aligned rack, or a screen-space axis like IsoSceneSetup.ScreenRight if a
+        /// caller wants it to read as symmetric on screen (that decision stays with the
+        /// caller, same as every other axis-taking primitive in this file).
+        /// </summary>
+        public static GameObject CreateDumbbell(string name, Transform parent, Vector3 center, Vector3 axis, float barLength, float barThickness, float bellRadius, Color barColor, Color bellColor)
+        {
+            axis = axis.normalized;
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = center;
+
+            var bar = CreateAccentBox($"{name}_Bar", group.transform, new Vector3(barLength, barThickness, barThickness), center, barColor);
+            bar.transform.rotation = Quaternion.FromToRotation(Vector3.right, axis);
+
+            foreach (var side in new[] { -1f, 1f })
+            {
+                Vector3 bellCenter = center + axis * (barLength * 0.5f * side);
+                var bell = CreateAccentBlob($"{name}_Bell{(side < 0f ? "L" : "R")}", group.transform, bellRadius, bellCenter, bellColor);
+                bell.transform.localScale = new Vector3(0.85f, 1.2f, 0.85f); // taller than wide -- disc, not a ball
+            }
+            return group;
+        }
+
+        /// <summary>
+        /// A kettlebell: a rounded body (a squashed icosahedron, flattened front-to-back
+        /// so its round face reads to the camera rather than a full sphere) with a
+        /// three-box handle loop (two posts + a top bar) above it -- cheaper and more
+        /// robust than a real torus/pipe mesh for a detail this small, built purely from
+        /// primitives already proven under this camera. `baseCenter` is the kettlebell's
+        /// own bottom-center (the floor it sits on).
+        /// </summary>
+        public static GameObject CreateKettlebell(string name, Transform parent, Vector3 baseCenter, float bodyRadius, Color bodyColor, Color handleColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            Vector3 bodyCenter = baseCenter + Vector3.up * bodyRadius;
+            var body = CreateAccentBlob($"{name}_Body", group.transform, bodyRadius, bodyCenter, bodyColor);
+            body.transform.localScale = new Vector3(1.0f, 0.94f, 0.62f);
+
+            float handleWidth = bodyRadius * 0.85f;
+            float handleHeight = bodyRadius * 0.55f;
+            float postThickness = bodyRadius * 0.16f;
+            float topY = bodyCenter.y + bodyRadius * 0.82f;
+            foreach (var side in new[] { -1f, 1f })
+            {
+                CreateAccentBox($"{name}_Post{(side < 0f ? "L" : "R")}", group.transform,
+                    new Vector3(postThickness, handleHeight, postThickness),
+                    new Vector3(baseCenter.x + side * handleWidth * 0.5f, topY, baseCenter.z), handleColor);
+            }
+            CreateAccentBox($"{name}_HandleTop", group.transform,
+                new Vector3(handleWidth + postThickness, postThickness, postThickness),
+                new Vector3(baseCenter.x, topY + handleHeight, baseCenter.z), handleColor);
+
+            return group;
+        }
+
+        /// <summary>
+        /// A barbell: a long bar (<see cref="CreateDumbbell"/>'s same bar construction)
+        /// with several plates (<see cref="CreatePlateDisc"/>) threaded near each end --
+        /// the Gym cottage's roof-ridge icon, the equipment set's equivalent of the
+        /// Library's open-book roof. Plates face world +Z always (see
+        /// <see cref="CreatePlateDisc"/>'s own scope note), which is exactly correct when
+        /// `axis` is world Z (<c>Vector3.forward</c>) -- the roof ridge's own convention
+        /// throughout this kit (<see cref="CreateGableRoofCustomTones"/>,
+        /// <see cref="CreateOpenBookRoof"/>) -- so a caller placing this along the ridge
+        /// gets plates that face outward along the bar exactly like a real barbell's,
+        /// with no extra rotation math needed.
+        /// </summary>
+        public static GameObject CreateBarbell(string name, Transform parent, Vector3 center, Vector3 axis, float barLength, float barThickness, float plateRadius, int platesPerSide, Color barColor, Color[] plateColors, Color plateBodyColor, Color hubColor)
+        {
+            axis = axis.normalized;
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = center;
+
+            var bar = CreateAccentBox($"{name}_Bar", group.transform, new Vector3(barLength, barThickness, barThickness), center, barColor);
+            bar.transform.rotation = Quaternion.FromToRotation(Vector3.right, axis);
+
+            float plateThickness = plateRadius * 0.36f;
+            float plateSpacing = plateThickness * 1.05f;
+            foreach (var side in new[] { -1f, 1f })
+            {
+                float endOffset = barLength * 0.5f - plateRadius * 0.22f;
+                for (int i = 0; i < platesPerSide; i++)
+                {
+                    Vector3 plateCenter = center + axis * (side * (endOffset - i * plateSpacing));
+                    CreatePlateDisc($"{name}_Plate{(side < 0f ? "L" : "R")}{i}", group.transform, plateCenter,
+                        plateRadius, plateThickness, plateColors[i % plateColors.Length], plateBodyColor, hubColor);
+                }
+            }
+            return group;
+        }
+
+        /// <summary>
+        /// A wall panel clad in gym equipment -- the equipment-wall archetype's answer to
+        /// <see cref="CreateBookSpineWall"/>, matching its cell-based structure exactly so
+        /// the two archetypes stay visually consistent (per the brief's "same proportions,
+        /// same warmth, same iso treatment"). Every cell is one of three deterministic
+        /// types (no Random), picked by a seed cycle so the wall doesn't repeat visibly:
+        /// mostly <see cref="CreateWeightPlateStack"/> columns (the strongest cue, most
+        /// cells), some horizontal <see cref="CreateDumbbell"/> racks, and a minority of
+        /// <see cref="CreateKettlebell"/>s tucked in. Column widths vary the same
+        /// deterministic-weight way the book wall's did. A short plate stack gets a dark
+        /// "rack shadow" filling the leftover cell height, the equipment equivalent of the
+        /// book wall's shelf shadow. `baseCenter` is the panel's bottom-center in world
+        /// space; built axis-aligned exactly like <see cref="CreateBookSpineWall"/>, so a
+        /// caller rotates the returned GameObject afterward for a different wall face.
+        /// </summary>
+        public static GameObject CreateEquipmentWall(string name, Transform parent, Vector3 wallSize, Vector3 baseCenter, Color[] plateColors, Color plateBodyColor, Color hubColor, Color handleColor, Color backingColor, int columns = 8, int rows = 2)
+        {
+            var wallRoot = new GameObject(name);
+            wallRoot.transform.SetParent(parent, false);
+            wallRoot.transform.position = baseCenter;
+
+            CreateAccentBox($"{name}_Backing", wallRoot.transform, new Vector3(wallSize.x, wallSize.y, wallSize.z * 0.6f), baseCenter, backingColor);
+
+            Color rackShadow = Color.Lerp(backingColor, Color.black, 0.35f);
+            float rowHeight = wallSize.y / rows;
+            float nominalColWidth = wallSize.x / columns;
+            float[] widthWeights = { 0.85f, 1.22f, 0.95f, 1.15f, 0.88f };
+
+            for (int r = 0; r < rows; r++)
+            {
+                float rowBaseY = baseCenter.y + r * rowHeight;
+
+                float[] rawWidths = new float[columns];
+                float sum = 0f;
+                for (int c = 0; c < columns; c++)
+                {
+                    rawWidths[c] = widthWeights[(c + r * 2) % widthWeights.Length] * nominalColWidth;
+                    sum += rawWidths[c];
+                }
+                float scale = wallSize.x / sum;
+
+                float cursorX = baseCenter.x - wallSize.x * 0.5f;
+                for (int c = 0; c < columns; c++)
+                {
+                    float colWidth = rawWidths[c] * scale;
+                    float cellCenterX = cursorX + colWidth * 0.5f;
+                    cursorX += colWidth;
+
+                    int seed = c + r * 5;
+                    float cellFrontZ = baseCenter.z + wallSize.z * 0.5f;
+
+                    int cellType = seed % 5;
+                    if (cellType == 3)
+                    {
+                        float barLen = colWidth * 0.86f;
+                        Vector3 dCenter = new Vector3(cellCenterX, rowBaseY + rowHeight * 0.5f, cellFrontZ + 0.05f);
+                        CreateDumbbell($"{name}_DB_{r}_{c}", wallRoot.transform, dCenter, Vector3.right,
+                            barLen, rowHeight * 0.10f, rowHeight * 0.22f, handleColor, plateColors[seed % plateColors.Length]);
+                    }
+                    else if (cellType == 4)
+                    {
+                        float radius = Mathf.Min(colWidth, rowHeight) * 0.30f;
+                        Vector3 kCenter = new Vector3(cellCenterX, rowBaseY, cellFrontZ + 0.04f);
+                        CreateKettlebell($"{name}_KB_{r}_{c}", wallRoot.transform, kCenter, radius,
+                            plateColors[(seed + 2) % plateColors.Length], handleColor);
+                    }
+                    else
+                    {
+                        int plateCount = 3 + (seed % 3);
+                        float plateRadius = Mathf.Min(colWidth * 0.42f, rowHeight / (plateCount * 1.8f));
+                        Vector3 stackBase = new Vector3(cellCenterX, rowBaseY, cellFrontZ + 0.05f);
+                        float usedHeight = CreateWeightPlateStack($"{name}_Stack_{r}_{c}", wallRoot.transform,
+                            stackBase, plateRadius, plateCount, plateColors, plateBodyColor, hubColor);
+
+                        float shortfall = rowHeight - usedHeight;
+                        if (shortfall > 0.01f)
+                        {
+                            CreateAccentBox($"{name}_Shadow_{r}_{c}", wallRoot.transform,
+                                new Vector3(colWidth * 0.7f, shortfall, wallSize.z * 0.5f),
+                                new Vector3(cellCenterX, rowBaseY + usedHeight, baseCenter.z), rackShadow);
+                        }
+                    }
+                }
+            }
+            return wallRoot;
+        }
+
+        /// <summary>
         /// An arched window: an outer frame (with a rounded cap) behind a smaller pane
         /// (also rounded), same construction the original Library window used --
         /// factored out here so it's a named, reusable primitive instead of duplicated
