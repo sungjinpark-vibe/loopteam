@@ -664,3 +664,19 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   CreateOpenBookCrown (roof). Building v4 (spike-library-cottage-v4.png) in the background.
 - Acked the director in Korean (got it, rebuilding as a book-cottage, will show the render). On landing:
   view -> gate -> show director. If it lands, cottage-of-books becomes the archetype for all buildings.
+
+## Tick 33 (cont.) — 11:52 — v4 cottage-of-books landed, sent to director
+- client-dev v4 (323k): reshaped Library from bare stack to a COTTAGE built of books. Walls clad in
+  colorful book-spine panels; roof = full open-book gable (cream page slopes + leather binding + ridge
+  spine + striations); arched door + hanging sign; amber windows w/ open-book awnings; chimney+smoke;
+  potted plants; pink bookmark. New reusable primitives (CreateBookSpineWall, CreateArchedWindow,
+  CreateOpenBookAwning, CreateGableRoofCustomTones, CreateOpenBookRoof). Gate PASS (compile 0, 81/81).
+- Agent caught+fixed a real bug: reusing CreateOpenBookCrown (two rotated boxes, no gable-end cap) at
+  full-roof scale left a visible gap under the ridge (invisible at v2/v3's small scale); rebuilt the
+  roof on the gapless single-prism gable shape.
+- PM view: core form landed well (cottage of books reads clearly; spine walls + open-book roof are the
+  win). Honest gaps disclosed to director: spine walls read a bit like a color grid (weak spine detail);
+  overall less dense/warm than the photoreal reference; awnings/sign subtle. Sent render + offered two
+  paths (lock direction & do other buildings / refine cozier). Committed to lifetown (1d6c97e).
+- Token tradeoff continued (Tick 24 pattern): PM visual check + honest disclosure instead of a formal
+  art-lead re-gate for this direction-calibration render.
