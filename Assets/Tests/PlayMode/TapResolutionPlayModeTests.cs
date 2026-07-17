@@ -16,17 +16,24 @@ namespace TouchRPG.Combat.Tests.PlayMode
     /// <summary>
     /// Drives a REAL tap through <see cref="CombatInputController.ResolveTap"/> at
     /// controlled offsets from a live <see cref="ParryMarker"/>'s target time and
-    /// observes the actual result on screen - closing the gap the previous round was
-    /// scored down for: "the parry has not been observed to happen" (only
-    /// JudgmentEvaluator.Evaluate was ever called directly, never a tap).
+    /// observes the actual result on screen. Loads the real CombatScene, then drives
+    /// the production MonsterPatternPlayer.ExecuteC1Basic coroutine directly (via
+    /// reflection, since it is intentionally private - this test does not add
+    /// test-only public API to production code) with a synthetic single-beat
+    /// MonsterPatternStep so beat timing is test-controlled. Everything downstream of
+    /// that call - spawn, anchor, EventSystem raycast, priority resolution, judgment,
+    /// burst, combo, damage - is the exact production path, unmodified.
     ///
-    /// Loads the real CombatScene, then drives the production
-    /// MonsterPatternPlayer.ExecuteC1Basic coroutine directly (via reflection, since it
-    /// is intentionally private - this test does not add test-only public API to
-    /// production code) with a synthetic single-beat MonsterPatternStep so beat timing
-    /// is test-controlled. Everything downstream of that call - spawn, anchor, EventSystem
-    /// raycast, priority resolution, judgment, burst, combo, damage - is the exact
-    /// production path, unmodified.
+    /// IMPORTANT — running this suite: the rendered-pixel evidence in
+    /// <see cref="Tap_AtVaryingOffsetsFromTarget_ProducesPerfectGoodMiss_DrivesComboAndDamage_AndCapturesARenderedFrame"/>
+    /// requires an ACTUAL rasterizer. Run PlayMode tests WITHOUT -nographics
+    /// (batchmode without -nographics still exits cleanly via -runTests and holds no
+    /// project lock — confirmed empirically). Under -nographics, Camera.Render()
+    /// produces no geometry and the capture comes back as a flat clear-color frame
+    /// with zero gold/yellow pixels — that is exactly the failure this suite now
+    /// asserts against directly (see AssertRegionHasColor/AssertImageHasNoColor
+    /// below), rather than trusting File.Exists && length &gt; 0 (which passes on a
+    /// blank image and was the previous round's gap).
     /// </summary>
     public class TapResolutionPlayModeTests
     {
@@ -70,10 +77,7 @@ namespace TouchRPG.Combat.Tests.PlayMode
             // patternSheet stops it from ever starting one if Start() has not run yet.
             _patternPlayer.StopAllCoroutines();
             SetPrivateField(_patternPlayer, "patternSheet", null);
-            foreach (var stray in Object.FindObjectsByType<ParryMarker>(FindObjectsSortMode.None))
-            {
-                Object.Destroy(stray.gameObject);
-            }
+            DestroyAllMarkers();
             yield return null; // let Destroy() take effect before the first test body runs
 
             Assert.AreEqual(0, _combo.Stage, "Precondition: combo must start at 0.");
@@ -94,25 +98,60 @@ namespace TouchRPG.Combat.Tests.PlayMode
 
             int startingPlayerHp = _playerHealth.CurrentHP;
 
+            // ── Rendered-frame evidence #1: IDLE, before anything has spawned. ────────
+            // Establishes the "before" baseline: zero gold pixels anywhere on screen.
+            // Without this, a burst-frame gold-pixel hit could not distinguish "the
+            // burst actually rendered" from "gold was already on screen for some other
+            // reason" (e.g. a stray leftover object).
+            string idlePath = Path.Combine(Application.persistentDataPath, "p0_idle.png");
+            Texture2D idleFrame = null;
+            yield return CaptureCanvasScreenshot(idlePath, tex => idleFrame = tex);
+            AssertImageHasNoColorAnywhere(idleFrame, GameplayColors.Gold, "IDLE frame (before any beat)");
+            Object.Destroy(idleFrame);
+            Debug.Log($"[TapResolutionPlayModeTests] Rendered-frame evidence (idle) captured at: {idlePath}");
+
             // ── Tap 1: exactly at ring-overlap (offset 0.00s) -> PERFECT ──────────────
-            yield return RunSingleBeatAndTap(beatOffsetSeconds: 0.1f, tapOffsetFromTarget: 0f);
+            // Uses a real 1s telegraph (matching Lampang P1's own beat pacing) instead
+            // of the near-instant 0.1s used for taps 2/3 below, specifically so there is
+            // real wall-clock time to capture a mid-contraction frame before the beat
+            // resolves.
+            ParryMarker marker = null;
+            yield return SpawnBeatAndWaitForMarkerCoroutine(1.0f, "cheek_pouch", m => marker = m);
+            _lastMarker = marker;
+            Vector2 screenPoint = marker.transform.position; // ScreenSpaceOverlay canvas: world pos == screen pos
+
+            // ── Rendered-frame evidence #2: RING-OVERLAP (mid-contraction). ───────────
+            // Captured ~0.5s before the target time, i.e. partway through the outer
+            // ring's contraction toward the inner ring - the double yellow ring must
+            // actually be on screen, anchored at the monster's cheek pouch, at this
+            // point (GDD §6.2 MUST: marker anchors to the monster part, not the screen).
+            yield return new WaitUntil(() => Time.time >= marker.TargetTime - 0.5f);
+            yield return null;
+            string midPath = Path.Combine(Application.persistentDataPath, "p0_ring_overlap.png");
+            Texture2D midFrame = null;
+            yield return CaptureCanvasScreenshot(midPath, tex => midFrame = tex);
+            AssertRegionHasColor(midFrame, screenPoint, 120, GameplayColors.Parry,
+                "RING-OVERLAP frame: expected the yellow double ring near its monster-part anchor");
+            Object.Destroy(midFrame);
+            Debug.Log($"[TapResolutionPlayModeTests] Rendered-frame evidence (ring-overlap) captured at: {midPath}");
+
+            yield return new WaitUntil(() => Time.time >= marker.TargetTime);
+            _inputController.ResolveTap(screenPoint);
+            yield return null; // let OnResolved -> ApplyJudgment -> combo/health settle
+            yield return null;
+
             Assert.AreEqual(ParryJudgment.Perfect, _lastMarker.Result, "A tap at exact ring-overlap must resolve Perfect.");
             Assert.AreEqual(1, _combo.Stage, "GDD §4.4: a Perfect parry adds +1 combo stage.");
             AssertBurstColorApprox(GameplayColors.Gold, "Perfect");
 
-            // Rendered-frame evidence: nobody had looked at actual pixels before this -
-            // capture the frame right after the gold burst spawns. Uses a render-to-
-            // texture capture (not ScreenCapture.CaptureScreenshot) because the OS-level
-            // screenshot API depends on a presented window swap-chain that Editor
-            // batchmode does not reliably provide (confirmed empirically: it silently
-            // wrote no file at all here, with or without -nographics); rendering the
-            // camera into a RenderTexture and reading it back with Texture2D.ReadPixels
-            // has no such dependency.
-            string screenshotPath = Path.Combine(Application.persistentDataPath, "p0_parry_perfect_burst.png");
-            yield return CaptureCanvasScreenshot(screenshotPath);
-            Assert.IsTrue(File.Exists(screenshotPath), $"Expected a rendered screenshot at {screenshotPath}");
-            Assert.Greater(new FileInfo(screenshotPath).Length, 0, "Screenshot file must not be empty.");
-            Debug.Log($"[TapResolutionPlayModeTests] Rendered-frame evidence captured at: {screenshotPath}");
+            // ── Rendered-frame evidence #3: PERFECT BURST, pixels not just component color.
+            string burstPath = Path.Combine(Application.persistentDataPath, "p0_parry_perfect_burst.png");
+            Texture2D burstFrame = null;
+            yield return CaptureCanvasScreenshot(burstPath, tex => burstFrame = tex);
+            AssertRegionHasColor(burstFrame, screenPoint, 160, GameplayColors.Gold,
+                "PERFECT BURST frame: expected gold pixels near the resolved marker's anchor");
+            Object.Destroy(burstFrame);
+            Debug.Log($"[TapResolutionPlayModeTests] Rendered-frame evidence (perfect burst) captured at: {burstPath}");
 
             // ── Tap 2: 0.25s off target -> GOOD (inside good window, outside perfect) ─
             yield return RunSingleBeatAndTap(beatOffsetSeconds: 0.1f, tapOffsetFromTarget: 0.25f);
@@ -168,7 +207,120 @@ namespace TouchRPG.Combat.Tests.PlayMode
                 "GDD §4.2: the same tap must NOT also register as a basic attack (no monster HP loss).");
         }
 
+        // ── Mashed / rapid input guards (GDD's mis-input guard extends to double-input) ──
+
+        [UnityTest]
+        public IEnumerator MashedInput_DoubleTapSameMarker_ResolvesOnlyOnce()
+        {
+            yield return RunSingleBeatAndTap(beatOffsetSeconds: 0.1f, tapOffsetFromTarget: 0f);
+            Assert.AreEqual(ParryJudgment.Perfect, _lastMarker.Result, "Precondition: first tap must resolve Perfect.");
+            Assert.AreEqual(1, _combo.Stage, "Precondition: combo must be 1 after the first tap.");
+
+            Vector2 screenPoint = _lastMarker.transform.position;
+            int burstCountBefore = CountBursts();
+            int playerHpBefore = _playerHealth.CurrentHP;
+
+            // Mash: two more taps at the exact same screen point, on an already-resolved
+            // marker, back to back in consecutive frames. ParryMarker._resolved (set the
+            // instant the first tap lands) and IsTappable (=> false once resolved) exist
+            // specifically to make these no-ops - this exercises that guard with a real
+            // ResolveTap call rather than only asserting the field exists.
+            _inputController.ResolveTap(screenPoint);
+            yield return null;
+            _inputController.ResolveTap(screenPoint);
+            yield return null;
+
+            Assert.AreEqual(1, _combo.Stage, "A mashed re-tap on an already-resolved marker must not re-register as a second Perfect.");
+            Assert.AreEqual(burstCountBefore, CountBursts(), "Mashing an already-resolved marker must not spawn a second burst.");
+            Assert.AreEqual(playerHpBefore, _playerHealth.CurrentHP, "Mashing an already-resolved Perfect marker must not apply damage.");
+        }
+
+        [UnityTest]
+        public IEnumerator MashedInput_TapDuringPostResolveDestroyDelay_DoesNotDoubleResolve()
+        {
+            yield return RunSingleBeatAndTap(beatOffsetSeconds: 0.1f, tapOffsetFromTarget: 0f);
+            Assert.AreEqual(ParryJudgment.Perfect, _lastMarker.Result, "Precondition: first tap must resolve Perfect.");
+            Assert.AreEqual(1, _combo.Stage, "Precondition: combo must be 1 after the first tap.");
+
+            Vector2 screenPoint = _lastMarker.transform.position;
+            int burstCountBefore = CountBursts();
+
+            // Resolve() schedules Destroy(gameObject, 0.4f) so the burst/fade is visible
+            // for a while after resolution - the marker is NOT gone immediately. Tap the
+            // same point partway through that window (well before the 0.4s destroy
+            // fires) under REAL elapsed time, not just "the same Update frame", to
+            // confirm tapArea.raycastTarget being turned off in Resolve() actually holds
+            // the raycaster from ever finding this marker as a candidate again.
+            yield return new WaitForSeconds(0.15f);
+            Assert.IsNotNull(_lastMarker, "Marker should still exist mid-fade (destroyed at 0.4s post-resolve, we are at 0.15s).");
+            _inputController.ResolveTap(screenPoint);
+            yield return null;
+
+            Assert.AreEqual(1, _combo.Stage, "A tap during the post-resolve fade window must not re-register.");
+            Assert.AreEqual(burstCountBefore, CountBursts(), "A tap during the fade window must not spawn a second burst.");
+        }
+
+        [UnityTest]
+        public IEnumerator MashedInput_TwoOverlappingMarkers_SingleTapResolvesExactlyOne()
+        {
+            var template = (ParryMarker)GetPrivateField(_patternPlayer, "parryMarkerTemplate");
+            var layer = (RectTransform)GetPrivateField(_patternPlayer, "markerLayer");
+            Assert.IsNotNull(template, "MonsterPatternPlayer.parryMarkerTemplate must be wired.");
+            Assert.IsNotNull(layer, "MonsterPatternPlayer.markerLayer must be wired.");
+
+            DestroyAllMarkers();
+            yield return null;
+
+            // Two independent beats scheduled to the SAME anchor point and SAME target
+            // time - the schema explicitly allows overlapping/simultaneous beats (see
+            // MonsterPatternPlayer's doc comment on independent per-beat coroutines), so
+            // this is a real, reachable case, not a synthetic corner: e.g. two markers
+            // spawned in the same frame while the player's finger is already mashing.
+            // Derived from the ACTUAL runtime Screen.width/height, not a hardcoded
+            // reference-resolution constant (1080x1920) - the test runner's real window
+            // size need not match the CanvasScaler's reference resolution, and a
+            // hardcoded point landing outside the true screen silently misses every
+            // raycast (caught by this exact test failing during verification: both
+            // markers came back unresolved because the tap hit nothing at all).
+            Vector3 anchorPos = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0f); // canvas-center screen point
+            float targetTime = Time.time + 0.3f;
+
+            var markerA = Object.Instantiate(template, layer);
+            markerA.gameObject.SetActive(true);
+            markerA.transform.position = anchorPos;
+            markerA.Initialize(_config, targetTime, 0.3f);
+
+            var markerB = Object.Instantiate(template, layer);
+            markerB.gameObject.SetActive(true);
+            markerB.transform.position = anchorPos;
+            markerB.Initialize(_config, targetTime, 0.3f);
+
+            yield return null; // let both become active/tappable this frame
+
+            yield return new WaitUntil(() => Time.time >= targetTime);
+            _inputController.ResolveTap(anchorPos);
+            yield return null;
+
+            bool aResolved = markerA.IsResolved;
+            bool bResolved = markerB.IsResolved;
+            Assert.IsTrue(aResolved ^ bResolved,
+                $"A single tap over two overlapping ParryMarkers must resolve EXACTLY one (got A={aResolved}, B={bResolved}).");
+
+            if (markerA != null) Object.Destroy(markerA.gameObject);
+            if (markerB != null) Object.Destroy(markerB.gameObject);
+        }
+
         // ── helpers ──────────────────────────────────────────────────────────────
+
+        private static int CountBursts() => Object.FindObjectsByType<ParryBurstEffect>(FindObjectsSortMode.None).Length;
+
+        private static void DestroyAllMarkers()
+        {
+            foreach (var stray in Object.FindObjectsByType<ParryMarker>(FindObjectsSortMode.None))
+            {
+                Object.Destroy(stray.gameObject);
+            }
+        }
 
         private static MonsterPatternStep MakeSingleBeatStep(float beatOffsetSeconds, string anchorPartId)
         {
@@ -194,16 +346,32 @@ namespace TouchRPG.Combat.Tests.PlayMode
         /// judgment target time. Leaves the resolved marker in <see cref="_lastMarker"/>.</summary>
         private IEnumerator RunSingleBeatAndTap(float beatOffsetSeconds, float tapOffsetFromTarget, string anchorPartId = "cheek_pouch")
         {
+            var marker = default(ParryMarker);
+            yield return SpawnBeatAndWaitForMarkerCoroutine(beatOffsetSeconds, anchorPartId, m => marker = m);
+            _lastMarker = marker;
+
+            float tapAt = marker.TargetTime + tapOffsetFromTarget;
+            yield return new WaitUntil(() => Time.time >= tapAt);
+
+            Vector2 screenPoint = marker.transform.position; // ScreenSpaceOverlay canvas: world pos == screen pos
+            _inputController.ResolveTap(screenPoint);
+
+            yield return null; // let OnResolved -> ApplyJudgment -> combo/health settle
+            yield return null; // and RunBeat's group.Remaining-- / ExecuteC1Basic's wait settle
+        }
+
+        /// <summary>Coroutine form of the spawn-only step, used both by
+        /// <see cref="RunSingleBeatAndTap"/> and directly by the render-evidence test
+        /// (which needs to capture frames between spawn and tap).</summary>
+        private IEnumerator SpawnBeatAndWaitForMarkerCoroutine(float beatOffsetSeconds, string anchorPartId, System.Action<ParryMarker> onSpawned)
+        {
             // A resolved ParryMarker is not destroyed immediately (Resolve() schedules
             // Destroy(gameObject, 0.4f) so its burst/fade is visible) - so a marker from
             // a PREVIOUS call to this helper can still exist and be findable when the
             // next beat starts. Without this cleanup, the search loop below could pick
             // up that stale, already-resolved marker instead of the new one, silently
             // reporting the previous beat's Result/TargetTime for this one.
-            foreach (var stray in Object.FindObjectsByType<ParryMarker>(FindObjectsSortMode.None))
-            {
-                Object.Destroy(stray.gameObject);
-            }
+            DestroyAllMarkers();
             yield return null; // let Destroy() take effect before spawning the next beat
 
             var step = MakeSingleBeatStep(beatOffsetSeconds, anchorPartId);
@@ -217,35 +385,30 @@ namespace TouchRPG.Combat.Tests.PlayMode
                 marker = Object.FindFirstObjectByType<ParryMarker>();
             }
             Assert.IsNotNull(marker, "Expected the beat's ParryMarker to spawn within 60 frames.");
-            _lastMarker = marker;
-
-            float tapAt = marker.TargetTime + tapOffsetFromTarget;
-            yield return new WaitUntil(() => Time.time >= tapAt);
-
-            Vector2 screenPoint = marker.transform.position; // ScreenSpaceOverlay canvas: world pos == screen pos
-            _inputController.ResolveTap(screenPoint);
-
-            yield return null; // let OnResolved -> ApplyJudgment -> combo/health settle
-            yield return null; // and RunBeat's group.Remaining-- / ExecuteC1Basic's wait settle
+            onSpawned(marker);
         }
 
-        /// <summary>Renders the scene's Canvas to a RenderTexture and writes it to disk
-        /// as a PNG. Temporarily switches the Canvas from Screen Space - Overlay (its
-        /// real, production render mode) to Screen Space - Camera, because Overlay
-        /// canvases are composited directly to the presented display and are not
-        /// visible to any Camera.Render() / RenderTexture readback - the swap needs a
-        /// camera to render through, but a batchmode window's swap-chain is not reliably
-        /// available to read from at all. The scene is reloaded fresh for every test
-        /// ([UnitySetUp]), so this mutation never leaks into another test.</summary>
-        private static IEnumerator CaptureCanvasScreenshot(string path)
+        /// <summary>Renders the scene's Canvas to a RenderTexture sized to the ACTUAL
+        /// runtime Screen.width/height (not a hardcoded constant - CanvasScaler's
+        /// ScaleWithScreenSize sizes the canvas to the real Screen dimensions, so a
+        /// mismatched capture size would misalign captured pixels against screen-space
+        /// coordinates like ParryMarker.transform.position) and writes it to disk as a
+        /// PNG. Temporarily switches the Canvas from Screen Space - Overlay (its real,
+        /// production render mode) to Screen Space - Camera, because Overlay canvases
+        /// are composited directly to the presented display and are not visible to any
+        /// Camera.Render() / RenderTexture readback. The scene is reloaded fresh for
+        /// every test ([UnitySetUp]), so this mutation never leaks into another test.
+        /// Hands the readable Texture2D back to the caller via <paramref name="onCaptured"/>
+        /// for pixel-level assertions - the caller owns disposing it (Object.Destroy).</summary>
+        private static IEnumerator CaptureCanvasScreenshot(string path, System.Action<Texture2D> onCaptured)
         {
             var canvas = Object.FindFirstObjectByType<Canvas>();
             var camera = Camera.main;
             Assert.IsNotNull(canvas, "Expected a Canvas in the scene to capture.");
             Assert.IsNotNull(camera, "Expected a Main Camera in the scene to render through.");
 
-            const int width = 1080;
-            const int height = 1920; // matches SceneBuilder's portrait reference resolution
+            int width = Mathf.Max(1, Screen.width);
+            int height = Mathf.Max(1, Screen.height);
             var rt = new RenderTexture(width, height, 24);
             var previousRenderMode = canvas.renderMode;
             var previousWorldCamera = canvas.worldCamera;
@@ -270,9 +433,74 @@ namespace TouchRPG.Combat.Tests.PlayMode
             canvas.renderMode = previousRenderMode;
             canvas.worldCamera = previousWorldCamera;
             camera.targetTexture = previousTargetTexture;
-            Object.Destroy(tex);
             rt.Release();
             Object.Destroy(rt);
+
+            onCaptured(tex);
+        }
+
+        /// <summary>Asserts at least one pixel within <paramref name="radiusPx"/> of
+        /// <paramref name="centerScreenPoint"/> approximately matches
+        /// <paramref name="target"/>. This is the pixel-level check the previous round
+        /// was missing entirely - it reads the ACTUAL rendered frame, not a component's
+        /// .color field, which can be correct even when nothing visible reached the
+        /// screen (e.g. under -nographics).</summary>
+        private static void AssertRegionHasColor(Texture2D tex, Vector2 centerScreenPoint, int radiusPx, Color target, string context)
+        {
+            Assert.IsNotNull(tex, $"{context}: no captured frame to inspect.");
+            bool found = RegionContainsColorApprox(tex, centerScreenPoint, radiusPx, target, tolerance: 0.10f);
+            Assert.IsTrue(found, $"{context}. Searched a {radiusPx}px radius around {centerScreenPoint} in a {tex.width}x{tex.height} " +
+                                  $"frame for a pixel near RGB({target.r:F2},{target.g:F2},{target.b:F2}) and found none - the expected " +
+                                  "visual did not actually render.");
+        }
+
+        private static void AssertImageHasNoColorAnywhere(Texture2D tex, Color target, string context)
+        {
+            Assert.IsNotNull(tex, $"{context}: no captured frame to inspect.");
+            bool found = ImageContainsColorAnywhere(tex, target, tolerance: 0.10f);
+            Assert.IsFalse(found, $"{context}: expected NO pixel near RGB({target.r:F2},{target.g:F2},{target.b:F2}) yet, but found one - " +
+                                   "something is rendering this color before it should.");
+        }
+
+        private static bool RegionContainsColorApprox(Texture2D tex, Vector2 centerScreenPoint, int radiusPx, Color target, float tolerance)
+        {
+            Color32[] pixels = tex.GetPixels32();
+            int width = tex.width, height = tex.height;
+            int cx = Mathf.Clamp(Mathf.RoundToInt(centerScreenPoint.x), 0, width - 1);
+            int cy = Mathf.Clamp(Mathf.RoundToInt(centerScreenPoint.y), 0, height - 1);
+            byte tol = (byte)Mathf.RoundToInt(tolerance * 255f);
+            int xMin = Mathf.Max(0, cx - radiusPx), xMax = Mathf.Min(width - 1, cx + radiusPx);
+            int yMin = Mathf.Max(0, cy - radiusPx), yMax = Mathf.Min(height - 1, cy + radiusPx);
+            Color32 t = target;
+            for (int y = yMin; y <= yMax; y++)
+            {
+                int row = y * width;
+                for (int x = xMin; x <= xMax; x++)
+                {
+                    Color32 p = pixels[row + x];
+                    if (System.Math.Abs(p.r - t.r) <= tol && System.Math.Abs(p.g - t.g) <= tol && System.Math.Abs(p.b - t.b) <= tol)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static bool ImageContainsColorAnywhere(Texture2D tex, Color target, float tolerance)
+        {
+            Color32[] pixels = tex.GetPixels32();
+            byte tol = (byte)Mathf.RoundToInt(tolerance * 255f);
+            Color32 t = target;
+            for (int i = 0; i < pixels.Length; i += 3) // stride: full-image scan, sampled every 3rd pixel is plenty dense
+            {
+                Color32 p = pixels[i];
+                if (System.Math.Abs(p.r - t.r) <= tol && System.Math.Abs(p.g - t.g) <= tol && System.Math.Abs(p.b - t.b) <= tol)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static void AssertBurstColorApprox(Color expected, string label)
