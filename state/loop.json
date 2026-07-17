@@ -1,10 +1,10 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 44,
+  "tick": 45,
   "project": "lifetown (Life Town — Unity rebuild)",
   "active_task": "awaiting-approval / next-step: Village v2 (polish) sent. Both asks delivered - all buildings' object-walls now face camera (dropped door-rotation), ground is real land (beveled edge, grass variation, comb-path, flowers). Gate green 81/81, committed lifetown a77584d. Asked director: lock village -> proceed to real GAMEPLAY (tap building -> timer -> growth/build), or more polish. NEXT BIG ARC = interaction/data (Economy.Core T002 + Platform T003 wiring) toward a playable slice -> Gate 3 playtest.",
-  "last_tick_at": "2026-07-17 16:52",
-  "consecutive_idle_ticks": 0,
+  "last_tick_at": "2026-07-17 17:06",
+  "consecutive_idle_ticks": 1,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],
