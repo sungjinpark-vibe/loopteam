@@ -3,30 +3,46 @@
 > Only what the next tick needs to choose its next action. Bulk history lives in `state/journal.md`.
 
 ## Current State
-- **Status**: Running (`paused: false`), tick 47. **Project switched to touchRPG** (director,
-  2026-07-17 evening). Scaffolding done: `touchRPG/` + its own git repo + `docs/{spec,design,api,qa}`,
-  gitignored from the engine. **Waiting on the director's concept brief** — asked on Discord.
-- **Blocked on**: the brief. Per `VISION.md` §2/§4 the PM must **not invent** the game concept, genre,
-  or target player. The name "touchRPG" is not a brief.
+- **Status**: Running (`paused: false`), tick 49. **touchRPG is bootstrapped and building.** The
+  director delivered a full **GDD v0.1** → `touchRPG/docs/spec/00-gdd-v0.1.md` = **the single source of
+  truth** (its own §0: if code/conversation/convention conflicts, *the doc wins*). Unity 6000.5.1f1
+  project created; `VISION.md` §2 rewritten from the GDD; backlog rebuilt around P0.
+- **The game**: touch-first online hunting action + persistent growth (**not** an MMORPG). Portrait
+  fixed. Party 1-4. Hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."* Target 20-30s
+  light-midcore. Refs: Monster Hunter / Vindictus + Clair Obscur (timing parry).
+- **In flight**: **T001 P0-A parry core** — quality-loop workflow `wf_756e669b-8fe` (client-dev →
+  Gate 1 mechanical → 클라이언트팀장 90). It answers GDD §10's single P0 question:
+  **"터치 패링이 손맛이 있는가"**.
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
-- **Last updated**: 2026-07-17 18:15 (Tick 47)
+- **Last updated**: 2026-07-17 22:00 (Tick 49)
 
 ## Last Run
-- **Date**: 2026-07-17 18:15 (Tick 47)
-- **Summary**: Director paused Life Town and asked to prep touchRPG using the same team/system. Created
-  the folder + repo + docs skeleton, gitignored it, archived Life Town's contract state into its own
-  repo, rewrote `VISION.md` §2 for touchRPG (concept pending), reset this cockpit and the backlog.
-- **Output**: touchRPG scaffolding + a Discord message asking the director for the concept (4 questions).
+- **Date**: 2026-07-17 22:00 (Tick 49)
+- **Summary**: GDD ingested and made the source of truth; Unity project created; `VISION.md` §2 rewritten
+  (pillars, P0 scope, GDD §0 decision-authority + §11 non-goals, numbers-externalized MUST, TBD rule as
+  a gate); T001 opened + dispatched via the full quality-loop. Then the director added the channel rule
+  (in-session ⇒ no Discord mirroring), recorded in `VISION.md` §7 rule 8 + `CLAUDE.md`.
+- **Output**: touchRPG Unity project + GDD in `docs/spec/`; T001 running; contract updated.
+
+## The rules this project lives or dies by (re-read before briefing any agent)
+1. **The GDD wins.** `touchRPG/docs/spec/00-gdd-v0.1.md`. This cockpit and `VISION.md` §2 are pointers,
+   not replacements.
+2. **TBD-1…TBD-7 (GDD §13) MUST NOT be filled in by the team** — they are deliberately the director's.
+   The GDD names its most-guarded failure mode in its own words: *"그럴듯한 보간(hallucinated design)"*.
+   That is our **Nodding Loop** by another name. An agent that invents a TBD has failed the task
+   however good the result looks. Combo cap / damage curve stay provisional + labelled until the
+   director sets them **after** the P0 playtest (his plan, §13).
+3. **Gameplay constants MUST be externalized** (config/ScriptableObject), never hardcoded (GDD §0/§12).
+4. **P0's question is the only question**: *"터치 패링이 손맛이 있는가."* GDD §10 forbids starting P1
+   (party, talismans, daily loop) before it is answered. Do not broaden scope.
+5. **Director approval required** for: input vocabulary, judgment-window system, growth axes,
+   monetization, pattern classification, screen orientation, anything on the §11 non-goal list.
 
 ## Open Items
-- **The touchRPG concept brief** — the only thing blocking work. Once it lands:
-  1. Fill `VISION.md` §2 (concept, target player, scope).
-  2. Open `T001` = `explore` for `planner` (detailed spec) — may start immediately.
-  3. Send the proposed scope to the director for approval.
+- **T001 in flight** — on landing: read the score, report to the director *in the channel he last spoke
+  in*, list every provisional/TBD value the agent used.
 - **touchRPG has no git remote** (same as lifetown). Local commits only until the director provides one.
-- **No Unity project created yet** for touchRPG — create it once the spec/scope justifies it
-  (`Unity.exe -batchmode -quit -createProject <path> -logFile <log>`; a batchmode run takes ~30-90s).
 
 ## Paused: Life Town
 Paused, **not cancelled** — fully resumable. Snapshot: `lifetown/docs/paused-state/` (its VISION §2, its
@@ -41,19 +57,26 @@ the village scene) → playable slice → Gate 3. **Do not re-ask polish-vs-game
 See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history.
 
 ## Blockers
-- None mechanical. The only blocker is the missing concept brief (see Open Items).
+- None. T001 is running.
 
 ## Needs Human Review
 - None.
 
 ## Next Run Should
-1. **If the brief arrived**: fill `VISION.md` §2, then open `T001` via the quality-loop workflow
-   (`mode: 'explore'`, `agent: 'planner'`, `team: '기획팀장'`, rubric = `VISION.md` §3.2 기획팀장 table
-   verbatim, `passMark: 90`). Send the proposed scope to the director. **Never invent the rubric** — it
-   is pre-written in `VISION.md`; a rubric written at grading time bends to fit the result.
-2. **If no brief yet**: idle. **Do not invent the concept.** Nudge at most once every several ticks
-   (`VISION.md` §6).
-3. Commit the engine repo on any `state/`/`backlog/` change; touchRPG commits locally in its own repo.
+1. **When T001 lands `ok: true`** (Gate 1 green + 클라이언트팀장 ≥90): mark it `done`, commit+push
+   touchRPG, report to the director with the score **and every provisional/TBD value used**. Then open
+   **T002** (P0-B: IN-3 회피존 / IN-5 차지 / IN-6 러시 + 람팡 P2-P7 into the same data-driven pattern
+   sheet). Rubric = `VISION.md` §3.2 클라이언트팀장 C1-C5 **verbatim** — never invented at grading time.
+2. **If T001 comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
+   refused): **do not mark it done**. Push it to `blocked`, add to Needs Human Review + `loop.json`
+   `escalations`, and tell the director plainly on Discord that it is unfinished, with the score
+   history (`VISION.md` §5). A silently-shipped rejection is the Ralph Wiggum Loop.
+3. **If it fails without `escalate`** (infrastructure): leave it `ready`, record the cause in
+   **Do Not Repeat**, journal it, don't loop on it.
+4. **Gate 3 (5-expert playtest) is NOT for now** — it runs when a meaningful slice is playable, i.e.
+   after P0 is genuinely completable solo. Five experts × five rounds on a half-built screen is pure
+   burn (`VISION.md` §6).
+5. Commit the engine repo on any `state/`/`backlog/` change; touchRPG commits locally in its own repo.
 
 ## Decisions Made
 - 2026-07-17 — **Channel rule (director)**: *"내가 vs코드로 대화하면 디스코드로는 보내지 말아줘."*
