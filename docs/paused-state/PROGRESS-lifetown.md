@@ -1,3 +1,23 @@
+> ## ⛔ PAUSED 2026-07-17 — READ THIS FIRST ON RESUME
+>
+> The director paused Life Town to start **touchRPG**. Nothing here is cancelled.
+>
+> **The open question WAS answered.** At 17:56 the director replied to the village v2 report with
+> **"실제 게임 동작 진행해줘"** — i.e. **village v2 is accepted; proceed to real gameplay.** Do NOT
+> re-ask "polish or gameplay" on resume. The next task is the gameplay build:
+> tap a building → timer → growth/build, wiring `LifeTown.Economy.Core` (T002) + `LifeTown.Platform`
+> (T003) + the design system (T004) into the village scene → a playable slice → then Gate 3 (§3.3).
+>
+> **Where it stopped**: all 7 category buildings + polished village v2, gate-green (81/81), everything
+> committed in `lifetown/`. Renders: `docs/design/spike-village-v2.png`, `spike-*-cottage-v1.png`,
+> `spike-library-cottage-v5.png`, `village-lineup-7buildings.png`.
+>
+> **Known small item**: the Work building's wall items (laptop/coffee) read a bit less crisply than the
+> other six — the director was offered a targeted polish and did not ask for it.
+>
+> **To resume**: restore `VISION.md` §2 from `VISION-lifetown.md` here, restore `backlog/` from
+> `backlog/` here, point `state/loop.json.project` back to lifetown, then start the gameplay task.
+
 # Loop Progress — Cockpit
 
 > **ch.13**: agents forget, files remember. Without this file every tick starts from a blank page.
