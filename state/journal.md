@@ -761,3 +761,9 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   targeted polish). Committed lifetown 621b4e1.
 - Teed up the next real milestone to the director: the actual VILLAGE SCREEN (App layer, grid placement,
   consuming Core+Platform+design system) -> a playable slice -> eventually the Gate 3 playtest.
+
+## Tick 37-39 — 2026-07-17 14:03-15:06 — idle, awaiting director's village-screen decision
+- 7-building milestone sent 13:46; no director reply through 3 idle ticks. Deliberately did NOT start
+  the big village-screen build speculatively (token stewardship — it's a large, direction-heavy build I
+  teed up as a question). Sent ONE gentle nudge at idle #3 (tick 39) listing the two pending choices
+  (village screen / Work-wall polish), then going quiet. Backing off; will keep silent 30-min heartbeat.
