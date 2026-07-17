@@ -746,3 +746,18 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - Announced the 5-building plan to the director (roof icons: grad-cap/briefcase/brush+palette/lotus/
   controller) + noted buildings are the main token cost so he can ask to batch differently. On landing:
   review all 5 -> gate -> show as a village lineup.
+
+## Tick 36 (cont.) — 13:46 — ALL 7 BUILDINGS DONE; village lineup sent
+- Fresh client-dev agent (a4425d351825da8e1) built all 5 remaining buildings in ONE run — and notably
+  only 200k tokens (vs 442k for the single Gym via the heavy ae38 agent), confirming the fresh-agent
+  token decision. Gate PASS (compile 0, 81/81), Library+Gym untouched, no editor lock.
+- Buildings: Study(grad-cap/notebook walls), Work(briefcase/laptop walls), Hobby(palette+brush/paint
+  walls), Mind(lotus/candle+zen-stone walls — lotus is the standout icon), Game(controller/dice walls).
+  Dense walls achieved via new generic CreateItemWall + cell-sized object primitives (~20 new reusable
+  object primitives) — the Gym-sparseness lesson is fixed. PM viewed all 5: distinct, readable, cohesive.
+- Composed a 7-building VILLAGE LINEUP (HTML+base64 -> render-html.ps1 -> PNG, saved to
+  docs/design/village-lineup-7buildings.png) and sent it to the director as the milestone reveal, in
+  Korean, with the roof-icon legend. Honest note: Work's wall items read a bit less crisp (offered a
+  targeted polish). Committed lifetown 621b4e1.
+- Teed up the next real milestone to the director: the actual VILLAGE SCREEN (App layer, grid placement,
+  consuming Core+Platform+design system) -> a playable slice -> eventually the Gate 3 playtest.

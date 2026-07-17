@@ -12,14 +12,17 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: Running (`paused: false`), tick 35. **LIBRARY APPROVED + LOCKED** at v5 (director "좋아.
-  다음 진행해줘" 12:48). The **cottage-of-category-objects** is the locked building archetype: each
-  building is a cozy cottage BUILT of its category's objects (Library = books: spine walls + open-book
-  roof). **Gym cottage v1 building now** (`spike-gym-cottage-v1.png`) — sibling cottage built of gym
-  equipment (weight-plate/dumbbell walls, barbell roof ridge). On landing → view → gate → show director.
-- Building archetype reference (director's): `docs/design/references/library-cottage-ref.png`. Renders
-  of the Library evolution: v1/v2/v3 (stack attempts) → v4 (cottage) → **v5 (locked)** =
-  `docs/design/spike-library-cottage-v5.png`.
+- **Status**: Running (`paused: false`), tick 36. **ALL 7 BUILDINGS DONE** in the locked cottage-of-
+  category-objects archetype: 도서관/Library(book), 헬스장/Gym(barbell), 공부/Study(grad cap),
+  일/Work(briefcase), 취미창작/Hobby(palette+brush), 마음챙김/Mind(lotus), 게임/Game(controller).
+  Each = cozy cottage + DENSE object-wall + roof icon + category-color ring. Gate green (81/81),
+  committed (lifetown 621b4e1). Sent director a **7-building village lineup**
+  (`docs/design/village-lineup-7buildings.png`) + asked to proceed to the actual VILLAGE SCREEN.
+- **Next real milestone**: assemble buildings into the App-layer **village screen** (grid placement,
+  consuming Economy.Core T002 + Platform T003 + design system T004) → a playable slice → eventually
+  Gate 3 (5-expert playtest). Per-building renders: `docs/design/spike-*-cottage-v1.png` (+ library v5).
+- **Known small gap**: Work building's wall items (laptop/coffee) read less crisply than the others —
+  offered the director a targeted polish; not blocking.
 - **Main objective**: Build Life Town (Unity) to the point the 5-expert playtest gate passes (avg ≥90,
   floor 80). Shipping to a store is **deferred** (D7 — director said "일단 만들기만"), so completion is
   the playtest gate, not a store install.
