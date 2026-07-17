@@ -651,3 +651,16 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   did at the start of this session). All state in files; v3 render + BuildingKit primitives committed.
 - Open on resume: (1) tidy the messy open-book crown, or re-shape per his incoming reference; (2) once
   the Library form is locked, apply the archetype to the other buildings (Gym=barbell) on the frugal path.
+
+## Tick 33 — 2026-07-17 11:22 — resumed; director's reference = a cozy cottage BUILT of books
+- Director (11:21): "루프 재개하고, 이런 느낌으로 만들어줘" + a reference image (saved to
+  docs/design/references/library-cottage-ref.png). Unpaused, cursor -> 1527500556002918443.
+- Big direction shift, welcome and clear: NOT a bare stack (our v3) but a STORYBOOK COTTAGE whose
+  building material is books — walls = colorful book-spine rows, roof = a giant open book ('지혜의
+  지붕'), open-book window awnings, warm-lit windows, chimney, arched door, cozy fairytale mood (warmer
+  than our flat pastel). Reference is photoreal; we're stylized 3D, so capture FORM + FEELING not fidelity.
+- Resumed client-dev ae38e5432a455370b (frugal path, has BuildingKit context) with a detailed brief +
+  told it to READ the reference image directly. Reusing CreateBookVolume (spine walls) + scaled-up
+  CreateOpenBookCrown (roof). Building v4 (spike-library-cottage-v4.png) in the background.
+- Acked the director in Korean (got it, rebuilding as a book-cottage, will show the render). On landing:
+  view -> gate -> show director. If it lands, cottage-of-books becomes the archetype for all buildings.

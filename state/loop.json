@@ -1,13 +1,13 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 32,
+  "tick": 33,
   "project": "lifetown (Life Town — Unity rebuild)",
-  "active_task": null,
-  "last_tick_at": "2026-07-17 09:36",
+  "active_task": "Library form reshape per director's NEW reference image (inbox/1784254869417.png) — 'make it feel like this'",
+  "last_tick_at": "2026-07-17 11:22",
   "consecutive_idle_ticks": 0,
-  "paused": true,
+  "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done.",
-  "_paused_reason": "PAUSED by director 2026-07-17 09:36: '일단 작업 중지해줘. 내가 레퍼런스를 찾아줄게' — he will supply a reference for the building FORM direction. Work halted cleanly; nothing in flight. RESUME when he sends the reference + says '루프 재개': set paused=false and /tick. STATE: Library 'stack-of-books' direction reached v3 (docs/design/spike-library-form-v3.png) — bottom 3 books read clearly as hardcover books (his 'make it look like a book' fix landed), but the open-book CROWN on top reads messy (sprawls + stray strip); that crown is the open item, plus applying the archetype to the other buildings (Gym=barbell) once form is locked. Pastel tone APPROVED. Renders history: v1 weak, v2 slabs, v3 books-good/crown-messy. Frugal path (single client-dev agent ae38e5432a455370b reusing BuildingKit) is the proven cheap loop for building iterations — do NOT run full workflows per building (3x token directive)."
+  "_state_reason": "Resumed 2026-07-17 11:22 (tick 33). Director sent a REFERENCE image (lifetown/docs/design/references/library-cottage-ref.png) — 'make it feel like this'. BIG direction shift: from 'a bare stack of books' (v3) to a cozy STORYBOOK COTTAGE BUILT OF BOOKS — walls = rows of colorful book spines, roof = a giant open book ('지혜의 지붕'), open-book window awnings, warm-lit windows, chimney, arched door, warm cozy fairytale mood (warmer/richer than our flat pastel). client-dev ae38e5432a455370b is building v4 (spike-library-cottage-v4.png) in the background, reusing BuildingKit (CreateBookVolume=wall spines, CreateOpenBookCrown scaled up=roof). We are stylized 3D not photoreal — capture form+feeling, not fidelity. On landing: view -> gate -> show director. If good, this cottage-of-books becomes the archetype for other buildings (each a cottage built of its category's objects)."
 }
