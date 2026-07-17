@@ -34,13 +34,26 @@ namespace TouchRPG.EditorTools
         [MenuItem("TouchRPG/Build Combat Scene (P0)")]
         public static void BuildCombatScene()
         {
-            var config = GetOrCreateConfig();
-            var demoNumbers = GetOrCreateDemoNumbers();
-            var patternSheet = GetOrCreatePatternSheet();
+            // Data assets are ensured to exist BEFORE the scene switch (so first-time
+            // creation writes real files to disk), but the object references used for
+            // wiring are (re)loaded AFTER EditorSceneManager.NewScene below. A freshly
+            // created ScriptableObject instance held only by a transient editor-script
+            // local variable is NOT considered "in use" by anything once the scene it
+            // was created alongside gets torn down by NewScene - Unity can unload it,
+            // leaving a Unity "fake-null" object that still passes ordinary C# null
+            // checks in this same method but serializes as {fileID: 0} everywhere it
+            // was wired. Re-loading by path after the switch sidesteps that entirely.
+            GetOrCreateConfig();
+            GetOrCreateDemoNumbers();
+            GetOrCreatePatternSheet();
 
             ConfigurePortraitPlayerSettings();
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var config = AssetDatabase.LoadAssetAtPath<GameplayConfig>(ConfigDir + "/GameplayConfig.asset");
+            var demoNumbers = AssetDatabase.LoadAssetAtPath<P0DemoNumbers>(ConfigDir + "/P0DemoNumbers.asset");
+            var patternSheet = AssetDatabase.LoadAssetAtPath<MonsterPatternSheet>(PatternDir + "/Lampang_PatternSheet.asset");
 
             BuildCamera();
             var eventSystem = BuildEventSystem();
@@ -229,6 +242,14 @@ namespace TouchRPG.EditorTools
             }
             var config = ScriptableObject.CreateInstance<GameplayConfig>();
             AssetDatabase.CreateAsset(config, path);
+            // MUST flush immediately: a freshly-CreateAsset'd object does not get a
+            // stable cross-file fileID until it is actually written to disk. Wiring a
+            // reference to it into a scene object BEFORE this point silently serializes
+            // as {fileID: 0} (null) when the scene is later saved - found via the
+            // PlayMode smoke test (ParryMarker never spawned because patternSheet/
+            // gameplayConfig/demoNumbers all came back null on every consumer).
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(path);
             return config;
         }
 
@@ -243,6 +264,8 @@ namespace TouchRPG.EditorTools
             }
             var numbers = ScriptableObject.CreateInstance<P0DemoNumbers>();
             AssetDatabase.CreateAsset(numbers, path);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(path);
             return numbers;
         }
 
@@ -267,6 +290,8 @@ namespace TouchRPG.EditorTools
                 p1.failureSeverity = FailureSeverity.Small;
                 p1.rhythmNote = "정박 2연 (학습용) - GDD §7.2 Lampang P1";
                 AssetDatabase.CreateAsset(p1, p1Path);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(p1Path);
             }
 
             string sheetPath = PatternDir + "/Lampang_PatternSheet.asset";
@@ -278,6 +303,8 @@ namespace TouchRPG.EditorTools
                 sheet.displayName = "람팡";
                 sheet.steps = new[] { p1 };
                 AssetDatabase.CreateAsset(sheet, sheetPath);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(sheetPath);
             }
             return sheet;
         }
