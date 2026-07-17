@@ -320,13 +320,25 @@ listener's 100-message window with team chatter and re-create the exact cursor f
    exists and it is needed.
 6. **Every team is member + lead; the lead gates at 90** (§3.2).
 7. **The app ends at the 5-expert playtest gate** (§3.3), not at the PM's judgment.
-8. **Discord is the channel.** All work requests and instructions from the director, all result
-   summaries, and **all permission/approval requests** go through Discord — in Korean.
+8. **Discord is the *async* channel — and never a duplicate.** (Amended 2026-07-17 by the director:
+   *"내가 vs코드로 대화하면 디스코드로는 보내지 말아줘."*)
+   - **If the director is talking in-session (VS Code), answer in-session only. Do NOT mirror it to
+     Discord.** He is already reading it; a copy is pure noise. This includes reports, questions, and
+     approval requests raised during an in-session conversation.
+   - **Discord is for when he is away.** That is how an unattended loop delivers results, asks for
+     approval, and receives briefs. It stays the channel of record for anything raised while he is not
+     in-session — the whole point of the loop is that it runs when nobody is watching.
+   - Judge by **where the director last spoke**, not by habit. When in doubt on a long-running result
+     he will want either way, prefer the channel he is actually in.
    - This does not license blocking. A permission request is sent and the task is marked
      `awaiting-approval`; the loop **moves to the next `ready` task** (§4, §6).
-   - The listener must be running whenever the team is idle, or a brief simply never arrives.
-     `LoopEngine-DiscordDaemon-Watchdog` keeps it alive; leave it enabled.
+   - The listener must run whenever the team is idle, or a brief simply never arrives.
+     `LoopEngine-DiscordDaemon-Watchdog` keeps it alive; leave it enabled. **Drain the inbox every tick
+     — including ticks triggered in-session.** A Discord message sent in that same window is otherwise
+     stepped over by the cursor and silently lost (this actually happened 2026-07-17: the director's
+     *"실제 게임 동작 진행해줘"* sat unread through a project switch).
    - **Agents still do not talk over Discord** (§6). The channel is director ↔ PM only.
+   - Korean either way (rule 3).
 
 ---
 
@@ -340,3 +352,4 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   too: `explore` proposals are now scored by that team's own lead against the same fixed rubric, so
   every deliverable is judged by one consistent standard.
 - 2026-07-17 **Project switch**: Life Town paused (resumable — snapshot in `lifetown/docs/paused-state/`), **touchRPG** begins. §2 rewritten; concept pending the director's brief (the PM must not invent it). Team, gates, rubrics (§3), boundaries (§4) and failure policy (§5) carry over **unchanged** by director's instruction.
+- 2026-07-17 **Rule 8 amended** (director): Discord is the *async* channel. In-session (VS Code) conversation is answered in-session only and never mirrored to Discord; Discord carries what happens while he is away. Also made "drain the inbox every tick, including in-session ticks" explicit after a real message was skipped.

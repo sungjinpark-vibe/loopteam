@@ -866,3 +866,15 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   its most-guarded failure mode — the same thing our §3 gates exist to prevent. Briefed the agent that
   inventing a TBD FAILS the task however good the result looks; combo cap/damage curve stay provisional
   and labelled, for the director to set after the P0 playtest (his own plan, §13).
+
+## Tick 49 (cont.) — 2026-07-17 22:00 — director channel rule: no Discord mirroring of in-session talk
+- Director (in-session): "내가 vs코드로 대화하면 디스코드로는 보내지 말아줘." Answered in-session only —
+  deliberately did NOT send a Discord copy, since that is the rule itself.
+- Recorded where it survives a context reset rather than in my head: VISION §7 rule 8 rewritten
+  ("Discord is the *async* channel — and never a duplicate"; judge by where the director last spoke;
+  in-session => in-session only), + a change-log entry, + CLAUDE.md's approval-workflow and Discord
+  sections amended so they can no longer contradict it (they said "send it via Discord" flatly), +
+  PROGRESS Decisions Made.
+- Folded in the related lesson from tick 48 while touching the same rule: DRAIN THE INBOX EVERY TICK,
+  including ticks triggered in-session — otherwise a Discord message sent in that window is stepped over
+  by the cursor and silently lost (that is exactly how "실제 게임 동작 진행해줘" sat unread).

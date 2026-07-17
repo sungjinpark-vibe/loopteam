@@ -128,7 +128,10 @@ A loop that runs for hours dies of context bloat, not of bad code. So:
 
 ## Approval workflow (user directive, MUST follow)
 - Whenever a team produces a document (spec, dev plan, art direction, API contract, QA report), the PM
-  **summarizes the essentials and sends it via Discord** (`.discord\send.ps1`) — in Korean.
+  **summarizes the essentials and sends it to the director** — in Korean.
+- **Which channel** (director, 2026-07-17 — `VISION.md` §7 rule 8): **if he is talking in-session
+  (VS Code), answer in-session only and do NOT mirror it to Discord** — he is already reading it.
+  **Discord is the async channel**, for when he is away. Judge by where he last spoke.
 - **Never advance to the next stage without approval.**
 - **But never block the loop on it either.** Mark the task `awaiting-approval` and *move to the next
   `ready` task*. This is the rule that lets an approval gate coexist with an autonomous loop — the gate
@@ -231,8 +234,13 @@ The **Loop Contract** (18장) — the loop's constitution — is these four:
 - New app: create `<app-name>/` → `git init` inside → connect its remote → add to root `.gitignore`.
 
 ## Discord channel (`.discord/`)
-The user's only interface to the team. **This project has its OWN Discord bot** (own token) — separate
-from `app-dev-team`'s by construction, so the two projects' listeners cannot conflict.
+The user's interface to the team **when he is away** — that is what makes the loop unattended. When he
+is in-session (VS Code), that is the channel; **do not double-post to Discord** (`VISION.md` §7 rule 8).
+**This project has its OWN Discord bot** (own token) — separate from `app-dev-team`'s by construction,
+so the two projects' listeners cannot conflict.
+
+> Still **drain `incoming.log` every tick**, including ticks triggered in-session — otherwise a Discord
+> message sent in the same window gets stepped over by the cursor and lost (happened 2026-07-17).
 
 - **Send text**: `.discord\send.ps1 "메시지"` (Korean; 2000-char limit — split)
 - **Send file**: `.discord\send-file.ps1 -Path "<file>" -Caption "<설명>"` (25MB default limit)

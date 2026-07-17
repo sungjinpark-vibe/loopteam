@@ -56,6 +56,12 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
 3. Commit the engine repo on any `state/`/`backlog/` change; touchRPG commits locally in its own repo.
 
 ## Decisions Made
+- 2026-07-17 — **Channel rule (director)**: *"내가 vs코드로 대화하면 디스코드로는 보내지 말아줘."*
+  In-session (VS Code) conversation is answered **in-session only — never mirrored to Discord**.
+  Discord is the **async** channel: it carries what happens while he is away, which is what makes the
+  unattended loop work. Judge by where he last spoke. Recorded in `VISION.md` §7 rule 8 + `CLAUDE.md`.
+  **Still drain the Discord inbox every tick**, including in-session ticks (a real message was skipped
+  this way on 2026-07-17).
 - 2026-07-17 — **Project switch**: Life Town paused (resumable), touchRPG begins. Team + system carry
   over unchanged (director). Each app keeps its own folder + git repo, gitignored from the engine.
 - 2026-07-17 — **Token economy (director, repeated 3x)**: default to the **frugal path** for
