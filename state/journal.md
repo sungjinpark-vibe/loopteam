@@ -690,3 +690,16 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   real book (title bands, groove gaps, varied H/W, depth offset), mix in horizontal books, add base
   book piles, warm vintage-leather palette, faint roof page-lines. Keep the v4 cottage form.
 - Acked in Korean. v5 building in background (spike-library-cottage-v5.png). On landing: view->gate->show.
+
+## Tick 34 (cont.) — 12:32 — v5 book-feel refine landed, sent to director
+- client-dev v5 (379k): refined v4's spine walls to read as real shelved books — gold title bands +
+  embossing per spine, varied width/height with shelf-shadow gaps, grooves between spines, horizontal
+  book wedges, vintage-leather palette (burgundy/navy/teal/olive/gold/brown), 3 base book piles
+  (BuildBookPile), lighter varied roof page hatching. Cottage massing/roof/door/chimney unchanged.
+  Gate PASS (compile 0, 81/81). Committed lifetown e7daf79.
+- PM view: clear win — walls now read as bookshelves (title bands do the work), warm leather palette
+  landed. Delivers the director's '책 느낌 더 살려줘'. Honest leftovers flagged to director: only 1 of 3
+  base piles reads clearly; front pink bookmark a touch large. Asked for a lock-or-polish decision, and
+  proposed moving to the other buildings (Gym = a house built of gym equipment) as the archetype spreads.
+- Frugal path held throughout (one resumed client-dev agent, PM check + honest disclosure, no full
+  workflows). Token-heavy building though: v4 323k + v5 379k — the visual iteration is the real cost.
