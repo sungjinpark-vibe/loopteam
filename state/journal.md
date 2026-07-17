@@ -922,3 +922,24 @@ Keep entries short. Record **decisions and outcomes**, not narration.
     EVERY §7 pattern sheet must state its distance behaviour (람팡 included).
 - VISION §2 now points at v0.3, carries a "Locked by the director" block (no actives / socket cards /
   3 weapons / weapon-common judgment), and lists 10 live TBDs. T001 untouched and still running.
+
+## Tick 50 — 2026-07-17 23:30 — day end; loop paused cleanly
+- Director: "오늘은 여기까지 해줘. 내일 계속할꺼야. TBD 13, 12 답변도 내일 줄게." Paused (paused=true)
+  with a full resume note in loop.json + a "Tomorrow, in this order" block in PROGRESS.
+- T001 STATUS AT STOP — honest: **Gate 1 PASSED 23:25** (state/gate-result.json: compile exit=0,
+  CS errors=0, tests 19/19; Unity no longer running, no lock held). **Gate 2 (클라이언트팀장 90) result
+  NOT received** — the workflow (wf_756e669b-8fe) did not report a score to me before the stop.
+  T001 is therefore **NOT done**: per VISION §3 a passed mechanical gate only makes work *scoreable*.
+  Did NOT mark it done, did NOT guess a score. Tomorrow: check the workflow result; if it never
+  delivered, re-run ONLY the Gate 2 scoring — the build is committed and green, so rebuilding would be
+  waste.
+- Day summary (2026-07-17, ticks 29-50): Life Town — resumed from pause, iterated the Library form
+  v1->v5 to the director's cottage-of-books reference, built all 7 category buildings + a village scene
+  (v1->v2 polish), then the director paused it for touchRPG. It is fully resumable and its next task
+  (real gameplay) is already decided.
+  touchRPG — scaffolded, received the director's GDD, bootstrapped (Unity project + VISION §2 rewritten
+  from the GDD + backlog around P0), ran T001 to a green Gate 1, and amended the GDD twice on his
+  direction (v0.2 skills+weapons, v0.3 his 4 decisions + a 3-weapon re-verification that surfaced
+  TBD-12/13).
+- Outstanding for the director tomorrow: TBD-12 (shield's game identity), TBD-13 (range axis + 총's
+  ranged advantage), TBD-11 (skill/weapon priority; PM rec = P1).

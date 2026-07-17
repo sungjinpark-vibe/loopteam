@@ -3,19 +3,31 @@
 > Only what the next tick needs to choose its next action. Bulk history lives in `state/journal.md`.
 
 ## Current State
-- **Status**: Running (`paused: false`), tick 49. **touchRPG is bootstrapped and building.** The
-  director delivered a full **GDD v0.1** → `touchRPG/docs/spec/00-gdd-v0.1.md` = **the single source of
-  truth** (its own §0: if code/conversation/convention conflicts, *the doc wins*). Unity 6000.5.1f1
-  project created; `VISION.md` §2 rewritten from the GDD; backlog rebuilt around P0.
-- **The game**: touch-first online hunting action + persistent growth (**not** an MMORPG). Portrait
-  fixed. Party 1-4. Hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."* Target 20-30s
+- **Status**: ⏸ **PAUSED** (`paused: true`), tick 50 — director 2026-07-17 23:30: *"오늘은 여기까지.
+  내일 계속할꺼야."* Clean stop, nothing in a broken state. **Resume**: `paused=false` + `/tick`.
+- **Project**: **touchRPG** — touch-first online hunting action + persistent growth (**not** an MMORPG).
+  Portrait fixed. Party 1-4. Hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."* Target 20-30s
   light-midcore. Refs: Monster Hunter / Vindictus + Clair Obscur (timing parry).
-- **In flight**: **T001 P0-A parry core** — quality-loop workflow `wf_756e669b-8fe` (client-dev →
-  Gate 1 mechanical → 클라이언트팀장 90). It answers GDD §10's single P0 question:
-  **"터치 패링이 손맛이 있는가"**.
+- **Source of truth**: **GDD v0.3** → `touchRPG/docs/spec/00-gdd-v0.3.md` (v0.1/v0.2 kept as history).
+  Its §0: if code/conversation/convention conflicts with it, *the doc wins*.
+- **T001 P0-A parry core**: **Gate 1 PASSED** 23:25 (`state/gate-result.json` — compile exit=0,
+  CS errors=0, tests **19/19**). ⚠️ **Gate 2 (클라이언트팀장 ≥90) result NOT received** before the stop.
+  **It is NOT done** — a passed mechanical gate only makes it *scoreable* (`VISION.md` §3).
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
-- **Last updated**: 2026-07-17 22:00 (Tick 49)
+- **Last updated**: 2026-07-17 23:30 (Tick 50)
+
+## ▶ Tomorrow, in this order
+1. **Finish T001.** Check the quality-loop result (`wf_756e669b-8fe`). If the workflow never delivered a
+   Gate 2 score, **re-run only the 클라이언트팀장 scoring** — the build is committed and green; do not
+   rebuild. Then report the score to the director **and list every provisional/TBD value used**
+   (esp. TBD-1 combo cap / TBD-2 damage curve — the agent appears to have isolated them into
+   `Assets/Data/Config/P0DemoNumbers.asset`; **verify that separation is real**, don't take it on faith).
+2. **Collect the director's answers to TBD-12 and TBD-13** — he said he'd give them tomorrow.
+3. **TBD-11** (skill/weapon dev priority) is still unanswered. PM recommendation stands: **P1**, because
+   GDD §10 forbids starting P1 before the 손맛 question is answered.
+4. Only then: T002 (P0-B — IN-3 회피존 / IN-5 차지 / IN-6 러시 + 람팡 P2-P7 into the same data-driven
+   pattern sheet).
 
 ## Last Run
 - **Date**: 2026-07-17 22:00 (Tick 49)
@@ -25,10 +37,24 @@
   (in-session ⇒ no Discord mirroring), recorded in `VISION.md` §7 rule 8 + `CLAUDE.md`.
 - **Output**: touchRPG Unity project + GDD in `docs/spec/`; T001 running; contract updated.
 
+## Locked by the director 2026-07-17 (GDD v0.3 — do not re-open without him)
+- **No active skills at all.** Growth is passive-centric. Chosen to *remove* the P-2 collision rather
+  than compromise it: activatable skills need a trigger input, and §4.1/§6.3 forbid new buttons.
+  **In-combat input remains exactly §4.1 — nothing else.**
+- **Passive cards = 장식주 socketed into the 탈리스만 slots** (MH gear→decoration structure). Not a new
+  growth axis — §8.1's 60/30/10 stands unchanged. Set in the pre-hunt 대기실; **locked at hunt start**.
+- **Weapons = 3**: 총(원거리) / 창(중거리) / 검과 방패(근접) — they split the engagement-distance axis
+  cleanly (대검 dropped; it overlapped 검과 방패). **Judgment windows ±0.15/±0.35 are weapon-common —
+  per-weapon judgment is MUST NOT.** Weapons differ only by rhythm/speed, distance, part-break affinity.
+- **A weapon that structurally dodges patterns is as wrong as one that out-damages them** (§4.6 MUST) —
+  the live risk with 총 (TBD-13).
+
 ## The rules this project lives or dies by (re-read before briefing any agent)
-1. **The GDD wins.** `touchRPG/docs/spec/00-gdd-v0.1.md`. This cockpit and `VISION.md` §2 are pointers,
+1. **The GDD wins.** `touchRPG/docs/spec/00-gdd-v0.3.md`. This cockpit and `VISION.md` §2 are pointers,
    not replacements.
-2. **TBD-1…TBD-7 (GDD §13) MUST NOT be filled in by the team** — they are deliberately the director's.
+2. **The 10 live TBDs (GDD §13) MUST NOT be filled in by the team** — they are deliberately the
+   director's. Live: TBD-1..7, 11, **12** (shield's game identity), **13** (range axis / 총's ranged
+   advantage). TBD-8/9/10 were resolved on 2026-07-17.
    The GDD names its most-guarded failure mode in its own words: *"그럴듯한 보간(hallucinated design)"*.
    That is our **Nodding Loop** by another name. An agent that invents a TBD has failed the task
    however good the result looks. Combo cap / damage curve stay provisional + labelled until the
