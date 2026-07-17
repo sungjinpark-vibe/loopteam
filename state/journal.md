@@ -878,3 +878,25 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - Folded in the related lesson from tick 48 while touching the same rule: DRAIN THE INBOX EVERY TICK,
   including ticks triggered in-session — otherwise a Discord message sent in that window is stepped over
   by the cursor and silently lost (that is exactly how "실제 게임 동작 진행해줘" sat unread).
+
+## Tick 49 (cont.) — 2026-07-17 23:15 — GDD v0.2: director added skills + weapons
+- Director (in-session): add to 기획 — (1) hunting is passive-skill-centric, actives capped at 3;
+  (2) passive skills = cards set in a pre-hunt 대기실 (Monster Hunter 장식주 concept); (3) effects differ
+  per monster; (4) weapons = 장총 / 검과 방패 / 창 / 대검.
+- Wrote docs/spec/00-gdd-v0.2.md (v0.1 kept as history): new §4.6 무기, new §8.5 스킬 시스템 (8.5.1
+  액티브 ≤3 / 8.5.2 패시브 카드=장식주, 대기실 세팅, 전투 중 변경 불가 / 8.5.3 몬스터별 적합 효과),
+  §3 용어집 + §10 우선순위 note + §13 TBD + §14 변경이력 updated. VISION §2 now points at v0.2 (11 TBDs).
+- KEY JUDGMENT: the addition COLLIDES with the existing doc in 3 places, and §0 forbids hallucinated
+  design — so I did NOT paper over them; I marked them TBD in his own doc's convention and asked:
+  · TBD-8  active-skill trigger vs §4.1 (input vocabulary is 6, additions need approval), §6.3 ("별도
+    버튼 신설 MUST NOT"), P-2 ("제스처는 탭뿐"). You cannot have 3 activatable skills and no new input.
+  · TBD-9  passive cards vs 탈리스만 §8.2 — 탈리스만 already IS passive options at 60% of growth (§8.1);
+    replace / socket / new axis is a 신규 성장 축 = approval required.
+  · TBD-10 weapon differentiation scope — 장총 is ranged, which touches 부위 조준/거리; per-weapon
+    judgment windows would change §4.3 = approval required.
+  · TBD-11 priority — recommended P1, keep P0 = 손맛 only (GDD §10 forbids P1 before that answer).
+- Recommendations given (mine, his call): TBD-8 → conditional/auto or reuse IN-5 charge, not 3 new
+  buttons (P-2 is the game's identity). TBD-9 → socket model (탈리스만 = the slotted gear, cards = the
+  장식주) — that IS the Monster Hunter structure he cited, and it preserves §8.1's 60% axis untouched.
+  TBD-10 → keep ±0.15/±0.35 weapon-common; differentiate by rhythm/range/part-break affinity only.
+- T001 unaffected (parry core doesn't touch skills/weapons) and still running — did not disturb it.

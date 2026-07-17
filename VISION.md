@@ -24,8 +24,8 @@ bar, and approve or reject.
 
 ## 2. Current project — touchRPG (working title "람팡")
 
-> **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.1.md` (director-authored,
-> v0.1, 2026-07-17). Its §0 says so outright — if code comments, past conversation, or inferred
+> **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.2.md` (director-authored;
+> v0.2, 2026-07-17 — supersedes v0.1, which stays as the record). Its §0 says so outright — if code comments, past conversation, or inferred
 > convention conflict with that document, **the document wins**. This §2 is a compact pointer for the
 > loop, **not a replacement**. When they disagree, the GDD is right. Read it before briefing any agent.
 
@@ -40,7 +40,7 @@ bar, and approve or reject.
 | Session | One hunt 10-15 min; 30-60 min/day recommended. Party 1-4 |
 | References | Monster Hunter / Vindictus (big single-target hunts, part-breaking, mastery-through-repetition); Clair Obscur: Expedition 33 (precise timing input as the heart of combat). **Differentiator**: that feel, rebuilt as portrait + single-tap gesture + party relay parry |
 | Project folder | `C:\Users\user\loop_engine\touchRPG` (own git repo, gitignored from the engine) |
-| Spec | `touchRPG/docs/spec/00-gdd-v0.1.md` |
+| Spec | `touchRPG/docs/spec/00-gdd-v0.2.md` (v0.1 kept as history) |
 | Completion | **The 5-expert playtest gate (§3.3)** — unchanged |
 
 ### The four pillars (GDD §2 — if a feature conflicts with a pillar, the feature is wrong)
@@ -83,9 +83,11 @@ landscape mode, and **any monetization model at all** (a separate doc will cover
 hardcoded. A gameplay-affecting number that is not in the doc MUST be asked, never invented; a
 presentation-only number (effect length, etc.) MAY be chosen and recorded.
 
-**The `[TBD]` rule (GDD §0/§13) — treat this as a gate.** Seven items are *deliberately* undecided:
+**The `[TBD]` rule (GDD §0/§13) — treat this as a gate.** **Eleven** items are *deliberately* undecided:
 combo cap (TBD-1), damage curve (TBD-2), 람팡 유대 material part (TBD-3), enhance curve (TBD-4), daily
-blessing count (TBD-5), final naming (TBD-6), network architecture (TBD-7). **MUST NOT fill them in.**
+blessing count (TBD-5), final naming (TBD-6), network architecture (TBD-7), **active-skill trigger input
+(TBD-8), passive-card ↔ 탈리스만 relationship (TBD-9), weapon differentiation scope (TBD-10), skill/weapon
+dev priority (TBD-11)**. **MUST NOT fill them in.**
 The GDD names the failure mode itself: *"그럴듯한 보간(hallucinated design)은 이 프로젝트에서 가장
 경계하는 실패 모드다."* That is this loop's **Nodding Loop** under another name — the exact thing §3
 exists to prevent. An agent that invents a TBD has failed the task, however good the result looks.
