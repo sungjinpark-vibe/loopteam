@@ -5,6 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using LifeTown.App.Buildings;
 using LifeTown.App.Scene;
+using LifeTown.App.Village;
 
 namespace LifeTown.App.Editor
 {
@@ -44,6 +45,7 @@ namespace LifeTown.App.Editor
         const string HobbySceneAssetPath = ScenesFolder + "/SpikeHobby.unity";
         const string MindSceneAssetPath = ScenesFolder + "/SpikeMind.unity";
         const string GameSceneAssetPath = ScenesFolder + "/SpikeGame.unity";
+        const string VillageSceneAssetPath = ScenesFolder + "/SpikeVillage.unity";
         const string OutputFileName = "spike-building.png";
         const string GymOutputFileName = "spike-gym.png";
         const string StudyOutputFileName = "spike-study.png";
@@ -51,6 +53,13 @@ namespace LifeTown.App.Editor
         const string HobbyOutputFileName = "spike-hobby.png";
         const string MindOutputFileName = "spike-mind.png";
         const string GameOutputFileName = "spike-game.png";
+        const string VillageOutputFileName = "spike-village-v1.png";
+
+        // The village render is landscape (a whole-plot scene, not one square cottage)
+        // and its approved final location is docs/design (a director deliverable), not
+        // the Logs/ scratch folder every per-building spike PNG writes to.
+        const int VillageWidth = 1920;
+        const int VillageHeight = 1200;
 
         [MenuItem("LifeTown/Spike/Render Library PNG")]
         public static void RenderPng()
@@ -119,6 +128,87 @@ namespace LifeTown.App.Editor
                 footprintCenter => GameBuildingBuilder.Build(null, footprintCenter));
         }
 
+        /// <summary>
+        /// T007's first village slice: all 7 category cottages (<see cref="VillageLayoutBuilder"/>)
+        /// placed on one shared ground plot, framed by a single wide iso camera --
+        /// "실제 마을로 올려줘" (director: assemble the approved 7-building set into one
+        /// actual village scene, not isolated per-building renders). Static
+        /// layout/composition only, per the brief's explicit scope line: no gameplay, no
+        /// interaction, no data hookup yet.
+        ///
+        /// Exact command:
+        ///   "C:\Program Files\Unity\Hub\Editor\6000.5.1f1\Editor\Unity.exe" -batchmode -quit
+        ///     -projectPath "C:\Users\user\loop_engine\lifetown"
+        ///     -executeMethod LifeTown.App.Editor.SpikeRenderer.RenderVillagePng
+        ///     -logFile "C:\Users\user\loop_engine\lifetown\Logs\spike-render-village.log"
+        ///
+        /// Output: docs/design/spike-village-v1.png (the director deliverable location,
+        /// not Logs/ -- this render IS the artifact being reviewed, unlike the
+        /// per-building spikes which are dev-facing scratch renders). Also saves
+        /// Assets/LifeTown.App/Scenes/SpikeVillage.unity.
+        /// </summary>
+        [MenuItem("LifeTown/Spike/Render Village PNG")]
+        public static void RenderVillagePng()
+        {
+            RenderTexture rt = null;
+            Texture2D tex = null;
+            Camera cam = null;
+
+            try
+            {
+                var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+                // Ground plane / camera sized for VillageLayoutBuilder's actual footprint
+                // (buildings at X = +/-3.3 and +/-1.1 (front row) / 0, +/-2.18 (back row),
+                // Z = +/-1.3, each cottage's own tier ring adding ~0.95 radius beyond its
+                // center) -- generous margin over the tight single-building framing since
+                // this is a whole plot, not one cottage filling the frame.
+                cam = IsoSceneSetup.BuildVillageScene(
+                    center: Vector3.zero,
+                    groundSize: new Vector2(10.5f, 6.5f),
+                    orthoSize: 3.35f,
+                    cameraDistance: 16f,
+                    focusHeight: 0.22f);
+
+                VillageLayoutBuilder.Build(null);
+
+                SaveSceneAsset(scene, VillageSceneAssetPath);
+
+                rt = new RenderTexture(VillageWidth, VillageHeight, 24, RenderTextureFormat.ARGB32);
+                cam.targetTexture = rt;
+                cam.Render();
+
+                var prevActive = RenderTexture.active;
+                RenderTexture.active = rt;
+                tex = new Texture2D(VillageWidth, VillageHeight, TextureFormat.RGBA32, false);
+                tex.ReadPixels(new Rect(0, 0, VillageWidth, VillageHeight), 0, 0);
+                tex.Apply();
+                RenderTexture.active = prevActive;
+
+                byte[] png = tex.EncodeToPNG();
+                string outPath = Path.Combine(DesignDocsDir(), VillageOutputFileName);
+                File.WriteAllBytes(outPath, png);
+
+                Debug.Log($"[SpikeRenderer] wrote {png.Length} bytes to {outPath}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SpikeRenderer] FAILED: {ex}");
+                EditorApplication.Exit(1);
+            }
+            finally
+            {
+                if (cam != null) cam.targetTexture = null;
+                if (rt != null)
+                {
+                    RenderTexture.active = null;
+                    rt.Release();
+                    UnityEngine.Object.DestroyImmediate(rt);
+                }
+                if (tex != null) UnityEngine.Object.DestroyImmediate(tex);
+            }
+        }
+
         static void RenderBuilding(string sceneAssetPath, string outputFileName, float focusHeight, System.Action<Vector3> buildBuilding)
         {
             RenderTexture rt = null;
@@ -181,6 +271,14 @@ namespace LifeTown.App.Editor
         {
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
             string dir = Path.Combine(projectRoot, "Logs");
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+
+        static string DesignDocsDir()
+        {
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            string dir = Path.Combine(projectRoot, "docs", "design");
             Directory.CreateDirectory(dir);
             return dir;
         }

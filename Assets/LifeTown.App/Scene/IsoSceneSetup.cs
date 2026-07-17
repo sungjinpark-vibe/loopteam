@@ -40,6 +40,23 @@ namespace LifeTown.App.Scene
             return BuildCamera(buildingFootprintCenter + Vector3.up * focusHeight);
         }
 
+        /// <summary>
+        /// Same iso direction/light/ambient as <see cref="BuildScene"/>, sized for a whole
+        /// village instead of one cottage: a rectangular ground plane big enough to hold
+        /// several buildings (instead of the single fixed 2x2 tile) and a much larger,
+        /// further-back orthographic camera so the whole village bounding box fits in
+        /// frame. `groundSize` is (width along world X, depth along world Z);
+        /// `orthoSize`/`cameraDistance` are picked per-scene by the caller (the village
+        /// layout knows its own footprint, this method has no opinion on scale).
+        /// </summary>
+        public static Camera BuildVillageScene(Vector3 center, Vector2 groundSize, float orthoSize, float cameraDistance, float focusHeight)
+        {
+            BuildGroundPlane(center, groundSize);
+            BuildLight();
+            ApplyAmbient();
+            return BuildVillageCamera(center + Vector3.up * focusHeight, orthoSize, cameraDistance);
+        }
+
         static void BuildGroundTile(Vector3 center)
         {
             var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -47,6 +64,16 @@ namespace LifeTown.App.Scene
             tile.transform.position = center + new Vector3(0f, -0.025f, 0f);
             tile.transform.localScale = new Vector3(2.0f, 0.05f, 2.0f);
             var mat = MaterialFactory.CreateFlatLit("GroundTile_Mat", CategoryPalette.FromHex("#BFE6CC"));
+            tile.GetComponent<MeshRenderer>().sharedMaterial = mat;
+        }
+
+        static void BuildGroundPlane(Vector3 center, Vector2 size)
+        {
+            var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tile.name = "VillageGround";
+            tile.transform.position = center + new Vector3(0f, -0.025f, 0f);
+            tile.transform.localScale = new Vector3(size.x, 0.05f, size.y);
+            var mat = MaterialFactory.CreateFlatLit("VillageGround_Mat", CategoryPalette.FromHex("#BFE6CC"));
             tile.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
 
@@ -79,6 +106,23 @@ namespace LifeTown.App.Scene
             cam.backgroundColor = CategoryPalette.FromHex("#FFEFE3"); // cozy pastel background
 
             float distance = 6f;
+            camGo.transform.position = target + IsoDirection * distance;
+            camGo.transform.LookAt(target, Vector3.up);
+
+            return cam;
+        }
+
+        static Camera BuildVillageCamera(Vector3 target, float orthoSize, float distance)
+        {
+            var camGo = new GameObject("VillageIsoCamera");
+            var cam = camGo.AddComponent<Camera>();
+            cam.orthographic = true;
+            cam.orthographicSize = orthoSize;
+            cam.nearClipPlane = 0.1f;
+            cam.farClipPlane = 40f;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = CategoryPalette.FromHex("#FFEFE3"); // same cozy pastel background
+
             camGo.transform.position = target + IsoDirection * distance;
             camGo.transform.LookAt(target, Vector3.up);
 
