@@ -791,3 +791,10 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   build), which is the path toward a playable slice -> Gate 3 playtest. Awaiting his choice.
 - Milestone status: all 7 buildings + a static village scene now exist. Next big arc = interaction/data
   (Economy.Core T002 + Platform T003 wiring) to reach a playable slice.
+
+## Tick 43 — 2026-07-17 16:38 — director chose polish (option 1); village v2 building
+- Director (16:20): "1" — polish the village layout + ground. Resumed a4425 (has the village code) for
+  v2: balanced composed layout, rotate buildings so their DETAILED object-walls face the camera (v1 hid
+  several behind plain gable-ends), and a real ground (beveled edge + grass tone variation + cohesive
+  path + small flower/stone details) vs v1's flat mint slab. Buildings unchanged. -> spike-village-v2.png.
+- Frugal refine (no workflow). On landing: view -> gate -> show director. Cursor -> 1527575715984183377.
