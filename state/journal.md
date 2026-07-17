@@ -731,3 +731,18 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   director + asked whether to pack walls denser (I know the fix: mirror CreateBookSpineWall density).
 - Token note: building rounds are 320-450k each. The per-building visual iteration is the dominant cost;
   the structural archetype reuse is what keeps each new building from being a from-scratch workflow.
+
+## Tick 36 — 2026-07-17 13:22 — Gym APPROVED; building the remaining 5 in one fresh-agent run
+- Director (13:07): "좋아. 나머지도 계속 만들어줘" — approved Gym v1 (no wall-density refine needed),
+  wants the rest built. Cursor -> 1527527056789999677. Read the design system: 7 categories total.
+  Done: 독서 Reading=Library, 운동 Exercise=Gym. Remaining 5: 공부 Study, 일 Work, 취미창작 Hobby,
+  마음챙김 Mind, 게임 Game.
+- Token decision: spawned a FRESH client-dev agent (a4425d351825da8e1) instead of resuming ae38 —
+  ae38's transcript is huge after 5 builds and each resume reloads it; a fresh agent reads only the 4
+  proven files (Library=dense-wall gold ref, Gym=roof-icon ref, BuildingPrimitives, SpikeRenderer) and
+  builds all 5 in one coherent, lighter run. Baked in the Gym lesson: walls MUST be DENSE like the
+  Library (Gym v1's sparse wall was the one gap). Each building = cottage shell + category object-wall +
+  roof icon + 1 pink accent; new Builder + render entry each; build in order so partial progress is safe.
+- Announced the 5-building plan to the director (roof icons: grad-cap/briefcase/brush+palette/lotus/
+  controller) + noted buildings are the main token cost so he can ask to batch differently. On landing:
+  review all 5 -> gate -> show as a village lineup.
