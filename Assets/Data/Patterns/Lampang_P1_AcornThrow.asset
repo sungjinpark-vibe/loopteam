@@ -17,9 +17,9 @@ MonoBehaviour:
   classification: 0
   anchorPartId: cheek_pouch
   parryBeats:
-  - beatOffsetSeconds: 0.8
+  - beatOffsetSeconds: 1
     telegraphLeadSeconds: 1
-  - beatOffsetSeconds: 1.9
+  - beatOffsetSeconds: 2.4
     telegraphLeadSeconds: 1
   minPhase: 1
   failureSeverity: 1

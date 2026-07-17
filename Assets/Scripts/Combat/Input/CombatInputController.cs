@@ -18,6 +18,13 @@ namespace TouchRPG.Combat.Input
         private readonly List<RaycastResult> _raycastResults = new List<RaycastResult>();
         private readonly List<ITappable> _candidates = new List<ITappable>();
 
+        // Reused across every tap instead of `new PointerEventData(eventSystem)` per
+        // resolution - this is the hot path the whole loop exists to exercise, so a
+        // fresh managed allocation on every single finger-down is worth avoiding.
+        // PointerEventData carries no per-tap state this class reads back afterward
+        // (only .position, overwritten below before each raycast), so reuse is safe.
+        private PointerEventData _pointerEventData;
+
         private void Awake()
         {
             if (eventSystem == null)
@@ -64,9 +71,13 @@ namespace TouchRPG.Combat.Input
                 return;
             }
 
-            var pointerData = new PointerEventData(eventSystem) { position = screenPosition };
+            if (_pointerEventData == null)
+            {
+                _pointerEventData = new PointerEventData(eventSystem);
+            }
+            _pointerEventData.position = screenPosition;
             _raycastResults.Clear();
-            eventSystem.RaycastAll(pointerData, _raycastResults);
+            eventSystem.RaycastAll(_pointerEventData, _raycastResults);
 
             _candidates.Clear();
             foreach (var result in _raycastResults)

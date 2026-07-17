@@ -38,6 +38,20 @@ namespace TouchRPG.Combat.Core
         public TapPriority Priority => TapPriority.ParryMarker;
         public bool IsTappable => !_resolved && isActiveAndEnabled;
 
+        /// <summary>Polling alternative to <see cref="OnResolved"/> for callers that would
+        /// otherwise need a per-instance closure just to await one result (e.g.
+        /// MonsterPatternPlayer's beat coroutines) — a plain `while (!IsResolved) yield
+        /// return null;` costs nothing to allocate.</summary>
+        public bool IsResolved => _resolved;
+
+        /// <summary>Valid only once <see cref="IsResolved"/> is true.</summary>
+        public ParryJudgment Result { get; private set; }
+
+        /// <summary>Time.time at which this beat's rings fully overlap. Exposed so a test
+        /// can schedule a tap at a controlled offset from the real judgment target,
+        /// rather than guessing at frame timing.</summary>
+        public float TargetTime => _targetTime;
+
         /// <param name="targetTime">Time.time at which the rings fully overlap — the beat.</param>
         /// <param name="telegraphLeadSeconds">How long before targetTime the outer ring
         /// starts visibly contracting. Cosmetic pacing only (GDD §0 grants staging detail
@@ -71,7 +85,10 @@ namespace TouchRPG.Combat.Core
             }
 
             // Nobody tapped before the good window closed - auto-resolve as a miss.
-            if (Time.time - _targetTime > _config.goodWindowSeconds)
+            // Guarded against a marker enabled without Initialize() (no config yet) -
+            // every other field access in this class is already null-guarded; this one
+            // was not, and threw an NRE every frame until Initialize ran.
+            if (_config != null && Time.time - _targetTime > _config.goodWindowSeconds)
             {
                 Resolve(Time.time);
             }
@@ -89,7 +106,10 @@ namespace TouchRPG.Combat.Core
         private void Resolve(float tapTime)
         {
             _resolved = true;
-            var judgment = JudgmentEvaluator.Evaluate(tapTime, _targetTime, _config.perfectWindowSeconds, _config.goodWindowSeconds);
+            float perfectWindow = _config != null ? _config.perfectWindowSeconds : 0f;
+            float goodWindow = _config != null ? _config.goodWindowSeconds : 0f;
+            var judgment = JudgmentEvaluator.Evaluate(tapTime, _targetTime, perfectWindow, goodWindow);
+            Result = judgment;
 
             if (tapArea != null) tapArea.raycastTarget = false;
             if (outerRingImage != null) outerRingImage.enabled = false;

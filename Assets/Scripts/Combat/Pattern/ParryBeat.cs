@@ -17,8 +17,10 @@ namespace TouchRPG.Combat.Pattern
     public class ParryBeat
     {
         [Tooltip("Seconds from pattern-step start to this beat's judgment target time. " +
-                 "PROVISIONAL - GDD §7.2 says '정박 2연' but gives no exact seconds.")]
-        public float beatOffsetSeconds = 0.6f;
+                 "PROVISIONAL - GDD §7.2 says '정박 2연' but gives no exact seconds. MUST be " +
+                 ">= telegraphLeadSeconds, or the ring's own telegraph would have to start " +
+                 "before the step begins, spawning already partway contracted.")]
+        public float beatOffsetSeconds = 1.0f;
 
         [Tooltip("Seconds the outer ring visibly contracts before this beat. Cosmetic " +
                  "pacing only - does not affect judgment. PROVISIONAL default.")]

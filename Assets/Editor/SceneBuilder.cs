@@ -290,10 +290,18 @@ namespace TouchRPG.EditorTools
                 p1.displayName = "도토리 투척";
                 p1.classification = PatternClass.C1_Basic;
                 p1.anchorPartId = "cheek_pouch";
+                // Beat 1's offset (1.0s) equals its own telegraph lead (1.0s), so the
+                // outer ring's full contraction is visible from the very start of the
+                // step - an offset shorter than the lead would spawn the ring already
+                // partway contracted. Beat 2's spawn time (2.4 - 1.0 = 1.4s) is scheduled
+                // after beat 1's good window closes at the latest (target 1.0s + good
+                // window 0.35s = 1.35s), so the two beats' telegraphs never visually
+                // overlap even though they are scheduled independently (see
+                // MonsterPatternPlayer.RunBeat) and do not wait on each other's outcome.
                 p1.parryBeats = new[]
                 {
-                    new ParryBeat { beatOffsetSeconds = 0.8f, telegraphLeadSeconds = 1.0f },
-                    new ParryBeat { beatOffsetSeconds = 1.9f, telegraphLeadSeconds = 1.0f }
+                    new ParryBeat { beatOffsetSeconds = 1.0f, telegraphLeadSeconds = 1.0f },
+                    new ParryBeat { beatOffsetSeconds = 2.4f, telegraphLeadSeconds = 1.0f }
                 };
                 p1.minPhase = 1;
                 p1.failureSeverity = FailureSeverity.Small;
