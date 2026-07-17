@@ -12,8 +12,12 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: Running (`paused: false`), tick 29. **Library form-reshape v2 is DONE and sent to the
-  director** for a go/no-go on the "building FORM expresses meaning" art direction. Awaiting his call.
+- **Status**: **PAUSED (`paused: true`), tick 32** — director said 09:36 "일단 작업 중지해줘. 내가
+  레퍼런스를 찾아줄게". He'll supply a reference for the building FORM direction. Nothing in flight.
+  **RESUME**: when he sends the reference + "루프 재개" → set `paused=false` + `/tick`. Library reached
+  **v3** (`spike-library-form-v3.png`): bottom 3 books read clearly as hardcover books (his "책처럼"
+  fix landed); the open-book CROWN on top still reads messy — that + applying the archetype to other
+  buildings (Gym=barbell) are the open items, pending his reference.
 - **Main objective**: Build Life Town (Unity) to the point the 5-expert playtest gate passes (avg ≥90,
   floor 80). Shipping to a store is **deferred** (D7 — director said "일단 만들기만"), so completion is
   the playtest gate, not a store install.

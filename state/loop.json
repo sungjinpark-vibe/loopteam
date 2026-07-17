@@ -1,13 +1,13 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 31,
+  "tick": 32,
   "project": "lifetown (Life Town — Unity rebuild)",
-  "active_task": "awaiting-approval: Library form v3 sent. Bottom 3 books now read clearly as hardcover books (director's fix landed). Flagged the messy open-book crown to the director + offered to tidy it. Awaiting his call. If YES to the book direction -> apply archetype to Gym (barbell form) on the frugal path; if he wants the crown tidied -> resume client-dev ae38e5432a455370b for a top-only cleanup.",
-  "last_tick_at": "2026-07-17 09:05",
-  "consecutive_idle_ticks": 2,
-  "paused": false,
+  "active_task": null,
+  "last_tick_at": "2026-07-17 09:36",
+  "consecutive_idle_ticks": 0,
+  "paused": true,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done.",
-  "_state_reason": "Resumed 2026-07-17 08:08 (fresh session, tick 29). Library form-reshape v2 (whole building = stack-of-books monument) built on the frugal path, gate green (compile 0, 81/81), reads clearly as books, sent to director for go/no-go. AWAITING that decision — if YES, apply the form-expresses-meaning archetype to the remaining buildings (Gym=barbell/weight form next); if NO, iterate the Library form. Direction context: pastel tone APPROVED; buildings need FORM that expresses meaning (ref at lifetown/docs/design/references/form-expresses-meaning-ref.jpg). Renders: v1=weak (spike-library-form-v1.png), v2=strong (spike-library-form-v2.png)."
+  "_paused_reason": "PAUSED by director 2026-07-17 09:36: '일단 작업 중지해줘. 내가 레퍼런스를 찾아줄게' — he will supply a reference for the building FORM direction. Work halted cleanly; nothing in flight. RESUME when he sends the reference + says '루프 재개': set paused=false and /tick. STATE: Library 'stack-of-books' direction reached v3 (docs/design/spike-library-form-v3.png) — bottom 3 books read clearly as hardcover books (his 'make it look like a book' fix landed), but the open-book CROWN on top reads messy (sprawls + stray strip); that crown is the open item, plus applying the archetype to the other buildings (Gym=barbell) once form is locked. Pastel tone APPROVED. Renders history: v1 weak, v2 slabs, v3 books-good/crown-messy. Frugal path (single client-dev agent ae38e5432a455370b reusing BuildingKit) is the proven cheap loop for building iterations — do NOT run full workflows per building (3x token directive)."
 }

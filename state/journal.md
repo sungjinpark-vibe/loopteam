@@ -642,3 +642,12 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   messy. Did NOT preemptively spin another round (token concern); instead showed the director v3 and
   proactively flagged the crown with an offer to tidy the top only. Awaiting his call.
 - Handled cursor advanced to 1527451737357811833. Listener confirmed running (pid 8976).
+
+## Tick 32 — 2026-07-17 09:36 — director paused work; will supply a reference
+- Director (09:35): "일단 작업 중지해줘. 내가 레퍼런스를 찾아줄게" — stop work; he'll find a reference
+  for the building FORM direction. Set paused=true (kill switch), active_task=null, cursor advanced to
+  1527473833580167268. Acked in Korean: work saved to files, resume on his "루프 재개" + reference.
+- No polling scheduled — honors "중지" + the 3x token concern. Loop resumes when he restarts it (as he
+  did at the start of this session). All state in files; v3 render + BuildingKit primitives committed.
+- Open on resume: (1) tidy the messy open-book crown, or re-shape per his incoming reference; (2) once
+  the Library form is locked, apply the archetype to the other buildings (Gym=barbell) on the frugal path.
