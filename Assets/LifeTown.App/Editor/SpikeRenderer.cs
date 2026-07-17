@@ -46,6 +46,7 @@ namespace LifeTown.App.Editor
         const string MindSceneAssetPath = ScenesFolder + "/SpikeMind.unity";
         const string GameSceneAssetPath = ScenesFolder + "/SpikeGame.unity";
         const string VillageSceneAssetPath = ScenesFolder + "/SpikeVillage.unity";
+        const string VillageV2SceneAssetPath = ScenesFolder + "/SpikeVillageV2.unity";
         const string OutputFileName = "spike-building.png";
         const string GymOutputFileName = "spike-gym.png";
         const string StudyOutputFileName = "spike-study.png";
@@ -54,6 +55,7 @@ namespace LifeTown.App.Editor
         const string MindOutputFileName = "spike-mind.png";
         const string GameOutputFileName = "spike-game.png";
         const string VillageOutputFileName = "spike-village-v1.png";
+        const string VillageV2OutputFileName = "spike-village-v2.png";
 
         // The village render is landscape (a whole-plot scene, not one square cottage)
         // and its approved final location is docs/design (a director deliverable), not
@@ -142,13 +144,41 @@ namespace LifeTown.App.Editor
         ///     -executeMethod LifeTown.App.Editor.SpikeRenderer.RenderVillagePng
         ///     -logFile "C:\Users\user\loop_engine\lifetown\Logs\spike-render-village.log"
         ///
-        /// Output: docs/design/spike-village-v1.png (the director deliverable location,
-        /// not Logs/ -- this render IS the artifact being reviewed, unlike the
-        /// per-building spikes which are dev-facing scratch renders). Also saves
-        /// Assets/LifeTown.App/Scenes/SpikeVillage.unity.
+        /// Output: docs/design/spike-village-v1.png. Kept working per the v2 polish
+        /// brief's own instruction ("don't break existing renders") -- it now reflects
+        /// VillageLayoutBuilder's current (v2-polished) composition rather than a frozen
+        /// v1 snapshot, since there is only one village layout, not two forks of it. See
+        /// <see cref="RenderVillageV2Png"/> for the v2-specific output file the director
+        /// actually asked to review this round.
         /// </summary>
         [MenuItem("LifeTown/Spike/Render Village PNG")]
         public static void RenderVillagePng()
+        {
+            RenderVillageScene(VillageSceneAssetPath, VillageOutputFileName);
+        }
+
+        /// <summary>
+        /// Same pipeline as <see cref="RenderVillagePng"/>, same scene content (there is
+        /// only one <see cref="VillageLayoutBuilder"/> layout) -- just a distinct output
+        /// file/scene-asset path so the director's "render to a NEW file
+        /// docs/design/spike-village-v2.png" ask doesn't require overwriting or deleting
+        /// the v1 artifact.
+        ///
+        /// Exact command:
+        ///   "C:\Program Files\Unity\Hub\Editor\6000.5.1f1\Editor\Unity.exe" -batchmode -quit
+        ///     -projectPath "C:\Users\user\loop_engine\lifetown"
+        ///     -executeMethod LifeTown.App.Editor.SpikeRenderer.RenderVillageV2Png
+        ///     -logFile "C:\Users\user\loop_engine\lifetown\Logs\spike-render-village-v2.log"
+        ///
+        /// Output: docs/design/spike-village-v2.png.
+        /// </summary>
+        [MenuItem("LifeTown/Spike/Render Village V2 PNG")]
+        public static void RenderVillageV2Png()
+        {
+            RenderVillageScene(VillageV2SceneAssetPath, VillageV2OutputFileName);
+        }
+
+        static void RenderVillageScene(string sceneAssetPath, string outputFileName)
         {
             RenderTexture rt = null;
             Texture2D tex = null;
@@ -158,21 +188,22 @@ namespace LifeTown.App.Editor
             {
                 var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-                // Ground plane / camera sized for VillageLayoutBuilder's actual footprint
-                // (buildings at X = +/-3.3 and +/-1.1 (front row) / 0, +/-2.18 (back row),
-                // Z = +/-1.3, each cottage's own tier ring adding ~0.95 radius beyond its
-                // center) -- generous margin over the tight single-building framing since
-                // this is a whole plot, not one cottage filling the frame.
+                // Camera sized for VillageLayoutBuilder's actual footprint (buildings at
+                // X = +/-1.1/+/-3.3 (front row) and 0/+/-2.2 (back row), Z = +/-1.3, each
+                // cottage's own tier ring adding ~0.95 radius beyond its center) --
+                // generous margin over the tight single-building framing since this is a
+                // whole plot, not one cottage filling the frame. The ground itself is no
+                // longer built here (see IsoSceneSetup.BuildVillageScene's own doc) --
+                // VillageLayoutBuilder.Build owns it now, as part of village composition.
                 cam = IsoSceneSetup.BuildVillageScene(
                     center: Vector3.zero,
-                    groundSize: new Vector2(10.5f, 6.5f),
                     orthoSize: 3.35f,
                     cameraDistance: 16f,
                     focusHeight: 0.22f);
 
                 VillageLayoutBuilder.Build(null);
 
-                SaveSceneAsset(scene, VillageSceneAssetPath);
+                SaveSceneAsset(scene, sceneAssetPath);
 
                 rt = new RenderTexture(VillageWidth, VillageHeight, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
@@ -186,7 +217,7 @@ namespace LifeTown.App.Editor
                 RenderTexture.active = prevActive;
 
                 byte[] png = tex.EncodeToPNG();
-                string outPath = Path.Combine(DesignDocsDir(), VillageOutputFileName);
+                string outPath = Path.Combine(DesignDocsDir(), outputFileName);
                 File.WriteAllBytes(outPath, png);
 
                 Debug.Log($"[SpikeRenderer] wrote {png.Length} bytes to {outPath}");

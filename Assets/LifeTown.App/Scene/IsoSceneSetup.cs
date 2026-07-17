@@ -42,16 +42,19 @@ namespace LifeTown.App.Scene
 
         /// <summary>
         /// Same iso direction/light/ambient as <see cref="BuildScene"/>, sized for a whole
-        /// village instead of one cottage: a rectangular ground plane big enough to hold
-        /// several buildings (instead of the single fixed 2x2 tile) and a much larger,
-        /// further-back orthographic camera so the whole village bounding box fits in
-        /// frame. `groundSize` is (width along world X, depth along world Z);
-        /// `orthoSize`/`cameraDistance` are picked per-scene by the caller (the village
-        /// layout knows its own footprint, this method has no opinion on scale).
+        /// village instead of one cottage: a much larger, further-back orthographic camera
+        /// so the whole village bounding box fits in frame. Deliberately builds NO ground
+        /// of its own (v1 did, via a single flat mint box) -- the village's ground is now
+        /// a first-class part of the village composition itself (grass/soil bevel, tone
+        /// variation, path network, scattered props -- see
+        /// <see cref="LifeTown.App.Village.VillageLayoutBuilder"/>), not generic scene
+        /// furniture, so building it here would just leave a stray flat slab underneath
+        /// the real one. `orthoSize`/`cameraDistance` are picked per-scene by the caller
+        /// (the village layout knows its own footprint, this method has no opinion on
+        /// scale).
         /// </summary>
-        public static Camera BuildVillageScene(Vector3 center, Vector2 groundSize, float orthoSize, float cameraDistance, float focusHeight)
+        public static Camera BuildVillageScene(Vector3 center, float orthoSize, float cameraDistance, float focusHeight)
         {
-            BuildGroundPlane(center, groundSize);
             BuildLight();
             ApplyAmbient();
             return BuildVillageCamera(center + Vector3.up * focusHeight, orthoSize, cameraDistance);
@@ -64,16 +67,6 @@ namespace LifeTown.App.Scene
             tile.transform.position = center + new Vector3(0f, -0.025f, 0f);
             tile.transform.localScale = new Vector3(2.0f, 0.05f, 2.0f);
             var mat = MaterialFactory.CreateFlatLit("GroundTile_Mat", CategoryPalette.FromHex("#BFE6CC"));
-            tile.GetComponent<MeshRenderer>().sharedMaterial = mat;
-        }
-
-        static void BuildGroundPlane(Vector3 center, Vector2 size)
-        {
-            var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            tile.name = "VillageGround";
-            tile.transform.position = center + new Vector3(0f, -0.025f, 0f);
-            tile.transform.localScale = new Vector3(size.x, 0.05f, size.y);
-            var mat = MaterialFactory.CreateFlatLit("VillageGround_Mat", CategoryPalette.FromHex("#BFE6CC"));
             tile.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
 
