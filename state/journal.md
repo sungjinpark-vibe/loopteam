@@ -767,3 +767,15 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   the big village-screen build speculatively (token stewardship — it's a large, direction-heavy build I
   teed up as a question). Sent ONE gentle nudge at idle #3 (tick 39) listing the two pending choices
   (village screen / Work-wall polish), then going quiet. Backing off; will keep silent 30-min heartbeat.
+
+## Tick 40 — 2026-07-17 15:37 — director: assemble the village; village scene v1 building
+- Director (15:26): "실제 마을로 올려줘" — go on the next milestone: the actual village screen. Cursor
+  -> 1527562000996241529. Acked (assembling 7 buildings into one iso village, layout-first pass).
+- Chose the frugal path (not the full quality-loop workflow): this first pass is a visual layout/
+  composition, same nature as the buildings — consistent + token-conscious. Reserve the workflow for the
+  later interactive/data-driven village build. Resumed a4425 (has all 7 builders + SpikeRenderer).
+- Brief: new RenderVillagePng + SpikeVillage scene, larger iso ground + weaving path + light cozy props,
+  7 buildings placed in a pleasing arrangement (staggered rows / central green), one camera framing all,
+  wide render to docs/design/spike-village-v1.png. STATIC only - no gameplay/data (scope discipline;
+  VISION 11.3 over-scope caution). Keep the 7 per-building renders working. Gate green required.
+- Building in background; on landing: view -> gate -> show director.
