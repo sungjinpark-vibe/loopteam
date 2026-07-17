@@ -12,12 +12,13 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: **PAUSED (`paused: true`), tick 32** — director said 09:36 "일단 작업 중지해줘. 내가
-  레퍼런스를 찾아줄게". He'll supply a reference for the building FORM direction. Nothing in flight.
-  **RESUME**: when he sends the reference + "루프 재개" → set `paused=false` + `/tick`. Library reached
-  **v3** (`spike-library-form-v3.png`): bottom 3 books read clearly as hardcover books (his "책처럼"
-  fix landed); the open-book CROWN on top still reads messy — that + applying the archetype to other
-  buildings (Gym=barbell) are the open items, pending his reference.
+- **Status**: Running (`paused: false`), tick 33. **Director sent a REFERENCE** (11:21, saved to
+  `docs/design/references/library-cottage-ref.png`): a cozy **storybook cottage BUILT of books** —
+  walls = colorful book-spine rows, roof = a giant open book ("지혜의 지붕"), open-book window awnings,
+  warm-lit windows, chimney, arched door. Big shift from our v3 bare-stack. **client-dev is building
+  v4** (`spike-library-cottage-v4.png`) in the background, reusing BuildingKit. We're stylized 3D, not
+  photoreal — capture form + cozy feeling. On landing → view → gate → show director. If it lands, the
+  cottage-of-books becomes the archetype for the other buildings.
 - **Main objective**: Build Life Town (Unity) to the point the 5-expert playtest gate passes (avg ≥90,
   floor 80). Shipping to a store is **deferred** (D7 — director said "일단 만들기만"), so completion is
   the playtest gate, not a store install.
