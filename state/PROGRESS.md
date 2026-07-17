@@ -12,13 +12,14 @@ Updated by the PM at the end of every tick. Direction lives in `VISION.md`, the 
 ---
 
 ## Current State
-- **Status**: Running (`paused: false`), tick 33. **Director sent a REFERENCE** (11:21, saved to
-  `docs/design/references/library-cottage-ref.png`): a cozy **storybook cottage BUILT of books** —
-  walls = colorful book-spine rows, roof = a giant open book ("지혜의 지붕"), open-book window awnings,
-  warm-lit windows, chimney, arched door. Big shift from our v3 bare-stack. **client-dev is building
-  v4** (`spike-library-cottage-v4.png`) in the background, reusing BuildingKit. We're stylized 3D, not
-  photoreal — capture form + cozy feeling. On landing → view → gate → show director. If it lands, the
-  cottage-of-books becomes the archetype for the other buildings.
+- **Status**: Running (`paused: false`), tick 35. **LIBRARY APPROVED + LOCKED** at v5 (director "좋아.
+  다음 진행해줘" 12:48). The **cottage-of-category-objects** is the locked building archetype: each
+  building is a cozy cottage BUILT of its category's objects (Library = books: spine walls + open-book
+  roof). **Gym cottage v1 building now** (`spike-gym-cottage-v1.png`) — sibling cottage built of gym
+  equipment (weight-plate/dumbbell walls, barbell roof ridge). On landing → view → gate → show director.
+- Building archetype reference (director's): `docs/design/references/library-cottage-ref.png`. Renders
+  of the Library evolution: v1/v2/v3 (stack attempts) → v4 (cottage) → **v5 (locked)** =
+  `docs/design/spike-library-cottage-v5.png`.
 - **Main objective**: Build Life Town (Unity) to the point the 5-expert playtest gate passes (avg ≥90,
   floor 80). Shipping to a store is **deferred** (D7 — director said "일단 만들기만"), so completion is
   the playtest gate, not a store install.

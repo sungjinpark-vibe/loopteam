@@ -703,3 +703,17 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   proposed moving to the other buildings (Gym = a house built of gym equipment) as the archetype spreads.
 - Frugal path held throughout (one resumed client-dev agent, PM check + honest disclosure, no full
   workflows). Token-heavy building though: v4 323k + v5 379k — the visual iteration is the real cost.
+
+## Tick 35 — 2026-07-17 12:51 — Library LOCKED at v5; Gym cottage started
+- Director (12:48): "좋아. 다음 진행해줘" — APPROVED Library v5, proceed to next. Library locked; the
+  cottage-of-category-objects is now the confirmed building archetype. Cursor -> 1527522408171573390.
+- Picked Gym as the next building (natural next; already existed in the old emblem style). Did NOT block
+  to ask which category — told the director I'm doing the Gym and to redirect if he wants another first.
+- Resumed client-dev ae38e5432a455370b (has the full cottage architecture + BuildingKit) for the Gym as
+  the Library's SIBLING: reuse all structural primitives; new theme = built of gym equipment. Walls =
+  weight-plate/dumbbell/kettlebell wall (mirror CreateBookSpineWall), roof ridge = a BARBELL (the
+  'says gym at a glance' icon, like the open-book roof says library), one pink coquette accent, same
+  cozy details (warm windows, chimney, plant, sign, ground gear pile). New GymBuildingBuilder so the
+  Library stays intact; both must still render. New reusable primitives (CreateEquipmentWall,
+  CreateWeightPlateStack, CreateDumbbell, CreateKettlebell, CreateBarbell). Building v1 in background.
+- This establishes the per-building pattern: same cottage shell, category-specific object wall + roof icon.
