@@ -717,3 +717,17 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   Library stays intact; both must still render. New reusable primitives (CreateEquipmentWall,
   CreateWeightPlateStack, CreateDumbbell, CreateKettlebell, CreateBarbell). Building v1 in background.
 - This establishes the per-building pattern: same cottage shell, category-specific object wall + roof icon.
+
+## Tick 35 (cont.) — 13:02 — Gym cottage v1 landed, sent to director
+- client-dev Gym v1 (442k): second building in the locked archetype. Same cottage massing as Library;
+  walls clad in equipment (plate stacks/dumbbells/kettlebells), a loaded BARBELL along the roof ridge
+  as the gym icon, pink towel accent, matching cozy details. New reusable primitives (CreatePlateDisc,
+  CreateWeightPlateStack, CreateDumbbell, CreateKettlebell, CreateBarbell, CreateEquipmentWall). Full
+  rewrite of the old flat-roof GymBuildingBuilder; Library render intact. Gate PASS (compile 0, 81/81).
+  Committed lifetown 294b58c.
+- PM view: barbell roof is a strong win (instant 'gym', parallels the open-book roof), sibling
+  consistency good. HONEST GAP: equipment walls too sparse vs the Library's dense book-spine walls —
+  reads as a decorated cabin, not built-of-equipment. Did NOT auto-spend another ~400k refine; showed
+  director + asked whether to pack walls denser (I know the fix: mirror CreateBookSpineWall density).
+- Token note: building rounds are 320-450k each. The per-building visual iteration is the dominant cost;
+  the structural archetype reuse is what keeps each new building from being a from-scratch workflow.
