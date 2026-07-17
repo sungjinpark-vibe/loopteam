@@ -5,37 +5,35 @@ using LifeTown.App.Scene;
 namespace LifeTown.App.Buildings
 {
     /// <summary>
-    /// Library (독서/Reading category) -- v4 reshape, a bigger concept change than v2/v3's
-    /// tuning passes. Director reference: docs/design/references/library-cottage-ref.png.
-    /// v1-v3 were all "a stack of books" (see those files' own history notes); the
-    /// director approved that concept's underlying material -- books -- but asked for a
-    /// different WHOLE: not a bare stack, but a cozy storybook COTTAGE built out of that
-    /// material. So v4 keeps a house's actual anatomy (walls + gabled roof + door +
-    /// windows + chimney) and re-skins every part in books:
+    /// Library (독서/Reading category) -- cottage-built-from-books archetype, approved at
+    /// v4 (director reference: docs/design/references/library-cottage-ref.png). v5 is a
+    /// REFINE of v4, not a rebuild: cottage massing, roof, door, chimney all unchanged.
+    /// The only ask was "push book realism" -- v4's walls read as a flat grid of
+    /// uniform-color rectangles, not books, even though each cell WAS a separate colored
+    /// box. See <see cref="BuildingPrimitives.CreateBookSpineWall"/>'s own doc comment for
+    /// the specific cues added (title bands, varied width/height, shelf shadows,
+    /// horizontal wedges) -- that primitive is where essentially all of this round's work
+    /// lives; this builder only changed its palette (deeper vintage-leather tones instead
+    /// of v4's flatter set) and widened the entrance book piles.
     ///
-    /// 1. Walls = <see cref="BuildingPrimitives.CreateBookSpineWall"/> -- packed rows of
-    ///    colorful book spines cladding the front and side faces of an ordinary wood-tone
-    ///    wall box. This is the signature cue the reference leads with.
+    /// 1. Walls = <see cref="BuildingPrimitives.CreateBookSpineWall"/> cladding the front
+    ///    and side faces of an ordinary wood-tone wall box.
     /// 2. Roof = <see cref="BuildingPrimitives.CreateOpenBookRoof"/> -- a whole gable
-    ///    recolored as an open book ("Roof of Wisdom" in the reference). Built on
-    ///    CreateGableRoof's proven single-prism shape rather than v2/v3's
-    ///    CreateOpenBookCrown (two independently rotated boxes): that primitive has no
-    ///    gable-end wall, which small-scale uses never exposed but which left a real
-    ///    gap at whole-roof scale (see CreateOpenBookRoof's own doc comment).
+    ///    recolored as an open book ("Roof of Wisdom" in the reference), with faint
+    ///    varied-length line hatching this round (subtle -- reads as a printed page).
     /// 3. Small open-book awnings (<see cref="BuildingPrimitives.CreateOpenBookAwning"/>)
     ///    canopy the two windows.
     /// 4. Cozy extras within a stylized low-poly budget: warm amber-glass windows (<see
     ///    cref="BuildingPrimitives.CreateArchedWindow"/>, reused for the door too), a
     ///    chimney with a two-puff smoke curl, a hanging signboard over the door, potted
-    ///    plants by the entrance, and a small loose stack of books
-    ///    (<see cref="BuildingPrimitives.CreateBookVolume"/>, v3's book-cover primitive)
-    ///    beside the steps.
+    ///    plants, and (widened this round) three small loose book piles around the
+    ///    entrance (<see cref="BuildBookPile"/>, built on v3's CreateBookVolume).
     ///
     /// The one coquette touch (brief: keep exactly one) is the pink ribbon bookmark,
-    /// carried over from v2/v3 but now tucked under the roof's front eave instead of
-    /// between two stacked books. Camera, ground tile, and the purple tier ring are
-    /// unchanged -- the ring stays the category's own purple rather than the cottage's
-    /// warm palette, per the brief's explicit "keep the purple glow ring."
+    /// hanging from the roof's own front gable-cap face. Camera, ground tile, and the
+    /// purple tier ring are unchanged -- the ring stays the category's own purple rather
+    /// than the cottage's warm palette, per the brief's explicit "keep the purple glow
+    /// ring."
     /// </summary>
     public static class LibraryBuildingBuilder
     {
@@ -47,23 +45,26 @@ namespace LifeTown.App.Buildings
 
             var colors = CategoryPalette.Get(BuildingCategory.Reading);
 
-            // Warm storybook-cottage palette (brief: keep the pastel base but warm it and
-            // enrich the book-spine colors -- these are deliberately more saturated than
-            // the flat single-hue lilac v2/v3 used, because the wall's whole job now is to
-            // look like "many different colorful books", not one uniform tone).
+            // Vintage-leather library palette -- v5 revision (director: "push book
+            // realism", the v4 palette read as flat candy colors). Deeper, more muted
+            // saturated tones than v4's brighter set -- deep burgundy/red, olive/forest
+            // green, navy, dark teal, mustard/gold, leather brown, aubergine (ties back to
+            // the category's own purple identity) -- the kind of colors real old hardcover
+            // bindings actually come in, not a bright poster palette.
             Color[] spinePalette =
             {
-                CategoryPalette.FromHex("#C1543F"), // brick red
-                CategoryPalette.FromHex("#4C8C6B"), // forest green
-                CategoryPalette.FromHex("#D9A441"), // mustard gold
-                CategoryPalette.FromHex("#3D8F94"), // teal
-                CategoryPalette.FromHex("#8B5E3C"), // warm brown
-                CategoryPalette.FromHex("#7A5A8C"), // plum -- ties back to the category's own purple identity
-                CategoryPalette.FromHex("#C97B84"), // dusty rose
-                CategoryPalette.FromHex("#EADFC5"), // cream
-                CategoryPalette.FromHex("#3E5C82"), // navy
-                CategoryPalette.FromHex("#A8763E"), // amber brown
+                CategoryPalette.FromHex("#7A2E2E"), // deep burgundy red
+                CategoryPalette.FromHex("#3F5E3B"), // forest green
+                CategoryPalette.FromHex("#22405E"), // navy
+                CategoryPalette.FromHex("#2C5A5C"), // dark teal
+                CategoryPalette.FromHex("#B8863A"), // mustard gold
+                CategoryPalette.FromHex("#6B4A2D"), // leather brown
+                CategoryPalette.FromHex("#5C3A5C"), // aubergine -- ties back to the category's own purple identity
+                CategoryPalette.FromHex("#D8C7A1"), // muted cream/vellum
+                CategoryPalette.FromHex("#8C3B3B"), // brick red
+                CategoryPalette.FromHex("#4A5A3A"), // olive
             };
+            Color titleGold = CategoryPalette.FromHex("#D4AF6A"); // classic gold hardcover title band
             Color wallBacking = CategoryPalette.FromHex("#5C4430"); // dark warm wood, seam backing
             Color woodTrim = CategoryPalette.FromHex("#8B6B4A");    // warm wood body tone (visible at margins)
             Color roofCover = CategoryPalette.FromHex("#7A4B32");   // leatherbound "roof book" cover
@@ -93,7 +94,7 @@ namespace LifeTown.App.Buildings
             // narrow wood margin top/bottom/sides as a "frame" around the cladding. ----
             Vector3 frontWallSize = new Vector3(bodySize.x * 0.93f, bodySize.y * 0.74f, 0.05f);
             Vector3 frontWallBase = new Vector3(baseOrigin.x, baseOrigin.y + bodySize.y * 0.10f, frontZ + 0.012f);
-            BuildingPrimitives.CreateBookSpineWall("FrontSpines", root.transform, frontWallSize, frontWallBase, spinePalette, wallBacking, columns: 10, rows: 2);
+            BuildingPrimitives.CreateBookSpineWall("FrontSpines", root.transform, frontWallSize, frontWallBase, spinePalette, wallBacking, titleGold, pageCream, columns: 10, rows: 2);
 
             // ---- Side wall (+X, the face the iso camera actually sees): same panel,
             // built in its native front-facing orientation then rotated 90 degrees around
@@ -102,7 +103,7 @@ namespace LifeTown.App.Buildings
             // becomes world Z and its thin proud axis (wallSize.z) becomes world X. ----
             Vector3 sideWallSize = new Vector3(bodySize.z * 0.90f, bodySize.y * 0.74f, 0.05f);
             Vector3 sideWallBase = new Vector3(sideX + 0.012f, baseOrigin.y + bodySize.y * 0.10f, baseOrigin.z);
-            var sideSpines = BuildingPrimitives.CreateBookSpineWall("SideSpines", root.transform, sideWallSize, sideWallBase, spinePalette, wallBacking, columns: 6, rows: 2);
+            var sideSpines = BuildingPrimitives.CreateBookSpineWall("SideSpines", root.transform, sideWallSize, sideWallBase, spinePalette, wallBacking, titleGold, pageCream, columns: 6, rows: 2);
             sideSpines.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
 
             // ---- Roof: CreateOpenBookRoof ("Roof of Wisdom") -- a single continuous
@@ -161,19 +162,18 @@ namespace LifeTown.App.Buildings
             Vector3 chimneyBase = new Vector3(baseOrigin.x + 0.34f, ridgeTopY - 0.10f, baseOrigin.z - 0.18f);
             BuildChimney(root.transform, chimneyBase, stoneColor, smokeColor);
 
-            // ---- Entrance dressing: a potted plant on each side of the door, and a small
-            // loose stack of 2 books beside the steps (CreateBookVolume, v3's book-cover
-            // primitive, reused here for "any stacked books" per the brief). ----
+            // ---- Entrance dressing: a potted plant on each side of the door, and several
+            // small loose piles of books around the steps/corners (CreateBookVolume, v3's
+            // book-cover primitive, reused here for "any stacked books" per the brief) --
+            // widened from v4's single 2-book stack to a few piles, per the v5 brief's
+            // "expand into a few small piles of 2-4 books". Cheap richness: reference
+            // shows loose piles scattered exactly like this at the cottage's base. ----
             BuildPottedPlant(root.transform, new Vector3(baseOrigin.x - 0.34f, baseOrigin.y, frontZ + 0.10f), potColor, leafColor);
             BuildPottedPlant(root.transform, new Vector3(baseOrigin.x + 0.40f, baseOrigin.y, frontZ + 0.10f), potColor, leafColor);
 
-            Vector3 miniStackBase = new Vector3(baseOrigin.x - 0.46f, baseOrigin.y, frontZ + 0.02f);
-            BuildingPrimitives.CreateBookVolume("MiniStackBook1", root.transform,
-                new Vector3(0.16f, 0.05f, 0.12f), miniStackBase, spinePalette[1], pageCream, wallBacking, 2);
-            float miniTop1Y = miniStackBase.y + 0.05f;
-            BuildingPrimitives.CreateBookVolume("MiniStackBook2", root.transform,
-                new Vector3(0.13f, 0.045f, 0.10f), new Vector3(miniStackBase.x + 0.01f, miniTop1Y, miniStackBase.z), spinePalette[4], pageCream, wallBacking, 2)
-                .transform.rotation = Quaternion.Euler(0f, 8f, 0f);
+            BuildBookPile(root.transform, "PileA", new Vector3(baseOrigin.x - 0.46f, baseOrigin.y, frontZ + 0.02f), spinePalette, pageCream, wallBacking, 3, 1);
+            BuildBookPile(root.transform, "PileB", new Vector3(baseOrigin.x - 0.58f, baseOrigin.y, frontZ - 0.06f), spinePalette, pageCream, wallBacking, 2, 6);
+            BuildBookPile(root.transform, "PileC", new Vector3(sideX + 0.02f, baseOrigin.y, baseOrigin.z + 0.30f), spinePalette, pageCream, wallBacking, 3, 3);
 
             // ---- Coquette touch: the pink ribbon bookmark, hanging from the roof's own
             // front gable-cap face (the open book's cover edge) -- an open, uncluttered
@@ -225,6 +225,34 @@ namespace LifeTown.App.Buildings
             var leaf = BuildingPrimitives.CreateAccentBlob("PlantLeaf", parent, 0.055f,
                 new Vector3(baseCenter.x, baseCenter.y + potSize.y + 0.035f, baseCenter.z), leafColor);
             leaf.transform.localScale = new Vector3(1f, 1.3f, 1f);
+        }
+
+        /// <summary>
+        /// A small loose pile of `bookCount` books (<see cref="BuildingPrimitives.CreateBookVolume"/>,
+        /// v3's book-cover primitive), stacked with a deterministic per-book size/offset/
+        /// yaw pattern (seeded by `seed`, no Random) so different piles don't look
+        /// identical -- generalizes v4's single hard-coded 2-book stack per the v5 brief's
+        /// "expand into a few small piles of 2-4 books" for entrance richness.
+        /// </summary>
+        static void BuildBookPile(Transform parent, string name, Vector3 baseCenter, Color[] palette, Color pageColor, Color inkColor, int bookCount, int seed)
+        {
+            float currentY = baseCenter.y;
+            float baseWidth = 0.15f, baseDepth = 0.11f, baseHeight = 0.05f;
+            for (int i = 0; i < bookCount; i++)
+            {
+                float shrink = 1f - i * 0.12f;
+                Vector3 size = new Vector3(baseWidth * shrink, baseHeight * (0.86f + (i % 2) * 0.10f), baseDepth * shrink);
+                float xNudge = ((seed + i * 5) % 7 - 3) * 0.006f;
+                float zNudge = ((seed + i * 3) % 5 - 2) * 0.005f;
+                Vector3 origin = new Vector3(baseCenter.x + xNudge, currentY, baseCenter.z + zNudge);
+                Color cover = palette[(seed + i * 2) % palette.Length];
+
+                var book = BuildingPrimitives.CreateBookVolume($"{name}_Book{i}", parent, size, origin, cover, pageColor, inkColor, 2);
+                float yaw = ((seed + i * 4) % 9 - 4) * 2.2f;
+                book.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+
+                currentY += size.y;
+            }
         }
 
         /// <summary>

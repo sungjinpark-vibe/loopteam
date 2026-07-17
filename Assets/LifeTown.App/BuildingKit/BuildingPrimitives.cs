@@ -203,21 +203,36 @@ namespace LifeTown.App.BuildingKit
         }
 
         /// <summary>
-        /// A wall panel clad in packed, colorful book spines -- the "cottage built out of
-        /// books" archetype's signature wall (docs/design/references/library-cottage-
-        /// ref.png): many short vertical boxes side by side, each a different saturated
-        /// color from the given palette, with small per-column height/depth jitter
-        /// (deterministic, not random, so the result is reproducible) so the row doesn't
-        /// read as a perfectly even stripe pattern the way v2/v3's page-line accents did.
-        /// A solid backing box in `backingColor` sits behind the spines so no gaps show
-        /// through. Built axis-aligned (spread along local/world X, thickness along
-        /// local/world Z, exactly like every other box primitive in this file) -- a
-        /// caller who needs it on a different wall (e.g. the building's +X side face)
+        /// A wall panel clad in packed book spines -- the "cottage built out of books"
+        /// archetype's signature wall (docs/design/references/library-cottage-ref.png).
+        /// v5 revision (director feedback on v4: "reads as a flat grid of uniform-color
+        /// rectangles, not books" -- true even though each cell WAS a separate colored
+        /// box, because uniform width/height/depth with no internal markings reads as a
+        /// stripe pattern, not a shelf). Every cue below targets that specific gap, in the
+        /// order the brief asked for:
+        ///
+        /// 1. Width AND height vary per spine (deterministic weight/bucket patterns, no
+        ///    Random) -- some tall, some short, some thin, some wide. A short spine gets a
+        ///    dark "shelf shadow" filling the gap above it, reading as the shelf's own
+        ///    recessed interior rather than empty space.
+        /// 2. A title band (`titleColor`, the classic gold hardcover label) sits ~1/3 down
+        ///    from each spine's own top, with a thinner embossing line just below it --
+        ///    this is the single cue that does the most work, called out explicitly in
+        ///    the brief.
+        /// 3. A minority of cells are "horizontal wedges" instead of vertical spines: 2-3
+        ///    flat books lying on their side, cream page-edge (`pageColor`) below a
+        ///    colored cover cap, wedged among the standing spines.
+        /// 4. Depth jitter (already present since v4, widened here) plus the 10-12% gap
+        ///    left between adjacent spines (exposing the recessed `backingColor` panel
+        ///    behind them) reads as the groove between separate books, not one surface.
+        ///
+        /// Built axis-aligned (spread along local/world X, thickness along local/world Z)
+        /// -- a caller who needs it on a different wall (e.g. the building's +X side face)
         /// rotates the returned GameObject afterward around its own pivot, same
         /// established pattern as <see cref="CreateOpenBookCrown"/>'s wings.
         /// `baseCenter` is the panel's bottom-center in world space.
         /// </summary>
-        public static GameObject CreateBookSpineWall(string name, Transform parent, Vector3 wallSize, Vector3 baseCenter, Color[] spineColors, Color backingColor, int columns = 10, int rows = 2)
+        public static GameObject CreateBookSpineWall(string name, Transform parent, Vector3 wallSize, Vector3 baseCenter, Color[] spineColors, Color backingColor, Color titleColor, Color pageColor, int columns = 10, int rows = 2)
         {
             var wallRoot = new GameObject(name);
             wallRoot.transform.SetParent(parent, false);
@@ -225,24 +240,110 @@ namespace LifeTown.App.BuildingKit
 
             CreateAccentBox($"{name}_Backing", wallRoot.transform, new Vector3(wallSize.x, wallSize.y, wallSize.z * 0.7f), baseCenter, backingColor);
 
-            float colWidth = wallSize.x / columns;
+            Color shelfShadow = Color.Lerp(backingColor, Color.black, 0.35f);
+            Color embossing = Color.Lerp(titleColor, Color.black, 0.30f);
+
             float rowHeight = wallSize.y / rows;
+            float nominalColWidth = wallSize.x / columns;
+            // Deterministic per-column width weights -- a repeating pattern (narrow,
+            // wide, normal, extra-wide, narrow) so widths visibly vary without any
+            // Random call, breaking the v4 uniform-grid look.
+            float[] widthWeights = { 0.72f, 1.30f, 0.95f, 1.35f, 0.78f };
+
             for (int r = 0; r < rows; r++)
             {
                 float rowBaseY = baseCenter.y + r * rowHeight;
+
+                float[] rawWidths = new float[columns];
+                float sum = 0f;
                 for (int c = 0; c < columns; c++)
                 {
-                    Color spineColor = spineColors[(c + r * 3) % spineColors.Length];
-                    float jitter = ((c * 7 + r * 13) % 5) * 0.006f;
-                    float spineHeight = rowHeight * (0.90f + jitter);
-                    float spineDepth = wallSize.z * ((c % 2 == 0) ? 1.18f : 1.0f);
-                    float x = baseCenter.x - wallSize.x * 0.5f + colWidth * (c + 0.5f);
+                    rawWidths[c] = widthWeights[(c + r * 2) % widthWeights.Length] * nominalColWidth;
+                    sum += rawWidths[c];
+                }
+                float scale = wallSize.x / sum; // rescale so the row still exactly fills wallSize.x
+
+                float cursorX = baseCenter.x - wallSize.x * 0.5f;
+                for (int c = 0; c < columns; c++)
+                {
+                    float colWidth = rawWidths[c] * scale;
+                    float cellCenterX = cursorX + colWidth * 0.5f;
+                    cursorX += colWidth;
+
+                    int seed = c + r * 3;
+                    bool isWedge = r == 0 && c % 4 == 3; // a minority of bottom-row cells
+
+                    float depthJitter = ((c * 7 + r * 13) % 5) * 0.006f;
+                    float spineDepth = wallSize.z * (0.92f + depthJitter);
+
+                    if (isWedge)
+                    {
+                        BuildHorizontalWedge($"{name}_Wedge_{r}_{c}", wallRoot.transform,
+                            cellCenterX, rowBaseY, rowHeight, colWidth, spineDepth, baseCenter.z,
+                            spineColors, seed, pageColor);
+                        continue;
+                    }
+
+                    // Height bucket -- a real "some tall, some short" spread (v4's was a
+                    // barely-visible +/-3% jitter), clamped so no spine exceeds its row.
+                    int heightBucket = (c * 5 + r * 11) % 4;
+                    float heightFactor = Mathf.Min(0.66f + heightBucket * 0.115f, 0.99f);
+                    float spineHeight = rowHeight * heightFactor;
+
+                    Color spineColor = spineColors[seed % spineColors.Length];
                     CreateAccentBox($"{name}_Spine_{r}_{c}", wallRoot.transform,
-                        new Vector3(colWidth * 0.86f, spineHeight, spineDepth),
-                        new Vector3(x, rowBaseY, baseCenter.z), spineColor);
+                        new Vector3(colWidth * 0.88f, spineHeight, spineDepth),
+                        new Vector3(cellCenterX, rowBaseY, baseCenter.z), spineColor);
+
+                    // Shelf shadow: fills the gap above a short spine with a dark
+                    // recessed strip -- reads as the shelf's own dark interior behind a
+                    // shorter book, not empty space.
+                    float shortfall = rowHeight - spineHeight;
+                    if (shortfall > 0.006f)
+                    {
+                        CreateAccentBox($"{name}_Shadow_{r}_{c}", wallRoot.transform,
+                            new Vector3(colWidth * 0.88f, shortfall, wallSize.z * 0.5f),
+                            new Vector3(cellCenterX, rowBaseY + spineHeight, baseCenter.z), shelfShadow);
+                    }
+
+                    // Title band + embossing line -- the classic hardcover label, ~1/3
+                    // down from THIS spine's own (possibly shortened) top. The single
+                    // strongest "this is a book, not a stripe" cue.
+                    float frontFaceZ = baseCenter.z + spineDepth * 0.5f;
+                    float bandY = rowBaseY + spineHeight * 0.62f;
+                    CreateAccentBox($"{name}_Band_{r}_{c}", wallRoot.transform,
+                        new Vector3(colWidth * 0.72f, spineHeight * 0.085f, 0.012f),
+                        new Vector3(cellCenterX, bandY, frontFaceZ + 0.006f), titleColor);
+                    CreateAccentBox($"{name}_Emboss_{r}_{c}", wallRoot.transform,
+                        new Vector3(colWidth * 0.52f, spineHeight * 0.026f, 0.010f),
+                        new Vector3(cellCenterX, bandY - spineHeight * 0.10f, frontFaceZ + 0.006f), embossing);
                 }
             }
             return wallRoot;
+        }
+
+        /// <summary>
+        /// A minority-cell filler for <see cref="CreateBookSpineWall"/>: 2-3 flat books
+        /// lying on their side, stacked to fill one cell -- cream page-edge below a
+        /// colored cover cap on top of each, wedged among the standing spines around it
+        /// (docs/design/references/library-cottage-ref.png shows several of these among
+        /// the vertical runs).
+        /// </summary>
+        static void BuildHorizontalWedge(string name, Transform parent, float cellCenterX, float rowBaseY, float rowHeight, float colWidth, float depth, float centerZ, Color[] colors, int seed, Color pageColor)
+        {
+            int bookCount = 2 + (seed % 2); // 2 or 3 flat books, deterministic per cell
+            float bookHeight = (rowHeight * 0.94f) / bookCount;
+            for (int i = 0; i < bookCount; i++)
+            {
+                float y = rowBaseY + i * bookHeight;
+                Color cover = colors[(seed + i * 2 + 1) % colors.Length];
+                CreateAccentBox($"{name}_Page{i}", parent,
+                    new Vector3(colWidth * 0.90f, bookHeight * 0.76f, depth),
+                    new Vector3(cellCenterX, y, centerZ), pageColor);
+                CreateAccentBox($"{name}_Cover{i}", parent,
+                    new Vector3(colWidth * 0.90f, bookHeight * 0.24f, depth * 1.02f),
+                    new Vector3(cellCenterX, y + bookHeight * 0.76f, centerZ), cover);
+            }
         }
 
         /// <summary>
@@ -388,7 +489,12 @@ namespace LifeTown.App.BuildingKit
         public static GameObject CreateOpenBookRoof(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color coverColor, Color pageColor, Color inkColor, int lineCount = 5)
         {
             Color spineTone = Color.Lerp(coverColor, Color.black, 0.15f);
-            Color lineColor = Color.Lerp(pageColor, inkColor, 0.35f);
+            // Lighter than v4's 0.35 blend -- the brief asks for this to read as faint
+            // printed text, not a bold accent stripe.
+            Color lineColor = Color.Lerp(pageColor, inkColor, 0.22f);
+            // A repeating length pattern so the lines read as a block of text with
+            // varying line-lengths (a paragraph), not a uniform ruled ledger.
+            float[] lineLengthWeights = { 0.90f, 0.62f, 0.80f, 0.55f, 0.85f, 0.70f };
 
             var roof = CreateGableRoofCustomTones(name, parent, size, baseCenter, pageColor, coverColor, coverColor);
 
@@ -413,8 +519,9 @@ namespace LifeTown.App.BuildingKit
                     float t = i / (float)(lineCount + 1);
                     Vector3 pointOnSlope = ridgeCenter + slopeVector * t + outwardNormal * 0.014f;
 
+                    float lengthWeight = lineLengthWeights[(i + (side > 0f ? 3 : 0)) % lineLengthWeights.Length];
                     var line = CreateAccentBox($"{name}_Line{tag}{i}", parent,
-                        new Vector3(size.x * 0.022f, 0.008f, size.z * 0.9f),
+                        new Vector3(size.x * 0.022f, 0.008f, size.z * 0.9f * lengthWeight),
                         pointOnSlope - Vector3.up * 0.004f, lineColor);
                     line.transform.rotation = rotation;
                 }
