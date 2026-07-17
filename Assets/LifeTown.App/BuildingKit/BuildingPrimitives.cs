@@ -804,5 +804,672 @@ namespace LifeTown.App.BuildingKit
             pb.transform.position = worldPosition;
             return pb.gameObject;
         }
+
+        // ================================================================
+        // T004 #5 -- the 5 remaining category cottages (Study/Work/Hobby/
+        // Mind/Game). One generic dense-wall layout primitive (the shared
+        // skeleton behind CreateBookSpineWall/CreateEquipmentWall, factored
+        // out so five new archetypes don't each reinvent the column/row math)
+        // plus the per-category object primitives each wall clads itself
+        // with. Every object primitive follows the kit's established rules:
+        // pure function of (size, position, color), axis-driven via
+        // Quaternion.FromToRotation for anything elongated, and the
+        // "trueCenter" convention already used throughout this file for
+        // rotated pieces -- pass baseCenter = trueCenter - Vector3.up *
+        // (size.y * 0.5f) to whichever Create* call builds the piece, THEN
+        // set .rotation on the returned object; Finish() re-adds the same
+        // half-size offset before rotation is ever applied, so the piece
+        // always lands exactly on trueCenter regardless of what rotation
+        // the caller sets afterward.
+        // ================================================================
+
+        /// <summary>
+        /// Generic packed object-wall layout -- the shared column/row skeleton behind
+        /// <see cref="CreateBookSpineWall"/> and <see cref="CreateEquipmentWall"/>, factored
+        /// out so every new cottage archetype gets the same "deterministic varied-width
+        /// columns, edge to edge, no gaps" density for free instead of re-deriving it.
+        /// `buildCell` is invoked once per cell with (cellParent, cellCenterX, rowBaseY,
+        /// rowHeight, colWidth, wallDepth, cellFrontZ, seed) and owns filling that cell --
+        /// keeping it visually dense (no empty cells) is the caller's responsibility, this
+        /// primitive only owns the packed layout math.
+        /// </summary>
+        public static GameObject CreateItemWall(string name, Transform parent, Vector3 wallSize, Vector3 baseCenter, Color backingColor, int columns, int rows, System.Action<Transform, float, float, float, float, float, float, int> buildCell)
+        {
+            var wallRoot = new GameObject(name);
+            wallRoot.transform.SetParent(parent, false);
+            wallRoot.transform.position = baseCenter;
+
+            CreateAccentBox($"{name}_Backing", wallRoot.transform, new Vector3(wallSize.x, wallSize.y, wallSize.z * 0.6f), baseCenter, backingColor);
+
+            float rowHeight = wallSize.y / rows;
+            float nominalColWidth = wallSize.x / columns;
+            float[] widthWeights = { 0.85f, 1.22f, 0.95f, 1.15f, 0.88f };
+
+            for (int r = 0; r < rows; r++)
+            {
+                float rowBaseY = baseCenter.y + r * rowHeight;
+
+                float[] rawWidths = new float[columns];
+                float sum = 0f;
+                for (int c = 0; c < columns; c++)
+                {
+                    rawWidths[c] = widthWeights[(c + r * 2) % widthWeights.Length] * nominalColWidth;
+                    sum += rawWidths[c];
+                }
+                float scale = wallSize.x / sum;
+
+                float cursorX = baseCenter.x - wallSize.x * 0.5f;
+                for (int c = 0; c < columns; c++)
+                {
+                    float colWidth = rawWidths[c] * scale;
+                    float cellCenterX = cursorX + colWidth * 0.5f;
+                    cursorX += colWidth;
+
+                    int seed = c + r * 5;
+                    float cellFrontZ = baseCenter.z + wallSize.z * 0.5f;
+                    buildCell(wallRoot.transform, cellCenterX, rowBaseY, rowHeight, colWidth, wallSize.z, cellFrontZ, seed);
+                }
+            }
+            return wallRoot;
+        }
+
+        // ---- Study: notebooks / pencils / rulers / graduation cap ----
+
+        /// <summary>
+        /// A notebook: <see cref="CreateBookVolume"/>'s vertical-spine cousin, distinguished
+        /// from the Library's book spines by a row of small spiral-binding rings along the
+        /// top edge (a real notebook's binding) instead of a title band, and a cream
+        /// page-edge strip peeking out along the bottom instead of an inset page panel --
+        /// deliberately NOT reusing CreateBookVolume's silhouette so the Study wall reads
+        /// as stationery, not more books.
+        /// </summary>
+        public static GameObject CreateNotebook(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color coverColor, Color spiralColor, Color pageColor)
+        {
+            Color topTone = Color.Lerp(coverColor, Color.white, 0.30f);
+            Color frontTone = Color.Lerp(coverColor, Color.white, 0.14f);
+            Color sideTone = Color.Lerp(coverColor, Color.black, 0.16f);
+            var notebook = CreateShadedBoxCustomTones(name, parent, size, baseCenter, topTone, frontTone, sideTone);
+
+            float frontZ = baseCenter.z + size.z * 0.5f + 0.005f;
+            CreateAccentBox($"{name}_PageEdge", notebook.transform,
+                new Vector3(size.x * 0.90f, size.y * 0.07f, 0.01f),
+                new Vector3(baseCenter.x, baseCenter.y + size.y * 0.035f, frontZ), pageColor);
+
+            int ringCount = Mathf.Clamp(Mathf.RoundToInt(size.x / 0.025f), 3, 7);
+            float topY = baseCenter.y + size.y - size.y * 0.05f;
+            float ringSpacing = size.x * 0.78f / Mathf.Max(1, ringCount - 1);
+            float startX = baseCenter.x - size.x * 0.39f;
+            for (int i = 0; i < ringCount; i++)
+            {
+                var ring = CreateAccentBlob($"{name}_Ring{i}", notebook.transform, size.x * 0.055f,
+                    new Vector3(startX + i * ringSpacing, topY, frontZ + 0.008f), spiralColor);
+                ring.transform.localScale = new Vector3(1f, 1f, 0.4f);
+            }
+            return notebook;
+        }
+
+        /// <summary>
+        /// A pencil: a hex-ish body (a plain box, close enough at this render scale), a
+        /// small wood-tone tip squashed to a point, and a colored eraser cap -- axis-driven
+        /// exactly like <see cref="CreateDumbbell"/> so a caller can stand a bundle upright
+        /// (axis = Vector3.up, packed in a wall cell) or lay one flat on the ground.
+        /// </summary>
+        public static GameObject CreatePencil(string name, Transform parent, Vector3 center, Vector3 axis, float length, float thickness, Color bodyColor, Color tipColor, Color eraserColor)
+        {
+            axis = axis.normalized;
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = center;
+            var alignRotation = Quaternion.FromToRotation(Vector3.right, axis);
+
+            float eraserLen = length * 0.12f;
+            float tipLen = length * 0.16f;
+            float bodyLen = length - eraserLen - tipLen;
+
+            float eraserOffset = -length * 0.5f + eraserLen * 0.5f;
+            float bodyOffset = -length * 0.5f + eraserLen + bodyLen * 0.5f;
+            float tipOffset = length * 0.5f - tipLen * 0.5f;
+
+            var eraser = CreateAccentBox($"{name}_Eraser", group.transform, new Vector3(eraserLen, thickness * 1.15f, thickness * 1.15f), center + axis * eraserOffset, eraserColor);
+            eraser.transform.rotation = alignRotation;
+
+            var body = CreateAccentBox($"{name}_Body", group.transform, new Vector3(bodyLen, thickness, thickness), center + axis * bodyOffset, bodyColor);
+            body.transform.rotation = alignRotation;
+
+            var tip = CreateAccentBlob($"{name}_Tip", group.transform, thickness * 0.62f, center + axis * tipOffset, tipColor);
+            tip.transform.rotation = Quaternion.FromToRotation(Vector3.up, axis);
+            tip.transform.localScale = new Vector3(0.75f, tipLen / (thickness * 0.62f), 0.75f);
+
+            return group;
+        }
+
+        /// <summary>
+        /// A ruler: a flat box along `axis` with a handful of tick marks -- the Study wall's
+        /// "flat stationery" minority cell, the same "a few cells break the vertical
+        /// rhythm" idea <see cref="BuildHorizontalWedge"/> uses for the Library.
+        /// </summary>
+        public static GameObject CreateRuler(string name, Transform parent, Vector3 center, Vector3 axis, float length, float width, float thickness, Color bodyColor, Color markColor)
+        {
+            axis = axis.normalized;
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = center;
+            var alignRotation = Quaternion.FromToRotation(Vector3.right, axis);
+
+            var body = CreateAccentBox($"{name}_Body", group.transform, new Vector3(length, width, thickness), center, bodyColor);
+            body.transform.rotation = alignRotation;
+
+            int tickCount = 6;
+            for (int i = 1; i <= tickCount; i++)
+            {
+                float t = i / (float)(tickCount + 1) - 0.5f;
+                var tick = CreateAccentBox($"{name}_Tick{i}", group.transform,
+                    new Vector3(0.006f, width * 0.6f, thickness * 1.2f),
+                    center + axis * (length * t), markColor);
+                tick.transform.rotation = alignRotation;
+            }
+            return group;
+        }
+
+        /// <summary>
+        /// A graduation cap: a small rounded head, a flat square mortarboard yawed for
+        /// visual interest, a button on top, and a hanging tassel cord ending in a tuft --
+        /// the Study cottage's ridge icon, "reads Study at a glance".
+        /// </summary>
+        public static GameObject CreateGraduationCap(string name, Transform parent, Vector3 topCenter, float boardSize, float thickness, Color capColor, Color trimColor, Color tasselColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = topCenter;
+
+            Vector3 headBaseSize = new Vector3(boardSize * 0.42f, thickness * 1.6f, boardSize * 0.42f);
+            CreateAccentBox($"{name}_Head", group.transform, headBaseSize, topCenter, Color.Lerp(capColor, Color.black, 0.25f));
+
+            float boardY = topCenter.y + headBaseSize.y;
+            Vector3 boardCenter = new Vector3(topCenter.x, boardY, topCenter.z);
+            var board = CreateAccentBox($"{name}_Board", group.transform, new Vector3(boardSize, thickness, boardSize), boardCenter, capColor);
+            board.transform.rotation = Quaternion.Euler(0f, 20f, 0f);
+
+            CreateAccentBlob($"{name}_Button", group.transform, thickness * 0.9f, new Vector3(topCenter.x, boardY + thickness * 0.6f, topCenter.z), trimColor);
+
+            Vector3 cordTop = new Vector3(topCenter.x, boardY + thickness * 0.5f, topCenter.z);
+            Vector3 cordEnd = cordTop + new Vector3(boardSize * 0.48f, -boardSize * 0.55f, 0f);
+            Vector3 cordMid = (cordTop + cordEnd) * 0.5f;
+            float cordLen = Vector3.Distance(cordTop, cordEnd);
+            var cord = CreateAccentBox($"{name}_Cord", group.transform, new Vector3(0.012f, cordLen, 0.012f), cordMid - Vector3.up * (cordLen * 0.5f), tasselColor);
+            cord.transform.rotation = Quaternion.FromToRotation(Vector3.up, (cordEnd - cordTop).normalized);
+            var tuft = CreateAccentBlob($"{name}_Tuft", group.transform, 0.028f, cordEnd, tasselColor);
+            tuft.transform.localScale = new Vector3(0.8f, 1.3f, 0.8f);
+
+            return group;
+        }
+
+        // ---- Work: laptops / briefcases / coffee cups / folder stacks ----
+
+        /// <summary>
+        /// An open laptop: a flat deck (keyboard) with a lid tilted up from a hinge at the
+        /// back edge and a glowing screen inset proud of the lid's front face -- the Work
+        /// wall's strongest cue.
+        /// </summary>
+        public static GameObject CreateLaptop(string name, Transform parent, Vector3 baseCenter, float width, float depth, float screenHeight, float openAngle, Color bodyColor, Color screenGlow)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            float deckThickness = depth * 0.18f;
+            CreateAccentBox($"{name}_Deck", group.transform, new Vector3(width, deckThickness, depth), baseCenter, bodyColor);
+
+            Vector3 hinge = new Vector3(baseCenter.x, baseCenter.y + deckThickness, baseCenter.z - depth * 0.5f);
+            var rotation = Quaternion.Euler(-openAngle, 0f, 0f);
+            float lidThickness = deckThickness * 0.7f;
+
+            Vector3 lidCenter = hinge + rotation * (Vector3.up * (screenHeight * 0.5f));
+            var lid = CreateAccentBox($"{name}_Lid", group.transform, new Vector3(width, screenHeight, lidThickness),
+                lidCenter - Vector3.up * (lidThickness * 0.5f), bodyColor);
+            lid.transform.rotation = rotation;
+
+            float screenPanelHeight = screenHeight * 0.76f;
+            Vector3 screenCenter = lidCenter + rotation * (Vector3.forward * (lidThickness * 0.5f + 0.005f));
+            var screen = CreateAccentBox($"{name}_Screen", group.transform, new Vector3(width * 0.8f, screenPanelHeight, 0.006f),
+                screenCenter - Vector3.up * (screenPanelHeight * 0.5f), screenGlow);
+            screen.transform.rotation = rotation;
+
+            return group;
+        }
+
+        /// <summary>
+        /// A briefcase: a boxy body, a darker trim strip along the top edge, a two-post
+        /// handle (the same construction as <see cref="CreateKettlebell"/>'s handle loop),
+        /// and a small clasp accent.
+        /// </summary>
+        public static GameObject CreateBriefcase(string name, Transform parent, Vector3 baseCenter, float width, float height, float depth, Color bodyColor, Color trimColor, Color handleColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            CreateAccentBox($"{name}_Body", group.transform, new Vector3(width, height, depth), baseCenter, bodyColor);
+
+            float trimHeight = height * 0.16f;
+            Vector3 trimBase = new Vector3(baseCenter.x, baseCenter.y + height - trimHeight, baseCenter.z);
+            CreateAccentBox($"{name}_Trim", group.transform, new Vector3(width * 1.01f, trimHeight, depth * 1.01f), trimBase, trimColor);
+
+            float handleWidth = width * 0.34f;
+            float handleHeight = height * 0.22f;
+            float postThickness = width * 0.045f;
+            float topY = baseCenter.y + height;
+            foreach (var side in new[] { -1f, 1f })
+            {
+                CreateAccentBox($"{name}_Post{(side < 0f ? "L" : "R")}", group.transform,
+                    new Vector3(postThickness, handleHeight, postThickness),
+                    new Vector3(baseCenter.x + side * handleWidth * 0.5f, topY, baseCenter.z), handleColor);
+            }
+            CreateAccentBox($"{name}_HandleTop", group.transform,
+                new Vector3(handleWidth + postThickness, postThickness, postThickness),
+                new Vector3(baseCenter.x, topY + handleHeight, baseCenter.z), handleColor);
+
+            CreateAccentBox($"{name}_Clasp", group.transform, new Vector3(width * 0.12f, height * 0.10f, depth * 0.2f),
+                new Vector3(baseCenter.x, baseCenter.y + height * 0.42f, baseCenter.z + depth * 0.5f), trimColor);
+
+            return group;
+        }
+
+        /// <summary>
+        /// A coffee cup with a lid, a small side handle, and a puff of steam -- the
+        /// "someone's home, mid-workday" cue for the Work cottage.
+        /// </summary>
+        public static GameObject CreateCoffeeCup(string name, Transform parent, Vector3 baseCenter, float radius, float height, Color cupColor, Color lidColor, Color steamColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            var body = CreateAccentBlob($"{name}_Body", group.transform, radius, new Vector3(baseCenter.x, baseCenter.y + height * 0.5f, baseCenter.z), cupColor);
+            body.transform.localScale = new Vector3(1f, height / (radius * 2f), 0.85f);
+
+            var lid = CreateAccentBlob($"{name}_Lid", group.transform, radius * 0.62f, new Vector3(baseCenter.x, baseCenter.y + height, baseCenter.z), lidColor);
+            lid.transform.localScale = new Vector3(1f, 0.35f, 0.85f);
+
+            CreateAccentBox($"{name}_Handle", group.transform, new Vector3(radius * 0.5f, radius * 0.6f, radius * 0.18f),
+                new Vector3(baseCenter.x + radius * 0.9f, baseCenter.y + height * 0.5f, baseCenter.z), lidColor);
+
+            var steam = CreateAccentBlob($"{name}_Steam", group.transform, radius * 0.28f, new Vector3(baseCenter.x, baseCenter.y + height + radius * 0.5f, baseCenter.z), steamColor);
+            steam.transform.localScale = new Vector3(0.8f, 1.2f, 0.8f);
+
+            return group;
+        }
+
+        /// <summary>A short stack of document folders with tabs -- filler for the Work wall's
+        /// lower-density cells and the entrance ground cluster.</summary>
+        public static GameObject CreateFolderStack(string name, Transform parent, Vector3 baseCenter, float width, float depth, int count, Color[] folderColors, Color tabColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            float folderHeight = 0.026f;
+            float y = baseCenter.y;
+            for (int i = 0; i < count; i++)
+            {
+                Color c = folderColors[i % folderColors.Length];
+                float shrink = 1f - i * 0.03f;
+                CreateAccentBox($"{name}_Folder{i}", group.transform, new Vector3(width * shrink, folderHeight, depth * shrink), new Vector3(baseCenter.x, y, baseCenter.z), c);
+                CreateAccentBox($"{name}_Tab{i}", group.transform, new Vector3(width * 0.22f, folderHeight * 0.8f, depth * 0.14f),
+                    new Vector3(baseCenter.x - width * 0.28f + (i % 3) * width * 0.22f, y + folderHeight, baseCenter.z - depth * 0.4f), tabColor);
+                y += folderHeight;
+            }
+            return group;
+        }
+
+        // ---- Hobby: paint tubes / brush jars / palette / yarn ----
+
+        /// <summary>A paint tube: a rounded body, a darker crimped waist near the base, and a
+        /// small colored cap -- built the same "blob squashed into a cylinder" way
+        /// <see cref="CreateCoffeeCup"/>'s body is.</summary>
+        public static GameObject CreatePaintTube(string name, Transform parent, Vector3 baseCenter, float radius, float length, Color tubeColor, Color capColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            float bodyLen = length * 0.72f;
+            var body = CreateAccentBlob($"{name}_Body", group.transform, radius, new Vector3(baseCenter.x, baseCenter.y + bodyLen * 0.5f, baseCenter.z), tubeColor);
+            body.transform.localScale = new Vector3(1f, bodyLen / (radius * 2f), 0.9f);
+
+            float crimpLen = length * 0.10f;
+            CreateAccentBox($"{name}_Crimp", group.transform, new Vector3(radius * 1.3f, crimpLen, radius * 0.9f),
+                new Vector3(baseCenter.x, baseCenter.y, baseCenter.z), Color.Lerp(tubeColor, Color.black, 0.3f));
+
+            float capLen = length * 0.18f;
+            var cap = CreateAccentBlob($"{name}_Cap", group.transform, radius * 0.55f, new Vector3(baseCenter.x, baseCenter.y + bodyLen + capLen * 0.5f, baseCenter.z), capColor);
+            cap.transform.localScale = new Vector3(1f, capLen / (radius * 0.55f * 2f), 1f);
+
+            return group;
+        }
+
+        /// <summary>A jar bristling with paintbrushes -- a squat jar body plus 3 brush
+        /// handles fanned at different tilts (each a thin box + a colored tip blob), the
+        /// same "trueCenter, rotate after" technique every tilted piece in this file uses.</summary>
+        public static GameObject CreateBrushJar(string name, Transform parent, Vector3 baseCenter, float jarRadius, float jarHeight, Color jarColor, Color[] brushColors, Color handleColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            var jar = CreateAccentBlob($"{name}_Jar", group.transform, jarRadius, new Vector3(baseCenter.x, baseCenter.y + jarHeight * 0.5f, baseCenter.z), jarColor);
+            jar.transform.localScale = new Vector3(1f, jarHeight / (jarRadius * 2f), 0.9f);
+
+            float[] tilts = { -18f, 6f, 20f };
+            Vector3 pivot = new Vector3(baseCenter.x, baseCenter.y + jarHeight * 0.85f, baseCenter.z);
+            for (int i = 0; i < tilts.Length; i++)
+            {
+                var rotation = Quaternion.Euler(0f, 0f, tilts[i]);
+                float brushLen = jarHeight * 1.3f;
+                Vector3 handleCenter = pivot + rotation * (Vector3.up * (brushLen * 0.5f));
+                var handle = CreateAccentBox($"{name}_Handle{i}", group.transform,
+                    new Vector3(0.014f, brushLen, 0.014f), handleCenter - Vector3.up * (brushLen * 0.5f), handleColor);
+                handle.transform.rotation = rotation;
+
+                Vector3 tipCenter = pivot + rotation * (Vector3.up * brushLen);
+                var tip = CreateAccentBlob($"{name}_Tip{i}", group.transform, 0.02f, tipCenter, brushColors[i % brushColors.Length]);
+                tip.transform.localScale = new Vector3(0.8f, 1.4f, 0.8f);
+            }
+            return group;
+        }
+
+        /// <summary>A wooden paint palette (a flat squashed disc) ringed with colored paint
+        /// dabs -- also the base of the Hobby roof icon.</summary>
+        public static GameObject CreatePaintPalette(string name, Transform parent, Vector3 baseCenter, float radius, Color[] dabColors, Color woodColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            var board = CreateAccentBlob($"{name}_Board", group.transform, radius, new Vector3(baseCenter.x, baseCenter.y + radius * 0.12f, baseCenter.z), woodColor);
+            board.transform.localScale = new Vector3(1f, 0.16f, 0.8f);
+
+            int dabCount = dabColors.Length;
+            for (int i = 0; i < dabCount; i++)
+            {
+                float angle = (i / (float)dabCount) * 360f;
+                Vector3 offset = Quaternion.Euler(0f, angle, 0f) * new Vector3(radius * 0.55f, 0f, 0f);
+                var dab = CreateAccentBlob($"{name}_Dab{i}", group.transform, radius * 0.16f,
+                    new Vector3(baseCenter.x + offset.x, baseCenter.y + radius * 0.22f, baseCenter.z + offset.z * 0.75f), dabColors[i]);
+                dab.transform.localScale = new Vector3(1f, 0.5f, 1f);
+            }
+            return group;
+        }
+
+        /// <summary>A paintbrush: handle, ferrule, and a squashed-to-a-point bristle tip --
+        /// axis-driven like <see cref="CreatePencil"/>, used both in wall cells and as the
+        /// Hobby roof icon's crossing brush.</summary>
+        public static GameObject CreateBrush(string name, Transform parent, Vector3 center, Vector3 axis, float length, float handleThickness, float tipLength, Color handleColor, Color ferruleColor, Color tipColor)
+        {
+            axis = axis.normalized;
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = center;
+            var rotation = Quaternion.FromToRotation(Vector3.right, axis);
+
+            float handleLen = length - tipLength;
+            float handleOffset = -length * 0.5f + handleLen * 0.5f;
+            var handle = CreateAccentBox($"{name}_Handle", group.transform, new Vector3(handleLen, handleThickness, handleThickness), center + axis * handleOffset, handleColor);
+            handle.transform.rotation = rotation;
+
+            float ferruleLen = tipLength * 0.3f;
+            float ferruleOffset = length * 0.5f - tipLength + ferruleLen * 0.5f;
+            var ferrule = CreateAccentBox($"{name}_Ferrule", group.transform, new Vector3(ferruleLen, handleThickness * 1.1f, handleThickness * 1.1f), center + axis * ferruleOffset, ferruleColor);
+            ferrule.transform.rotation = rotation;
+
+            float tipOffset = length * 0.5f - tipLength * 0.35f;
+            var tip = CreateAccentBlob($"{name}_Tip", group.transform, handleThickness * 0.9f, center + axis * tipOffset, tipColor);
+            tip.transform.rotation = Quaternion.FromToRotation(Vector3.up, axis);
+            tip.transform.localScale = new Vector3(0.7f, tipLength / (handleThickness * 0.9f * 2f), 0.7f);
+
+            return group;
+        }
+
+        /// <summary>A ball of yarn: a blob with a couple of angled flattened "wrap" bands
+        /// hugging its surface plus a loose trailing tail.</summary>
+        public static GameObject CreateYarnBall(string name, Transform parent, Vector3 baseCenter, float radius, Color yarnColor, Color wrapAccent)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            Vector3 ballCenter = new Vector3(baseCenter.x, baseCenter.y + radius, baseCenter.z);
+            CreateAccentBlob($"{name}_Ball", group.transform, radius, ballCenter, yarnColor);
+
+            foreach (var angle in new[] { 20f, 70f, 120f })
+            {
+                var wrap = CreateAccentBlob($"{name}_Wrap{angle}", group.transform, radius * 1.02f, ballCenter, wrapAccent);
+                wrap.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+                wrap.transform.localScale = new Vector3(1f, 0.06f, 1f);
+            }
+
+            Vector3 tailStart = ballCenter + new Vector3(radius * 0.7f, radius * -0.1f, 0f);
+            Vector3 tailEnd = tailStart + new Vector3(radius * 0.6f, -radius * 0.4f, 0f);
+            Vector3 tailMid = (tailStart + tailEnd) * 0.5f;
+            var tail = CreateAccentBox($"{name}_Tail", group.transform, new Vector3(Vector3.Distance(tailStart, tailEnd), 0.008f, 0.008f), tailMid, yarnColor);
+            tail.transform.rotation = Quaternion.FromToRotation(Vector3.right, (tailEnd - tailStart).normalized);
+
+            return group;
+        }
+
+        // ---- Mind: cushions / candles / zen stones / lotus roof icon ----
+
+        /// <summary>A round meditation cushion with a piped seam around its middle --
+        /// squashed-blob construction, stackable by tracking top Y like every other
+        /// primitive in this file.</summary>
+        public static GameObject CreateCushion(string name, Transform parent, Vector3 baseCenter, float radius, float height, Color cushionColor, Color trimColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            Vector3 center = new Vector3(baseCenter.x, baseCenter.y + height * 0.5f, baseCenter.z);
+            var body = CreateAccentBlob($"{name}_Body", group.transform, radius, center, cushionColor);
+            body.transform.localScale = new Vector3(1f, height / (radius * 2f), 0.92f);
+
+            var seam = CreateAccentBlob($"{name}_Seam", group.transform, radius * 1.02f, center, trimColor);
+            seam.transform.localScale = new Vector3(1f, 0.05f, 0.94f);
+
+            return group;
+        }
+
+        /// <summary>A candle: a wax pillar, a dark wick, and a small teardrop flame.</summary>
+        public static GameObject CreateCandle(string name, Transform parent, Vector3 baseCenter, float radius, float height, Color waxColor, Color flameColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            CreateAccentBox($"{name}_Body", group.transform, new Vector3(radius * 2f, height, radius * 2f), baseCenter, waxColor);
+            CreateAccentBox($"{name}_Wick", group.transform, new Vector3(0.006f, height * 0.1f, 0.006f), new Vector3(baseCenter.x, baseCenter.y + height, baseCenter.z), Color.Lerp(waxColor, Color.black, 0.6f));
+
+            var flame = CreateAccentBlob($"{name}_Flame", group.transform, radius * 0.55f, new Vector3(baseCenter.x, baseCenter.y + height + height * 0.1f + radius * 0.5f, baseCenter.z), flameColor);
+            flame.transform.localScale = new Vector3(0.7f, 1.3f, 0.7f);
+
+            return group;
+        }
+
+        /// <summary>A small cairn of balanced zen stones -- shrinking squashed-blob stack,
+        /// the meditative counterpart to <see cref="CreateWeightPlateStack"/>.</summary>
+        public static GameObject CreateZenStoneStack(string name, Transform parent, Vector3 baseCenter, float baseRadius, int count, Color[] stoneColors)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            float y = baseCenter.y;
+            for (int i = 0; i < count; i++)
+            {
+                float radius = baseRadius * (1f - i * 0.18f);
+                float stoneHeight = radius * 0.75f;
+                var stone = CreateAccentBlob($"{name}_Stone{i}", group.transform, radius, new Vector3(baseCenter.x, y + stoneHeight * 0.5f, baseCenter.z), stoneColors[i % stoneColors.Length]);
+                stone.transform.localScale = new Vector3(1f, stoneHeight / (radius * 2f), 0.9f);
+                y += stoneHeight;
+            }
+            return group;
+        }
+
+        /// <summary>A layered lotus flower, built from three rings of outward-facing petal
+        /// blobs (each squashed thin and long, then yawed to point outward) around a small
+        /// center bud -- the Mind cottage's ridge icon.</summary>
+        public static GameObject CreateLotusRoofIcon(string name, Transform parent, Vector3 baseCenter, float radius, Color[] petalColors, Color centerColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            int[] layerPetalCounts = { 8, 6, 4 };
+            for (int layer = 0; layer < layerPetalCounts.Length; layer++)
+            {
+                int petals = layerPetalCounts[layer];
+                float layerRadius = radius * (1f - layer * 0.28f);
+                float layerY = baseCenter.y + layer * radius * 0.16f;
+                Color petalColor = petalColors[layer % petalColors.Length];
+                for (int i = 0; i < petals; i++)
+                {
+                    float angle = (i / (float)petals) * 360f + layer * 15f;
+                    Vector3 dir = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+                    Vector3 petalCenter = new Vector3(baseCenter.x, layerY + layerRadius * 0.28f, baseCenter.z) + dir * (layerRadius * 0.55f);
+                    var petal = CreateAccentBlob($"{name}_L{layer}P{i}", group.transform, layerRadius * 0.32f, petalCenter, petalColor);
+                    petal.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+                    petal.transform.localScale = new Vector3(0.55f, 0.9f, 1.4f);
+                }
+            }
+            CreateAccentBlob($"{name}_Center", group.transform, radius * 0.22f, new Vector3(baseCenter.x, baseCenter.y + radius * 0.5f, baseCenter.z), centerColor);
+            return group;
+        }
+
+        // ---- Game: controllers / arcade stick / dice / pixel heart ----
+
+        /// <summary>A game controller: a rounded body, two grip bumps, a D-pad cross, and a
+        /// cluster of 4 face buttons -- the Game wall's strongest cue and (scaled up) its
+        /// roof icon.</summary>
+        public static GameObject CreateGameController(string name, Transform parent, Vector3 baseCenter, float width, float height, float depth, Color bodyColor, Color dpadColor, Color[] buttonColors)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            CreateAccentBox($"{name}_Body", group.transform, new Vector3(width, height, depth), baseCenter, bodyColor);
+
+            float gripRadius = height * 0.5f;
+            Color gripColor = Color.Lerp(bodyColor, Color.black, 0.12f);
+            foreach (var side in new[] { -1f, 1f })
+            {
+                var grip = CreateAccentBlob($"{name}_Grip{(side < 0f ? "L" : "R")}", group.transform, gripRadius,
+                    new Vector3(baseCenter.x + side * width * 0.42f, baseCenter.y - gripRadius * 0.3f, baseCenter.z), gripColor);
+                grip.transform.localScale = new Vector3(0.75f, 1f, 0.7f);
+            }
+
+            float frontZ = baseCenter.z + depth * 0.5f + 0.004f;
+            float faceY = baseCenter.y + height * 0.55f;
+
+            Vector3 dpadCenter = new Vector3(baseCenter.x - width * 0.26f, faceY, frontZ);
+            CreateAccentBox($"{name}_DpadH", group.transform, new Vector3(width * 0.16f, height * 0.06f, 0.01f), dpadCenter, dpadColor);
+            CreateAccentBox($"{name}_DpadV", group.transform, new Vector3(width * 0.06f, height * 0.16f, 0.01f), dpadCenter, dpadColor);
+
+            Vector3[] offsets =
+            {
+                new Vector3(0.05f, 0.07f, 0f), new Vector3(0.11f, 0f, 0f),
+                new Vector3(0f, -0.05f, 0f), new Vector3(0.05f, -0.10f, 0f)
+            };
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 bC = new Vector3(baseCenter.x + width * 0.24f + offsets[i].x * width, faceY + offsets[i].y * height, frontZ);
+                var btn = CreateAccentBlob($"{name}_Btn{i}", group.transform, width * 0.045f, bC, buttonColors[i % buttonColors.Length]);
+                btn.transform.localScale = new Vector3(1f, 1f, 0.4f);
+            }
+            return group;
+        }
+
+        /// <summary>An arcade joystick: a round base plate, a stick, and a ball topper.</summary>
+        public static GameObject CreateArcadeStick(string name, Transform parent, Vector3 baseCenter, float baseRadius, float stickHeight, Color baseColor, Color stickColor, Color ballColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            var basePlate = CreateAccentBlob($"{name}_Base", group.transform, baseRadius, new Vector3(baseCenter.x, baseCenter.y + baseRadius * 0.3f, baseCenter.z), baseColor);
+            basePlate.transform.localScale = new Vector3(1f, 0.32f, 1f);
+
+            CreateAccentBox($"{name}_Stick", group.transform, new Vector3(baseRadius * 0.28f, stickHeight, baseRadius * 0.28f), new Vector3(baseCenter.x, baseCenter.y + baseRadius * 0.5f, baseCenter.z), stickColor);
+            CreateAccentBlob($"{name}_Ball", group.transform, baseRadius * 0.4f, new Vector3(baseCenter.x, baseCenter.y + baseRadius * 0.5f + stickHeight, baseCenter.z), ballColor);
+
+            return group;
+        }
+
+        /// <summary>A row of round arcade buttons -- fills a wall cell alongside
+        /// <see cref="CreateArcadeStick"/>.</summary>
+        public static GameObject CreateArcadeButtonCluster(string name, Transform parent, Vector3 baseCenter, float buttonRadius, Color[] buttonColors, int count)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            for (int i = 0; i < count; i++)
+            {
+                float x = baseCenter.x + (i - (count - 1) * 0.5f) * buttonRadius * 2.4f;
+                var btn = CreateAccentBlob($"{name}_Btn{i}", group.transform, buttonRadius, new Vector3(x, baseCenter.y + buttonRadius * 0.35f, baseCenter.z), buttonColors[i % buttonColors.Length]);
+                btn.transform.localScale = new Vector3(1f, 0.4f, 1f);
+            }
+            return group;
+        }
+
+        /// <summary>A six-sided die showing a 5-pip face.</summary>
+        public static GameObject CreateDie(string name, Transform parent, Vector3 baseCenter, float size, Color bodyColor, Color pipColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            CreateAccentBox($"{name}_Body", group.transform, new Vector3(size, size, size), baseCenter, bodyColor);
+
+            float frontZ = baseCenter.z + size * 0.5f + 0.004f;
+            float faceY = baseCenter.y + size * 0.5f;
+            Vector3[] fivePattern =
+            {
+                new Vector3(-1, 1, 0), new Vector3(1, 1, 0),
+                new Vector3(0, 0, 0),
+                new Vector3(-1, -1, 0), new Vector3(1, -1, 0)
+            };
+            foreach (var p in fivePattern)
+            {
+                Vector3 pipCenter = new Vector3(baseCenter.x + p.x * size * 0.22f, faceY + p.y * size * 0.22f, frontZ);
+                var pip = CreateAccentBlob($"{name}_Pip", group.transform, size * 0.09f, pipCenter, pipColor);
+                pip.transform.localScale = new Vector3(1f, 1f, 0.4f);
+            }
+            return group;
+        }
+
+        /// <summary>A chunky pixel-art heart, built pixel-by-pixel from a fixed low-res
+        /// silhouette (narrow point at the bottom, two wide notched lobes at the top) --
+        /// deliberately blocky, matching the brief's "chunky pixel heart" ask.</summary>
+        public static GameObject CreatePixelHeart(string name, Transform parent, Vector3 baseCenter, float pixelSize, Color color)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            int[] rowWidths = { 2, 4, 6, 6, 6, 6 };
+            int[] rowOffsets = { 2, 1, 0, 0, 0, 0 };
+            for (int r = 0; r < rowWidths.Length; r++)
+            {
+                int width = rowWidths[r];
+                int offset = rowOffsets[r];
+                for (int c = 0; c < width; c++)
+                {
+                    if (r == rowWidths.Length - 1 && (c == 2 || c == 3)) continue; // notch between the two top lobes
+                    float x = baseCenter.x + (c + offset - 3f) * pixelSize;
+                    float y = baseCenter.y + r * pixelSize;
+                    CreateAccentBox($"{name}_Px{r}_{c}", group.transform, new Vector3(pixelSize * 0.94f, pixelSize * 0.94f, pixelSize * 0.94f), new Vector3(x, y, baseCenter.z), color);
+                }
+            }
+            return group;
+        }
     }
 }

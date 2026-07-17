@@ -39,8 +39,18 @@ namespace LifeTown.App.Editor
         const string ScenesFolder = "Assets/LifeTown.App/Scenes";
         const string SceneAssetPath = ScenesFolder + "/SpikeLibrary.unity";
         const string GymSceneAssetPath = ScenesFolder + "/SpikeGym.unity";
+        const string StudySceneAssetPath = ScenesFolder + "/SpikeStudy.unity";
+        const string WorkSceneAssetPath = ScenesFolder + "/SpikeWork.unity";
+        const string HobbySceneAssetPath = ScenesFolder + "/SpikeHobby.unity";
+        const string MindSceneAssetPath = ScenesFolder + "/SpikeMind.unity";
+        const string GameSceneAssetPath = ScenesFolder + "/SpikeGame.unity";
         const string OutputFileName = "spike-building.png";
         const string GymOutputFileName = "spike-gym.png";
+        const string StudyOutputFileName = "spike-study.png";
+        const string WorkOutputFileName = "spike-work.png";
+        const string HobbyOutputFileName = "spike-hobby.png";
+        const string MindOutputFileName = "spike-mind.png";
+        const string GameOutputFileName = "spike-game.png";
 
         [MenuItem("LifeTown/Spike/Render Library PNG")]
         public static void RenderPng()
@@ -66,6 +76,47 @@ namespace LifeTown.App.Editor
         {
             RenderBuilding(GymSceneAssetPath, GymOutputFileName, focusHeight: 0.36f,
                 footprintCenter => GymBuildingBuilder.Build(null, footprintCenter));
+        }
+
+        /// <summary>Same pipeline, pointed at the Study cottage -- same massing as the
+        /// Library/Gym, so the same focusHeight (0.36) applies.</summary>
+        [MenuItem("LifeTown/Spike/Render Study PNG")]
+        public static void RenderStudyPng()
+        {
+            RenderBuilding(StudySceneAssetPath, StudyOutputFileName, focusHeight: 0.36f,
+                footprintCenter => StudyBuildingBuilder.Build(null, footprintCenter));
+        }
+
+        /// <summary>Same pipeline, pointed at the Work cottage.</summary>
+        [MenuItem("LifeTown/Spike/Render Work PNG")]
+        public static void RenderWorkPng()
+        {
+            RenderBuilding(WorkSceneAssetPath, WorkOutputFileName, focusHeight: 0.36f,
+                footprintCenter => WorkBuildingBuilder.Build(null, footprintCenter));
+        }
+
+        /// <summary>Same pipeline, pointed at the Hobby cottage.</summary>
+        [MenuItem("LifeTown/Spike/Render Hobby PNG")]
+        public static void RenderHobbyPng()
+        {
+            RenderBuilding(HobbySceneAssetPath, HobbyOutputFileName, focusHeight: 0.36f,
+                footprintCenter => HobbyBuildingBuilder.Build(null, footprintCenter));
+        }
+
+        /// <summary>Same pipeline, pointed at the Mind cottage.</summary>
+        [MenuItem("LifeTown/Spike/Render Mind PNG")]
+        public static void RenderMindPng()
+        {
+            RenderBuilding(MindSceneAssetPath, MindOutputFileName, focusHeight: 0.36f,
+                footprintCenter => MindBuildingBuilder.Build(null, footprintCenter));
+        }
+
+        /// <summary>Same pipeline, pointed at the Game cottage.</summary>
+        [MenuItem("LifeTown/Spike/Render Game PNG")]
+        public static void RenderGamePng()
+        {
+            RenderBuilding(GameSceneAssetPath, GameOutputFileName, focusHeight: 0.36f,
+                footprintCenter => GameBuildingBuilder.Build(null, footprintCenter));
         }
 
         static void RenderBuilding(string sceneAssetPath, string outputFileName, float focusHeight, System.Action<Vector3> buildBuilding)
