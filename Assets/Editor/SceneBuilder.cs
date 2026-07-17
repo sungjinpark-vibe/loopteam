@@ -31,6 +31,11 @@ namespace TouchRPG.EditorTools
         // Portrait reference resolution (GDD §1: 세로 화면 고정).
         private static readonly Vector2 ReferenceResolution = new Vector2(1080, 1920);
 
+        // Green, deliberately NOT the blue reserved for the GDD §4.5 dodge-zone channel -
+        // used for the player's own token/portrait, which is decorative identity, not a
+        // gameplay-meaning marker.
+        private static readonly Color PlayerAvatarColor = new Color(0.30f, 0.68f, 0.42f);
+
         [MenuItem("TouchRPG/Build Combat Scene (P0)")]
         public static void BuildCombatScene()
         {
@@ -61,7 +66,9 @@ namespace TouchRPG.EditorTools
             var inputController = BuildInputController();
 
             var infoLayer = BuildLayerPanel("InfoLayer", canvasRoot, 0.90f, 1.00f, new Color(0.08f, 0.08f, 0.10f, 0.85f));
-            var monsterLayer = BuildLayerPanel("MonsterLayer", canvasRoot, 0.40f, 0.90f, new Color(0.55f, 0.75f, 0.95f, 0.35f));
+            // Neutral gray, deliberately NOT blue - blue is the reserved GDD §4.5 dodge-zone
+            // channel and this is only a structural layer background, not a gameplay signal.
+            var monsterLayer = BuildLayerPanel("MonsterLayer", canvasRoot, 0.40f, 0.90f, new Color(0.5f, 0.5f, 0.5f, 0.25f));
             var battlefieldLayer = BuildLayerPanel("BattlefieldLayer", canvasRoot, 0.15f, 0.40f, new Color(0.30f, 0.55f, 0.30f, 0.35f));
             var partyLayer = BuildLayerPanel("PartyLayer", canvasRoot, 0.00f, 0.15f, new Color(0.10f, 0.10f, 0.15f, 0.85f));
 
@@ -75,8 +82,10 @@ namespace TouchRPG.EditorTools
             var hpBarBg = BuildImage("HealthBarBackground", infoLayer, PlaceholderSprites.RoundedRect,
                 new Color(0.15f, 0.15f, 0.15f, 1f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 46f), new Vector2(1000f, 40f), false);
+            // Orange, deliberately NOT the saturated red used for the GDD §4.5 relay channel -
+            // this is HP-bar chrome, not a relay signal, and must not visually rhyme with one.
             var hpBarFill = BuildImage("HealthBarFill", hpBarBg.transform, PlaceholderSprites.RoundedRect,
-                new Color(0.85f, 0.20f, 0.20f, 1f), Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, false);
+                new Color(0.85f, 0.45f, 0.15f, 1f), Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero, false);
             StretchFull(hpBarFill.rectTransform);
             hpBarFill.type = Image.Type.Filled;
             hpBarFill.fillMethod = Image.FillMethod.Horizontal;
@@ -151,7 +160,7 @@ namespace TouchRPG.EditorTools
             var groundZone = groundImg.gameObject.AddComponent<GroundTapZone>();
 
             var playerImg = BuildImage("PlayerToken", battlefieldLayer, PlaceholderSprites.Circle,
-                new Color(0.25f, 0.55f, 0.85f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                PlayerAvatarColor, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(90f, 90f), false);
             var playerToken = playerImg.gameObject.AddComponent<PlayerToken>();
             SetPrivateField(playerToken, "battlefieldPanel", battlefieldLayer);
@@ -160,7 +169,7 @@ namespace TouchRPG.EditorTools
 
             // ── Party layer: solo portrait slot (party stub) ──
             var partySlotImg = BuildImage("PartySlot_Solo", partyLayer, PlaceholderSprites.Circle,
-                new Color(0.25f, 0.55f, 0.85f), new Vector2(0.12f, 0.5f), new Vector2(0.12f, 0.5f),
+                PlayerAvatarColor, new Vector2(0.12f, 0.5f), new Vector2(0.12f, 0.5f),
                 Vector2.zero, new Vector2(110f, 110f), true);
             partySlotImg.gameObject.AddComponent<PartyPortraitSlot>();
             BuildText("SoloLabel", partySlotImg.transform, "YOU", 20, Color.white,
