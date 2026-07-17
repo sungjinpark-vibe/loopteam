@@ -828,3 +828,20 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   'touch' means, one-line concept, target player, and references (references were decisive on Life Town).
   Did NOT invent a concept (VISION §2/§4). When it lands: fill §2 -> open T001 (explore/planner/기획팀장
   rubric verbatim, passMark 90) -> send proposed scope for approval.
+
+## Tick 48 — 2026-07-17 21:31 — caught a late reply; Life Town's open question was already answered
+- Found an UNHANDLED Discord message from 17:56 (arrived after tick 46's check, and tick 47 was consumed
+  by the in-session project switch so the inbox wasn't drained): "실제 게임 동작 진행해줘" — the
+  director's answer to the village v2 lock-or-gameplay question. His later in-session instruction (pause
+  Life Town, start touchRPG) supersedes it for NOW, but the decision itself is valuable and would have
+  been lost.
+- Recorded it so a future resume is precise, in three places: a READ-THIS-FIRST banner atop
+  lifetown/docs/paused-state/PROGRESS-lifetown.md (committed in lifetown's own repo), VISION §2's
+  paused-project note, and state/PROGRESS.md's Paused section. All say: village v2 ACCEPTED, next task =
+  real gameplay (tap->timer->growth/build, wiring Economy.Core T002 + Platform T003 + design system
+  T004 into the village) -> playable slice -> Gate 3. Do NOT re-ask polish-vs-gameplay on resume.
+- Told the director on Discord that his 17:56 message was seen and parked as Life Town's next task (not
+  dropped), and re-asked for the touchRPG concept.
+- touchRPG: still BLOCKED on the concept brief. Idle (1). Did not invent a concept (VISION §2/§4).
+- Lesson for the loop: a tick driven by an in-session instruction must STILL drain the Discord inbox —
+  otherwise a director message sent in the same window is silently skipped past by the cursor.

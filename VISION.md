@@ -53,8 +53,11 @@ Paused by the director 2026-07-17 evening. Fully preserved:
 - **Code + renders**: `lifetown/` (own repo, everything committed).
 - **Contract snapshot at pause**: `lifetown/docs/paused-state/` — its VISION §2, its PROGRESS cockpit,
   its `backlog/` + task files.
-- **Where it stopped**: all 7 category buildings + a polished village scene (v2), gate-green (81/81);
-  awaiting the director's lock-or-gameplay decision. Full history in `state/journal.md`.
+- **Where it stopped**: all 7 category buildings + a polished village scene (v2), gate-green (81/81).
+  **The open question was already answered** — 2026-07-17 17:56 the director replied *"실제 게임 동작
+  진행해줘"*: village v2 is accepted, **proceed to real gameplay** (tap building → timer → growth/build,
+  wiring Economy.Core T002 + Platform T003 + design system T004 into the village) → playable slice →
+  Gate 3. Do **not** re-ask polish-vs-gameplay on resume. Full history in `state/journal.md`.
 - **To resume**: restore §2 from that snapshot, restore its backlog, point `loop.json.project` back to
   lifetown, and continue from its PROGRESS "Next Run Should".
 

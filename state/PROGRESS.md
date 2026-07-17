@@ -30,9 +30,15 @@
 
 ## Paused: Life Town
 Paused, **not cancelled** — fully resumable. Snapshot: `lifetown/docs/paused-state/` (its VISION §2, its
-PROGRESS cockpit, its backlog + task files). Code/renders all committed in `lifetown/`. It stopped with
-all 7 category buildings + a polished village v2 (gate-green 81/81), awaiting the director's
-lock-or-gameplay decision. See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history.
+PROGRESS cockpit — which carries a READ-THIS-FIRST resume banner — and its backlog + task files).
+Code/renders all committed in `lifetown/`. It stopped with all 7 category buildings + a polished village
+v2, gate-green (81/81).
+
+**Its open question was already answered** (2026-07-17 17:56, arrived just before the project switch):
+the director replied *"실제 게임 동작 진행해줘"* → **village v2 accepted; next task = real gameplay**
+(tap building → timer → growth/build; wire Economy.Core T002 + Platform T003 + design system T004 into
+the village scene) → playable slice → Gate 3. **Do not re-ask polish-vs-gameplay on resume.**
+See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history.
 
 ## Blockers
 - None mechanical. The only blocker is the missing concept brief (see Open Items).
