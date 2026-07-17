@@ -139,11 +139,15 @@ namespace LifeTown.App.BuildingKit
         /// balance as CreateBookVolume). `ridgeCenter` is the world-space hinge point both
         /// wings and their cover boards rotate around.
         /// </summary>
-        public static void CreateOpenBookCrown(Transform parent, Vector3 ridgeCenter, float wingLength, float wingThickness, float wingDepth, float tiltDegrees, Color coverColor, Color pageColor, Color inkColor)
+        public static void CreateOpenBookCrown(Transform parent, Vector3 ridgeCenter, float wingLength, float wingThickness, float wingDepth, float tiltDegrees, Color coverColor, Color pageColor, Color inkColor, int lineCount = 2)
         {
             Color spineTone = Color.Lerp(coverColor, Color.black, 0.15f);
             Color lineColor = Color.Lerp(pageColor, inkColor, 0.35f);
-            CreateAccentBox("Crown_Spine", parent, new Vector3(0.10f, 0.055f, wingDepth * 0.98f), ridgeCenter, spineTone);
+            // Spine sized relative to wingThickness (not a fixed constant) so it reads as
+            // a proper ridge beam at both the small book-crown scale and the full-roof
+            // scale, instead of looking like a thin stray stick once wingLength/wingDepth
+            // are scaled way up for a whole cottage roof.
+            CreateAccentBox("Crown_Spine", parent, new Vector3(wingThickness * 1.4f, wingThickness * 0.75f, wingDepth * 0.98f), ridgeCenter, spineTone);
 
             foreach (var side in new[] { -1f, 1f })
             {
@@ -157,21 +161,35 @@ namespace LifeTown.App.BuildingKit
                 // it (offset along the wing's own rotated "down"), so a rim of cover
                 // color shows past the page edge on every side -- the crown's "cover
                 // wraps pages" cue.
+                //
+                // Both board and wing are tri-toned (CreateShadedBoxCustomTones), not flat
+                // CreateAccentBox -- a single flat color on a large tilted plane gives the
+                // eye no cue for which way it's facing, so at roof scale two mirrored
+                // flat-shaded wings collapse into one confusing blob instead of reading as
+                // two distinct sloped surfaces. This was invisible at v2/v3's small
+                // book-crown scale but broke badly once this primitive became a whole
+                // roof. Face classification happens pre-rotation (local +Y = brightest),
+                // so after `.rotation` is applied the wing's outward-and-up-facing side
+                // -- the one real light would actually hit -- is correctly the brightest.
                 float boardThickness = wingThickness * 0.7f;
                 Vector3 boardCenter = wingCenter - rotation * (Vector3.up * (wingThickness * 0.5f + boardThickness * 0.5f + 0.004f));
-                var board = CreateAccentBox($"Crown_Cover{tag}", parent,
+                Color boardTop = Color.Lerp(coverColor, Color.white, 0.22f);
+                Color boardSide = Color.Lerp(coverColor, Color.black, 0.15f);
+                var board = CreateShadedBoxCustomTones($"Crown_Cover{tag}", parent,
                     new Vector3(wingLength * 1.06f, boardThickness, wingDepth * 1.06f),
-                    boardCenter - Vector3.up * (boardThickness * 0.5f), coverColor);
+                    boardCenter - Vector3.up * (boardThickness * 0.5f), boardTop, coverColor, boardSide);
                 board.transform.rotation = rotation;
 
-                var wing = CreateAccentBox($"Crown_Page{tag}", parent,
+                Color wingTop = Color.Lerp(pageColor, Color.white, 0.12f);
+                Color wingSide = Color.Lerp(pageColor, Color.black, 0.10f);
+                var wing = CreateShadedBoxCustomTones($"Crown_Page{tag}", parent,
                     new Vector3(wingLength, wingThickness, wingDepth),
-                    wingCenter - Vector3.up * (wingThickness * 0.5f), pageColor);
+                    wingCenter - Vector3.up * (wingThickness * 0.5f), wingTop, pageColor, wingSide);
                 wing.transform.rotation = rotation;
 
-                for (int i = 1; i <= 2; i++)
+                for (int i = 1; i <= lineCount; i++)
                 {
-                    float t = i / 3f; // 0.33 / 0.67 of the way from ridge to tip
+                    float t = i / (float)(lineCount + 1);
                     Vector3 alongSlope = rotation * new Vector3(side * wingLength * t, 0f, 0f);
                     Vector3 nudgeAboveSurface = rotation * (Vector3.up * (wingThickness * 0.5f + 0.005f));
                     Vector3 linePivot = ridgeCenter + alongSlope + nudgeAboveSurface;
@@ -185,6 +203,116 @@ namespace LifeTown.App.BuildingKit
         }
 
         /// <summary>
+        /// A wall panel clad in packed, colorful book spines -- the "cottage built out of
+        /// books" archetype's signature wall (docs/design/references/library-cottage-
+        /// ref.png): many short vertical boxes side by side, each a different saturated
+        /// color from the given palette, with small per-column height/depth jitter
+        /// (deterministic, not random, so the result is reproducible) so the row doesn't
+        /// read as a perfectly even stripe pattern the way v2/v3's page-line accents did.
+        /// A solid backing box in `backingColor` sits behind the spines so no gaps show
+        /// through. Built axis-aligned (spread along local/world X, thickness along
+        /// local/world Z, exactly like every other box primitive in this file) -- a
+        /// caller who needs it on a different wall (e.g. the building's +X side face)
+        /// rotates the returned GameObject afterward around its own pivot, same
+        /// established pattern as <see cref="CreateOpenBookCrown"/>'s wings.
+        /// `baseCenter` is the panel's bottom-center in world space.
+        /// </summary>
+        public static GameObject CreateBookSpineWall(string name, Transform parent, Vector3 wallSize, Vector3 baseCenter, Color[] spineColors, Color backingColor, int columns = 10, int rows = 2)
+        {
+            var wallRoot = new GameObject(name);
+            wallRoot.transform.SetParent(parent, false);
+            wallRoot.transform.position = baseCenter;
+
+            CreateAccentBox($"{name}_Backing", wallRoot.transform, new Vector3(wallSize.x, wallSize.y, wallSize.z * 0.7f), baseCenter, backingColor);
+
+            float colWidth = wallSize.x / columns;
+            float rowHeight = wallSize.y / rows;
+            for (int r = 0; r < rows; r++)
+            {
+                float rowBaseY = baseCenter.y + r * rowHeight;
+                for (int c = 0; c < columns; c++)
+                {
+                    Color spineColor = spineColors[(c + r * 3) % spineColors.Length];
+                    float jitter = ((c * 7 + r * 13) % 5) * 0.006f;
+                    float spineHeight = rowHeight * (0.90f + jitter);
+                    float spineDepth = wallSize.z * ((c % 2 == 0) ? 1.18f : 1.0f);
+                    float x = baseCenter.x - wallSize.x * 0.5f + colWidth * (c + 0.5f);
+                    CreateAccentBox($"{name}_Spine_{r}_{c}", wallRoot.transform,
+                        new Vector3(colWidth * 0.86f, spineHeight, spineDepth),
+                        new Vector3(x, rowBaseY, baseCenter.z), spineColor);
+                }
+            }
+            return wallRoot;
+        }
+
+        /// <summary>
+        /// An arched window: an outer frame (with a rounded cap) behind a smaller pane
+        /// (also rounded), same construction the original Library window used --
+        /// factored out here so it's a named, reusable primitive instead of duplicated
+        /// inline code (a caller who passes the same color for frame and glass gets a
+        /// solid arched panel, which is how the cottage's front door reuses this for a
+        /// door instead of writing a second arch primitive). An unframed glass rectangle
+        /// skews into an unreadable parallelogram under true-iso projection, which is why
+        /// the frame exists at all. `paneBottomCenter` is the glass pane's bottom-center
+        /// in world space; the frame is derived from it with a fixed proportional margin.
+        /// </summary>
+        public static void CreateArchedWindow(string name, Transform parent, float paneWidth, float paneHeight, float paneDepth, Vector3 paneBottomCenter, Color frameColor, Color glassColor)
+        {
+            float frameMargin = paneWidth * 0.18f;
+            float frameDepth = paneDepth * 0.6f;
+            float paneTopY = paneBottomCenter.y + paneHeight;
+            Vector3 capScale = new Vector3(1f, 0.9f, 0.35f); // flattened dome, not a full ball
+
+            CreateAccentBox($"{name}_Frame", parent,
+                new Vector3(paneWidth + frameMargin * 2f, paneHeight + frameMargin * 2f, frameDepth),
+                new Vector3(paneBottomCenter.x, paneBottomCenter.y - frameMargin, paneBottomCenter.z), frameColor);
+            var frameCap = CreateAccentBlob($"{name}_FrameArch", parent, paneWidth * 0.5f + frameMargin,
+                new Vector3(paneBottomCenter.x, paneTopY, paneBottomCenter.z), frameColor);
+            frameCap.transform.localScale = capScale;
+
+            Vector3 glassCenter = new Vector3(paneBottomCenter.x, paneBottomCenter.y, paneBottomCenter.z + frameDepth * 0.5f + paneDepth * 0.5f);
+            CreateAccentBox($"{name}_Pane", parent, new Vector3(paneWidth, paneHeight, paneDepth), glassCenter, glassColor);
+            var glassCap = CreateAccentBlob($"{name}_ArchCap", parent, paneWidth * 0.5f,
+                new Vector3(glassCenter.x, paneTopY, glassCenter.z), glassColor);
+            glassCap.transform.localScale = capScale;
+        }
+
+        /// <summary>
+        /// A small open-book awning: a single tilted page-plane (with a cover board
+        /// underneath, same "cover wraps pages" cue as <see cref="CreateBookVolume"/> and
+        /// <see cref="CreateOpenBookCrown"/>) hinged at the wall and drooping outward and
+        /// down over a window, plus a short solid spine strip at the hinge -- the cottage
+        /// reference's "little open book as a canopy". Deliberately a single wing (not a
+        /// symmetric V like the roof crown): a real window awning is one slanted plane,
+        /// and it is far cheaper for a detail this small at this render scale. Hinges
+        /// around local X (unlike the roof crown's local-Z hinge), so it tilts forward in
+        /// Z rather than sideways -- the correct axis for something that projects outward
+        /// from a vertical wall. `hingeCenter` is the world-space point where the awning
+        /// meets the wall, just above the window it shades.
+        /// </summary>
+        public static void CreateOpenBookAwning(string name, Transform parent, Vector3 hingeCenter, float width, float depth, float thickness, float tiltDegrees, Color coverColor, Color pageColor)
+        {
+            Color spineTone = Color.Lerp(coverColor, Color.black, 0.15f);
+            CreateAccentBox($"{name}_Spine", parent, new Vector3(width, 0.018f, 0.03f),
+                hingeCenter - Vector3.up * 0.009f, spineTone);
+
+            var rotation = Quaternion.Euler(-tiltDegrees, 0f, 0f);
+            Vector3 panelCenter = hingeCenter + rotation * new Vector3(0f, 0f, depth * 0.5f);
+
+            float boardThickness = thickness * 0.7f;
+            Vector3 boardCenter = panelCenter - rotation * (Vector3.up * (thickness * 0.5f + boardThickness * 0.5f + 0.003f));
+            var board = CreateAccentBox($"{name}_Cover", parent,
+                new Vector3(width * 1.06f, boardThickness, depth * 1.06f),
+                boardCenter - Vector3.up * (boardThickness * 0.5f), coverColor);
+            board.transform.rotation = rotation;
+
+            var page = CreateAccentBox($"{name}_Page", parent,
+                new Vector3(width * 0.9f, thickness, depth),
+                panelCenter - Vector3.up * (thickness * 0.5f), pageColor);
+            page.transform.rotation = rotation;
+        }
+
+        /// <summary>
         /// A steep gable roof (ProBuilder's Prism primitive): ridge along Z, triangular
         /// gable-end caps at +/-Z. The +Z cap (world front, where the door/window sit) is
         /// explicitly mapped to the "front" tone and the two sloped faces to the "top"
@@ -193,11 +321,29 @@ namespace LifeTown.App.BuildingKit
         /// </summary>
         public static GameObject CreateGableRoof(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color base500)
         {
-            var pb = ShapeGenerator.GeneratePrism(PivotLocation.Center, size);
             var (topC, frontC, sideC) = CategoryPalette.ComputeFaceTones(base500);
-            var top = MaterialFactory.CreateFlat(name + "_Top", topC);
-            var front = MaterialFactory.CreateFlat(name + "_Front", frontC);
-            var side = MaterialFactory.CreateFlat(name + "_Side", sideC);
+            return CreateGableRoofCustomTones(name, parent, size, baseCenter, topC, frontC, sideC);
+        }
+
+        /// <summary>
+        /// Same gable prism as <see cref="CreateGableRoof"/>, but with explicit face
+        /// colors instead of three tones derived from one base500 -- needed for the
+        /// cottage's "roof is a giant open book" archetype, where the sloped faces
+        /// (cream pages) and the front gable cap (a leatherbound cover edge) are
+        /// unrelated hues, not shades of the same color. This is the robust structural
+        /// base for that roof: a single continuous prism mesh with real triangular
+        /// gable-end caps, unlike <see cref="CreateOpenBookCrown"/>'s two independently
+        /// rotated boxes, which have no gable-end wall and -- proven out at whole-roof
+        /// scale -- leave a gap under the ridge that exposes whatever sits behind it. The
+        /// crown primitive stays right for small-scale uses (a book's own crown, a window
+        /// awning); this is what a director-reference "Roof of Wisdom" actually needs.
+        /// </summary>
+        public static GameObject CreateGableRoofCustomTones(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color topColor, Color frontColor, Color sideColor)
+        {
+            var pb = ShapeGenerator.GeneratePrism(PivotLocation.Center, size);
+            var top = MaterialFactory.CreateFlat(name + "_Top", topColor);
+            var front = MaterialFactory.CreateFlat(name + "_Front", frontColor);
+            var side = MaterialFactory.CreateFlat(name + "_Side", sideColor);
 
             // Face order from ShapeGenerator.GeneratePrism: [0]=front cap (local -Z),
             // [1]=right slope, [2]=back cap (local +Z), [3]=left slope, [4]=bottom.
@@ -224,6 +370,56 @@ namespace LifeTown.App.BuildingKit
             pb.Refresh();
 
             return Finish(pb, name, parent, baseCenter + Vector3.up * (size.y * 0.5f));
+        }
+
+        /// <summary>
+        /// The cottage archetype's roof: a whole gable built as an open book. Structural
+        /// base is <see cref="CreateGableRoofCustomTones"/> (a single continuous prism,
+        /// proven gap-free and readable under this iso camera, unlike two independently
+        /// rotated boxes) with the sloped faces as cream pages and the front gable cap as
+        /// a leatherbound cover edge, dressed with a chunky ridge-spine accent along the
+        /// peak and page-line striations running parallel to the ridge on both slopes.
+        /// Line positions are exact points on the real slope (linear interpolation from
+        /// ridge to base corner, not an approximation), so they sit flush regardless of
+        /// pitch. `baseCenter` is the roof's own bottom-center, matching every other
+        /// primitive's convention; `size` is (spread including both slopes, peak height,
+        /// ridge length) -- the same three numbers <see cref="CreateGableRoof"/> takes.
+        /// </summary>
+        public static GameObject CreateOpenBookRoof(string name, Transform parent, Vector3 size, Vector3 baseCenter, Color coverColor, Color pageColor, Color inkColor, int lineCount = 5)
+        {
+            Color spineTone = Color.Lerp(coverColor, Color.black, 0.15f);
+            Color lineColor = Color.Lerp(pageColor, inkColor, 0.35f);
+
+            var roof = CreateGableRoofCustomTones(name, parent, size, baseCenter, pageColor, coverColor, coverColor);
+
+            Vector3 ridgeCenter = baseCenter + Vector3.up * size.y;
+            CreateAccentBox($"{name}_Spine", parent,
+                new Vector3(size.x * 0.045f, size.y * 0.10f, size.z * 0.98f), ridgeCenter, spineTone);
+
+            float halfWidth = size.x * 0.5f;
+            foreach (var side in new[] { -1f, 1f })
+            {
+                string tag = side < 0f ? "Left" : "Right";
+                float angleDeg = -side * Mathf.Atan2(size.y, halfWidth) * Mathf.Rad2Deg;
+                var rotation = Quaternion.Euler(0f, 0f, angleDeg);
+
+                // Exact slope vector from ridge to base corner (not a rotated-offset
+                // approximation) -- t=0 at the ridge, t=1 at the eave.
+                Vector3 slopeVector = new Vector3(side * halfWidth, -size.y, 0f);
+                Vector3 outwardNormal = new Vector3(size.y, side * halfWidth, 0f).normalized;
+
+                for (int i = 1; i <= lineCount; i++)
+                {
+                    float t = i / (float)(lineCount + 1);
+                    Vector3 pointOnSlope = ridgeCenter + slopeVector * t + outwardNormal * 0.014f;
+
+                    var line = CreateAccentBox($"{name}_Line{tag}{i}", parent,
+                        new Vector3(size.x * 0.022f, 0.008f, size.z * 0.9f),
+                        pointOnSlope - Vector3.up * 0.004f, lineColor);
+                    line.transform.rotation = rotation;
+                }
+            }
+            return roof;
         }
 
         /// <summary>Single-material accent block (door panel, signage plate, prop pole) --

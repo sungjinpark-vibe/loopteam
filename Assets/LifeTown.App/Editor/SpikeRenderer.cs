@@ -45,11 +45,12 @@ namespace LifeTown.App.Editor
         [MenuItem("LifeTown/Spike/Render Library PNG")]
         public static void RenderPng()
         {
-            // focusHeight lowered from 1.0 (v1's tall tower, ~2.07 total height) to 0.45
-            // for v2's book-stack archetype: 4 flat stacked books + a shallow open-book
-            // crown top out around ~0.90 total, so the old focus height would leave the
-            // building low in frame the same way the Gym's does at its own scale.
-            RenderBuilding(SceneAssetPath, OutputFileName, focusHeight: 0.45f,
+            // focusHeight tuned down again to 0.36 for v4's cottage archetype: walls
+            // (0.50) + a shallow roof overhang top out around ~0.65-0.70 total, shorter
+            // than v2/v3's stack (~0.90) but noticeably wider (the roof spans ~1.7 across
+            // vs. the old stack's ~0.9), so centring on roughly the vertical midpoint
+            // keeps both the eaves and the entrance in frame.
+            RenderBuilding(SceneAssetPath, OutputFileName, focusHeight: 0.36f,
                 footprintCenter => LibraryBuildingBuilder.Build(null, footprintCenter));
         }
 
