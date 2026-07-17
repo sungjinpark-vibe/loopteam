@@ -47,9 +47,11 @@ If `VISION.md` section 2 is still `_(미지정)_` and the scout found a **new br
 2. The stack is **Unity** — fixed by director rule, not a decision to make (`VISION.md` §7).
 3. **Write `VISION.md` sections 2-3**: project, concept, and the **rubric** — adapted to this app.
    The rubric must be written **now, before any code**. A rubric written later bends to fit the result.
-4. Open `T001` as an `explore` task for `planner` (the detailed spec).
-5. Send the stack decision + the proposed rubric to the director for approval. The spec task can start
-   immediately; only its *output* needs approval.
+4. Open `T001` as an `explore` task for `planner` (the detailed spec). **Exception**: if the director
+   supplied the spec himself (touchRPG 2026-07-17 — a full GDD), there is no planner task: the
+   director's doc **is** the spec and the single source of truth, and `T001` starts as `build` against it.
+5. Send the stack decision + the proposed rubric to the director for approval (channel per §7 rule 8).
+   The spec task can start immediately; only its *output* needs approval.
 
 **If `VISION.md` has no project and no brief arrived, do not invent work.** Go idle.
 
@@ -115,15 +117,16 @@ Five experts × five rounds on a half-built screen is pure burn — wait for som
 Per `VISION.md` 5절:
 - Set the task `blocked`. Append the outstanding items to its `## Log`.
 - Add it to `state/PROGRESS.md` → **Needs Human Review**, and to `escalations` in `state/loop.json`.
-- **Tell the director plainly on Discord that it is NOT done**, in Korean, with what is still wrong and
-  the score history.
+- **Tell the director plainly that it is NOT done**, in Korean, with what is still wrong and the score
+  history — in the channel he last spoke in (`VISION.md` §7 rule 8: in-session if present, Discord if away).
 - Do not retry it this tick. Move on.
 
 **On `ok: false` without `escalate`** — infrastructure failed. Leave the task `ready`, record the cause
 in **Do Not Repeat**, and journal it. Do not loop on it.
 
 ### DECISION: REPLY
-Answer on Discord in Korean. No task, no workflow.
+Answer in Korean, in the channel the message came from (a Discord message is answered on Discord; an
+in-session question is answered in-session — `VISION.md` §7 rule 8). No task, no workflow.
 
 ### DECISION: IDLE
 Increment `consecutive_idle_ticks`. Skip to Step 5. If everything is `awaiting-approval` and several
@@ -132,8 +135,10 @@ on purpose (`VISION.md` 6절).
 
 ## Step 4 — Report + approval gate
 
-Send a Korean, decision-grade summary via `.discord\send.ps1` (absolute path). Attach visuals via
-`.discord\send-file.ps1` — mockups and screens must be **seen**, never described. Include the score.
+Send a Korean, decision-grade summary — **in the channel the director last spoke in** (`VISION.md` §7
+rule 8): in-session if he is present, otherwise Discord via `.discord\send.ps1` (absolute path; never
+both). Attach visuals via `.discord\send-file.ps1` — mockups and screens must be **seen**, never
+described. Include the score.
 
 Then set the status:
 - Produced a **document/design/decision** → `awaiting-approval`.
@@ -164,8 +169,10 @@ Confirm, concretely — do not assume:
 - [ ] Any task marked `done` **cleared both task gates** — mechanical PASS *and* team lead ≥ 90
 - [ ] If the app was called finished, **Gate 3 actually passed** (avg ≥ 90 AND nobody < 80) — never on
       the PM's judgment
-- [ ] Everything the director needs (results, approvals, permission requests) went to **Discord**, in
-      Korean (`VISION.md` §7 rule 8) — not left sitting in this session
+- [ ] Everything the director needs (results, approvals, permission requests) reached him **in the
+      channel he last spoke in** — in-session if present, Discord if away, never both (`VISION.md` §7
+      rule 8) — and nothing was left undelivered
+- [ ] The Discord inbox was drained this tick (by the scout) — **including in-session ticks**
 - [ ] Any escalation was **reported to the director as unfinished**, not quietly parked
 - [ ] `state/PROGRESS.md` and `state/loop.json` were updated
 - [ ] Nothing outside `loop_engine/` was modified (`VISION.md` 4절)

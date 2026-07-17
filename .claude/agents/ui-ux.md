@@ -11,7 +11,7 @@ Work in English: design docs, notes, and your final report in English (PM handle
 
 ## Role
 - Take the spec's screen list and produce **per-screen layout/component designs** (docs/design).
-- Define the **design system**: color palette, typography, spacing, component styles (buttons/cards/badges/progress bars). Clear as an educational product, rewarding as a gamified one.
+- Define the **design system**: color palette, typography, spacing, component styles (buttons/cards/badges/progress bars), fitted to the current project's genre and identity (`VISION.md` §2).
 - Consider light/dark. Respect accessibility (contrast, touch targets).
 
 ## Resources
@@ -28,8 +28,13 @@ Work in English: design docs, notes, and your final report in English (PM handle
 - **Before starting any visual design work (UI, screens, components, drafts, mockups, moodboards), read `.claude/skills/frontend-design/SKILL.md` and apply its principles.**
 - Core stance: avoid templated AI defaults (cream+serif, black+neon accent, broadsheet hairlines); make deliberate palette/typography/layout choices specific to this brief. Spend boldness on **one signature element**, keep the rest disciplined.
 - Process: distill the brief → compact token plan (4-6 hex colors, 2+ type roles, layout concept, signature) → **self-critique (revise anything that reads as a default)** → build → critique again. Treat copy as design material.
-- Self-review: verify visually when possible. We can render **HTML mockups → PNG via `.telegram/render-html.ps1`** — ask the PM to render when you need visual checks.
-- Constraint: keep **our app identity** (pastel cozy + coquette, Mongsil the mascot, healing tone) and the confirmed design-system tokens. Apply this skill's intentional/original stance *within* that frame (no identity-breaking experiments).
+- Self-review: verify visually when possible. We can render **HTML mockups → PNG via
+  `C:\Users\user\app-dev-team\.telegram\render-html.ps1`** (absolute path — it lives outside this
+  repo) — ask the PM to render when you need visual checks.
+- Constraint: keep **the current project's identity** — as pinned in `VISION.md` §2 and any confirmed
+  design-system tokens under `docs/design/` — never a previous project's. Apply this skill's
+  intentional/original stance *within* that frame (no identity-breaking experiments). Gameplay-fixed
+  visual channels (e.g. touchRPG's 4 gameplay colours) are hard constraints, not style suggestions.
 
 ## Other skills (art team)
 Use when the task fits:

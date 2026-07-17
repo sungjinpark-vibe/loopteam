@@ -943,3 +943,26 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   TBD-12/13).
 - Outstanding for the director tomorrow: TBD-12 (shield's game identity), TBD-13 (range axis + 총's
   ranged advantage), TBD-11 (skill/weapon priority; PM rec = P1).
+
+## 2026-07-17 (late) — System audit (in-session, director-requested; not a tick)
+- Director: "시스템 점검 진행해줘. 기술적, 논리적 모순 해결해줘." Full audit of the engine: contract
+  files by the PM, agents/workflows/gate/discord by an auditor subagent. 17 findings; all real ones fixed.
+- Logical contradictions fixed: (1) rule-8 self-contradiction — VISION §1/§3.4/§5, CLAUDE.md tick
+  summary/escalation, tick skill Steps 3/4/6, loop-scout template all unconditionally said "report on
+  Discord" while rule 8 forbids mirroring in-session; all now say "channel the director last spoke in".
+  Step 6 checklist also gained an explicit "inbox drained this tick" box. (2) False "T001 is running" in
+  PROGRESS/BACKLOG — the workflow died with the session; T001 set back to `ready` with a
+  score-only-do-not-rebuild note. (3) Stale GDD pointers (v0.1 → v0.3) in BACKLOG + T001. (4) TBD ban
+  list said 1..7; corrected to the 10 live ones (1-7, 11, 12, 13) in BACKLOG + loop.json. (5) touchRPG
+  README rewritten (claimed "concept pending"). (6) planner agent's "make reasonable assumptions and
+  proceed" now carries the TBD exception; its educational-games persona and ui-ux's hardcoded previous-app
+  identity (pastel/Mongsil) genericized to "read VISION §2". (7) qa agent's Flutter vocabulary → Unity.
+- Technical fixes: gate.ps1 now version-checks a caller-supplied -UnityExe against ProjectVersion.txt
+  (was a backdoor around the no-silent-upgrade guarantee); quality-loop explore escalates immediately on
+  a round-1 cannot-score (was burning 4 revise rounds at score 0) and no longer swaps in an unscored
+  revision on lead failure; playtest.js runs a compile-only gate after every fix round with one repair
+  retry (a broken fix previously burned a QA pass then killed the whole playtest); ui-ux render-html
+  path fixed to the absolute app-dev-team path.
+- Clean areas per audit: team-lead/game-expert/gate-runner/client-dev/server-dev agents (no hardcoded
+  rubrics), .discord scripts (UA header, PID-only kills, mutex), gate.ps1 otherwise as documented.
+- Next: per director, split git branches per project on the loopteam remote and push.

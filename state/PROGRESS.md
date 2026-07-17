@@ -18,9 +18,11 @@
 - **Last updated**: 2026-07-17 23:30 (Tick 50)
 
 ## ▶ Tomorrow, in this order
-1. **Finish T001.** Check the quality-loop result (`wf_756e669b-8fe`). If the workflow never delivered a
-   Gate 2 score, **re-run only the 클라이언트팀장 scoring** — the build is committed and green; do not
-   rebuild. Then report the score to the director **and list every provisional/TBD value used**
+1. **Finish T001.** The quality-loop run (`wf_756e669b-8fe`) **died with the session — workflow runs do
+   not survive session ends, so there is no result to check.** Run **only the Gate 2 scoring**: a fresh
+   `team-lead` call as 클라이언트팀장, rubric `VISION.md` §3.2 C1-C5 verbatim, given the deliverable +
+   rubric only (never the member's reasoning). The build is committed and Gate-1 green; do not rebuild.
+   Then report the score to the director **and list every provisional/TBD value used**
    (esp. TBD-1 combo cap / TBD-2 damage curve — the agent appears to have isolated them into
    `Assets/Data/Config/P0DemoNumbers.asset`; **verify that separation is real**, don't take it on faith).
 2. **Collect the director's answers to TBD-12 and TBD-13** — he said he'd give them tomorrow.
@@ -66,8 +68,9 @@
    monetization, pattern classification, screen orientation, anything on the §11 non-goal list.
 
 ## Open Items
-- **T001 in flight** — on landing: read the score, report to the director *in the channel he last spoke
-  in*, list every provisional/TBD value the agent used.
+- **T001 awaiting Gate 2 only** — nothing is running (the workflow died with the session). Score it
+  fresh (see "Tomorrow" #1), report in the channel the director last spoke in, list every
+  provisional/TBD value the agent used.
 - **touchRPG has no git remote** (same as lifetown). Local commits only until the director provides one.
 
 ## Paused: Life Town
@@ -83,14 +86,15 @@ the village scene) → playable slice → Gate 3. **Do not re-ask polish-vs-game
 See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history.
 
 ## Blockers
-- None. T001 is running.
+- None. (Nothing is running — T001 needs only its Gate 2 scoring, see "Tomorrow" #1.)
 
 ## Needs Human Review
 - None.
 
 ## Next Run Should
-1. **When T001 lands `ok: true`** (Gate 1 green + 클라이언트팀장 ≥90): mark it `done`, commit+push
-   touchRPG, report to the director with the score **and every provisional/TBD value used**. Then open
+1. **Score T001's Gate 2, then act on the result.** If 클라이언트팀장 ≥90 (Gate 1 already green): mark
+   it `done`, commit touchRPG, report to the director with the score **and every provisional/TBD value
+   used**. Then open
    **T002** (P0-B: IN-3 회피존 / IN-5 차지 / IN-6 러시 + 람팡 P2-P7 into the same data-driven pattern
    sheet). Rubric = `VISION.md` §3.2 클라이언트팀장 C1-C5 **verbatim** — never invented at grading time.
 2. **If T001 comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader

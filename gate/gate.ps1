@@ -123,6 +123,27 @@ Add-Check "project-exists" $true "Unity project, editor version $projVersion"
 # version silently upgrades the project — a destructive side effect a gate must
 # never cause.
 if ($UnityExe -and (Test-Path $UnityExe)) {
+  # A caller-supplied editor gets the SAME version check as auto-detect — otherwise
+  # -UnityExe is a backdoor around the no-silent-upgrade guarantee.
+  $exeVersion = $null
+  try {
+    if ($UnityExe -match '\\Editor\\(\d+\.\d+\.\d+[a-z]\d+)\\') { $exeVersion = $Matches[1] }
+    elseif ($UnityExe -match '\\(\d+\.\d+\.\d+[a-z]\d+)\\Editor\\Unity\.exe$') { $exeVersion = $Matches[1] }
+    if (-not $exeVersion) {
+      $fv = (Get-Item $UnityExe).VersionInfo.ProductVersion
+      if ($fv -match '^(\d+\.\d+\.\d+[a-z]\d+)') { $exeVersion = $Matches[1] }
+    }
+  } catch {}
+  if ($exeVersion -and ($exeVersion -ne $projVersion)) {
+    Add-Check "unity-editor" $false "supplied -UnityExe is $exeVersion but the project needs $projVersion. Refusing to open with a different version - that would silently upgrade the project."
+    Write-Result $false
+    exit 1
+  }
+  if (-not $exeVersion) {
+    Add-Check "unity-editor" $false "cannot determine the version of supplied -UnityExe ($UnityExe); refusing rather than risk a silent project upgrade. Omit -UnityExe to auto-detect."
+    Write-Result $false
+    exit 1
+  }
   $script:unityPath = $UnityExe
 } else {
   $candidate = "C:\Program Files\Unity\Hub\Editor\$projVersion\Editor\Unity.exe"

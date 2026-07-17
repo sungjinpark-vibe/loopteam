@@ -280,6 +280,20 @@ it. The winner still has to clear ${PASS_MARK}: a best-of-three that is still we
   const scoreHistory = [scored.score ?? 0]
   let round = 1
 
+  // Grader refusal on the FIRST scoring escalates immediately (VISION.md §5:
+  // "a lead who refuses to score -> stop and escalate, do not force a score").
+  // Without this, a round-1 'cannot-score' fell through as score 0 and burned
+  // up to 4 revise rounds against a rubric the lead had already refused.
+  if (scored.verdict === 'cannot-score') {
+    return {
+      ok: false, mode: 'explore', title: TITLE, escalate: true, rounds: 1,
+      reason: `Cannot score: ${scored.cannotScoreReason ?? 'the lead refused the rubric'}`,
+      outstanding: 'The rubric does not fit this task. VISION.md §3.2 needs the director.',
+      score: scored.score ?? 0, scoreHistory,
+      winner: { angle: winner?.angle, proposal: winner?.proposal },
+    }
+  }
+
   // ── REVISE LOOP ─────────────────────────────────────────────────────────
   // VISION.md §5 failure policy: "Gate 2 below 90 -> take the itemized
   // deductions, fix, re-score." That applies to documents too, and this loop
@@ -330,7 +344,9 @@ ${grafts.length ? grafts.map((g) => `- ${g}`).join('\n') : '(none reported)'}
       } },
     )
     if (!revised) { log(`Round ${round}: reviser failed — stopping`); break }
-    winner = revised
+    // NOTE: `winner` is NOT updated yet — only after the revision is actually
+    // re-scored. Otherwise a lead failure below would pair the previous round's
+    // score with a never-scored proposal in the escalation report.
 
     phase('Lead Review')
     const v2 = await agent(
@@ -362,6 +378,7 @@ ${revised.proposal}
       { label: `lead r${round}`, phase: 'Lead Review', agentType: 'team-lead', schema: SCORE_SCHEMA },
     )
     if (!v2) { log(`Round ${round}: lead failed to report — stopping`); break }
+    winner = revised
     scored = v2
     scoreHistory.push(v2.score ?? 0)
 

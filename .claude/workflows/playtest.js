@@ -9,6 +9,7 @@ export const meta = {
     { title: 'Evidence' },
     { title: 'Panel' },
     { title: 'Fix' },
+    { title: 'Gate' },
   ],
 }
 
@@ -126,6 +127,23 @@ const EXPERT_SCHEMA = {
     topFix: { type: 'string', description: 'The single change that most improves the game through YOUR lens' },
     unverified: { type: 'array', items: { type: 'string' }, description: 'What your lens needed that the evidence did not cover' },
     cannotScoreReason: { type: 'string' },
+  },
+}
+
+const GATE_SCHEMA = {
+  type: 'object',
+  required: ['pass'],
+  properties: {
+    pass: { type: 'boolean', description: 'true ONLY if the gate script exited 0' },
+    failed: { type: 'array', items: { type: 'string' } },
+    checks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'pass'],
+        properties: { name: { type: 'string' }, pass: { type: 'boolean' }, detail: { type: 'string' } },
+      },
+    },
   },
 }
 
@@ -358,7 +376,64 @@ Work in English. Make sure it still compiles and runs before you finish.`,
       history: roundHistory,
     }
   }
-  log(`Round ${round}: fixes applied — ${(fixed.filesTouched ?? []).length} files. Re-playtesting.`)
+  log(`Round ${round}: fixes applied — ${(fixed.filesTouched ?? []).length} files.`)
+
+  // ── Mechanical gate after the fix ───────────────────────────────────────
+  // "A broken build is never scored" applies between rounds too: a fix that
+  // broke the compile must never reach QA — that would burn a full evidence
+  // pass just to discover a CS error, then kill the whole playtest. Verify
+  // compile-only (fast), give the fixer ONE repair attempt, then escalate.
+  phase('Gate')
+  let gateOk = false
+  for (let attempt = 1; attempt <= 2 && !gateOk; attempt++) {
+    const gate = await agent(
+      `Run the mechanical gate. Do not fix anything. Do not run it twice.
+
+  powershell -NoProfile -File "C:\\Users\\user\\loop_engine\\gate\\gate.ps1" -AppDir "${APP_DIR}" -SkipTest -JsonOut "C:\\Users\\user\\loop_engine\\state\\gate-result.json"
+
+Then read C:\\Users\\user\\loop_engine\\state\\gate-result.json and report its contents verbatim.`,
+      { label: `gate r${round}.${attempt}`, phase: 'Gate', agentType: 'gate-runner', model: 'haiku', schema: GATE_SCHEMA },
+    )
+    if (gate?.pass) { gateOk = true; break }
+
+    const detail = gate?.checks?.filter((c) => !c.pass).map((c) => `- [${c.name}] ${c.detail}`).join('\n') || '(gate did not report)'
+    log(`Round ${round}: the fix broke the mechanical gate (attempt ${attempt}) — not sending to QA`)
+    if (attempt === 2) {
+      return {
+        ok: false, escalate: true, rounds: round, avg,
+        reason: 'The fix round left the build mechanically broken (compile gate failed twice). A broken build is never playtested.',
+        outstanding: `${detail}\n\nPanel findings still open:\n${fixNotes}`,
+        history: roundHistory,
+      }
+    }
+
+    const repaired = await agent(
+      `Your playtest fixes broke the mechanical gate — the build no longer compiles. Repair it WITHOUT
+reverting the intent of the fixes.
+
+## Project
+${APP_DIR}
+
+## Gate failures
+${detail}
+
+Work in English. Make sure it compiles before you finish.`,
+      { label: `repair r${round}`, phase: 'Gate', agentType: 'client-dev', schema: {
+        type: 'object',
+        required: ['summary'],
+        properties: { summary: { type: 'string' }, filesTouched: { type: 'array', items: { type: 'string' } } },
+      } },
+    )
+    if (!repaired) {
+      return {
+        ok: false, escalate: true, rounds: round, avg,
+        reason: 'The fix round broke the compile and the repair attempt failed to run.',
+        outstanding: `${detail}\n\nPanel findings still open:\n${fixNotes}`,
+        history: roundHistory,
+      }
+    }
+  }
+  log(`Round ${round}: mechanical gate green after fixes. Re-playtesting.`)
 }
 
 // ── FAILURE BRAKE ───────────────────────────────────────────────────────────

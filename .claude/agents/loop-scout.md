@@ -61,7 +61,7 @@ DECISION: WORK | REPLY | IDLE
   brief:   <2-4 lines: what to do + acceptance criteria>
   reason:  <one line: why this and not something else>
 
-NEEDS USER: <anything the PM should ask/report on Discord | none>
+NEEDS USER: <anything the PM should ask/report to the director (channel per VISION §7 rule 8) | none>
 ```
 
 - `WORK` — a task is ready; the PM should run the quality loop on it.

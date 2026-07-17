@@ -5,7 +5,8 @@
 > goals and constraints (**Goal Drift**). Re-reading this is the only thing that prevents it.
 >
 > English per director rule 3. **The director never has to open this file.** Anything they must decide
-> — a rubric, a boundary, a stack change — the PM presents in Korean on Discord and gets approval there.
+> — a rubric, a boundary, a stack change — the PM presents in Korean, in the channel the director is
+> actually in (§7 rule 8: in-session when present, Discord when away), and gets approval there.
 >
 > **This file is the tuning panel.** Rubrics (§3.2) and the expert panel (§3.3) live here on purpose:
 > the director changes the bar by changing this file, not by editing agents.
@@ -20,7 +21,8 @@ bar, and approve or reject.
 
 - **Director = the user.** Decides what to build, why, and how it should feel.
 - **PM = the main agent.** Decides how, who, and — crucially — *when it is done*.
-- The director does not read code. Whatever they need in order to decide, the PM shows on Discord.
+- The director does not read code. Whatever they need in order to decide, the PM shows them in Korean —
+  in-session when they are present, on Discord when they are away (§7 rule 8).
 
 ## 2. Current project — touchRPG (working title "람팡")
 
@@ -258,7 +260,7 @@ With only a success brake, a loop never stops on work that can never succeed.
 - **No-progress detection**: if the score does not move (±2) across 3 rounds, stop.
   Circling in place is not iteration, it is waste.
 - Work stopped by a limit is **never marked done**. It goes to **Needs Human Review** in
-  `state/PROGRESS.md` and is reported on Discord with the score history.
+  `state/PROGRESS.md` and is reported to the director with the score history (channel per §7 rule 8).
 
 ## 4. Boundaries — what not to do
 
@@ -267,7 +269,7 @@ With only a success brake, a loop never stops on work that can never succeed.
 **Allowed without approval**
 - Writing/editing code, docs, and tests inside the project folder; running Unity
 - Updating `backlog/` and `state/`; committing and pushing the project repo
-- Reporting and asking questions on Discord
+- Reporting and asking questions to the director (channel per §7 rule 8)
 
 **Requires director approval**
 - **Finalizing** a spec, design, art direction, or API contract (proposing is free; finalizing is not)
@@ -298,7 +300,7 @@ Decided in advance. No improvising.
 | Gate 3 below bar (avg <90, or anyone <80) | Deductions → fix → re-playtest |
 | Same check fails twice in a row | Hand to human review |
 | Score flat for 3 rounds | Stop iterating, hand to human review |
-| 5-round limit reached | Stop. **Never mark done.** Report on Discord with the score history. |
+| 5-round limit reached | Stop. **Never mark done.** Report to the director with the score history (channel per §7 rule 8). |
 | A lead/expert refuses to score (rubric does not fit) | Stop and escalate — do not force a score |
 | Boundary (§4) violation detected | **Stop immediately.** Revert and report to the director. |
 | Unity/build infrastructure failure | Return the task to `ready`; record the cause in `Do Not Repeat` |
@@ -369,3 +371,4 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   every deliverable is judged by one consistent standard.
 - 2026-07-17 **Project switch**: Life Town paused (resumable — snapshot in `lifetown/docs/paused-state/`), **touchRPG** begins. §2 rewritten; concept pending the director's brief (the PM must not invent it). Team, gates, rubrics (§3), boundaries (§4) and failure policy (§5) carry over **unchanged** by director's instruction.
 - 2026-07-17 **Rule 8 amended** (director): Discord is the *async* channel. In-session (VS Code) conversation is answered in-session only and never mirrored to Discord; Discord carries what happens while he is away. Also made "drain the inbox every tick, including in-session ticks" explicit after a real message was skipped.
+- 2026-07-17 **System audit** (director-requested): every remaining unconditional "report on Discord" in this file, `CLAUDE.md`, the tick skill, and agent files was aligned with rule 8 ("channel the director last spoke in"). No rules changed — wording only. Companion fixes: stale GDD pointers → v0.3, TBD list → the 10 live ones, `gate.ps1` now version-checks a supplied `-UnityExe` (closing a silent-upgrade backdoor), quality-loop escalates immediately on a round-1 grader refusal, playtest re-runs the compile gate after each fix round.

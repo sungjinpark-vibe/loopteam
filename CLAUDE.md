@@ -27,7 +27,7 @@ workflow. This is what makes the output trustworthy without the director reading
            build:   구현 → 관문1 기계 Gate → QA 증거 수집 → 관문2 팀장 90점 → 재작업
            explore: 3 proposals from different angles → 팀장이 같은 기준표로 채점 → winner
            ↓
-       report to Discord (Korean) → update PROGRESS.md/journal → [sleep]
+       report to the director (Korean, channel per VISION §7 rule 8) → update PROGRESS.md/journal → [sleep]
 
    ...and when a meaningful slice is playable (a milestone, NOT every task):
        playtest workflow → QA plays the real build → 전문가 5인 채점
@@ -106,8 +106,10 @@ the summary.
    you were given are gone. Then check the kill switch (`state/loop.json` `paused: true` → sleep).
 1. **Scout** — delegate to `loop-scout`. It returns `WORK` / `REPLY` / `IDLE` + a brief. Never read the
    whole inbox and backlog yourself; that is exactly what burns the loop down.
-2. **Act** — `WORK` → run the quality loop; `REPLY` → answer on Discord; `IDLE` → sleep.
-3. **Report** — Discord, Korean, decision-grade summary, with the score.
+2. **Act** — `WORK` → run the quality loop; `REPLY` → answer in the channel the message came from;
+   `IDLE` → sleep.
+3. **Report** — Korean, decision-grade summary, with the score — **in the channel the director last
+   spoke in** (`VISION.md` §7 rule 8: in-session if present, Discord if away, never both).
 4. **Update memory** — `state/PROGRESS.md` (cockpit), `state/journal.md` (archive), `state/loop.json`.
 5. **Verification checklist** — confirm the tick actually did what it claims (see the skill). A tick
    that skips this is a tick that can silently do nothing.
@@ -147,8 +149,8 @@ A loop that runs for hours dies of context bloat, not of bad code. So:
 detection (score flat ±2 three rounds running), or the grader refusing to score a rubric that doesn't fit.
 
 **Report it to the director as unfinished** — never let it look done. Push the task to `blocked`, add it
-to `state/PROGRESS.md` → **Needs Human Review** and `state/loop.json` `escalations`, and say plainly on
-Discord what is still wrong, with the score history.
+to `state/PROGRESS.md` → **Needs Human Review** and `state/loop.json` `escalations`, and say plainly what
+is still wrong, with the score history — in the channel he last spoke in (`VISION.md` §7 rule 8).
 
 A loop that silently ships rejected work is worse than no loop — that is the **Ralph Wiggum Loop**, and
 it is the single failure mode this whole design exists to prevent.

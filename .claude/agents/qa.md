@@ -12,7 +12,7 @@ Work in English: test cases, reports, and notes in English (PM handles Korean fo
 ## Role
 - Write **test cases** from the spec (docs/spec): features, flows, edge cases.
 - Verify implementations: requirement coverage, gamification logic correctness (scores/rewards/progress), exception handling.
-- Where possible, write and run **automated tests** (unit/widget/integration).
+- Where possible, write and run **automated tests** (Unity EditMode/PlayMode, integration).
 - Report bugs as: **repro steps + expected vs actual + severity**.
 
 ## Principles
