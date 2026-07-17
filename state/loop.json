@@ -1,13 +1,13 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
-  "tick": 48,
-  "project": "touchRPG (new game — brief pending)",
-  "active_task": null,
-  "last_tick_at": "2026-07-17 21:31",
-  "consecutive_idle_ticks": 1,
+  "tick": 49,
+  "project": "touchRPG (working title 람팡) — touch hunting action, Unity, portrait",
+  "active_task": "T001 P0-A parry core IN PROGRESS (quality-loop workflow wf_756e669b-8fe, background; client-dev -> Gate1 mechanical -> 클라이언트팀장 90). Answers GDD §10's single P0 question: '터치 패링이 손맛이 있는가'. On landing: read score -> report to director. Do NOT start P1 before that.",
+  "last_tick_at": "2026-07-17 21:50",
+  "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself.",
   "escalations": [],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done.",
-  "_state_reason": "2026-07-17 18:15 (tick 47): PROJECT SWITCH. Director paused Life Town and started touchRPG, reusing the same team+system unchanged. DONE: touchRPG/ folder + own git repo + docs/{spec,design,api,qa}; gitignored from engine; VISION.md section 2 rewritten for touchRPG; PROGRESS.md + backlog reset; Life Town contract state archived to lifetown/docs/paused-state/ (VISION section 2, PROGRESS, backlog+tasks) so it is fully resumable. BLOCKED ON: the director's concept brief — asked on Discord (4 questions: genre/touch meaning, one-line concept, target player, references). The name 'touchRPG' is NOT a brief; per VISION section 2/4 the PM must NOT invent the concept, genre, or target player. WHEN THE BRIEF LANDS: fill VISION section 2, open T001 (explore, planner, 기획팀장 rubric from VISION section 3.2 verbatim, passMark 90) via quality-loop, send proposed scope to director for approval. LIFE TOWN RESUME: restore section 2 + backlog from lifetown/docs/paused-state/, point loop.json.project back; it stopped with 7 buildings + village v2 gate-green, awaiting a lock-or-gameplay decision."
+  "_state_reason": "2026-07-17 21:50 (tick 49): touchRPG BOOTSTRAPPED. Director delivered a full GDD (desktop 게임기획서_v0.1.md -> touchRPG/docs/spec/00-gdd-v0.1.md) = THE SINGLE SOURCE OF TRUTH per its own §0 (conflicts: the doc wins). Unity 6000.5.1f1 project created; VISION §2 rewritten from the GDD (concept, pillars P-1..P-4, P0 scope, project boundaries, non-goals, numbers-externalized rule, TBD rule); PROGRESS + backlog rebuilt; T001 opened and running. GAME: touch-first hunting action + growth (NOT MMORPG), portrait fixed, party 1-4, hunt 10-15min, tap-only input, timing parry is the heart. P0 = vertical slice; its ONE validation question is '터치 패링이 손맛이 있는가' and GDD §10 forbids starting P1 before it is answered. CRITICAL RULE: TBD-1..TBD-7 (§13) are deliberately undecided — the team MUST NOT fill them in; the GDD calls hallucinated design its most-guarded failure mode (= our Nodding Loop). Director approval required for: input vocabulary, judgment-window system, growth axes, monetization, pattern classification, screen orientation, §11 non-goals. Life Town paused/resumable (see VISION §2 paused section; its next task = real gameplay, already decided)."
 }

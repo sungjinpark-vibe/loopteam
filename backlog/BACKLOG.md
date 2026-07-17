@@ -27,9 +27,20 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 
 | ID | Title | Status | Agent | Mode | Priority | Notes |
 |---|---|---|---|---|---|---|
-| — | _(empty — waiting on the director's concept brief)_ | — | — | — | — | `T001` (spec · `explore` · `planner`) opens the moment the brief lands. **Do not invent the concept** (`VISION.md` §2/§4). |
+| T001 | P0-A — parry core (the "손맛" prototype) | `in-progress` | client-dev | build | 1 | quality-loop running (클라이언트팀장, 90). Answers GDD §10's single P0 question: *"터치 패링이 손맛이 있는가"*. |
+| T002 | P0-B — remaining input (IN-3 회피존, IN-5 차지, IN-6 러시) + 람팡 P2-P7 | `blocked` | client-dev | build | 2 | Depends on T001. Do **not** start until the 손맛 question is answered (GDD §10). |
+| T003 | P0-C — 3-phase session + solo run to completion | `blocked` | client-dev | build | 3 | Depends on T002. GDD §5.1; grogg y rush guaranteed once per phase transition. |
+| T004 | P0-D — combat UI §6.1-6.2 completion | `blocked` | ui-ux → client-dev | — | 4 | Depends on T001. Marker visual language, party layer. |
 
 > **Numbering restarts at `T001` for touchRPG.** Life Town's T001-T008 live in its archive, not here.
+>
+> **The spec was written by the director** — `touchRPG/docs/spec/00-gdd-v0.1.md` (GDD v0.1). There is no
+> `planner` spec task: the GDD *is* the spec and the **single source of truth**. T001+ implement it.
+>
+> **P1/P2 are not in this queue on purpose.** GDD §10: do not start P1 (party, talismans, daily loop)
+> before P0's question — *"터치 패링이 손맛이 있는가"* — is answered.
+>
+> **TBD-1…TBD-7 (GDD §13) MUST NOT be filled in by the team.** They are the director's, deliberately.
 
 ## Task file format
 

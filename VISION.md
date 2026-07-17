@@ -22,44 +22,86 @@ bar, and approve or reject.
 - **PM = the main agent.** Decides how, who, and — crucially — *when it is done*.
 - The director does not read code. Whatever they need in order to decide, the PM shows on Discord.
 
-## 2. Current project — touchRPG (scaffolded; **brief pending**)
+## 2. Current project — touchRPG (working title "람팡")
+
+> **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.1.md` (director-authored,
+> v0.1, 2026-07-17). Its §0 says so outright — if code comments, past conversation, or inferred
+> convention conflict with that document, **the document wins**. This §2 is a compact pointer for the
+> loop, **not a replacement**. When they disagree, the GDD is right. Read it before briefing any agent.
 
 | Field | Value |
 |---|---|
-| Name | **touchRPG** |
-| Stack | **Unity 6000.5.1f1** (fixed by director rule §7.5 — not a per-project choice) |
-| One-line concept | _(awaiting the director's brief — asked on Discord 2026-07-17)_ |
-| Target player | _(awaiting the director's brief)_ |
-| Project folder | `C:\Users\user\loop_engine\touchRPG` (own git repo; gitignored from the engine) |
-| Director's brief | 2026-07-17: *"이 프로젝트는 잠시 중단하고 새로운 게임 개발을 시작. touchRPG 폴더 생성해서 신규 개발 준비. 게임 개발은 현재 개발팀과 시스템을 그대로 사용."* |
-| Spec | _(none yet — `T001` opens when the brief lands)_ |
-| Scope | _(pending the brief)_ |
-| Completion | **The 5-expert playtest gate (§3.3)** — unchanged. |
+| Name | **touchRPG** — working title "람팡" (final naming = TBD-6, director's) |
+| Genre | Touch-first online hunting action + persistent growth. **Not an MMORPG** (GDD §11) |
+| Stack | **Unity 6000.5.1f1** (director rule §7.5; GDD §1 agrees) |
+| Platform | Mobile (iOS/Android) first, PC cross-platform. **Portrait fixed** — landscape is a non-goal |
+| One-line concept | *"탭 하나로 즐기는 타이밍 패링 협동 헌팅. 잘 피하고 꾸준히 때리는 자가 이긴다."* |
+| Target player | 20-30s men and women, light-to-midcore (GDD §1) |
+| Session | One hunt 10-15 min; 30-60 min/day recommended. Party 1-4 |
+| References | Monster Hunter / Vindictus (big single-target hunts, part-breaking, mastery-through-repetition); Clair Obscur: Expedition 33 (precise timing input as the heart of combat). **Differentiator**: that feel, rebuilt as portrait + single-tap gesture + party relay parry |
+| Project folder | `C:\Users\user\loop_engine\touchRPG` (own git repo, gitignored from the engine) |
+| Spec | `touchRPG/docs/spec/00-gdd-v0.1.md` |
+| Completion | **The 5-expert playtest gate (§3.3)** — unchanged |
 
-### Status: scaffolding only — do NOT invent the concept
-Folder, git repo, and `docs/{spec,design,api,qa}` are ready. The loop is **waiting on the director's
-concept brief**. The name alone ("touchRPG") is not a brief. Per §4, the PM must not invent the game
-concept, genre, or target player. When the brief arrives:
-1. Fill in this section (concept, target player, scope).
-2. Open `T001` as an `explore` task for `planner` (the detailed spec).
-3. Send the proposed scope to the director for approval — the spec task itself may start immediately;
-   only its *output* needs approval.
+### The four pillars (GDD §2 — if a feature conflicts with a pillar, the feature is wrong)
+- **P-1 실력은 회피와 리듬** — skill, not stat inflation, decides outcomes. 딜찍누 is MUST NOT.
+- **P-2 입력은 탭 하나, 판단은 무한** — the only gestures are tap (+ hold, + repeat-tap). Depth comes
+  from *when and what* to tap. New gestures (swipe, joystick) MUST NOT without director approval.
+- **P-3 협동은 딜 합산이 아니라 기회 창출** — party value = safe damage windows, judgment leniency,
+  mistake buffering. Never "headcount × damage". Scale by pattern composition, **never by HP multipliers**.
+- **P-4 성장은 숫자가 아니라 기회를 넓힌다** — growth widens judgment windows and opportunity. Pure
+  attack-power options may exist **only** in the 공세 slot.
 
-**The team and system carry over unchanged** (director, 2026-07-17): same agents, same three gates,
-same rubrics (§3.2), same expert panel (§3.3), same boundaries (§4) and failure policy (§5).
+Two supporting rules, both MUST: **"화면이 아니라 몬스터를 보게 만든다"** — the cue distinguishing a fake
+lives in the monster's animation, never in a UI marker (GDD §6.2/§7.2). **"마커가 있는 곳은 탭, 없는
+곳은 이동"**. Gameplay colour is fixed at 4 channels (yellow=parry, blue=dodge, red=relay, gold=reward);
+adding a gameplay colour is MUST NOT.
+
+### P0 — the only thing that matters right now (GDD §10)
+P0 = the vertical slice: the full input grammar (IN-1~6), 람팡 + its complete pattern sheet, the 3-phase
+session, a solo run to completion, combat UI §6.1-6.2.
+
+> **P0's validation question is exactly one: "터치 패링이 손맛이 있는가."**
+> The GDD says not to start P1 work before that is answered. The team obeys this — the early tasks exist
+> to answer that question, not to broaden scope.
+
+P1 = party of 4 (relay / cover / IN-7), minimal matching+lobby, talismans + part materials, daily loop.
+P2 = monster #2 (험상궂음), mastery + codex, weekly raid, PC build.
+Network/judgment architecture is **TBD-7**, decided with the director when P1 starts — out of scope now.
+
+### Project boundaries (GDD §0/§11 — these bind *on top of* §4)
+**Team discretion, no query needed**: code architecture, data structures, asset pipeline, presentation
+detail, placeholder art, internal tools.
+**Director approval required**: adding/changing the input vocabulary; changing the judgment-window
+system; new growth axes; anything touching monetization; changing the pattern-classification system;
+screen orientation; adding anything on the §11 non-goal list.
+**Non-goals — do not build**: open/seamless world, PvP, extra control schemes (swipe/joystick), stress
+monetization (enhance-failure, stamina gates, uncapped reroll gambling), auto-hunt or idle mechanics,
+landscape mode, and **any monetization model at all** (a separate doc will cover it; assume nothing).
+
+**Numbers**: every gameplay constant (GDD §12) MUST be externalized to config/ScriptableObject — never
+hardcoded. A gameplay-affecting number that is not in the doc MUST be asked, never invented; a
+presentation-only number (effect length, etc.) MAY be chosen and recorded.
+
+**The `[TBD]` rule (GDD §0/§13) — treat this as a gate.** Seven items are *deliberately* undecided:
+combo cap (TBD-1), damage curve (TBD-2), 람팡 유대 material part (TBD-3), enhance curve (TBD-4), daily
+blessing count (TBD-5), final naming (TBD-6), network architecture (TBD-7). **MUST NOT fill them in.**
+The GDD names the failure mode itself: *"그럴듯한 보간(hallucinated design)은 이 프로젝트에서 가장
+경계하는 실패 모드다."* That is this loop's **Nodding Loop** under another name — the exact thing §3
+exists to prevent. An agent that invents a TBD has failed the task, however good the result looks.
 
 ### Paused project — Life Town (resumable, not cancelled)
-Paused by the director 2026-07-17 evening. Fully preserved:
+Paused by the director 2026-07-17 to start touchRPG. Fully preserved:
 - **Code + renders**: `lifetown/` (own repo, everything committed).
-- **Contract snapshot at pause**: `lifetown/docs/paused-state/` — its VISION §2, its PROGRESS cockpit,
-  its `backlog/` + task files.
+- **Contract snapshot at pause**: `lifetown/docs/paused-state/` — its VISION §2, its PROGRESS cockpit
+  (which carries a READ-THIS-FIRST resume banner), its `backlog/` + task files.
 - **Where it stopped**: all 7 category buildings + a polished village scene (v2), gate-green (81/81).
   **The open question was already answered** — 2026-07-17 17:56 the director replied *"실제 게임 동작
   진행해줘"*: village v2 is accepted, **proceed to real gameplay** (tap building → timer → growth/build,
   wiring Economy.Core T002 + Platform T003 + design system T004 into the village) → playable slice →
   Gate 3. Do **not** re-ask polish-vs-gameplay on resume. Full history in `state/journal.md`.
 - **To resume**: restore §2 from that snapshot, restore its backlog, point `loop.json.project` back to
-  lifetown, and continue from its PROGRESS "Next Run Should".
+  lifetown, and start the gameplay task.
 
 ## 3. Stop conditions — the loop's constitution
 

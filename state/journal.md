@@ -845,3 +845,24 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - touchRPG: still BLOCKED on the concept brief. Idle (1). Did not invent a concept (VISION §2/§4).
 - Lesson for the loop: a tick driven by an in-session instruction must STILL drain the Discord inbox —
   otherwise a director message sent in the same window is silently skipped past by the cursor.
+
+## Tick 49 — 2026-07-17 21:50 — touchRPG bootstrapped from the director's GDD; T001 running
+- Director: "바탕화면에 게임기획서_v0.1 파일 확인해줘." He had written a full GDD (20KB, 14 sections) —
+  far more than the 4 questions I asked. Copied to touchRPG/docs/spec/00-gdd-v0.1.md as THE single
+  source of truth (its §0 says so: conflicts with code/conversation/convention -> the doc wins).
+- GAME: touch-first online hunting action + persistent growth (explicitly NOT MMORPG). Unity, PORTRAIT
+  fixed, party 1-4, hunt 10-15min. One-line: "탭 하나로 즐기는 타이밍 패링 협동 헌팅." Target 20-30s
+  light-midcore. Refs: Monster Hunter/Vindictus + Clair Obscur (timing parry). 4 pillars: skill=dodge+
+  rhythm / tap-only input / co-op = opportunity not damage-sum / growth widens windows not numbers.
+- Bootstrapped: Unity 6000.5.1f1 project created (batchmode, clean); Unity .gitignore; VISION §2 fully
+  rewritten from the GDD (pillars, P0 scope, project boundaries incl. GDD §0 decision-authority + §11
+  non-goals, numbers-externalized MUST, and the TBD rule as a gate); PROGRESS + BACKLOG rebuilt around
+  P0. No planner spec task — the director's GDD IS the spec.
+- T001 P0-A parry core opened and dispatched via the FULL quality-loop (wf_756e669b-8fe) — novel,
+  timing-critical, fresh project = exactly what workflows are reserved for (vs the frugal path used for
+  Life Town's proven-pattern building work). Scope held to GDD §10's single question:
+  "터치 패링이 손맛이 있는가". P1 explicitly NOT started (GDD §10 forbids it before that answer).
+- THE RULE I MUST HOLD: TBD-1..TBD-7 are deliberately undecided. The GDD names hallucinated design as
+  its most-guarded failure mode — the same thing our §3 gates exist to prevent. Briefed the agent that
+  inventing a TBD FAILS the task however good the result looks; combo cap/damage curve stay provisional
+  and labelled, for the director to set after the P0 playtest (his own plan, §13).
