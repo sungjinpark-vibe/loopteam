@@ -28,18 +28,30 @@ namespace TouchRPG.Combat.Input
 
         private void Update()
         {
+            // Touch-only platforms (mobile - GDD §1's primary target) simulate a mouse
+            // event from the primary touch, so GetMouseButtonDown(0) AND a Began touch
+            // can both fire for one physical tap in the same frame. Handling both paths
+            // unconditionally would resolve the same tap twice - e.g. a perfect parry
+            // immediately followed by an unintended ground-move on the same finger-down.
+            // When any touch is active this frame, touches are authoritative and the
+            // (possibly synthesized) mouse path is skipped; mouse is only read when
+            // there is no touch at all, which is exactly editor/PC testing.
+            if (UnityEngine.Input.touchCount > 0)
+            {
+                for (int i = 0; i < UnityEngine.Input.touchCount; i++)
+                {
+                    var touch = UnityEngine.Input.GetTouch(i);
+                    if (touch.phase == TouchPhase.Began)
+                    {
+                        ResolveTap(touch.position);
+                    }
+                }
+                return;
+            }
+
             if (UnityEngine.Input.GetMouseButtonDown(0))
             {
                 ResolveTap(UnityEngine.Input.mousePosition);
-            }
-
-            for (int i = 0; i < UnityEngine.Input.touchCount; i++)
-            {
-                var touch = UnityEngine.Input.GetTouch(i);
-                if (touch.phase == TouchPhase.Began)
-                {
-                    ResolveTap(touch.position);
-                }
             }
         }
 
