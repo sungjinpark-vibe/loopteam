@@ -680,3 +680,13 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   paths (lock direction & do other buildings / refine cozier). Committed to lifetown (1d6c97e).
 - Token tradeoff continued (Tick 24 pattern): PM visual check + honest disclosure instead of a formal
   art-lead re-gate for this direction-calibration render.
+
+## Tick 34 — 2026-07-17 12:26 — director: option 2 + '책 느낌을 더 살려줘'
+- Director (12:18): "2로 진행하되 책 느낌을 더 살려줘" — confirmed the cottage-of-books direction (v4),
+  chose REFINE, and asked to strengthen the BOOK reading. (Also re-sent the same reference photo at
+  11:41 as _1.png — identical, no new info.) Cursor -> 1527514816443580556.
+- This directly addresses my honest v4 note (spine walls read as color blocks). Resumed client-dev
+  ae38e5432a455370b (frugal, has v4 code) for v5: upgrade CreateBookSpineWall so each spine reads as a
+  real book (title bands, groove gaps, varied H/W, depth offset), mix in horizontal books, add base
+  book piles, warm vintage-leather palette, faint roof page-lines. Keep the v4 cottage form.
+- Acked in Korean. v5 building in background (spike-library-cottage-v5.png). On landing: view->gate->show.
