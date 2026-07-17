@@ -779,3 +779,15 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   wide render to docs/design/spike-village-v1.png. STATIC only - no gameplay/data (scope discipline;
   VISION 11.3 over-scope caution). Keep the 7 per-building renders working. Gate green required.
 - Building in background; on landing: view -> gate -> show director.
+
+## Tick 41 — 2026-07-17 15:52 — village scene v1 landed, sent to director
+- a4425 built the village (265k): RenderVillagePng + SpikeVillage scene, wide iso ground, central path+
+  plaza (2 trees/2 lamps/bench), 7 buildings in two staggered rows, doors facing the path, all roof
+  icons+rings unobstructed (agent moved plaza props after a first pass where a tree canopy occluded
+  Work's icon in iso projection). Gate PASS 81/81, 7 per-building renders re-verified, no lock.
+  Committed lifetown 865d433.
+- PM view: delivers 'a village' clearly. Honest v1 gaps flagged to director: loose/uneven spacing +
+  plain flat ground slab. Offered (1) polish layout+ground vs (2) proceed to real gameplay (tap->timer->
+  build), which is the path toward a playable slice -> Gate 3 playtest. Awaiting his choice.
+- Milestone status: all 7 buildings + a static village scene now exist. Next big arc = interaction/data
+  (Economy.Core T002 + Platform T003 wiring) to reach a playable slice.
