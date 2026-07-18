@@ -74,6 +74,8 @@ namespace TouchRPG.EditorTools
 
             var templatesRoot = BuildTemplatesRoot(canvasRoot);
             var parryMarkerTemplate = BuildParryMarkerTemplate(templatesRoot);
+            var dodgeZoneTemplate = BuildDodgeZoneTemplate(templatesRoot);
+            var rushZoneTemplate = BuildRushZoneTemplate(templatesRoot);
 
             // ── Info layer: monster name + HP bar with phase ticks (GDD §5.1/§6.1) ──
             var monsterNameText = BuildText("MonsterNameText", infoLayer, "람팡", 42, Color.white,
@@ -109,10 +111,27 @@ namespace TouchRPG.EditorTools
             var furColor = new Color(0.62f, 0.42f, 0.24f); // decorative, non-gameplay colour - unrestricted
             var furColorDark = new Color(0.48f, 0.32f, 0.18f);
 
+            // IN-5 (GDD §4.1): the Body part specifically doubles as the charge-attack
+            // target ("길게 누르고 떼기... 대상: 몬스터 몸체"), so it carries
+            // ChargeAttackController (a MonsterPart subclass) instead of a plain MonsterPart -
+            // a quick tap still falls back to an ordinary IN-1 basic attack (see
+            // ChargeAttackController.OnHoldReleased).
             var bodyImg = BuildImage("Body", monsterRoot, PlaceholderSprites.RoundedRect, furColor,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(420f, 380f), true);
-            var body = bodyImg.gameObject.AddComponent<MonsterPart>();
+            var body = bodyImg.gameObject.AddComponent<ChargeAttackController>();
             SetPrivateField(body, "partId", "body");
+            var chargeGaugeImg = BuildImage("ChargeGauge", bodyImg.transform, PlaceholderSprites.Ring, GameplayColors.Gold,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 420f), false);
+            chargeGaugeImg.type = Image.Type.Filled;
+            chargeGaugeImg.fillMethod = Image.FillMethod.Radial360;
+            chargeGaugeImg.enabled = false;
+            SetPrivateField(body, "chargeGaugeImage", chargeGaugeImg);
+
+            // Belly (GDD §7.2 P7 anchor "배 연타" - the C-4 groggy rush target, IN-6).
+            var bellyImg = BuildImage("Belly", monsterRoot, PlaceholderSprites.Circle, new Color(0.86f, 0.66f, 0.42f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -110f), new Vector2(170f, 170f), true);
+            var belly = bellyImg.gameObject.AddComponent<MonsterPart>();
+            SetPrivateField(belly, "partId", "belly");
 
             var tailImg = BuildImage("Tail", monsterRoot, PlaceholderSprites.Circle, furColorDark,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-260f, -60f), new Vector2(260f, 260f), true);
@@ -141,6 +160,14 @@ namespace TouchRPG.EditorTools
             var cheekPouchRight = cheekPouchRightImg.gameObject.AddComponent<MonsterPart>();
             SetPrivateField(cheekPouchRight, "partId", "cheek_pouch");
 
+            // GDD §7.2 P4 MUST: real/fake tell lives ONLY in monster animation - see
+            // LampangCheekTellAnimator's own remark.
+            var cheekTellAnimatorGo = new GameObject("LampangCheekTellAnimator");
+            cheekTellAnimatorGo.transform.SetParent(monsterLayer, false);
+            var cheekTellAnimator = cheekTellAnimatorGo.AddComponent<LampangCheekTellAnimator>();
+            SetPrivateField(cheekTellAnimator, "cheekLeft", cheekPouchLeftImg.rectTransform);
+            SetPrivateField(cheekTellAnimator, "cheekRight", cheekPouchRightImg.rectTransform);
+
             var markerLayer = new GameObject("MarkerLayer", typeof(RectTransform)).GetComponent<RectTransform>();
             markerLayer.SetParent(monsterLayer, false);
             StretchFull(markerLayer);
@@ -151,7 +178,7 @@ namespace TouchRPG.EditorTools
             var partRegistryGo = new GameObject("MonsterPartRegistry");
             partRegistryGo.transform.SetParent(monsterLayer, false);
             var partRegistry = partRegistryGo.AddComponent<MonsterPartRegistry>();
-            SetPrivateArrayField(partRegistry, "parts", new Object[] { body, head, tail, cheekPouchLeft, cheekPouchRight });
+            SetPrivateArrayField(partRegistry, "parts", new Object[] { body, belly, head, tail, cheekPouchLeft, cheekPouchRight });
 
             // ── Battlefield layer: ground + player token ──
             var groundImg = BuildImage("Ground", battlefieldLayer, PlaceholderSprites.RoundedRect,
@@ -209,8 +236,16 @@ namespace TouchRPG.EditorTools
             SetPrivateField(patternPlayer, "partRegistry", partRegistry);
             SetPrivateField(patternPlayer, "combo", combo);
             SetPrivateField(patternPlayer, "playerHealth", playerHealth);
+            SetPrivateField(patternPlayer, "monsterHealth", monsterHealth);
             SetPrivateField(patternPlayer, "markerLayer", markerLayer);
             SetPrivateField(patternPlayer, "parryMarkerTemplate", parryMarkerTemplate);
+            SetPrivateField(patternPlayer, "dodgeZoneTemplate", dodgeZoneTemplate);
+            SetPrivateField(patternPlayer, "rushZoneTemplate", rushZoneTemplate);
+            SetPrivateField(patternPlayer, "battlefieldPanel", battlefieldLayer);
+            SetPrivateField(patternPlayer, "playerToken", playerToken);
+            SetPrivateField(patternPlayer, "cheekTellAnimator", cheekTellAnimator);
+
+            BuildDemoControlPanel(canvasRoot, patternPlayer);
 
             // ── UI bindings ──
             var healthBarUiGo = hpBarBg.gameObject;
@@ -311,19 +346,146 @@ namespace TouchRPG.EditorTools
                 AssetDatabase.ImportAsset(p1Path);
             }
 
+            // P7 must exist BEFORE P5 is created, since P5.triggeredOnSuccess references
+            // it directly (GDD §7.2 P7 row: "예고: P5 성공 시").
+            var p7 = GetOrCreateStep("Lampang_P7_BellyFlipGroggy", "P7", step =>
+            {
+                step.displayName = "뒤집힘 그로기";
+                step.classification = PatternClass.C4_Groggy;
+                step.anchorPartId = "belly";
+                step.parryBeats = System.Array.Empty<ParryBeat>();
+                step.minPhase = 2;
+                step.failureSeverity = FailureSeverity.None;
+                step.rushRequiredTaps = 8;
+                step.rhythmNote = "GDD §7.2 P7 - P5 성공 시에만 발동. 배 연타 6s(GameplayConfig." +
+                    "groggyRushDurationSeconds). IN-6과 함께 이 게임 전체에서 유일하게 연타가 " +
+                    "보상되는 두 구간 중 하나 - 정상 플레이(오토사이클)에서는 절대 단독 발동하지 " +
+                    "않고, MonsterPatternPlayer.TriggerPatternById(dev/QA)만 예외로 우회한다.";
+            });
+
+            var p2 = GetOrCreateStep("Lampang_P2_TailSwipe", "P2", step =>
+            {
+                step.displayName = "꼬리치기";
+                step.classification = PatternClass.C1_Basic;
+                step.anchorPartId = "tail";
+                // "반박자 지연(엇박)" (GDD §7.2 리듬 특성) is expressed purely as an OFFSET
+                // choice, not a different judgment window - the beat still resolves against
+                // the shared ±0.15/±0.35 windows from GameplayConfig, same as every other
+                // C1 pattern.
+                step.parryBeats = new[] { new ParryBeat { beatOffsetSeconds = 1.75f, telegraphLeadSeconds = 1.0f } };
+                step.minPhase = 2;
+                step.failureSeverity = FailureSeverity.Medium;
+                step.rhythmNote = "GDD §7.2 P2 - 예고 후 반박자 지연(엇박). 판정 윈도우는 ±0.35s로 " +
+                    "P1과 동일 - 난이도는 이 beatOffsetSeconds의 지연폭에서 나온다(새 판정 윈도우 아님).";
+            });
+
+            var p3 = GetOrCreateStep("Lampang_P3_RollingCharge", "P3", step =>
+            {
+                step.displayName = "구르기 돌진";
+                step.classification = PatternClass.C2_HeavyAttack;
+                step.anchorPartId = string.Empty; // ground-anchored (GDD §6.1 전장층), not a monster part
+                step.parryBeats = System.Array.Empty<ParryBeat>();
+                step.dodgeZoneCount = 1;
+                step.minPhase = 1;
+                step.failureSeverity = FailureSeverity.Medium;
+                step.rhythmNote = "GDD §7.2 P3 - 존 위치 좌우 랜덤. 윈도우 1.2s는 " +
+                    "GameplayConfig.dodgeZoneP3WindowSeconds에서 읽는다(중복 저장하지 않음).";
+            });
+
+            var p4 = GetOrCreateStep("Lampang_P4_CheekFake", "P4", step =>
+            {
+                step.displayName = "볼주머니 페이크";
+                step.classification = PatternClass.C1_Basic;
+                step.isFakeVariant = true;
+                step.anchorPartId = "cheek_pouch";
+                step.parryBeats = new[] { new ParryBeat { beatOffsetSeconds = 1.2f, telegraphLeadSeconds = 1.2f } };
+                step.minPhase = 3;
+                // Honest missed-REAL-beat tier (matches sibling C1 patterns). The fake's
+                // "조기 탭 시 카운터 피격" is hardcoded in MonsterPatternPlayer.ExecuteC1FakeVariant
+                // independently of this field - it never reads step.failureSeverity.
+                step.failureSeverity = FailureSeverity.Small;
+                step.rhythmNote = "GDD §7.2 P4 - 참는 판단 요구. 실제/가짜는 몬스터 애니메이션" +
+                    "(볼 좌우대칭)에서만 구분되며 마커 자체는 완전히 동일하다(MUST).";
+            });
+
+            var p6 = GetOrCreateStep("Lampang_P6_AcornRain", "P6", step =>
+            {
+                step.displayName = "도토리 비";
+                step.classification = PatternClass.C5_CastAoE;
+                step.anchorPartId = string.Empty;
+                step.parryBeats = System.Array.Empty<ParryBeat>();
+                step.dodgeZoneCount = 3;
+                step.minPhase = 3;
+                step.failureSeverity = FailureSeverity.Small;
+                step.rhythmNote = "GDD §7.2 P6 - 다중 낙하점, 회피 실패마다 개별 소피해(다단). " +
+                    "윈도우 2.0s는 GameplayConfig.castP6WindowSeconds에서 읽는다.";
+            });
+
+            var p5 = GetOrCreateStep("Lampang_P5_TailSpin", "P5", step =>
+            {
+                step.displayName = "대회전 꼬리";
+                step.classification = PatternClass.C3_Relay;
+                step.anchorPartId = "tail";
+                // GDD §5.2: solo substitute = 2~3 tap consecutive sequence. Reuses 3 here.
+                step.parryBeats = new[]
+                {
+                    new ParryBeat { beatOffsetSeconds = 1.0f, telegraphLeadSeconds = 0.8f },
+                    new ParryBeat { beatOffsetSeconds = 2.2f, telegraphLeadSeconds = 0.8f },
+                    new ParryBeat { beatOffsetSeconds = 3.4f, telegraphLeadSeconds = 0.8f }
+                };
+                step.minPhase = 2;
+                step.failureSeverity = FailureSeverity.Small;
+                step.triggeredOnSuccess = p7;
+                step.rhythmNote = "GDD §7.2 P5 - 솔로 대체: 연속 3탭 시퀀스(§5.2, 실제 파티/네트워킹 " +
+                    "아님). 윈도우는 relay.solo.window(±0.35s, GDD §4.3 '파티가 더 쉬워야 한다') - " +
+                    "성공 시 P7(뒤집힘 그로기) 발동.";
+            });
+
             string sheetPath = PatternDir + "/Lampang_PatternSheet.asset";
             var sheet = AssetDatabase.LoadAssetAtPath<MonsterPatternSheet>(sheetPath);
+            var allSteps = new[] { p1, p2, p3, p4, p5, p6, p7 };
             if (sheet == null)
             {
                 sheet = ScriptableObject.CreateInstance<MonsterPatternSheet>();
                 sheet.monsterId = "lampang";
                 sheet.displayName = "람팡";
-                sheet.steps = new[] { p1 };
+                sheet.steps = allSteps;
                 AssetDatabase.CreateAsset(sheet, sheetPath);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.ImportAsset(sheetPath);
             }
+            else if (sheet.steps == null || sheet.steps.Length != allSteps.Length)
+            {
+                // Upgrade path: a sheet asset checked in before this task (T001) only
+                // listed P1 - extend it to the full GDD §7.2 table (P1-P7) rather than
+                // leaving it stale.
+                sheet.steps = allSteps;
+                EditorUtility.SetDirty(sheet);
+                AssetDatabase.SaveAssets();
+            }
             return sheet;
+        }
+
+        /// <summary>Idempotent load-or-create for one MonsterPatternStep asset. Mirrors
+        /// P1's own hand-written load-or-create block above (kept as-is for minimal diff
+        /// to already-reviewed T001 code); every P2-P7 asset goes through this instead so
+        /// adding an 8th pattern later needs zero new boilerplate, only a new configure
+        /// callback.</summary>
+        private static MonsterPatternStep GetOrCreateStep(string fileName, string patternId, System.Action<MonsterPatternStep> configure)
+        {
+            string path = PatternDir + "/" + fileName + ".asset";
+            var existing = AssetDatabase.LoadAssetAtPath<MonsterPatternStep>(path);
+            if (existing != null)
+            {
+                return existing;
+            }
+            var step = ScriptableObject.CreateInstance<MonsterPatternStep>();
+            step.patternId = patternId;
+            configure(step);
+            AssetDatabase.CreateAsset(step, path);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(path);
+            return step;
         }
 
         // ── Player settings (portrait-fixed, GDD §1/§11) ────────────────────────
@@ -424,6 +586,102 @@ namespace TouchRPG.EditorTools
             SetPrivateField(marker, "innerRingImage", inner);
             SetPrivateField(marker, "tapArea", tapArea);
             return marker;
+        }
+
+        /// <summary>IN-3 (GDD §4.1/§6.2) template. Root anchors are (0.5,0.5)/(0.5,0.5) -
+        /// unlike ParryMarker (positioned via world-space transform.position), DodgeZone is
+        /// positioned via anchoredPosition relative to the battlefield panel so it can be
+        /// compared directly against PlayerToken.LocalPosition, which uses the same
+        /// center-anchored convention.</summary>
+        private static DodgeZone BuildDodgeZoneTemplate(RectTransform templatesRoot)
+        {
+            var zoneImg = BuildImage("DodgeZoneTemplate", templatesRoot, PlaceholderSprites.Circle, GameplayColors.Dodge,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(260f, 260f), false);
+            var gaugeImg = BuildImage("Gauge", zoneImg.transform, PlaceholderSprites.Circle, GameplayColors.Dodge,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(260f, 260f), false);
+            gaugeImg.type = Image.Type.Filled;
+            gaugeImg.fillMethod = Image.FillMethod.Radial360;
+            var tapArea = BuildImage("TapArea", zoneImg.transform, PlaceholderSprites.Circle, new Color(1f, 1f, 1f, 0f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300f, 300f), true);
+
+            var zone = zoneImg.gameObject.AddComponent<DodgeZone>();
+            SetPrivateField(zone, "zoneImage", zoneImg);
+            SetPrivateField(zone, "gaugeImage", gaugeImg);
+            SetPrivateField(zone, "tapArea", tapArea);
+            return zone;
+        }
+
+        /// <summary>IN-6 (GDD §4.1/§6.2) template. Positioned via world-space
+        /// transform.position exactly like ParryMarker (it anchors to a monster part, e.g.
+        /// "belly" - GDD §7.2 P7), not anchoredPosition.</summary>
+        private static RushZone BuildRushZoneTemplate(RectTransform templatesRoot)
+        {
+            var zoneImg = BuildImage("RushZoneTemplate", templatesRoot, PlaceholderSprites.Circle, GameplayColors.Gold,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300f, 300f), false);
+            var gaugeImg = BuildImage("Gauge", zoneImg.transform, PlaceholderSprites.Ring, GameplayColors.Gold,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300f, 300f), false);
+            gaugeImg.type = Image.Type.Filled;
+            gaugeImg.fillMethod = Image.FillMethod.Radial360;
+            var tapArea = BuildImage("TapArea", zoneImg.transform, PlaceholderSprites.Circle, new Color(1f, 1f, 1f, 0f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(320f, 320f), true);
+
+            var zone = zoneImg.gameObject.AddComponent<RushZone>();
+            SetPrivateField(zone, "zoneImage", zoneImg);
+            SetPrivateField(zone, "gaugeImage", gaugeImg);
+            SetPrivateField(zone, "tapArea", tapArea);
+            return zone;
+        }
+
+        /// <summary>Dev/QA-only overlay (GDD §0: "내부 툴" is team discretion) so each of
+        /// P1-P7 can be independently triggered/observed per this task's brief, without
+        /// waiting on MonsterPatternPlayer's auto-cycling DriveLoop. Docked to the right
+        /// edge, drawn on top of the GDD §6.1 gameplay layers - NOT itself part of that
+        /// layer spec, so it does not consume any of the four layers' vertical budget.</summary>
+        private static void BuildDemoControlPanel(RectTransform canvasRoot, MonsterPatternPlayer patternPlayer)
+        {
+            var panel = new GameObject("DemoControlPanel (dev/QA only)", typeof(RectTransform));
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.SetParent(canvasRoot, false);
+            panelRect.anchorMin = new Vector2(1f, 0f);
+            panelRect.anchorMax = new Vector2(1f, 1f);
+            panelRect.pivot = new Vector2(1f, 1f);
+            panelRect.sizeDelta = new Vector2(110f, 0f);
+            panelRect.anchoredPosition = Vector2.zero;
+
+            string[] patternIds = { "P1", "P2", "P3", "P4", "P5", "P6", "P7" };
+            float y = -10f;
+            const float buttonHeight = 44f;
+            const float spacing = 6f;
+
+            for (int i = 0; i < patternIds.Length; i++)
+            {
+                var buttonImg = BuildImage($"Trigger_{patternIds[i]}", panelRect, PlaceholderSprites.RoundedRect,
+                    new Color(0.15f, 0.15f, 0.18f, 0.85f), new Vector2(1f, 1f), new Vector2(1f, 1f),
+                    new Vector2(-6f, y), new Vector2(96f, buttonHeight), true);
+                var button = buttonImg.gameObject.AddComponent<Button>();
+                button.targetGraphic = buttonImg;
+                BuildText($"Label_{patternIds[i]}", buttonImg.transform, patternIds[i], 24, Color.white,
+                    Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
+
+                var trigger = buttonImg.gameObject.AddComponent<PatternTriggerButton>();
+                SetPrivateField(trigger, "patternPlayer", patternPlayer);
+                SetPrivateField(trigger, "patternId", patternIds[i]);
+                UnityEditor.Events.UnityEventTools.AddPersistentListener(button.onClick, trigger.TriggerPattern);
+
+                y -= buttonHeight + spacing;
+            }
+
+            var toggleImg = BuildImage("Toggle_AutoPlay", panelRect, PlaceholderSprites.RoundedRect,
+                new Color(0.25f, 0.20f, 0.05f, 0.85f), new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-6f, y), new Vector2(96f, buttonHeight), true);
+            var toggleButton = toggleImg.gameObject.AddComponent<Button>();
+            toggleButton.targetGraphic = toggleImg;
+            BuildText("Label_AutoPlay", toggleImg.transform, "AUTO", 18, Color.white,
+                Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
+
+            var toggle = toggleImg.gameObject.AddComponent<AutoPlayToggleButton>();
+            SetPrivateField(toggle, "patternPlayer", patternPlayer);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(toggleButton.onClick, toggle.ToggleAutoPlay);
         }
 
         private static Image BuildImage(string name, Transform parent, Sprite sprite, Color color,

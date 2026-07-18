@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0c33be9896202f4681b7f4289d39006, type: 3}
+  m_Name: Lampang_P5_TailSpin
+  m_EditorClassIdentifier: TouchRPG.Combat.Runtime::TouchRPG.Combat.Pattern.MonsterPatternStep
+  patternId: P5
+  displayName: "\uB300\uD68C\uC804 \uAF2C\uB9AC"
+  classification: 2
+  anchorPartId: tail
+  parryBeats:
+  - beatOffsetSeconds: 1
+    telegraphLeadSeconds: 0.8
+  - beatOffsetSeconds: 2.2
+    telegraphLeadSeconds: 0.8
+  - beatOffsetSeconds: 3.4
+    telegraphLeadSeconds: 0.8
+  minPhase: 2
+  failureSeverity: 1
+  rhythmNote: "GDD \xA77.2 P5 - \uC194\uB85C \uB300\uCCB4: \uC5F0\uC18D 3\uD0ED \uC2DC\uD000\uC2A4(\xA75.2,
+    \uC2E4\uC81C \uD30C\uD2F0/\uB124\uD2B8\uC6CC\uD0B9 \uC544\uB2D8). \uC708\uB3C4\uC6B0\uB294
+    relay.solo.window(\xB10.35s, GDD \xA74.3 '\uD30C\uD2F0\uAC00 \uB354 \uC26C\uC6CC\uC57C
+    \uD55C\uB2E4') - \uC131\uACF5 \uC2DC P7(\uB4A4\uC9D1\uD798 \uADF8\uB85C\uAE30)
+    \uBC1C\uB3D9."
+  dodgeZoneCount: 1
+  isFakeVariant: 0
+  rushRequiredTaps: 8
+  triggeredOnSuccess: {fileID: 11400000, guid: 69280afa0b0b44847ae23ba515714098, type: 2}

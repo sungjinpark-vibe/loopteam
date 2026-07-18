@@ -24,11 +24,14 @@ namespace TouchRPG.Combat.Config
         [Tooltip("parry.good.window — GDD §12: ±0.35s")]
         public float goodWindowSeconds = 0.35f;
 
-        [Tooltip("relay.party.window (per person) — GDD §12: ±0.5s. Reserved seam; " +
-                 "relay (C-3/IN-7) is out of scope for this task, not consumed by any runtime code yet.")]
+        [Tooltip("relay.party.window (per person) — GDD §12: ±0.5s. Reserved for the real " +
+                 "party relay (P1 scope has no networking - see MonsterPatternPlayer.ExecuteC3Relay, " +
+                 "which uses relaySoloWindowSeconds below instead for the solo substitute).")]
         public float relayPartyWindowPerPersonSeconds = 0.5f;
 
-        [Tooltip("relay.solo.window — GDD §12: ±0.35s. Reserved seam, same as above.")]
+        [Tooltip("relay.solo.window — GDD §12: ±0.35s. Consumed by MonsterPatternPlayer.ExecuteC3Relay " +
+                 "for Lampang P5's solo substitute sequence (GDD §5.2) - deliberately tighter than " +
+                 "the party window per §4.3's P-3 rationale ('파티가 더 쉬워야 한다').")]
         public float relaySoloWindowSeconds = 0.35f;
 
         [Header("Combo — GDD §4.4 / §12")]
@@ -54,7 +57,8 @@ namespace TouchRPG.Combat.Config
         public float[] damageMultiplierByStage_TBD2 = { 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f };
 
         [Header("Other constants — GDD §12 (canonical)")]
-        [Tooltip("groggy.rush.duration — GDD §12: 6s (Lampang P7). Reserved seam (C-4 not built yet).")]
+        [Tooltip("groggy.rush.duration — GDD §12: 6s (Lampang P7). Consumed by " +
+                 "MonsterPatternPlayer.ExecuteC4Groggy for the IN-6 rush window.")]
         public float groggyRushDurationSeconds = 6f;
 
         [Tooltip("phase.boundaries (high) — GDD §12: HP 70%")]
@@ -65,13 +69,16 @@ namespace TouchRPG.Combat.Config
         [Range(0f, 100f)]
         public float phaseBoundaryLowPercent = 35f;
 
-        [Tooltip("cover.alert.duration — GDD §12: 3s. Reserved seam (IN-7 not built yet).")]
+        [Tooltip("cover.alert.duration — GDD §12: 3s. Reserved seam (IN-7 party cover action is " +
+                 "still out of scope - a separate, later task).")]
         public float coverAlertDurationSeconds = 3f;
 
-        [Tooltip("dodge.zone.p3.window — GDD §12: 1.2s. Reserved seam (C-2/P3 not built yet).")]
+        [Tooltip("dodge.zone.p3.window — GDD §12: 1.2s. Consumed by " +
+                 "MonsterPatternPlayer.ResolveDodgeWindowSeconds for Lampang P3.")]
         public float dodgeZoneP3WindowSeconds = 1.2f;
 
-        [Tooltip("cast.p6.window — GDD §12: 2.0s. Reserved seam (C-5/P6 not built yet).")]
+        [Tooltip("cast.p6.window — GDD §12: 2.0s. Consumed by " +
+                 "MonsterPatternPlayer.ResolveDodgeWindowSeconds for Lampang P6.")]
         public float castP6WindowSeconds = 2.0f;
 
         /// <summary>

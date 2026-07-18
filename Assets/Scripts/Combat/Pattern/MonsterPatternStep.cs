@@ -39,5 +39,37 @@ namespace TouchRPG.Combat.Pattern
         [Header("Rhythm note - GDD §7.2 '리듬 특성' column (documentation only)")]
         [TextArea]
         public string rhythmNote = "정박 2연 (학습용)";
+
+        [Header("C-2/C-5 dodge zone (P3/P6) - window seconds is READ FROM GameplayConfig " +
+                 "by pattern id (dodgeZoneP3WindowSeconds / castP6WindowSeconds) at execution " +
+                 "time, NOT duplicated on this asset - same reasoning as the C1 windows above.")]
+        [Tooltip("Number of simultaneous dodge zones this step spawns. GDD §7.2 P3 = 1 " +
+                 "(position randomizes left/right), P6 = multiple '낙하점'. Structural/" +
+                 "compositional detail, like parryBeats.Length is for C1 - not a judgment " +
+                 "window number.")]
+        public int dodgeZoneCount = 1;
+
+        [Header("C-1 fake variant - GDD §7.2 P4 ('C-1 변형')")]
+        [Tooltip("GDD §7.2 P4: '볼주머니 페이크... 진짜만 패링'. When true, MonsterPatternPlayer " +
+                 "runs the fake-aware execution path instead of the plain C1_Basic path: each " +
+                 "execution randomly resolves REAL (behaves exactly like an ordinary beat) or " +
+                 "FAKE (the marker dissolves grey just before it would resolve, and any tap " +
+                 "before that dissolve is a counter-hit - GDD: '가짜 조기 탭 시 카운터 피격'). " +
+                 "The real/fake tell MUST live only in monster animation (see " +
+                 "LampangCheekTellAnimator), never on the marker.")]
+        public bool isFakeVariant = false;
+
+        [Header("C-4 groggy rush (P7) - duration is READ FROM GameplayConfig.groggyRushDurationSeconds")]
+        [Tooltip("Taps required to fill the rush gauge and trigger the finish flourish. " +
+                 "PROVISIONAL staging value - GDD names no number for this, only that it is " +
+                 "'the only mash-rewarded window' (besides IN-6 itself, which this IS).")]
+        public int rushRequiredTaps = 8;
+
+        [Header("C-3 relay chain (P5 -> P7)")]
+        [Tooltip("GDD §7.2 P7 row: '예고: P5 성공 시'. The step a successful C3_Relay " +
+                 "resolution on THIS step triggers next. Null for every pattern except the " +
+                 "relay that gates a groggy step - data-driven, so MonsterPatternPlayer never " +
+                 "hardcodes a specific pattern id for the P5->P7 chain.")]
+        public MonsterPatternStep triggeredOnSuccess;
     }
 }

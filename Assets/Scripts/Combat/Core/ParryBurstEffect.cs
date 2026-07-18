@@ -14,7 +14,12 @@ namespace TouchRPG.Combat.Core
         private Color _baseColor;
         private float _elapsed;
 
-        public static ParryBurstEffect Spawn(Transform anchor, Color color)
+        /// <param name="lifetimeSeconds">Defaults to the original 0.35s parry-burst pacing.
+        /// Overridable so the SAME component can also serve as IN-6's per-tap ripple
+        /// (short) and finish flourish (long) without a second effect class - GDD §6.2:
+        /// "러시: ... 탭 파문 + ... 종료 피니시 연출."</param>
+        /// <param name="endScale">Defaults to the original 2.5x parry-burst scale.</param>
+        public static ParryBurstEffect Spawn(Transform anchor, Color color, float lifetimeSeconds = 0.35f, float endScale = 2.5f)
         {
             var go = new GameObject("ParryBurst", typeof(RectTransform));
             var rect = (RectTransform)go.transform;
@@ -29,6 +34,8 @@ namespace TouchRPG.Combat.Core
             var effect = go.AddComponent<ParryBurstEffect>();
             effect._image = image;
             effect._baseColor = color;
+            effect.lifetimeSeconds = lifetimeSeconds;
+            effect.endScale = endScale;
             return effect;
         }
 

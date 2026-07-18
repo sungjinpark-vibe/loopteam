@@ -32,6 +32,8 @@ namespace TouchRPG.Combat.Core
         private float _spawnTime;
         private float _targetTime;
         private bool _resolved;
+        private float? _perfectWindowOverride;
+        private float? _goodWindowOverride;
 
         public event Action<ParryMarker, ParryJudgment> OnResolved;
 
@@ -56,15 +58,31 @@ namespace TouchRPG.Combat.Core
         /// <param name="telegraphLeadSeconds">How long before targetTime the outer ring
         /// starts visibly contracting. Cosmetic pacing only (GDD §0 grants staging detail
         /// to team discretion); does not affect judgment math.</param>
-        public void Initialize(GameplayConfig config, float targetTime, float telegraphLeadSeconds)
+        /// <param name="markerColorOverride">Defaults to the GDD §6.2 yellow parry color.
+        /// Used by C-3 relay beats (GDD §6.2: "릴레이 마커: 붉은 링") to draw the SAME ring
+        /// component in the reserved red relay channel instead of forking a second marker
+        /// class just to change a color.</param>
+        /// <param name="perfectWindowOverrideSeconds">Defaults to
+        /// <see cref="GameplayConfig.perfectWindowSeconds"/>. Used by the C-3 relay solo
+        /// substitute, whose window is a single GDD §12 constant
+        /// (relay.solo.window), not the shared perfect/good pair - see
+        /// MonsterPatternPlayer.ExecuteC3Relay for why perfect==good there.</param>
+        /// <param name="goodWindowOverrideSeconds">Defaults to
+        /// <see cref="GameplayConfig.goodWindowSeconds"/>. See
+        /// <paramref name="perfectWindowOverrideSeconds"/>.</param>
+        public void Initialize(GameplayConfig config, float targetTime, float telegraphLeadSeconds,
+            Color? markerColorOverride = null, float? perfectWindowOverrideSeconds = null, float? goodWindowOverrideSeconds = null)
         {
             _config = config;
             _targetTime = targetTime;
             _spawnTime = targetTime - Mathf.Max(0.01f, telegraphLeadSeconds);
             _resolved = false;
+            _perfectWindowOverride = perfectWindowOverrideSeconds;
+            _goodWindowOverride = goodWindowOverrideSeconds;
 
-            if (outerRingImage != null) outerRingImage.color = GameplayColors.Parry;
-            if (innerRingImage != null) innerRingImage.color = GameplayColors.Parry;
+            var color = markerColorOverride ?? GameplayColors.Parry;
+            if (outerRingImage != null) outerRingImage.color = color;
+            if (innerRingImage != null) innerRingImage.color = color;
             if (outerRingImage != null) outerRingImage.enabled = true;
             if (innerRingImage != null) innerRingImage.enabled = true;
             if (tapArea != null) tapArea.raycastTarget = true;
@@ -88,7 +106,8 @@ namespace TouchRPG.Combat.Core
             // Guarded against a marker enabled without Initialize() (no config yet) -
             // every other field access in this class is already null-guarded; this one
             // was not, and threw an NRE every frame until Initialize ran.
-            if (_config != null && Time.time - _targetTime > _config.goodWindowSeconds)
+            float goodWindowForTimeout = _goodWindowOverride ?? (_config != null ? _config.goodWindowSeconds : 0f);
+            if ((_goodWindowOverride != null || _config != null) && Time.time - _targetTime > goodWindowForTimeout)
             {
                 Resolve(Time.time);
             }
@@ -103,11 +122,36 @@ namespace TouchRPG.Combat.Core
             Resolve(Time.time);
         }
 
+        /// <summary>
+        /// GDD §7.2 P4 (MUST): "페이크: 진짜와 동일하게 시작, 발동 직전 회색 소멸." Called
+        /// externally by MonsterPatternPlayer when a fake beat's dissolve point is reached
+        /// and the player correctly held back (never tapped). Turns the rings grey and
+        /// disables further input WITHOUT running the normal Perfect/Good/Miss judgment
+        /// path - holding back on a fake is neither a hit nor a parry, so it must not fire
+        /// <see cref="OnResolved"/>, spawn a burst, or apply damage. Deliberately only
+        /// changes color/opacity (never ring shape/size) so this cannot itself become an
+        /// alternate marker-side tell - GDD MUST: the real/fake tell lives only in monster
+        /// animation.
+        /// </summary>
+        public void DissolveAsFake()
+        {
+            if (_resolved)
+            {
+                return;
+            }
+            _resolved = true;
+            if (tapArea != null) tapArea.raycastTarget = false;
+            var grey = new Color(0.55f, 0.55f, 0.55f, 0.6f);
+            if (outerRingImage != null) outerRingImage.color = grey;
+            if (innerRingImage != null) innerRingImage.color = grey;
+            Destroy(gameObject, 0.4f);
+        }
+
         private void Resolve(float tapTime)
         {
             _resolved = true;
-            float perfectWindow = _config != null ? _config.perfectWindowSeconds : 0f;
-            float goodWindow = _config != null ? _config.goodWindowSeconds : 0f;
+            float perfectWindow = _perfectWindowOverride ?? (_config != null ? _config.perfectWindowSeconds : 0f);
+            float goodWindow = _goodWindowOverride ?? (_config != null ? _config.goodWindowSeconds : 0f);
             var judgment = JudgmentEvaluator.Evaluate(tapTime, _targetTime, perfectWindow, goodWindow);
             Result = judgment;
 

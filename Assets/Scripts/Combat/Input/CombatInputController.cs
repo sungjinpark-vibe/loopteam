@@ -25,6 +25,18 @@ namespace TouchRPG.Combat.Input
         // (only .position, overwritten below before each raycast), so reuse is safe.
         private PointerEventData _pointerEventData;
 
+        // IN-5 hold tracking (GDD §4.1: "차지 중 패링 불가" - charging occupies the game's
+        // one input channel). At most one hold is ever active at a time - P-2 (GDD §2)
+        // means there is exactly one gesture/one finger of intent, so a second concurrent
+        // touch during a hold is deliberately ignored below rather than starting a
+        // second, independent hold.
+        private bool _holdActive;
+        private IHoldable _activeHoldable;
+        private float _holdStartTime;
+        private int _holdTouchId = -1;
+
+        public bool IsHoldActive => _holdActive;
+
         private void Awake()
         {
             if (eventSystem == null)
@@ -51,6 +63,15 @@ namespace TouchRPG.Combat.Input
                     if (touch.phase == TouchPhase.Began)
                     {
                         ResolveTap(touch.position);
+                        if (_holdActive && _holdTouchId < 0)
+                        {
+                            _holdTouchId = touch.fingerId;
+                        }
+                    }
+                    else if (_holdActive && touch.fingerId == _holdTouchId &&
+                             (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled))
+                    {
+                        ReleaseHold();
                     }
                 }
                 return;
@@ -60,13 +81,21 @@ namespace TouchRPG.Combat.Input
             {
                 ResolveTap(UnityEngine.Input.mousePosition);
             }
+            else if (_holdActive && UnityEngine.Input.GetMouseButtonUp(0))
+            {
+                ReleaseHold();
+            }
         }
 
         /// <summary>Runs one full tap resolution: raycast the UI, gather every
-        /// ITappable under the point, and dispatch to the single priority winner.</summary>
+        /// ITappable under the point, and dispatch to the single priority winner. While
+        /// a hold (IN-5 charge) is active, ALL new taps are suppressed here - this is
+        /// what makes GDD §4.1's "차지 중 패링 불가" true structurally: an incoming parry
+        /// marker cannot be answered during a hold because taps simply never reach it,
+        /// so it resolves via its own auto-miss timeout exactly like an ignored one.</summary>
         public void ResolveTap(Vector2 screenPosition)
         {
-            if (eventSystem == null)
+            if (eventSystem == null || _holdActive)
             {
                 return;
             }
@@ -90,7 +119,38 @@ namespace TouchRPG.Combat.Input
             }
 
             var winner = ResolvePriority(_candidates);
-            winner?.OnTapped(screenPosition);
+            if (winner == null)
+            {
+                return;
+            }
+
+            if (winner is IHoldable holdable)
+            {
+                _holdActive = true;
+                _activeHoldable = holdable;
+                _holdStartTime = Time.time;
+                holdable.OnHoldStarted();
+                return;
+            }
+
+            winner.OnTapped(screenPosition);
+        }
+
+        /// <summary>Ends the active hold (release), firing <see cref="IHoldable.OnHoldReleased"/>
+        /// with the real elapsed duration. Public so tests can drive it directly instead
+        /// of only through simulated Input state.</summary>
+        public void ReleaseHold()
+        {
+            if (!_holdActive)
+            {
+                return;
+            }
+            float heldSeconds = Time.time - _holdStartTime;
+            var holdable = _activeHoldable;
+            _holdActive = false;
+            _activeHoldable = null;
+            _holdTouchId = -1;
+            holdable?.OnHoldReleased(heldSeconds);
         }
 
         /// <summary>

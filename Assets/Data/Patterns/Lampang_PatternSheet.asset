@@ -16,3 +16,9 @@ MonoBehaviour:
   displayName: "\uB78C\uD321"
   steps:
   - {fileID: 11400000, guid: eada255ce869243418e69d53dd38134a, type: 2}
+  - {fileID: 11400000, guid: 4edd3be5e3f3aaa498c62802498573f1, type: 2}
+  - {fileID: 11400000, guid: 89c1d39305db79046bf8835e9262a0d2, type: 2}
+  - {fileID: 11400000, guid: caa6d2d1429c88a419dfac3c50816fbe, type: 2}
+  - {fileID: 11400000, guid: 46feffb9dd40b404d96c92ef082546d9, type: 2}
+  - {fileID: 11400000, guid: 0f0e1349950f6cc4da202a95d1687ff6, type: 2}
+  - {fileID: 11400000, guid: 69280afa0b0b44847ae23ba515714098, type: 2}

@@ -18,9 +18,14 @@ namespace TouchRPG.Combat.Core
             }
             foreach (var part in partRegistry.Parts)
             {
-                if (part != null)
+                if (part == null)
                 {
-                    part.OnBasicAttack += HandleBasicAttack;
+                    continue;
+                }
+                part.OnBasicAttack += HandleBasicAttack;
+                if (part is ChargeAttackController charge)
+                {
+                    charge.OnChargedAttackReleased += HandleChargedAttack;
                 }
             }
         }
@@ -28,6 +33,15 @@ namespace TouchRPG.Combat.Core
         private void HandleBasicAttack(MonsterPart part)
         {
             int damage = demoNumbers != null ? demoNumbers.basicAttackDamage : 1;
+            health.TakeDamage(damage);
+        }
+
+        /// <summary>IN-5 release (GDD §4.1): a full charge deals the dedicated charge
+        /// damage number, kept separate from IN-1's basicAttackDamage so a charged hit
+        /// is visibly heavier - "고딜·고리스크" (high damage, high risk).</summary>
+        private void HandleChargedAttack()
+        {
+            int damage = demoNumbers != null ? demoNumbers.chargeAttackDamage : 1;
             health.TakeDamage(damage);
         }
     }

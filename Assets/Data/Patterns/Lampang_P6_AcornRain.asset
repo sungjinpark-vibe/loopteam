@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0c33be9896202f4681b7f4289d39006, type: 3}
+  m_Name: Lampang_P6_AcornRain
+  m_EditorClassIdentifier: TouchRPG.Combat.Runtime::TouchRPG.Combat.Pattern.MonsterPatternStep
+  patternId: P6
+  displayName: "\uB3C4\uD1A0\uB9AC \uBE44"
+  classification: 4
+  anchorPartId: 
+  parryBeats: []
+  minPhase: 3
+  failureSeverity: 1
+  rhythmNote: "GDD \xA77.2 P6 - \uB2E4\uC911 \uB099\uD558\uC810, \uD68C\uD53C \uC2E4\uD328\uB9C8\uB2E4
+    \uAC1C\uBCC4 \uC18C\uD53C\uD574(\uB2E4\uB2E8). \uC708\uB3C4\uC6B0 2.0s\uB294
+    GameplayConfig.castP6WindowSeconds\uC5D0\uC11C \uC77D\uB294\uB2E4."
+  dodgeZoneCount: 3
+  isFakeVariant: 0
+  rushRequiredTaps: 8
+  triggeredOnSuccess: {fileID: 0}

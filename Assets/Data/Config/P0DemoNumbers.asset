@@ -15,5 +15,6 @@ MonoBehaviour:
   monsterMaxHP: 1000
   playerMaxHP: 100
   basicAttackDamage: 5
-  p1FailureDamageSmall: 5
+  failureDamageSmall: 5
   failureDamageMedium: 15
+  chargeAttackDamage: 25

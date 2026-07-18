@@ -25,5 +25,12 @@ namespace TouchRPG.Combat.Core
         {
             OnBasicAttack?.Invoke(this);
         }
+
+        /// <summary>Lets a subclass (e.g. <see cref="ChargeAttackController"/>, IN-5's
+        /// quick-tap fallback) raise the same IN-1 basic-attack signal
+        /// <see cref="MonsterController"/> already listens for, instead of duplicating
+        /// the "apply basicAttackDamage" pipeline a second time. A C# event can only be
+        /// invoked from its declaring class, hence this thin protected raiser.</summary>
+        protected void RaiseBasicAttack() => OnBasicAttack?.Invoke(this);
     }
 }
