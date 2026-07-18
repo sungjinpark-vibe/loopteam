@@ -165,11 +165,28 @@ namespace TouchRPG.Combat.Tests.PlayMode
             {
                 ParryMarker marker = null;
                 yield return WaitForMarker(m => marker = m);
+
+                // GDD §6.2 MUST: every relay beat is red with a sequence badge and the
+                // "내 차례" triple signal (opaque + border pulse; haptic is code-confirmed
+                // separately - see ParryMarker.TriggerRelayHaptic's remark).
+                var outerImage = (UnityEngine.UI.Image)typeof(ParryMarker)
+                    .GetField("outerRingImage", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(marker);
+                Assert.AreEqual(GameplayColors.Relay, outerImage.color, $"Relay beat {i + 1} must render in the red relay channel, visibly distinct from the yellow parry channel.");
+                Assert.AreEqual(1f, outerImage.color.a, "Relay marker must be fully opaque (§6.2 signal 1).");
+
+                var badge = marker.GetComponentInChildren<UnityEngine.UI.Text>(includeInactive: true);
+                Assert.IsNotNull(badge, $"Relay beat {i + 1} must show a sequence badge (§6.2 '+ 순번').");
+                Assert.AreEqual($"{i + 1}/3", badge.text, $"Relay beat {i + 1} of 3 must show its own 1-based position.");
+
+                var borderPulse = marker.transform.Find("RelayBorderPulse");
+                Assert.IsNotNull(borderPulse, $"Relay beat {i + 1} must have a border-pulse element (§6.2 signal 2).");
+                Assert.IsTrue(borderPulse.gameObject.activeSelf, $"Relay beat {i + 1}'s border pulse must be active (solo = always '내 차례').");
+
                 yield return new WaitUntil(() => Time.time >= marker.TargetTime);
                 _inputController.ResolveTap(marker.transform.position);
                 yield return null;
                 yield return null;
-                Assert.AreEqual(ParryJudgment.Perfect, marker.Result, $"Relay beat {i + 1} must resolve on a correctly-timed tap.");
+                Assert.AreEqual(ParryJudgment.Perfect, marker.Result, $"Relay beat {i + 1} must resolve on a correctly-timed tap - SAME JudgmentEvaluator/config-driven window path as any other beat.");
 
                 // Destroy it immediately (rather than waiting out its fade) so the NEXT
                 // WaitForMarker call cannot alias this already-resolved marker instead of
@@ -177,6 +194,17 @@ namespace TouchRPG.Combat.Tests.PlayMode
                 // fading for a bit (see ParryMarker.Resolve's Destroy(gameObject, 0.4f)).
                 Object.Destroy(marker.gameObject);
             }
+
+            // GDD §5.2 MUST: a full relay success shows a light beam from the party
+            // portrait to the monster.
+            RelayLightBeamEffect beam = null;
+            float beamDeadline = Time.time + 2f;
+            while (beam == null && Time.time < beamDeadline)
+            {
+                yield return null;
+                beam = Object.FindFirstObjectByType<RelayLightBeamEffect>();
+            }
+            Assert.IsNotNull(beam, "GDD §5.2 MUST: a successful solo relay sequence must show a light beam from the party portrait toward the monster.");
 
             // A successful P5 must trigger P7 (belly rush, IN-6) automatically - this is
             // the ONLY way C4_Groggy is reachable in real (non-manually-triggered) play.
@@ -188,6 +216,25 @@ namespace TouchRPG.Combat.Tests.PlayMode
                 rush = Object.FindFirstObjectByType<RushZone>();
             }
             Assert.IsNotNull(rush, "GDD §7.2 P7: a successful P5 relay must spawn the groggy rush zone (P7).");
+        }
+
+        [UnityTest]
+        public IEnumerator P5_SoloRelayFailure_NeverShowsTheSuccessLightBeam()
+        {
+            _patternPlayer.TriggerPatternById("P5");
+
+            // Miss the first beat on purpose (never tap it) - the relay chain must fail
+            // immediately (GDD §5.2 '무임승차 구조적 차단' spirit: one missed link ends it).
+            ParryMarker marker = null;
+            yield return WaitForMarker(m => marker = m);
+            yield return new WaitUntil(() => marker.IsResolved);
+            Assert.AreEqual(ParryJudgment.Miss, marker.Result);
+
+            yield return null;
+            yield return null;
+
+            Assert.IsNull(Object.FindFirstObjectByType<RelayLightBeamEffect>(), "A failed relay sequence must NOT show the success light beam.");
+            Assert.IsNull(Object.FindFirstObjectByType<RushZone>(), "A failed P5 must never trigger P7's groggy rush.");
         }
 
         [UnityTest]

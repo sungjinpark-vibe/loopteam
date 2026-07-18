@@ -263,6 +263,9 @@ namespace TouchRPG.EditorTools
             SetPrivateField(patternPlayer, "playerToken", playerToken);
             SetPrivateField(patternPlayer, "cheekTellAnimator", cheekTellAnimator);
             SetPrivateField(patternPlayer, "phaseTracker", phaseTracker);
+            // GDD §5.2 MUST relay success beam (party portrait -> monster) - see
+            // RelayLightBeamEffect / MonsterPatternPlayer.ExecuteC3Relay.
+            SetPrivateField(patternPlayer, "partyPortraitAnchor", partySlotImg.rectTransform);
 
             BuildDemoControlPanel(canvasRoot, patternPlayer);
             var resultPanel = BuildHuntResultPanel(canvasRoot);

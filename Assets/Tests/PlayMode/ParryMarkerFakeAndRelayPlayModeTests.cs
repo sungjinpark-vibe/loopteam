@@ -79,6 +79,56 @@ namespace TouchRPG.Combat.Tests.PlayMode
         }
 
         [Test]
+        public void RelayInfo_ShowsSequenceBadge_AndBorderPulse_AndKeepsJudgmentUnforked()
+        {
+            var marker = CreateMarker(out var outerImage);
+            var config = CreateConfig(0.15f, 0.35f);
+            float targetTime = 100f;
+
+            marker.Initialize(config, targetTime, telegraphLeadSeconds: 1f,
+                markerColorOverride: GameplayColors.Relay,
+                perfectWindowOverrideSeconds: 0.35f, goodWindowOverrideSeconds: 0.35f,
+                relayInfo: new RelayMarkerInfo(2, 3));
+
+            Assert.AreEqual(GameplayColors.Relay, outerImage.color, "GDD §6.2: relay marker must draw in the red channel.");
+
+            var sequenceText = marker.GetComponentInChildren<Text>(includeInactive: true);
+            Assert.IsNotNull(sequenceText, "GDD §6.2 MUST: relay marker must show a sequence number ('+ 순번').");
+            Assert.IsTrue(sequenceText.gameObject.activeSelf, "Sequence badge must be visible for an active relay beat.");
+            Assert.AreEqual("2/3", sequenceText.text, "Badge must show THIS beat's 1-based position in the sequence.");
+
+            var borderPulse = marker.transform.Find("RelayBorderPulse");
+            Assert.IsNotNull(borderPulse, "GDD §6.2 MUST triple signal: relay marker needs a border-pulse element.");
+            Assert.IsTrue(borderPulse.gameObject.activeSelf, "Border pulse must be active while this relay beat is live (solo = always '내 차례').");
+
+            // Judgment must still be computed via the SAME JudgmentEvaluator/config-driven
+            // window path as any other marker - relay info only changes cosmetics.
+            InvokeResolve(marker, tapTime: 100.10f); // within the 0.35s override window
+            Assert.AreEqual(ParryJudgment.Perfect, marker.Result, "Relay beat judgment must still resolve via JudgmentEvaluator with the injected window, unchanged by the new visuals.");
+            Assert.IsFalse(borderPulse.gameObject.activeSelf, "Border pulse must be hidden once the beat resolves.");
+            Assert.IsFalse(sequenceText.gameObject.activeSelf, "Sequence badge must be hidden once the beat resolves.");
+
+            Object.Destroy(marker.gameObject);
+            Object.Destroy(config);
+        }
+
+        [Test]
+        public void NoRelayInfo_NeverShowsRelayVisuals()
+        {
+            var marker = CreateMarker(out var outerImage);
+            var config = CreateConfig(0.15f, 0.35f);
+
+            marker.Initialize(config, targetTime: Time.time + 10f, telegraphLeadSeconds: 1f);
+
+            Assert.AreEqual(GameplayColors.Parry, outerImage.color, "A plain parry beat must stay yellow, never the relay red.");
+            Assert.IsNull(marker.GetComponentInChildren<Text>(includeInactive: true), "A plain parry beat must not show a relay sequence badge.");
+            Assert.IsNull(marker.transform.Find("RelayBorderPulse"), "A plain parry beat must not build a relay border-pulse element at all.");
+
+            Object.Destroy(marker.gameObject);
+            Object.Destroy(config);
+        }
+
+        [Test]
         public void WindowOverride_IsUsedInsteadOfConfigWindows()
         {
             var marker = CreateMarker(out _);

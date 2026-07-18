@@ -7,6 +7,28 @@ using TouchRPG.Combat.Input;
 namespace TouchRPG.Combat.Core
 {
     /// <summary>
+    /// GDD §6.2 relay marker info: "릴레이 마커: 붉은 링 + 순번." Sequence numbers are
+    /// 1-based (e.g. SequenceIndex=2, SequenceTotal=3 renders "2/3"). This task's scope
+    /// is the solo relay substitute (GDD §5.2) only, which - being the entire chain end
+    /// to end with no other party members - is ALWAYS "내 차례" (my turn): every beat
+    /// carrying this info fires the full §6.2 triple signal (opaque + border pulse +
+    /// haptic). A real multi-party relay (not built in P0) would instead flip a
+    /// separate "is my turn" flag per beat based on which party member is due; that is
+    /// explicitly out of scope here - see PartyPortraitSlot's remark.
+    /// </summary>
+    public readonly struct RelayMarkerInfo
+    {
+        public readonly int SequenceIndex;
+        public readonly int SequenceTotal;
+
+        public RelayMarkerInfo(int sequenceIndex, int sequenceTotal)
+        {
+            SequenceIndex = sequenceIndex;
+            SequenceTotal = sequenceTotal;
+        }
+    }
+
+    /// <summary>
     /// GDD §6.2 (MUST): "패링 마커: 노란 이중 링. 외곽 링이 내곽으로 수축, 겹침 순간 = 퍼펙트.
     /// 수축 속도가 곧 리듬 정보다." The outer ring scales down from a wide start toward the
     /// fixed-size inner ring; full overlap happens exactly at <see cref="_targetTime"/>.
@@ -22,6 +44,14 @@ namespace TouchRPG.Combat.Core
         private const float OuterStartScale = 2.4f;
         private const float OverlapScale = 1f; // outer ring's scale when it exactly matches the inner ring
 
+        // Relay-only cosmetics (GDD §6.2: "릴레이 마커: 붉은 링 + 순번. 내 차례: 불투명 + 테두리
+        // 펄스 + 햅틱, MUST"). PROVISIONAL staging values - team discretion per GDD §0, not
+        // judgment numbers.
+        private const float RelayBorderPulseSizePixels = 210f; // outside the 150x150 ring pair - reads as a border, not a 3rd ring.
+        private const float RelayBorderPulseSpeed = 8f; // radians/sec, ~1.3Hz - a readable "pulse", not a strobe.
+        private const float RelayBorderPulseMinAlpha = 0.35f;
+        private const float RelayBorderPulseMaxAlpha = 0.9f;
+
         [SerializeField] private RectTransform outerRing;
         [SerializeField] private RectTransform innerRing;
         [SerializeField] private Image outerRingImage;
@@ -34,6 +64,10 @@ namespace TouchRPG.Combat.Core
         private bool _resolved;
         private float? _perfectWindowOverride;
         private float? _goodWindowOverride;
+        private RelayMarkerInfo? _relayInfo;
+        private Text _relaySequenceText;
+        private RectTransform _relayBorderPulseRect;
+        private Image _relayBorderPulseImage;
 
         public event Action<ParryMarker, ParryJudgment> OnResolved;
 
@@ -70,8 +104,13 @@ namespace TouchRPG.Combat.Core
         /// <param name="goodWindowOverrideSeconds">Defaults to
         /// <see cref="GameplayConfig.goodWindowSeconds"/>. See
         /// <paramref name="perfectWindowOverrideSeconds"/>.</param>
+        /// <param name="relayInfo">Null for a normal (non-relay) parry beat. Set by
+        /// MonsterPatternPlayer.ExecuteC3Relay for every C-3 relay beat - draws the
+        /// GDD §6.2 sequence badge and fires the "내 차례" triple signal (opaque +
+        /// border pulse + haptic). See <see cref="RelayMarkerInfo"/>.</param>
         public void Initialize(GameplayConfig config, float targetTime, float telegraphLeadSeconds,
-            Color? markerColorOverride = null, float? perfectWindowOverrideSeconds = null, float? goodWindowOverrideSeconds = null)
+            Color? markerColorOverride = null, float? perfectWindowOverrideSeconds = null, float? goodWindowOverrideSeconds = null,
+            RelayMarkerInfo? relayInfo = null)
         {
             _config = config;
             _targetTime = targetTime;
@@ -79,13 +118,102 @@ namespace TouchRPG.Combat.Core
             _resolved = false;
             _perfectWindowOverride = perfectWindowOverrideSeconds;
             _goodWindowOverride = goodWindowOverrideSeconds;
+            _relayInfo = relayInfo;
 
+            // GDD §6.2 signal 1 ("불투명" opaque) - explicit even though GameplayColors'
+            // channels already default to alpha 1, so this reads as a deliberate signal
+            // rather than an accident of the Color struct's default.
             var color = markerColorOverride ?? GameplayColors.Parry;
+            color.a = 1f;
             if (outerRingImage != null) outerRingImage.color = color;
             if (innerRingImage != null) innerRingImage.color = color;
             if (outerRingImage != null) outerRingImage.enabled = true;
             if (innerRingImage != null) innerRingImage.enabled = true;
             if (tapArea != null) tapArea.raycastTarget = true;
+
+            ApplyRelayVisuals(relayInfo);
+        }
+
+        /// <summary>
+        /// GDD §6.2 MUST: "릴레이 마커: 붉은 링 + 순번. 내 차례: 불투명 + 테두리 펄스 + 햅틱
+        /// (3중 신호)." Builds the sequence badge / border-pulse ring at runtime (same
+        /// technique as PlaceholderSprites-driven effects elsewhere - GroundTelegraphLine,
+        /// ParryBurstEffect) rather than requiring these on every ParryMarker prefab
+        /// instance in every scene. Signal 3 (haptic) fires once here; signal 2 (border
+        /// pulse) animates continuously in Update() while active.
+        /// </summary>
+        private void ApplyRelayVisuals(RelayMarkerInfo? relayInfo)
+        {
+            if (!relayInfo.HasValue)
+            {
+                if (_relaySequenceText != null) _relaySequenceText.gameObject.SetActive(false);
+                if (_relayBorderPulseRect != null) _relayBorderPulseRect.gameObject.SetActive(false);
+                return;
+            }
+
+            EnsureRelayVisuals();
+            _relaySequenceText.text = $"{relayInfo.Value.SequenceIndex}/{relayInfo.Value.SequenceTotal}";
+            _relaySequenceText.gameObject.SetActive(true);
+            _relayBorderPulseRect.gameObject.SetActive(true);
+
+            TriggerRelayHaptic(); // signal 3 of 3 - see that method's remark on Editor/PC verifiability.
+        }
+
+        private void EnsureRelayVisuals()
+        {
+            if (_relaySequenceText != null && _relayBorderPulseImage != null)
+            {
+                return;
+            }
+
+            var borderGo = new GameObject("RelayBorderPulse", typeof(RectTransform));
+            _relayBorderPulseRect = (RectTransform)borderGo.transform;
+            _relayBorderPulseRect.SetParent(transform, false);
+            _relayBorderPulseRect.anchorMin = new Vector2(0.5f, 0.5f);
+            _relayBorderPulseRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _relayBorderPulseRect.pivot = new Vector2(0.5f, 0.5f);
+            _relayBorderPulseRect.anchoredPosition = Vector2.zero;
+            _relayBorderPulseRect.sizeDelta = new Vector2(RelayBorderPulseSizePixels, RelayBorderPulseSizePixels);
+            _relayBorderPulseImage = borderGo.AddComponent<Image>();
+            _relayBorderPulseImage.sprite = PlaceholderSprites.Ring;
+            _relayBorderPulseImage.raycastTarget = false;
+            borderGo.transform.SetAsFirstSibling(); // behind the rings/tap area - a background glow, not an obstruction.
+
+            var textGo = new GameObject("RelaySequenceBadge", typeof(RectTransform));
+            var textRect = (RectTransform)textGo.transform;
+            textRect.SetParent(transform, false);
+            textRect.anchorMin = new Vector2(0.5f, 0.5f);
+            textRect.anchorMax = new Vector2(0.5f, 0.5f);
+            textRect.pivot = new Vector2(0.5f, 0.5f);
+            textRect.anchoredPosition = Vector2.zero;
+            textRect.sizeDelta = new Vector2(140f, 60f);
+            _relaySequenceText = textGo.AddComponent<Text>();
+            // Same builtin-font convention as ComboUI/PhaseIndicatorUI/HealthBarUI - plain
+            // UnityEngine.UI.Text, not TextMeshPro, so this doesn't add a new UI dependency.
+            _relaySequenceText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _relaySequenceText.fontSize = 40;
+            _relaySequenceText.fontStyle = FontStyle.Bold;
+            _relaySequenceText.alignment = TextAnchor.MiddleCenter;
+            _relaySequenceText.color = Color.white;
+            _relaySequenceText.raycastTarget = false;
+            textGo.transform.SetAsLastSibling(); // above the rings, so the number stays readable.
+        }
+
+        /// <summary>
+        /// GDD §6.2 relay triple signal, 3rd signal ("햅틱"). Handheld.Vibrate() already
+        /// no-ops silently on platforms with no vibration motor (desktop/WebGL); the
+        /// explicit Application.isEditor guard exists so this is a clearly DOCUMENTED
+        /// no-op in the Editor rather than relying on whatever Handheld happens to do
+        /// there. IMPORTANT: this means the haptic signal cannot be felt or otherwise
+        /// observed in an Editor/PC test run - only code-confirmed by reading this path.
+        /// </summary>
+        private static void TriggerRelayHaptic()
+        {
+            if (Application.isEditor)
+            {
+                return;
+            }
+            Handheld.Vibrate();
         }
 
         private void Update()
@@ -100,6 +228,17 @@ namespace TouchRPG.Combat.Core
             if (outerRing != null)
             {
                 outerRing.localScale = Vector3.one * outerScale;
+            }
+
+            if (_relayInfo.HasValue && _relayBorderPulseImage != null)
+            {
+                // GDD §6.2 signal 2 of 3 ("테두리 펄스" border pulse) - continuous, distinct
+                // from the outer ring's one-shot contraction above.
+                float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * RelayBorderPulseSpeed);
+                var pulseColor = GameplayColors.Brighten(GameplayColors.Relay, 0.25f);
+                pulseColor.a = Mathf.Lerp(RelayBorderPulseMinAlpha, RelayBorderPulseMaxAlpha, pulse);
+                _relayBorderPulseImage.color = pulseColor;
+                _relayBorderPulseRect.localScale = Vector3.one * Mathf.Lerp(0.96f, 1.08f, pulse);
             }
 
             // Nobody tapped before the good window closed - auto-resolve as a miss.
@@ -158,6 +297,8 @@ namespace TouchRPG.Combat.Core
             if (tapArea != null) tapArea.raycastTarget = false;
             if (outerRingImage != null) outerRingImage.enabled = false;
             if (innerRingImage != null) innerRingImage.enabled = false;
+            if (_relayBorderPulseRect != null) _relayBorderPulseRect.gameObject.SetActive(false);
+            if (_relaySequenceText != null) _relaySequenceText.gameObject.SetActive(false);
 
             if (judgment != ParryJudgment.Miss)
             {

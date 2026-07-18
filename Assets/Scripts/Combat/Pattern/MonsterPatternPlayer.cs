@@ -70,6 +70,12 @@ namespace TouchRPG.Combat.Pattern
         [Header("P4 fake tell (GDD §7.2 MUST - animation only, never the marker)")]
         [SerializeField] private LampangCheekTellAnimator cheekTellAnimator;
 
+        [Header("C3 relay success light beam (GDD §5.2 MUST, solo-scoped) - see RelayLightBeamEffect")]
+        [Tooltip("Party portrait anchor (GDD §6.1 파티층) the relay success beam originates " +
+                 "from. Solo-only (this task's scope) - the single party-slot stub, not a " +
+                 "real multi-party lookup.")]
+        [SerializeField] private RectTransform partyPortraitAnchor;
+
         [Tooltip("Seconds between repeated pattern-step executions in phase 1/2. Not a GDD " +
                  "number - PROVISIONAL staging value, team discretion.")]
         [SerializeField] private float repeatIntervalSeconds = 2.5f;
@@ -580,11 +586,14 @@ namespace TouchRPG.Combat.Pattern
                 // Red relay channel (GDD §6.2: "릴레이 마커: 붉은 링") + single relay.solo.window
                 // band - passing the SAME value for perfect/good collapses Good to
                 // unreachable, which is correct: relay per §4.3 is one pass/fail band, not
-                // a two-tier judgment.
+                // a two-tier judgment. relayInfo carries this beat's 1-based position in
+                // the sequence (GDD §6.2 "+ 순번") and triggers the "내 차례" triple signal -
+                // see RelayMarkerInfo's remark for why solo is always "my turn".
                 marker.Initialize(gameplayConfig, targetTime, beat.telegraphLeadSeconds,
                     markerColorOverride: GameplayColors.Relay,
                     perfectWindowOverrideSeconds: window,
-                    goodWindowOverrideSeconds: window);
+                    goodWindowOverrideSeconds: window,
+                    relayInfo: new RelayMarkerInfo(i + 1, step.parryBeats.Length));
 
                 while (!marker.IsResolved)
                 {
@@ -606,6 +615,15 @@ namespace TouchRPG.Combat.Pattern
                 // the small-failure number.
                 ApplyFailureDamageForSeverity(FailureSeverity.Small);
                 yield break;
+            }
+
+            // GDD §5.2 MUST: "성공 연출은 파티원 초상 → 몬스터로 빛이 '이어지는' 흐름." Fired as
+            // soon as the whole sequence succeeds, independently of whether this step also
+            // chains into P7 below - the beam is the relay's own success telegraph, not
+            // conditioned on what happens next.
+            if (partyPortraitAnchor != null && markerLayer != null)
+            {
+                RelayLightBeamEffect.Spawn(markerLayer, partyPortraitAnchor, anchor);
             }
 
             if (step.triggeredOnSuccess != null)
