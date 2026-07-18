@@ -18,6 +18,22 @@ Work in English: design docs, notes, and your final report in English (PM handle
 - Build what code can produce (SVG icons, simple illustrations, placeholders, CSS/styles) yourself.
 - Real artwork (complex illustration/characters) cannot be generated — write an **art-order spec** (size, style, colors, usage, count) and hand it to the PM.
 
+## Claude Design (claude.ai/design)
+- **Connected** (verified 2026-07-19): tied to the director's own claude.ai login — no separate auth
+  needed. Project for this app: **`touchRPG — Design System`**
+  (`projectId: e5734767-85f1-4606-9e6d-0da3bf6daac1`).
+- Use the `DesignSync` tool (`list_projects` / `get_project` / `list_files` / `get_file` →
+  `finalize_plan` → `write_files`/`delete_files`) to push local HTML component previews into this
+  project so they show up in the claude.ai Design System pane. Follow the **`/design-sync`** skill's
+  incremental-sync workflow if it's available in your session — never a wholesale replace of the
+  project's files.
+- Prior project's design system (`Life Town — 건물 프랍`) is a separate project, not writable from here
+  by default — don't touch it; it belongs to the paused Life Town app.
+- Use this for **code→design system publishing** (turning the local component library into a browsable
+  design system on claude.ai). For pure two-way Figma work (importing director-provided Figma files,
+  pushing screen mockups to a canvas), keep using Figma MCP below — the two are separate integrations,
+  not alternatives for the same job.
+
 ## Figma (Figma MCP)
 - **Connected** (verified 2026-07-19): director's own account, team **"Avaritia"** (`planKey:
   team::1054599000081459261`, tier: starter). Use this `planKey` directly for `create_new_file` — no
