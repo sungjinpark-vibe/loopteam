@@ -131,9 +131,8 @@ A loop that runs for hours dies of context bloat, not of bad code. So:
 ## Approval workflow (user directive, MUST follow)
 - Whenever a team produces a document (spec, dev plan, art direction, API contract, QA report), the PM
   **summarizes the essentials and sends it to the director** — in Korean.
-- **Which channel** (director, 2026-07-17 — `VISION.md` §7 rule 8): **if he is talking in-session
-  (VS Code), answer in-session only and do NOT mirror it to Discord** — he is already reading it.
-  **Discord is the async channel**, for when he is away. Judge by where he last spoke.
+- **Which channel**: `VISION.md` §7 rule 8 is the single source of truth — do not restate its heuristic
+  here, it changes over time (currently, as of 2026-07-18: **Discord, unconditionally**, even in-session).
 - **Never advance to the next stage without approval.**
 - **But never block the loop on it either.** Mark the task `awaiting-approval` and *move to the next
   `ready` task*. This is the rule that lets an approval gate coexist with an autonomous loop — the gate

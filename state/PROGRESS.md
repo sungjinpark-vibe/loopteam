@@ -143,6 +143,9 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
 - 2026-07-18 — **Git branch-per-project** (director): touchRPG and lifetown push to the same `loopteam`
   remote as the engine, each on its own branch (`touchrpg`, `lifetown`) rather than separate GitHub
   repos, since no separate remotes exist yet. Engine stays `main`.
+- 2026-07-18 — **Channel rule superseded** (director, in-session): *"지금부터 답변은 디스코드로 해줘."*
+  All reports now go to Discord, even in-session — see `VISION.md` §7 rule 8 for the current wording.
+  The 2026-07-17 "in-session ⇒ never Discord" default is dormant, not deleted.
 
 ## Do Not Repeat
 (engine-level; still binding across projects)

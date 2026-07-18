@@ -5,8 +5,8 @@
 > goals and constraints (**Goal Drift**). Re-reading this is the only thing that prevents it.
 >
 > English per director rule 3. **The director never has to open this file.** Anything they must decide
-> — a rubric, a boundary, a stack change — the PM presents in Korean, in the channel the director is
-> actually in (§7 rule 8: in-session when present, Discord when away), and gets approval there.
+> — a rubric, a boundary, a stack change — the PM presents in Korean, on the channel §7 rule 8 currently
+> specifies, and gets approval there.
 >
 > **This file is the tuning panel.** Rubrics (§3.2) and the expert panel (§3.3) live here on purpose:
 > the director changes the bar by changing this file, not by editing agents.
@@ -21,8 +21,8 @@ bar, and approve or reject.
 
 - **Director = the user.** Decides what to build, why, and how it should feel.
 - **PM = the main agent.** Decides how, who, and — crucially — *when it is done*.
-- The director does not read code. Whatever they need in order to decide, the PM shows them in Korean —
-  in-session when they are present, on Discord when they are away (§7 rule 8).
+- The director does not read code. Whatever they need in order to decide, the PM shows them in Korean,
+  on the channel §7 rule 8 currently specifies.
 
 ## 2. Current project — touchRPG (working title "람팡")
 
@@ -338,23 +338,27 @@ listener's 100-message window with team chatter and re-create the exact cursor f
    exists and it is needed.
 6. **Every team is member + lead; the lead gates at 90** (§3.2).
 7. **The app ends at the 5-expert playtest gate** (§3.3), not at the PM's judgment.
-8. **Discord is the *async* channel — and never a duplicate.** (Amended 2026-07-17 by the director:
-   *"내가 vs코드로 대화하면 디스코드로는 보내지 말아줘."*)
-   - **If the director is talking in-session (VS Code), answer in-session only. Do NOT mirror it to
-     Discord.** He is already reading it; a copy is pure noise. This includes reports, questions, and
-     approval requests raised during an in-session conversation.
-   - **Discord is for when he is away.** That is how an unattended loop delivers results, asks for
-     approval, and receives briefs. It stays the channel of record for anything raised while he is not
-     in-session — the whole point of the loop is that it runs when nobody is watching.
-   - Judge by **where the director last spoke**, not by habit. When in doubt on a long-running result
-     he will want either way, prefer the channel he is actually in.
+8. **Reports to the director go to Discord.** (Superseded 2026-07-18 by the director, in-session:
+   *"지금부터 답변은 디스코드로 해줘."* — overrides the 2026-07-17 in-session-only default below.)
+   - **CURRENT (2026-07-18 →): answer via Discord**, via `.discord\send.ps1` (absolute path), **even
+     when the director is talking in-session.** Do not silently fall back to in-session replies — this
+     was an explicit, unqualified instruction ("from now on"), not a one-off.
+   - The in-session chat window is still fine for quick back-and-forth *during* a live conversation
+     (e.g. this kind of instruction itself, or a clarifying question mid-task) — but the actual
+     deliverable/report/decision-grade summary goes to Discord.
+   - *(Dormant unless the director reverts to it)* — the 2026-07-17 rule was: if talking in-session,
+     answer in-session only, never mirror to Discord; Discord was for when he is away; judge by where he
+     last spoke. That heuristic is **not in effect** while the 2026-07-18 instruction stands. If the
+     director later says something like "다시 세션 안에서 답해줘" or stops mentioning Discord, ask which
+     regime applies rather than silently reverting — the whole point of writing this down is to not
+     re-litigate it from memory.
    - This does not license blocking. A permission request is sent and the task is marked
      `awaiting-approval`; the loop **moves to the next `ready` task** (§4, §6).
    - The listener must run whenever the team is idle, or a brief simply never arrives.
-     `LoopEngine-DiscordDaemon-Watchdog` keeps it alive; leave it enabled. **Drain the inbox every tick
-     — including ticks triggered in-session.** A Discord message sent in that same window is otherwise
-     stepped over by the cursor and silently lost (this actually happened 2026-07-17: the director's
-     *"실제 게임 동작 진행해줘"* sat unread through a project switch).
+     `LoopEngine-DiscordDaemon-Watchdog` keeps it alive; leave it enabled. **Drain the inbox every tick.**
+     A Discord message sent in the same window as other work is otherwise stepped over by the cursor and
+     silently lost (this actually happened 2026-07-17: the director's *"실제 게임 동작 진행해줘"* sat
+     unread through a project switch).
    - **Agents still do not talk over Discord** (§6). The channel is director ↔ PM only.
    - Korean either way (rule 3).
 
@@ -372,3 +376,8 @@ listener's 100-message window with team chatter and re-create the exact cursor f
 - 2026-07-17 **Project switch**: Life Town paused (resumable — snapshot in `lifetown/docs/paused-state/`), **touchRPG** begins. §2 rewritten; concept pending the director's brief (the PM must not invent it). Team, gates, rubrics (§3), boundaries (§4) and failure policy (§5) carry over **unchanged** by director's instruction.
 - 2026-07-17 **Rule 8 amended** (director): Discord is the *async* channel. In-session (VS Code) conversation is answered in-session only and never mirrored to Discord; Discord carries what happens while he is away. Also made "drain the inbox every tick, including in-session ticks" explicit after a real message was skipped.
 - 2026-07-17 **System audit** (director-requested): every remaining unconditional "report on Discord" in this file, `CLAUDE.md`, the tick skill, and agent files was aligned with rule 8 ("channel the director last spoke in"). No rules changed — wording only. Companion fixes: stale GDD pointers → v0.3, TBD list → the 10 live ones, `gate.ps1` now version-checks a supplied `-UnityExe` (closing a silent-upgrade backdoor), quality-loop escalates immediately on a round-1 grader refusal, playtest re-runs the compile gate after each fix round.
+- 2026-07-18 **Rule 8 superseded** (director, in-session): *"지금부터 답변은 디스코드로 해줘."* Reports
+  now go to Discord unconditionally, even in-session — the 2026-07-17 in-session-only default is dormant,
+  not deleted, in case the director reverts it later. Every file that pointed at "§7 rule 8" for its
+  channel logic (VISION §1/§3.4/§5, `CLAUDE.md`, the tick skill, `loop-scout`) follows automatically —
+  none of them hardcode the heuristic, they all defer to this section.
