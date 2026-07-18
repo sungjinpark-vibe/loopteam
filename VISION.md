@@ -24,7 +24,13 @@ bar, and approve or reject.
 - The director does not read code. Whatever they need in order to decide, the PM shows them in Korean,
   on the channel §7 rule 8 currently specifies.
 
-## 2. Current project — touchRPG (working title "람팡")
+## 2. Current project — (none: engine improvement) / touchRPG PAUSED 2026-07-19
+
+> **PAUSED by the director 2026-07-19**: *"touchRPG도 이쯤에서 마무리해줘. 우리 루프 엔지니어링 팀의
+> 고도화가 먼저 되어야 할 것 같아."* P0 feature-complete (T001-T004, Gate 2: 97/94/90/97), APK v0.0.1
+> delivered for his own play. NOT cancelled — resume state in `state/PROGRESS.md` → "Paused: touchRPG"
+> (Gate 3 never ran; 5 provisional numbers + TBD-14/15 open). Everything below stays binding on resume.
+> **The team's current mission is the loop engine itself** — direction set by the director per task.
 
 > **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.4.md` (director-authored;
 > v0.4, 2026-07-18 — supersedes v0.3/v0.2/v0.1, which stay as the record). Its §0 says so outright — if code comments, past conversation, or inferred
@@ -419,3 +425,8 @@ listener's 100-message window with team chatter and re-create the exact cursor f
 - 2026-07-18 **Standing grant — proceed without approval to a prototype** (director, in-session):
   *"프로토타입이 나올 때까지 내 허락없이 진행해줘."* §4 amended: chain remaining P0 tasks without an
   inter-task "continue?" checkpoint until P0 is playable. Everything else in §4 still applies unchanged.
+- 2026-07-19 **touchRPG paused; engine improvement first** (director, in-session): *"touchRPG도
+  이쯤에서 마무리해줘. 우리 루프 엔지니어링 팀의 고도화가 먼저 되어야 할 것 같아."* §2 header marked
+  paused (resume state in `state/PROGRESS.md`). The 2026-07-18 standing grant is fulfilled/expired with
+  P0's completion — it does not carry over to engine work. Current mission: the loop engine itself,
+  direction set by the director per task.

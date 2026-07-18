@@ -1,7 +1,7 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
   "tick": 50,
-  "project": "touchRPG (working title 람팡) — touch hunting action, Unity, portrait",
+  "project": "(none — engine improvement; touchRPG paused 2026-07-19, lifetown paused 2026-07-17)",
   "active_task": null,
   "last_tick_at": "2026-07-17 23:30",
   "consecutive_idle_ticks": 0,

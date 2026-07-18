@@ -3,13 +3,12 @@
 > Only what the next tick needs to choose its next action. Bulk history lives in `state/journal.md`.
 
 ## Current State
-- **Status**: ▶ Active (in-session, director-directed) — engine/state updated 2026-07-18. `loop.json`
-  still carries `paused: true` from the 2026-07-17 stop; this session's work was done directly at the
-  director's request, not via the autonomous `/tick` loop. Resume the autonomous loop with
-  `paused=false` + `/tick` whenever desired.
-- **Project**: **touchRPG** — touch-first online hunting action + persistent growth (**not** an MMORPG).
-  Portrait fixed. Party 1-4. Hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."* Target 20-30s
-  light-midcore. Refs: Monster Hunter / Vindictus + Clair Obscur (timing parry).
+- **Status**: ▶ Active (in-session, director-directed). **Current focus: ENGINE IMPROVEMENT** —
+  director's instruction 2026-07-19: *"touchRPG도 이쯤에서 마무리해줘. 우리 루프 엔지니어링 팀의
+  고도화가 먼저 되어야 할 것 같아."* No app project is active; the work is the loop engine itself.
+  `loop.json` still carries `paused: true`; direct in-session work, not the autonomous `/tick` loop.
+- **Project**: **(none — engine work)**. touchRPG paused 2026-07-19 (see "Paused: touchRPG" below),
+  Life Town paused 2026-07-17 (see its section). Both resumable.
 - **Source of truth**: **GDD v0.4** → `touchRPG/docs/spec/00-gdd-v0.4.md` (v0.1/v0.2/v0.3 kept as
   history). Its §0: if code/conversation/convention conflicts with it, *the doc wins*.
 - **T001 P0-A parry core**: **DONE** — Gate 1 green (compile 0 errors, EditMode 19/19), **Gate 2 =
@@ -60,21 +59,14 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **P0 is feature-complete — report this to the director as the prototype** (fulfills the 2026-07-18
-   standing grant). Ask what he wants next: a Gate-3-style milestone playtest of the 손맛 question
-   (`VISION.md` §3.3/§6 — needs the panel/rubric + a real QA evidence pass, not automatic/free), or hold
-   here for his own hands-on look first, or something else.
-2. **Get director/planner confirmation on the 5 provisional numbers** in
-   `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
-   P1/medium failure damage) — explained to him in plain terms 2026-07-18, awaiting his call: confirm
-   as-is, replace, or defer.
-3. **TBD-14/15 are new and still open** (GDD v0.4 §4.6.1/§4.6.2 — exact shield reduction % + trigger
-   condition; exact range-axis mechanism + what stops 총 from structurally dodging melee patterns). Not
-   blocking anything built so far — only future weapon-differentiation work.
-4. **Consider resuming the autonomous loop** (`loop.json` → `paused: false` + `/tick`) now that replies
-   route through Discord — see Decisions Made 2026-07-18 "Discord reply-drain gap". Without the loop's
-   own tick cycle draining the inbox, a Discord reply only gets processed when the director happens to
-   prompt again in-session; this already caused two missed-reply false alarms in one day (2026-07-18).
+1. **Engine improvement is the mission now** (director, 2026-07-19). Direction not yet specified —
+   propose candidates and get his pick. Known engine gaps worth proposing: (a) `gate.ps1` runs only
+   EditMode tests, PlayMode is manual (Do Not Repeat); (b) the Discord reply-drain gap — replies sit
+   unread while the loop is paused (Open Items); (c) Gate 3 experts score QA evidence, not real play —
+   an emulator-driven playtest (AVD Pixel_9 exists) could strengthen it; (d) build/delivery automation
+   (APK path was hand-rolled 2026-07-19). Do NOT start any of these without his direction.
+2. **When touchRPG resumes**: see "Paused: touchRPG" below — open items (Gate 3 not yet run, 5
+   provisional numbers unconfirmed, TBD-14/15 open) are recorded there.
 
 ## Last Run
 - **Date**: 2026-07-17 22:00 (Tick 49)
@@ -130,6 +122,24 @@
   set up 2026-07-18 per director instruction ("브랜치를 프로젝트 이름별로 나눠서"). Engine stays on
   `main`. Push touchRPG/lifetown work with `git push origin <local-branch>:<touchrpg|lifetown>`.
 
+## Paused: touchRPG
+Paused 2026-07-19 by the director (*"touchRPG도 이쯤에서 마무리해줘"*), **not cancelled** — fully
+resumable. Everything committed and pushed (`origin/touchrpg` @ a1b254e).
+
+**State at pause**: P0 feature-complete — T001-T004 all done (Gate 2: 97/94/90/97), Gate 1 green
+throughout (EditMode 50/50, PlayMode 44/44 manual). APK v0.0.1 built and delivered to
+`OneDrive\바탕 화면\app build\touchRPG\` for the director's own hands-on play (his request, before
+pausing). Source of truth: GDD v0.4 (`touchRPG/docs/spec/00-gdd-v0.4.md`).
+
+**Open at pause (carry into resume, do not lose):**
+1. **Gate 3 (5-expert playtest) never ran** — P0's question *"터치 패링이 손맛이 있는가"* is unanswered.
+   GDD §10 forbids starting P1 before it is. The director was about to play the APK himself.
+2. **5 provisional gameplay numbers unconfirmed** —
+   `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md`.
+3. **TBD-14/15 open** (shield's exact reduction %/trigger; range-axis mechanism). 9 live TBDs total
+   (TBD-1..7, 14, 15) — team must never fill them in.
+4. The "Locked by the director" section below and the GDD §0/§13 rules stay binding on resume.
+
 ## Paused: Life Town
 Paused, **not cancelled** — fully resumable. Snapshot: `lifetown/docs/paused-state/` (its VISION §2, its
 PROGRESS cockpit — which carries a READ-THIS-FIRST resume banner — and its backlog + task files).
@@ -149,25 +159,11 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
 - None.
 
 ## Next Run Should
-1. **T004 is running** (`wf_260a794c-fa2`) — per the director's 2026-07-18 standing grant ("프로토타입이
-   나올 때까지 내 허락없이 진행해줘" — `VISION.md` §4), when it lands: score it, fix any real gate-lead
-   findings via the frugal path (as T002/T003 did), commit+push, and **do not pause to ask "continue?"**
-   — that checkpoint is waived until P0 is playable. Report the result to the director regardless.
-2. **If T004 completes P0** (likely — it's the last known P0 task): that IS the prototype the grant was
-   for. Report it plainly, and only then ask what's next (e.g. a Gate-3 milestone playtest) — the grant
-   covers chaining *to* the prototype, not deciding what happens *after* it.
-3. **If a task comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
-   refused): **do not mark it done**. Push it to `blocked`, add to Needs Human Review + `loop.json`
-   `escalations`, and tell the director plainly (channel per §7 rule 8) that it is unfinished, with the
-   score history (`VISION.md` §5). A silently-shipped rejection is the Ralph Wiggum Loop — the standing
-   grant to skip "continue?" checkpoints does not waive this.
-4. **If it fails without `escalate`** (infrastructure): leave it `ready`, record the cause in
-   **Do Not Repeat**, journal it, don't loop on it.
-5. **Gate 3 (5-expert playtest) is still NOT automatic** even under the standing grant — it runs when a
-   meaningful slice is playable AND the director wants it run; five experts × five rounds is real cost
-   (`VISION.md` §6).
-6. Commit the engine repo on any `state/`/`backlog/` change; push touchRPG/lifetown to their own remote
-   branch (see Open Items) after any commit there.
+1. **Wait for the director's pick on engine-improvement direction** (candidates proposed 2026-07-19 —
+   see "▶ Next"). Do not start speculative engine work; the 2026-07-18 standing grant was scoped to
+   the P0 prototype and is **fulfilled/expired** — it does not cover engine work.
+2. Commit the engine repo on any `state/`/`backlog/` change; app repos push to their own remote branch
+   (see Open Items) if ever touched.
 
 ## Decisions Made
 - 2026-07-17 — **Channel rule (director)**: *"내가 vs코드로 대화하면 디스코드로는 보내지 말아줘."*
@@ -196,7 +192,12 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
   inter-task "continue?" checkpoint (`VISION.md` §4). Scope: only removes that one checkpoint — still no
   finalizing designs, no stack/monetization/rubric changes, still report every score/fix honestly, and
   Gate 3 (5-expert playtest) is still not automatic. Once P0 is feature-complete, that **is** the
-  prototype — report it and stop inventing further work under this grant.
+  prototype — report it and stop inventing further work under this grant. **FULFILLED/EXPIRED
+  2026-07-19** — P0 completed (T004), the grant does not carry over to engine work or anything else.
+- 2026-07-19 — **touchRPG paused; engine improvement first** (director, in-session): *"touchRPG도
+  이쯤에서 마무리해줘. 우리 루프 엔지니어링 팀의 고도화가 먼저 되어야 할 것 같아."* touchRPG wrapped
+  cleanly (see "Paused: touchRPG"); the team's work is now the loop engine itself. Direction within
+  that not yet specified — candidates proposed, awaiting his pick.
 
 ## Do Not Repeat
 (engine-level; still binding across projects)
