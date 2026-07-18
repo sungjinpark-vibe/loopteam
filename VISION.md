@@ -288,6 +288,13 @@ With only a success brake, a loop never stops on work that can never succeed.
 - Writing/editing code, docs, and tests inside the project folder; running Unity
 - Updating `backlog/` and `state/`; committing and pushing the project repo
 - Reporting and asking questions to the director (channel per §7 rule 8)
+- **2026-07-18 standing grant**: *"프로토타입이 나올 때까지 내 허락없이 진행해줘"* — chain P0 tasks
+  (T004 onward, and whatever remains toward a playable P0) **without pausing to ask "continue?" between
+  them.** This does NOT waive anything else in this section — still no finalizing a design decision, no
+  stack/monetization change, no rubric edit, and still report honestly (scores, deductions, fixes) as
+  each task lands; it only removes the *"should I proceed to the next task"* checkpoint until a
+  playable P0 prototype exists. Once P0 is feature-complete, that **is** the prototype — report it, don't
+  keep inventing further work under this grant.
 
 **Requires director approval**
 - **Finalizing** a spec, design, art direction, or API contract (proposing is free; finalizing is not)
@@ -403,3 +410,6 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   resolved (dev priority = P1), TBD-12 resolved (shield = damage reduction on timed defense; exact %
   moved to new TBD-14), TBD-13 resolved (range axis introduced; exact mechanism + how 총 is kept from
   structurally dodging melee patterns moved to new TBD-15). §2 spec pointer moved to v0.4.
+- 2026-07-18 **Standing grant — proceed without approval to a prototype** (director, in-session):
+  *"프로토타입이 나올 때까지 내 허락없이 진행해줘."* §4 amended: chain remaining P0 tasks without an
+  inter-task "continue?" checkpoint until P0 is playable. Everything else in §4 still applies unchanged.

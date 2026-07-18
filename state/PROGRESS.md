@@ -138,20 +138,24 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
 - None.
 
 ## Next Run Should
-1. **Open T003 or T004** (both unblocked). T003 (P0-C: 3-phase session + solo run to completion) is
-   recommended first — it's what makes P0 actually completable solo, the precondition for the 손맛
-   playtest question. Rubric = `VISION.md` §3.2 클라이언트팀장 (or 아트팀장 if T004 starts with a ui-ux
-   explore pass) — verbatim, never invented at grading time.
-2. **If a task comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
+1. **T004 is running** (`wf_260a794c-fa2`) — per the director's 2026-07-18 standing grant ("프로토타입이
+   나올 때까지 내 허락없이 진행해줘" — `VISION.md` §4), when it lands: score it, fix any real gate-lead
+   findings via the frugal path (as T002/T003 did), commit+push, and **do not pause to ask "continue?"**
+   — that checkpoint is waived until P0 is playable. Report the result to the director regardless.
+2. **If T004 completes P0** (likely — it's the last known P0 task): that IS the prototype the grant was
+   for. Report it plainly, and only then ask what's next (e.g. a Gate-3 milestone playtest) — the grant
+   covers chaining *to* the prototype, not deciding what happens *after* it.
+3. **If a task comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
    refused): **do not mark it done**. Push it to `blocked`, add to Needs Human Review + `loop.json`
    `escalations`, and tell the director plainly (channel per §7 rule 8) that it is unfinished, with the
-   score history (`VISION.md` §5). A silently-shipped rejection is the Ralph Wiggum Loop.
-3. **If it fails without `escalate`** (infrastructure): leave it `ready`, record the cause in
+   score history (`VISION.md` §5). A silently-shipped rejection is the Ralph Wiggum Loop — the standing
+   grant to skip "continue?" checkpoints does not waive this.
+4. **If it fails without `escalate`** (infrastructure): leave it `ready`, record the cause in
    **Do Not Repeat**, journal it, don't loop on it.
-4. **Gate 3 (5-expert playtest) is NOT for now** — it runs when a meaningful slice is playable, i.e.
-   after P0 is genuinely completable solo. Five experts × five rounds on a half-built screen is pure
-   burn (`VISION.md` §6).
-5. Commit the engine repo on any `state/`/`backlog/` change; push touchRPG/lifetown to their own remote
+5. **Gate 3 (5-expert playtest) is still NOT automatic** even under the standing grant — it runs when a
+   meaningful slice is playable AND the director wants it run; five experts × five rounds is real cost
+   (`VISION.md` §6).
+6. Commit the engine repo on any `state/`/`backlog/` change; push touchRPG/lifetown to their own remote
    branch (see Open Items) after any commit there.
 
 ## Decisions Made
@@ -176,6 +180,12 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
 - 2026-07-18 — **Channel rule superseded** (director, in-session): *"지금부터 답변은 디스코드로 해줘."*
   All reports now go to Discord, even in-session — see `VISION.md` §7 rule 8 for the current wording.
   The 2026-07-17 "in-session ⇒ never Discord" default is dormant, not deleted.
+- 2026-07-18 — **Standing grant — proceed to a prototype without approval** (director, in-session):
+  *"프로토타입이 나올 때까지 내 허락없이 진행해줘."* Chain remaining P0 tasks without pausing for an
+  inter-task "continue?" checkpoint (`VISION.md` §4). Scope: only removes that one checkpoint — still no
+  finalizing designs, no stack/monetization/rubric changes, still report every score/fix honestly, and
+  Gate 3 (5-expert playtest) is still not automatic. Once P0 is feature-complete, that **is** the
+  prototype — report it and stop inventing further work under this grant.
 
 ## Do Not Repeat
 (engine-level; still binding across projects)

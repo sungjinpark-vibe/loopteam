@@ -1069,3 +1069,12 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   relay-success light-beam from the party portrait to the monster. Scoped tightly to §6.1-6.2 only (not
   §6.3/cover/IN-7, which stay out of P0 per VISION §2's own boundary). Launched via quality-loop
   (wf_260a794c-fa2).
+
+## 2026-07-18 — Standing grant: proceed to a prototype without approval
+- Director (in-session): "프로토타입이 나올 때까지 내 허락없이 진행해줘." Recorded as a scoped amendment
+  to VISION.md §4 (Boundaries) and PROGRESS.md Decisions Made: chain remaining P0 tasks (T004 onward)
+  without pausing for an inter-task "continue?" checkpoint, until a playable P0 prototype exists.
+  Everything else in §4 (no finalizing designs, no stack/monetization/rubric changes) still applies
+  unchanged, and Gate 3 is still not automatic. T004 was already running (wf_260a794c-fa2) when this
+  landed - no new action needed immediately, just documented so a future tick/session honors it instead
+  of re-asking "should I continue" at the next task boundary.
