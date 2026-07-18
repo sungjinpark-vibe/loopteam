@@ -10,8 +10,8 @@
 - **Project**: **touchRPG** — touch-first online hunting action + persistent growth (**not** an MMORPG).
   Portrait fixed. Party 1-4. Hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."* Target 20-30s
   light-midcore. Refs: Monster Hunter / Vindictus + Clair Obscur (timing parry).
-- **Source of truth**: **GDD v0.3** → `touchRPG/docs/spec/00-gdd-v0.3.md` (v0.1/v0.2 kept as history).
-  Its §0: if code/conversation/convention conflicts with it, *the doc wins*.
+- **Source of truth**: **GDD v0.4** → `touchRPG/docs/spec/00-gdd-v0.4.md` (v0.1/v0.2/v0.3 kept as
+  history). Its §0: if code/conversation/convention conflicts with it, *the doc wins*.
 - **T001 P0-A parry core**: **DONE** — Gate 1 green (compile 0 errors, EditMode 19/19), **Gate 2 =
   97/100** (클라이언트팀장), scored 2026-07-18 against fresh QA evidence (rendered-pixel captures,
   PlayMode tests with graphics enabled, a live config-edit demonstration). Minor deductions (−3, C2):
@@ -29,16 +29,18 @@
 
 ## ▶ Next, in this order
 1. **When T002 (`wf_5427d9a7-5a2`) lands**: read the result. `ok:true` → mark T002 `done`, commit+push
-   touchRPG, report score + any new provisional/TBD values to the director (channel per §7 rule 8).
-   `ok:false, escalate:true` → do NOT mark done; push to `blocked`, add to Needs Human Review below, tell
-   the director plainly with the score history. See `VISION.md` §5.
-2. **Collect the director's answers to TBD-12 and TBD-13** — still outstanding (asked 2026-07-17).
-3. **Get director/planner confirmation on the 5 provisional numbers** in
+   touchRPG, report score + any new provisional/TBD values to the director on Discord (§7 rule 8, now
+   unconditional). `ok:false, escalate:true` → do NOT mark done; push to `blocked`, add to Needs Human
+   Review below, tell the director plainly with the score history. See `VISION.md` §5.
+2. **Get director/planner confirmation on the 5 provisional numbers** in
    `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
-   P1/medium failure damage) — these are separate from TBD-1/2 and were never explicitly asked yet.
-4. **TBD-11** (skill/weapon dev priority) is still unanswered. PM recommendation stands: **P1**, because
-   GDD §10 forbids starting P1 before the 손맛 question is answered.
-5. After T002: T003 (P0-C — 3-phase session + solo run to completion, `blocked` on T002) then T004
+   P1/medium failure damage) — explained to him in plain terms 2026-07-18, awaiting his call: confirm
+   as-is, replace, or defer.
+3. **TBD-14/15 are new and still open** (GDD v0.4 §4.6.1/§4.6.2 — exact shield reduction % + trigger
+   condition; exact range-axis mechanism + what stops 총 from structurally dodging melee patterns). Both
+   are implementation-blocking for weapon-differentiation work specifically, **not** for T002/T003 (which
+   don't touch weapon identity or distance yet).
+4. After T002: T003 (P0-C — 3-phase session + solo run to completion, `blocked` on T002) then T004
    (P0-D — combat UI completion, `blocked` on T001, now unblockable).
 
 ## Last Run
@@ -57,16 +59,19 @@
   growth axis — §8.1's 60/30/10 stands unchanged. Set in the pre-hunt 대기실; **locked at hunt start**.
 - **Weapons = 3**: 총(원거리) / 창(중거리) / 검과 방패(근접) — they split the engagement-distance axis
   cleanly (대검 dropped; it overlapped 검과 방패). **Judgment windows ±0.15/±0.35 are weapon-common —
-  per-weapon judgment is MUST NOT.** Weapons differ only by rhythm/speed, distance, part-break affinity.
+  per-weapon judgment is MUST NOT.** Weapons differ by rhythm/speed, distance, part-break affinity, and
+  (v0.4) **검과 방패 gets damage reduction on a timed defense** — exact % is TBD-14, not decided.
 - **A weapon that structurally dodges patterns is as wrong as one that out-damages them** (§4.6 MUST) —
-  the live risk with 총 (TBD-13).
+  still the live constraint on 총; the range axis is confirmed (v0.4) but the mechanism that enforces
+  this MUST is TBD-15, not decided. **Do not add distance behavior to any §7 pattern sheet before it is.**
 
 ## The rules this project lives or dies by (re-read before briefing any agent)
-1. **The GDD wins.** `touchRPG/docs/spec/00-gdd-v0.3.md`. This cockpit and `VISION.md` §2 are pointers,
+1. **The GDD wins.** `touchRPG/docs/spec/00-gdd-v0.4.md`. This cockpit and `VISION.md` §2 are pointers,
    not replacements.
-2. **The 10 live TBDs (GDD §13) MUST NOT be filled in by the team** — they are deliberately the
-   director's. Live: TBD-1..7, 11, **12** (shield's game identity), **13** (range axis / 총's ranged
-   advantage). TBD-8/9/10 were resolved on 2026-07-17.
+2. **The 9 live TBDs (GDD §13) MUST NOT be filled in by the team** — they are deliberately the
+   director's. Live: TBD-1..7, **14** (shield's exact reduction % + trigger), **15** (range axis's exact
+   mechanism). TBD-8/9/10 resolved 2026-07-17; TBD-11/12/13 resolved 2026-07-18 (their leftover specifics
+   became TBD-14/15).
    The GDD names its most-guarded failure mode in its own words: *"그럴듯한 보간(hallucinated design)"*.
    That is our **Nodding Loop** by another name. An agent that invents a TBD has failed the task
    however good the result looks. Combo cap / damage curve stay provisional + labelled until the
@@ -81,7 +86,8 @@
 - **T002 in flight** (`wf_5427d9a7-5a2`) — on landing: read the result, report in the channel the
   director last spoke in, list every new provisional/TBD value used.
 - **Director confirmation still needed** on the 5 provisional numbers in
-  `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md`, and on TBD-11/12/13.
+  `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (explained in plain terms 2026-07-18),
+  and on the new TBD-14 (shield %) / TBD-15 (range mechanism).
 - **git remotes**: touchRPG and lifetown now both push to `origin` = the `loopteam` GitHub remote (same
   URL as the engine), each on its **own branch** (`touchrpg`, `lifetown`) rather than a separate repo —
   set up 2026-07-18 per director instruction ("브랜치를 프로젝트 이름별로 나눠서"). Engine stays on

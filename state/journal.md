@@ -988,3 +988,21 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   added `origin` = the same loopteam GitHub URL as the engine to both, and pushed each to its own branch
   (touchrpg, lifetown) rather than creating separate repos. A stale duplicate branch (capital "touchRPG",
   an ancestor commit of the real push) was found and - after director confirmation - deleted.
+
+## 2026-07-18 — Listener false alarm; TBD-11/12/13 answered, GDD -> v0.4
+- Director: "메시지 보냈는데 반영이 안되는데? 리스너에 문제 있나?" Diagnosed: daemon process alive (pid
+  25124, heartbeat fresh), message DID land in incoming.log at 14:09:02. Root cause was NOT the listener
+  - it was that after switching to the Discord-only channel rule, nobody re-drained the inbox (I sent a
+  status update but never checked for a reply). Told the director plainly rather than guessing.
+- Processed the message: TBD-11 (dev priority) = P1, approved as PM recommended. TBD-12 (shield
+  identity) = damage reduction on a timed defense. TBD-13 (range axis) = introduced, weapons must differ
+  by distance. Wrote GDD v0.4 (docs/spec/00-gdd-v0.4.md): SS4.6.1 shield damage-reduction, SS4.6.2 range
+  axis. Per the established discipline (same as v0.2->v0.3), the director's answers resolved the
+  conceptual questions but left real implementation specifics open - rather than inventing them, filed
+  two NEW TBDs: TBD-14 (exact shield reduction % + trigger condition) and TBD-15 (exact range mechanism,
+  specifically what stops 총 from structurally dodging melee patterns - the original TBD-13 risk is not
+  actually resolved by "add a range axis", only reframed). VISION.md SS2 updated (spec pointer -> v0.4,
+  new Locked-2026-07-18 block, TBD count 10 -> 9 live). BACKLOG.md, touchRPG/README.md pointers bumped.
+- Sent a plain-language Discord explanation of what the "5 P0DemoNumbers" actually are (placeholder
+  numbers needed just to render an HP bar/damage, since the GDD only has qualitative labels like
+  "소피해") since the director asked to have it re-explained less technically.

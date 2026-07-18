@@ -34,15 +34,16 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 
 > **Numbering restarts at `T001` for touchRPG.** Life Town's T001-T008 live in its archive, not here.
 >
-> **The spec was written by the director** — `touchRPG/docs/spec/00-gdd-v0.3.md` (**v0.3 is current**;
-> v0.1/v0.2 are history). There is no `planner` spec task: the GDD *is* the spec and the **single
+> **The spec was written by the director** — `touchRPG/docs/spec/00-gdd-v0.4.md` (**v0.4 is current**;
+> v0.1/v0.2/v0.3 are history). There is no `planner` spec task: the GDD *is* the spec and the **single
 > source of truth**. T001+ implement it.
 >
 > **P1/P2 are not in this queue on purpose.** GDD §10: do not start P1 (party, talismans, daily loop)
 > before P0's question — *"터치 패링이 손맛이 있는가"* — is answered.
 >
-> **The 10 live TBDs (GDD §13) MUST NOT be filled in by the team**: TBD-1..7, 11, 12, 13. They are the
-> director's, deliberately. (TBD-8/9/10 were resolved by him on 2026-07-17.)
+> **The 9 live TBDs (GDD §13) MUST NOT be filled in by the team**: TBD-1..7, 14, 15. They are the
+> director's, deliberately. (TBD-8/9/10 resolved 2026-07-17; TBD-11/12/13 resolved 2026-07-18, their
+> leftover specifics moved to new TBD-14/15.)
 
 ## Task file format
 

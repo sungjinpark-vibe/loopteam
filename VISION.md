@@ -26,8 +26,8 @@ bar, and approve or reject.
 
 ## 2. Current project — touchRPG (working title "람팡")
 
-> **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.3.md` (director-authored;
-> v0.3, 2026-07-17 — supersedes v0.2/v0.1, which stay as the record). Its §0 says so outright — if code comments, past conversation, or inferred
+> **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.4.md` (director-authored;
+> v0.4, 2026-07-18 — supersedes v0.3/v0.2/v0.1, which stay as the record). Its §0 says so outright — if code comments, past conversation, or inferred
 > convention conflict with that document, **the document wins**. This §2 is a compact pointer for the
 > loop, **not a replacement**. When they disagree, the GDD is right. Read it before briefing any agent.
 
@@ -42,7 +42,7 @@ bar, and approve or reject.
 | Session | One hunt 10-15 min; 30-60 min/day recommended. Party 1-4 |
 | References | Monster Hunter / Vindictus (big single-target hunts, part-breaking, mastery-through-repetition); Clair Obscur: Expedition 33 (precise timing input as the heart of combat). **Differentiator**: that feel, rebuilt as portrait + single-tap gesture + party relay parry |
 | Project folder | `C:\Users\user\loop_engine\touchRPG` (own git repo, gitignored from the engine) |
-| Spec | `touchRPG/docs/spec/00-gdd-v0.3.md` (v0.1/v0.2 kept as history) |
+| Spec | `touchRPG/docs/spec/00-gdd-v0.4.md` (v0.1/v0.2/v0.3 kept as history) |
 | Completion | **The 5-expert playtest gate (§3.3)** — unchanged |
 
 ### The four pillars (GDD §2 — if a feature conflicts with a pillar, the feature is wrong)
@@ -68,9 +68,25 @@ adding a gameplay colour is MUST NOT.
   **locked at hunt start, never changed mid-combat**.
 - **Weapons = 3: 총(원거리) / 창(중거리) / 검과 방패(근접)** — they split the engagement-distance axis
   cleanly. **Judgment windows (±0.15 / ±0.35) are weapon-common — per-weapon judgment is MUST NOT.**
-  Weapons differ only by **rhythm/speed, engagement distance, part-break affinity**.
-- **A weapon that structurally dodges patterns is as wrong as one that out-damages them** (§4.6 MUST).
-  This is the live risk with 총 — see TBD-13.
+  Weapons differ only by **rhythm/speed, engagement distance, part-break affinity, and (new in v0.4)
+  hit-damage-reduction for shield only**.
+
+### Locked by the director on 2026-07-18 (GDD v0.4 — do not re-open without him)
+- **TBD-11 resolved**: skill/weapon system dev priority = **P1** (director approved the PM's
+  recommendation as-is).
+- **TBD-12 resolved**: the shield's identity = **damage reduction on a timed defense** (director's own
+  words: *"타이밍에 맞춰서 몬스터의 공격을 방어하면 기존 피해량에 비해 크게 감소"*). §4.3's judgment
+  windows are untouched (still weapon-common) — only what a successful defense *does* differs for
+  shield. **Not yet decided** (new **TBD-14**): the exact reduction %, and whether it applies only on
+  good/perfect judgments or partially on a near-miss too. Do not implement until that is confirmed.
+- **TBD-13 resolved**: a **range axis is introduced** — weapons must differ by distance in damage
+  advantage or strategy (director's own words: *"사거리에 따라 데미지 이점이나 무기 별 전략의 차이가
+  존재해야 함"*). This confirms the *direction*, not the *mechanism* — the original risk TBD-13 raised
+  (원거리 총이 근접 패턴을 구조적으로 회피 → §4.6 MUST/P-1 위반) is **still open**, now as **TBD-15**:
+  what exactly stops 총 from structurally dodging 람팡's melee patterns. **Do not add distance behavior
+  to any pattern sheet (§7) until TBD-15 is resolved** — GDD v0.4 §4.6.2.
+- **A weapon that structurally dodges patterns is as wrong as one that out-damages them** (§4.6 MUST) —
+  still the live constraint on 총 pending TBD-15.
 
 ### P0 — the only thing that matters right now (GDD §10)
 P0 = the vertical slice: the full input grammar (IN-1~6), 람팡 + its complete pattern sheet, the 3-phase
@@ -98,11 +114,13 @@ landscape mode, and **any monetization model at all** (a separate doc will cover
 hardcoded. A gameplay-affecting number that is not in the doc MUST be asked, never invented; a
 presentation-only number (effect length, etc.) MAY be chosen and recorded.
 
-**The `[TBD]` rule (GDD §0/§13) — treat this as a gate.** **Ten** items are *deliberately* undecided:
+**The `[TBD]` rule (GDD §0/§13) — treat this as a gate.** **Nine** items are *deliberately* undecided:
 combo cap (TBD-1), damage curve (TBD-2), 람팡 유대 material part (TBD-3), enhance curve (TBD-4), daily
-blessing count (TBD-5), final naming (TBD-6), network architecture (TBD-7), skill/weapon dev priority
-(TBD-11), **the shield's game-mechanical identity (TBD-12)**, **whether a range axis exists + how the
-gun's ranged advantage is controlled (TBD-13)**. **MUST NOT fill them in.**
+blessing count (TBD-5), final naming (TBD-6), network architecture (TBD-7), **shield's exact
+damage-reduction % and trigger condition (TBD-14, new v0.4)**, **the range axis's exact mechanism +
+what stops 총 from structurally dodging melee patterns (TBD-15, new v0.4)**. **MUST NOT fill them in.**
+TBD-8/9/10 resolved 2026-07-17; TBD-11/12/13 resolved 2026-07-18 (their unresolved specifics moved to
+TBD-14/15 — see "Locked by the director on 2026-07-18" above).
 The GDD names the failure mode itself: *"그럴듯한 보간(hallucinated design)은 이 프로젝트에서 가장
 경계하는 실패 모드다."*
 That is this loop's **Nodding Loop** under another name — the exact thing §3
@@ -381,3 +399,7 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   not deleted, in case the director reverts it later. Every file that pointed at "§7 rule 8" for its
   channel logic (VISION §1/§3.4/§5, `CLAUDE.md`, the tick skill, `loop-scout`) follows automatically —
   none of them hardcode the heuristic, they all defer to this section.
+- 2026-07-18 **GDD → v0.4** (director, via Discord, answering questions asked 2026-07-17): TBD-11
+  resolved (dev priority = P1), TBD-12 resolved (shield = damage reduction on timed defense; exact %
+  moved to new TBD-14), TBD-13 resolved (range axis introduced; exact mechanism + how 총 is kept from
+  structurally dodging melee patterns moved to new TBD-15). §2 spec pointer moved to v0.4.
