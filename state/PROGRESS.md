@@ -35,16 +35,20 @@
   code, not externalized) — fixed separately as a frugal follow-up (moved to a new `PhasePatternWeights`
   ScriptableObject, values unchanged, no re-score needed). **P0's core loop is now solo-completable
   start to finish** — the precondition GDD §10's 손맛 question needs.
+- **T004 P0-D — combat UI §6.1-6.2 completion**: **IN PROGRESS**, quality-loop running in the background
+  (`wf_260a794c-fa2`). Director said "계속 진행해줘" — narrow scope: relay marker's own visual (red ring
+  + sequence number + triple signal, currently reuses the plain yellow parry marker) + relay-success
+  light-beam. **Expected to be P0's last task.** Brief: `backlog/tasks/T004.md`.
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
 - **Last updated**: 2026-07-18 (in-session)
 
 ## ▶ Next, in this order
-1. **Report T003 to the director on Discord and ask direction**: score 90/100 + the externalization fix,
-   and note that P0's core loop is now solo-completable — ask whether to continue straight to **T004**
-   (P0-D combat UI completion, the last P0 task) or pause here since a meaningful milestone was just
-   reached. Don't decide this autonomously — this is exactly the kind of "big spend" checkpoint the
-   token-economy decisions (below) call for pausing on.
+1. **When T004 (`wf_260a794c-fa2`) lands**: read the result. `ok:true` → mark T004 `done`, commit+push
+   touchRPG, report score to the director on Discord. This should complete P0 — flag to the director that
+   a milestone Gate 3 (5-expert playtest) is now possible whenever he wants it (`VISION.md` §3.3/§6; not
+   automatic, needs the panel/rubric from §3.3 and a QA evidence pass). `ok:false, escalate:true` → do
+   NOT mark done; push to `blocked`, add to Needs Human Review below, tell the director plainly.
 2. **Get director/planner confirmation on the 5 provisional numbers** in
    `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
    P1/medium failure damage) — explained to him in plain terms 2026-07-18, awaiting his call: confirm

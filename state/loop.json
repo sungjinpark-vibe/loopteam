@@ -2,7 +2,7 @@
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
   "tick": 50,
   "project": "touchRPG (working title 람팡) — touch hunting action, Unity, portrait",
-  "active_task": null,
+  "active_task": "T004 P0-D combat UI §6.1-6.2 completion: quality-loop running in background (wf_260a794c-fa2). T001/T002/T003 all DONE (97/94/90). Expected to be P0's last task.",
   "last_tick_at": "2026-07-17 23:30",
   "consecutive_idle_ticks": 0,
   "paused": true,

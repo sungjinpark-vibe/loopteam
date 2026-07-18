@@ -1058,3 +1058,14 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - Reported to the director on Discord and asked direction (continue to T004, the last P0 task, or pause
   at this milestone) rather than deciding autonomously - matches the standing "don't spend big
   speculatively" decision from 2026-07-17.
+
+## 2026-07-18 — T004 opened (P0's last task)
+- Director: "계속 진행해줘" (in-session, answering the T003-milestone question via the in-session chat
+  rather than Discord this time - still reported to Discord per rule 8, current wording says
+  unconditional). Opened T004 (P0-D: combat UI §6.1-6.2 completion). Audited what's already correct
+  (parry/dodge/rush markers, 4-layer proportions, HP phase ticks - all from T001-T003) vs what's
+  genuinely missing: the relay marker still reuses the plain yellow parry-marker look instead of GDD
+  §6.2's specified red ring + sequence number + triple signal (opaque/pulse/haptic), and there's no
+  relay-success light-beam from the party portrait to the monster. Scoped tightly to §6.1-6.2 only (not
+  §6.3/cover/IN-7, which stay out of P0 per VISION §2's own boundary). Launched via quality-loop
+  (wf_260a794c-fa2).
