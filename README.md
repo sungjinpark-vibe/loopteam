@@ -6,31 +6,29 @@ Built by the Life Town loop-engine team and system, **unchanged** (director's in
 Unity 6000.5.1f1 · the three gates (mechanical → team lead ≥90 → 5-expert playtest) · same agents,
 rubrics, boundaries and failure policy. The contract lives in `../VISION.md`.
 
-## Status: scaffolding — concept brief pending
+## Status: P0 in progress
 
-The folder, git repo and docs skeleton are ready. **The game concept has not been given yet.**
-The name "touchRPG" is not a brief, and per `../VISION.md` §2/§4 the team must **not invent** the
-concept, genre, or target player. The PM has asked the director on Discord for:
+Working title **람팡**. Touch-first online hunting action + persistent growth (**not** an MMORPG).
+Portrait fixed, party 1-4, one hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."*
 
-1. What kind of game (touch-based RPG? idle? clicker? action?)
-2. The one-line concept / core fun
-3. The target player
-4. Any reference games or images
+**The spec is the director's own GDD — `docs/spec/00-gdd-v0.3.md` — and it is the single source of
+truth** (its §0: when anything conflicts with it, the doc wins). v0.1/v0.2 are kept as history. There
+was no planner spec task; the team implements the GDD directly.
 
-When the brief lands: `../VISION.md` §2 gets filled in, then `T001` (spec · `explore` · `planner`)
-opens and its output goes to the director for approval.
+Current focus: **P0 vertical slice** (GDD §10) — its one validation question is *"터치 패링이 손맛이
+있는가."* T001 (parry core) has passed Gate 1 (compile clean, 19/19 tests); Gate 2 scoring pending.
+The GDD's `[TBD]` items are deliberately the director's — the team **must not** fill them in.
 
 ## Layout
 
 | Path | Holds |
 |---|---|
-| `docs/spec/` | Feature specs, user flows, gamification design (`planner`) |
+| `docs/spec/` | **The GDD (source of truth)** + any later specs |
 | `docs/design/` | Design system, screen design, art-order specs (`ui-ux`) |
 | `docs/design/references/` | Director-supplied reference images |
 | `docs/api/` | API contracts, DB, backend (`server-dev`) |
 | `docs/qa/` | Test cases and QA evidence (`qa`) |
-
-Unity project + game code get created here once the spec justifies it.
+| `Assets/` | Unity 6000.5.1f1 project (created 2026-07-17) |
 
 ## Git
 

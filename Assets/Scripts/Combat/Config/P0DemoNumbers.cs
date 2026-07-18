@@ -14,12 +14,15 @@ namespace TouchRPG.Combat.Config
     /// channel to ask mid-implementation. Every value here is therefore an explicit,
     /// reported placeholder — not a design decision — kept in its own asset (separate
     /// from GameplayConfig's GDD-sourced constants) specifically so it cannot be
-    /// mistaken for one. See the client-dev task report for the full list to confirm.
+    /// mistaken for one. See docs/qa/P0-provisional-gameplay-numbers-REPORT.md for the
+    /// full list, the rationale for each value, and the open question to the planner —
+    /// that file is the actual query GDD §0 requires, not just this comment.
     /// </summary>
     [CreateAssetMenu(fileName = "P0DemoNumbers", menuName = "TouchRPG/Combat/P0 Demo Numbers (PROVISIONAL - NOT IN GDD)")]
     public class P0DemoNumbers : ScriptableObject
     {
         [Header("NOT SPECIFIED IN GDD — PLACEHOLDER PENDING DIRECTOR CONFIRMATION")]
+        [Header("Full rationale + open questions: docs/qa/P0-provisional-gameplay-numbers-REPORT.md")]
 
         [Tooltip("No monster HP total exists anywhere in the GDD. Placeholder only.")]
         public int monsterMaxHP = 1000;
