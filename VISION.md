@@ -1,11 +1,18 @@
-# VISION §2 snapshot — touchRPG (paused 2026-07-19)
+# VISION — touchRPG (project contract)
 
-> Verbatim copy of the engine's `VISION.md` §2 as it stood at pause (director: *"touchRPG도 이쯤에서
-> 마무리해줘"*). **To resume touchRPG**: restore this content into `VISION.md` §2, restore the backlog
-> rows (`backlog/BACKLOG.md` keeps the done T001-T004 table), point `state/loop.json` `project` back to
-> touchRPG. Everything here stays binding on resume. Open at pause: Gate 3 never ran (P0's 손맛 question
-> unanswered); 5 provisional numbers unconfirmed (`docs/qa/P0-provisional-gameplay-numbers-REPORT.md`);
-> TBD-14/15 open. APK v0.0.1 delivered to the director 2026-07-19.
+> **This is the app's own contract** — split out of the engine's `VISION.md` §2 on 2026-07-19 per
+> director instruction ("VISION 내용을 각 프로젝트에 분리"). The engine's `VISION.md` still holds
+> everything project-independent: the three gates, rubrics, boundaries, failure policy, standing rules.
+> When touchRPG is the **active** project, the tick reads BOTH files (engine first, then this).
+> The GDD (`docs/spec/00-gdd-v0.4.md`) outranks this file wherever they overlap — this is the loop's
+> compact pointer, the GDD is the design authority.
+>
+> **Status: PAUSED 2026-07-19** (director: *"touchRPG도 이쯤에서 마무리해줘"*). NOT cancelled.
+> P0 feature-complete (T001-T004, Gate 2: 97/94/90/97); APK v0.0.1 delivered to the director.
+> Open at pause: **Gate 3 never ran** (P0's 손맛 question unanswered — GDD §10 forbids P1 before it);
+> 5 provisional numbers unconfirmed (`docs/qa/P0-provisional-gameplay-numbers-REPORT.md`); TBD-14/15.
+> Full pause state: `docs/paused-state/PROGRESS-snapshot.md`. **To resume**: point the engine's
+> `state/loop.json` `project` here and pick up from the snapshot's "Open at pause".
 
 > **The GDD is the single source of truth**: `touchRPG/docs/spec/00-gdd-v0.4.md` (director-authored;
 > v0.4, 2026-07-18 — supersedes v0.3/v0.2/v0.1, which stay as the record). Its §0 says so outright — if code comments, past conversation, or inferred

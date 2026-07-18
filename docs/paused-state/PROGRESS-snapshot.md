@@ -1,9 +1,10 @@
 # PROGRESS snapshot — touchRPG (paused 2026-07-19)
 
 > **READ THIS FIRST on resume.** Verbatim copy of the engine cockpit's touchRPG sections as they stood
-> at pause. Restore the "rules this project lives or dies by" + "Locked by the director" sections into
-> `state/PROGRESS.md`, restore `VISION.md` §2 from `VISION-s2-snapshot.md` (same folder), then pick up
-> at "Open at pause" below. Companion: `backlog/BACKLOG.md` keeps the done T001-T004 rows.
+> at pause. The project contract now lives at `touchRPG/VISION.md` (split per-project 2026-07-19) —
+> no §2 restore needed; just point the engine's `state/loop.json` `project` at touchRPG and put the
+> "rules this project lives or dies by" back into the cockpit. Companion: `backlog/BACKLOG.md` keeps
+> the done T001-T004 rows.
 
 ## State at pause
 - **Source of truth**: **GDD v0.4** → `touchRPG/docs/spec/00-gdd-v0.4.md` (v0.1/v0.2/v0.3 kept as
