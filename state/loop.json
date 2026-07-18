@@ -2,7 +2,7 @@
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
   "tick": 50,
   "project": "touchRPG (working title 람팡) — touch hunting action, Unity, portrait",
-  "active_task": null,
+  "active_task": "T003 P0-C 3-phase session + solo run to completion: quality-loop running in background (wf_42ac76c9-d26). T001 (97/100) and T002 (94/100) both DONE.",
   "last_tick_at": "2026-07-17 23:30",
   "consecutive_idle_ticks": 0,
   "paused": true,

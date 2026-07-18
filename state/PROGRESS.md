@@ -28,13 +28,18 @@
   — fixed separately as a frugal follow-up (externalized + documented, no re-score needed since no
   observable behavior changed). Two minor deductions left as noted hardening, not blockers (see
   `backlog/tasks/T002.md` log).
+- **T003 P0-C — 3-phase session + solo run to completion**: **IN PROGRESS**, quality-loop running in the
+  background (`wf_42ac76c9-d26`). Real HP-driven phase transitions, phase-weighted pattern selection,
+  guaranteed groggy rush per transition, hunt-complete end state. This is what makes P0 genuinely
+  completable solo — the precondition for the actual 손맛 playtest. Brief: `backlog/tasks/T003.md`.
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
 - **Last updated**: 2026-07-18 (in-session)
 
 ## ▶ Next, in this order
-1. **Report T002's result to the director on Discord** (§7 rule 8, now unconditional): score 94/100,
-   what shipped (IN-3/IN-5/IN-6 + Lampang P2-P7), and the dissolveLead fix.
+1. **When T003 (`wf_42ac76c9-d26`) lands**: read the result. `ok:true` → mark T003 `done`, commit+push
+   touchRPG, report score to the director on Discord. `ok:false, escalate:true` → do NOT mark done; push
+   to `blocked`, add to Needs Human Review below, tell the director plainly with the score history.
 2. **Get director/planner confirmation on the 5 provisional numbers** in
    `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
    P1/medium failure damage) — explained to him in plain terms 2026-07-18, awaiting his call: confirm
@@ -43,9 +48,12 @@
    condition; exact range-axis mechanism + what stops 총 from structurally dodging melee patterns). Both
    are implementation-blocking for weapon-differentiation work specifically, **not** for T003/T004 (which
    don't touch weapon identity or distance yet).
-4. Next task: **T003** (P0-C — 3-phase session + solo run to completion, unblocked now) or **T004**
-   (P0-D — combat UI completion, unblocked since T001). Pick T003 first — it's the one that makes P0
-   actually completable solo, which is what the 손맛 playtest question needs.
+4. After T003: T004 (P0-D — combat UI completion, unblocked since T001), then P0 is feature-complete and
+   a real solo playtest of the 손맛 question becomes possible.
+5. **Consider resuming the autonomous loop** (`loop.json` → `paused: false` + `/tick`) now that replies
+   route through Discord — see Decisions Made 2026-07-18 "Discord reply-drain gap" below. Without the
+   loop's own tick cycle draining the inbox, a Discord reply only gets processed when the director
+   happens to prompt again in-session; this has already caused two missed-reply false alarms in one day.
 
 ## Last Run
 - **Date**: 2026-07-17 22:00 (Tick 49)
@@ -90,6 +98,12 @@
 - **Director confirmation still needed** on the 5 provisional numbers in
   `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (explained in plain terms 2026-07-18),
   and on the new TBD-14 (shield %) / TBD-15 (range mechanism).
+- **Discord reply-drain gap** (found twice 2026-07-18): with the loop paused and replies routed through
+  Discord (rule 8, current), a Discord reply only gets read when the director happens to prompt again
+  in-session — nothing here automatically re-checks the inbox. Two of his replies sat unread until he
+  asked "리스너 꺼졌나" both times (the listener itself was fine both times). Real fix: resume the
+  autonomous loop (`paused: false`), since ticks drain the inbox on their own schedule. Flagged to the
+  director; his call whether/when to switch back on.
 - **git remotes**: touchRPG and lifetown now both push to `origin` = the `loopteam` GitHub remote (same
   URL as the engine), each on its **own branch** (`touchrpg`, `lifetown`) rather than a separate repo —
   set up 2026-07-18 per director instruction ("브랜치를 프로젝트 이름별로 나눠서"). Engine stays on

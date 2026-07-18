@@ -1025,3 +1025,17 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   Logged in Do Not Repeat.
 - T002 marked done, committed + pushed to origin/touchrpg (779f288 implementation, c49f019 the
   dissolveLead fix). Reported score + fix to the director on Discord.
+
+## 2026-07-18 — Second missed-reply false alarm; T003 opened
+- Director: "리스너 꺼졌나?" (2nd time today). Checked again: daemon alive, heartbeat 20s stale (healthy),
+  a real reply ("계속 진행해줘", 14:54:13, answering the T003 go-ahead question) had landed and simply
+  not been read. Same root cause as the first false alarm - not the listener, the PM not re-checking the
+  inbox after asking a Discord question. Processed the reply and named the actual structural fix this
+  time (not just apologize again): with the loop paused, nothing auto-drains Discord - only the
+  autonomous tick cycle does that. Recommended resuming the loop (paused:false) now that replies route
+  through Discord; logged in PROGRESS.md Open Items for the director's call.
+- Opened T003 (P0-C: 3-phase session + solo run to completion) - the task that turns the pattern library
+  from T001/T002 into an actual playable hunt (real HP-driven phase transitions, phase-weighted pattern
+  selection, guaranteed groggy rush per phase transition, hunt-complete state). MonsterPatternPlayer.cs
+  already had a currentPhase field and its own comment marking this exact seam as future work - reused
+  that context in the brief rather than re-deriving it. Launched via quality-loop (wf_42ac76c9-d26).
