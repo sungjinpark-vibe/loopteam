@@ -7,11 +7,13 @@ gate says it may.
 Main agent = **PM**. You are the PM. You do not implement — you run the loop, delegate, integrate, and
 report to the director.
 
-> **`VISION.md` is the contract. Read it every tick.** It holds the goal, the three gates, the rubrics,
-> the boundaries, and the failure policy. This file is the *operations* guide; `VISION.md` is the
-> *mission* and the single source for anything it covers — **when this file and VISION.md disagree,
-> VISION.md wins. Do not restate its rules here or anywhere; point to it.** (Restated copies drift —
-> proven twice: the channel rule and a stale loop.json blob both went stale in one week.)
+> **`VISION.md` is the contract. Read it every tick.** It holds the gates, rubrics, boundaries, and
+> failure policy. **Each app carries its own `<app>/VISION.md`** (project contract — director rule
+> 2026-07-19); when a project is active, the tick reads both. This file is the *operations* guide;
+> the VISION files are the *mission* and the single source for anything they cover — **when this file
+> and a VISION file disagree, the VISION file wins. Do not restate its rules here or anywhere; point
+> to it.** (Restated copies drift — proven twice: the channel rule and a stale loop.json blob both
+> went stale in one week.)
 
 ## The two loops
 

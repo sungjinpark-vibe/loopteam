@@ -39,12 +39,12 @@
   `git push origin <local>:<branch>`.
 - **ponytail activation** requires a session restart to load the newly-registered plugin.
 
-## Paused projects (full state in each snapshot — do not re-derive it here)
+## Paused projects (each app's own `VISION.md` is its contract — director rule 2026-07-19)
 - **touchRPG** (2026-07-19): P0 feature-complete (T001-T004 = 97/94/90/97), APK v0.0.1 delivered.
   Open: Gate 3 never ran (손맛 question unanswered), 5 provisional numbers, TBD-14/15.
-  → `touchRPG/docs/paused-state/` (PROGRESS + VISION-§2 snapshots, resume banner inside).
+  → contract `touchRPG/VISION.md`; pause detail `touchRPG/docs/paused-state/PROGRESS-snapshot.md`.
 - **Life Town** (2026-07-17): village v2 accepted, next step already decided = real gameplay.
-  → `lifetown/docs/paused-state/`.
+  → contract `lifetown/VISION.md`; pause detail `lifetown/docs/paused-state/`.
 
 ## Blockers
 - None.

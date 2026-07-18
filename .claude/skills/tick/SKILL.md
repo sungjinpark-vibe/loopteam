@@ -19,8 +19,10 @@ Not "do everything." Small ticks keep the loop's context alive; big ticks kill i
 > 처방은 하나뿐 — **매 실행마다 기준 문서를 다시 읽는 것**.
 
 Read, in this order, every tick — even tick 500:
-1. **`VISION.md`** — the goal, the two gates, the boundaries, the failure policy. This is the constitution.
-2. **`state/PROGRESS.md`** — where the loop actually is: blockers, Needs Human Review, **Do Not Repeat**.
+1. **`VISION.md`** — the goal, the gates, the boundaries, the failure policy. This is the constitution.
+2. **The active app's own `VISION.md`** (`<app>/VISION.md`, per §2's pointer) — the project contract
+   lives in the app repo, not in the engine file (director rule 2026-07-19). Skip if no app is active.
+3. **`state/PROGRESS.md`** — where the loop actually is: blockers, Needs Human Review, **Do Not Repeat**.
 
 Then check `state/loop.json`. If `paused: true`, schedule the next wakeup and stop. Do nothing else.
 
@@ -41,12 +43,14 @@ It returns `WORK`, `REPLY`, or `IDLE`.
 
 ## Step 2 — First tick of a project
 
-If `VISION.md` section 2 is still `_(미지정)_` and the scout found a **new brief**:
+If no project is active (`VISION.md` §2 pointer) and the scout found a **new brief**:
 
 1. Create the app folder, `git init` inside it, add it to the root `.gitignore`.
 2. The stack is **Unity** — fixed by director rule, not a decision to make (`VISION.md` §7).
-3. **Write `VISION.md` sections 2-3**: project, concept, and the **rubric** — adapted to this app.
-   The rubric must be written **now, before any code**. A rubric written later bends to fit the result.
+3. **Write the app's own `<app>/VISION.md`** (project contract: concept, pillars, scope, completion
+   line — director rule 2026-07-19, one per app repo) and point the engine `VISION.md` §2 at it. Any
+   app-specific rubric tuning goes there too. The contract must be written **now, before any code** —
+   a rubric written later bends to fit the result.
 4. Open `T001` as an `explore` task for `planner` (the detailed spec). **Exception**: if the director
    supplied the spec himself (touchRPG 2026-07-17 — a full GDD), there is no planner task: the
    director's doc **is** the spec and the single source of truth, and `T001` starts as `build` against it.

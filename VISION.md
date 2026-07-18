@@ -24,20 +24,24 @@ bar, and approve or reject.
 - The director does not read code. Whatever they need in order to decide, the PM shows them in Korean,
   on the channel §7 rule 8 currently specifies.
 
-## 2. Current project — (none: engine improvement)
+## 2. Current project — pointer only (per-project VISION files, director rule 2026-07-19)
 
-**The team's current mission is the loop engine itself** (director, 2026-07-19: *"우리 루프 엔지니어링
-팀의 고도화가 먼저"*). No app project is active; direction within engine work is set by the director
-per task. Both app projects are paused, **not cancelled**, each with a full contract snapshot:
+**Every app carries its own contract**: `<app>/VISION.md`, inside the app's repo (director:
+*"VISION 내용을 각 프로젝트에 분리해서 저장"*). This engine file holds only what is
+project-independent — the gates, rubrics, boundaries, failure policy, standing rules. This section
+never holds project detail again; it only points.
 
-| Paused project | State at pause | Snapshot (restore §2 from here to resume) |
-|---|---|---|
-| **touchRPG** (2026-07-19) | P0 feature-complete (T001-T004, Gate 2: 97/94/90/97); APK v0.0.1 delivered to the director; **Gate 3 never ran — P0's 손맛 question unanswered**; 5 provisional numbers + TBD-14/15 open | `touchRPG/docs/paused-state/` (VISION-s2 + PROGRESS snapshots). GDD v0.4 = its source of truth |
-| **Life Town** (2026-07-17) | 7 category buildings + village v2, gate-green 81/81; director already approved next step = **real gameplay** (do not re-ask polish-vs-gameplay) | `lifetown/docs/paused-state/` (VISION §2, PROGRESS with resume banner, backlog + tasks) |
+- **Active project: none — the mission is the loop engine itself** (director, 2026-07-19: *"우리 루프
+  엔지니어링 팀의 고도화가 먼저"*). Direction within engine work is set by the director per task.
+- **Paused** (not cancelled): **touchRPG** (2026-07-19, P0 complete, Gate 3 pending) →
+  `touchRPG/VISION.md`. **Life Town** (2026-07-17, next step already decided: real gameplay) →
+  `lifetown/VISION.md`.
 
-**To resume either**: restore its §2 snapshot into this section, restore its backlog, point
-`state/loop.json` `project` at it. Until then, the app-specific rules (GDD authority, TBD gates,
-pillars) live in the snapshots — they bind **on resume**, not during engine work.
+**Tick rule**: when a project is active, Step 0 reads the engine `VISION.md` **and** that app's
+`VISION.md` — both, every tick. Paused projects' files are not read (that is the token point).
+**To resume**: point `state/loop.json` `project` at the app; its `VISION.md` carries its own resume
+banner. **To start a new app**: create `<app>/VISION.md` from the brief before any code (see tick
+skill Step 2).
 
 ## 3. Stop conditions — the loop's constitution
 
@@ -332,3 +336,9 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   cockpit (touchRPG detail → `PROGRESS-snapshot.md`). `CLAUDE.md` deduplicated to pointers (gates → §3,
   tick → the skill, escalation → §5, daemon internals → `.discord/DAEMON.md`). No rule *content*
   changed — only where each rule lives. Per-tick fixed overhead roughly halved.
+- 2026-07-19 **Per-project VISION split** (director: *"VISION 파일의 내용을 각 프로젝트에 분리해서
+  저장하면 안되나?"*): every app now carries its own contract at `<app>/VISION.md`, inside the app's
+  repo — created for touchRPG (from the §2 snapshot, promoted to repo root) and Life Town (extracted
+  from its paused-state snapshot). This engine file keeps only project-independent content; §2 is a
+  pointer, never project detail. Tick Step 0 reads the engine VISION + the active app's VISION (paused
+  apps' files are not read). New-app bootstrap (tick Step 2) writes `<app>/VISION.md` before any code.

@@ -1158,3 +1158,15 @@ Keep entries short. Record **decisions and outcomes**, not narration.
     added to loop-scout.md (archive handled prefix at >20KB), documented in DAEMON.md.
   - New Do Not Repeat: `python3 ... || py ...` heredoc fallback chains open an interactive REPL and
     hang the shell 2 minutes.
+
+## 2026-07-19 — Per-project VISION split (director instruction)
+- Director: "VISION 파일의 내용을 각 프로젝트에 분리해서 저장하면 안되나?" → yes; implemented the
+  cleaner form of the morning's snapshot pattern. Each app now carries its own living contract at
+  `<app>/VISION.md` inside its repo (touchRPG 0df3421 — promoted from the §2 snapshot; lifetown
+  d87660a — extracted from its paused-state copy; both with paused/resume banners). Engine VISION §2
+  is now a permanent pointer section, never project detail. Tick Step 0 reads engine VISION + the
+  active app's VISION only (paused apps cost zero tokens). Rubrics/§3.3 stay in the engine — they are
+  per-team, not per-project. Resume is now just flipping loop.json's project pointer.
+- Mid-work slip caught: an appended change-log entry landed in touchRPG/VISION.md because the shell
+  cwd was still the app repo — removed and re-appended to the engine file. Lesson: absolute paths for
+  cross-repo appends (the CLAUDE.md rule about absolute paths for .discord scripts generalizes).
