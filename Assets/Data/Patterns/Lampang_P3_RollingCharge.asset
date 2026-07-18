@@ -23,6 +23,9 @@ MonoBehaviour:
     1.2s\uB294 GameplayConfig.dodgeZoneP3WindowSeconds\uC5D0\uC11C \uC77D\uB294\uB2E4(\uC911\uBCF5
     \uC800\uC7A5\uD558\uC9C0 \uC54A\uC74C)."
   dodgeZoneCount: 1
+  dodgeZoneWindowSource: 0
+  showGroundTelegraphLine: 1
+  knockbackOnDodgeFailure: 1
   isFakeVariant: 0
   rushRequiredTaps: 8
   triggeredOnSuccess: {fileID: 0}

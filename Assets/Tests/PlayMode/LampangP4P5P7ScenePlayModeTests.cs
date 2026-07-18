@@ -33,6 +33,13 @@ namespace TouchRPG.Combat.Tests.PlayMode
             field.SetValue(target, value);
         }
 
+        private static T GetPrivateField<T>(object target, string fieldName)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(field, $"field '{fieldName}' not found on {target.GetType().Name}");
+            return (T)field.GetValue(target);
+        }
+
         [UnitySetUp]
         public IEnumerator LoadCombatScene()
         {
@@ -187,8 +194,12 @@ namespace TouchRPG.Combat.Tests.PlayMode
         public IEnumerator P3_SpawnsExactlyOneDodgeZone()
         {
             _patternPlayer.TriggerPatternById("P3");
-            yield return null;
-            yield return null;
+            // GDD §7.2 P3 예고: "지면 붉은 라인" - P3's dodge zone is now preceded by a brief
+            // ground-line telegraph (MonsterPatternStep.showGroundTelegraphLine /
+            // groundTelegraphLeadSeconds) before the zone itself spawns, so this must wait
+            // past that lead-in rather than just a couple of frames.
+            float lead = GetPrivateField<float>(_patternPlayer, "groundTelegraphLeadSeconds");
+            yield return new WaitForSeconds(lead + 0.1f);
 
             var zones = Object.FindObjectsByType<DodgeZone>(FindObjectsSortMode.None);
             Assert.AreEqual(1, zones.Length, "GDD §7.2 P3: a single dodge zone, position randomized left/right.");
@@ -203,6 +214,43 @@ namespace TouchRPG.Combat.Tests.PlayMode
 
             var zones = Object.FindObjectsByType<DodgeZone>(FindObjectsSortMode.None);
             Assert.Greater(zones.Length, 1, "GDD §7.2 P6: '다중 낙하점' - multiple simultaneous dodge zones.");
+        }
+
+        [UnityTest]
+        public IEnumerator P3_ShowsGroundTelegraphLineBeforeTheZoneItselfAppears()
+        {
+            _patternPlayer.TriggerPatternById("P3");
+            yield return null; // one frame in: the telegraph should be up, the zone should not exist yet.
+
+            var telegraph = Object.FindFirstObjectByType<GroundTelegraphLine>();
+            Assert.IsNotNull(telegraph, "GDD §7.2 P3 예고: '지면 붉은 라인' must render before the dodge zone spawns.");
+            var earlyZones = Object.FindObjectsByType<DodgeZone>(FindObjectsSortMode.None);
+            Assert.AreEqual(0, earlyZones.Length, "The dodge zone itself must not exist yet during the ground telegraph lead-in.");
+
+            float lead = GetPrivateField<float>(_patternPlayer, "groundTelegraphLeadSeconds");
+            yield return new WaitForSeconds(lead + 0.1f);
+
+            var zones = Object.FindObjectsByType<DodgeZone>(FindObjectsSortMode.None);
+            Assert.AreEqual(1, zones.Length, "The dodge zone must exist once the telegraph lead-in has elapsed.");
+        }
+
+        [UnityTest]
+        public IEnumerator P3_UnansweredZone_KnocksThePlayerBackOnFailure()
+        {
+            var playerToken = Object.FindFirstObjectByType<PlayerToken>();
+            Assert.IsNotNull(playerToken);
+            float startX = playerToken.LocalPosition.x;
+
+            _patternPlayer.TriggerPatternById("P3");
+
+            // Wait past the ground-telegraph lead-in, the P3 dodge-zone window itself
+            // (GameplayConfig.dodgeZoneP3WindowSeconds = 1.2s), and enough margin for the
+            // knockback move (PlayerToken.KnockbackAwayFrom, dash-speed channel) to land -
+            // WITHOUT ever tapping the zone, so it resolves Miss (GDD §7.2 P3 실패: "중피해+넉백").
+            yield return new WaitForSeconds(2.2f);
+
+            float endX = playerToken.LocalPosition.x;
+            Assert.AreNotEqual(startX, endX, "An unanswered P3 dodge zone must knock the player back away from it (GDD §7.2 '넉백').");
         }
     }
 }

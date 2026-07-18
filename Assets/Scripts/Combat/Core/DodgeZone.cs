@@ -43,6 +43,11 @@ namespace TouchRPG.Combat.Core
         public bool IsResolved => _resolved;
         public DodgeResult Result { get; private set; }
 
+        /// <summary>Battlefield-local anchored position - exposed so a failure outcome
+        /// (e.g. P3's GDD §7.2 "중피해+넉백") can knock the player back AWAY from this
+        /// zone's position without MonsterPatternPlayer reaching into a private field.</summary>
+        public Vector2 LocalPosition => _self != null ? _self.anchoredPosition : Vector2.zero;
+
         private void Awake()
         {
             _self = (RectTransform)transform;
@@ -64,11 +69,18 @@ namespace TouchRPG.Combat.Core
 
             if (zoneImage != null)
             {
-                zoneImage.color = GameplayColors.Dodge;
+                // Translucent base fill so the brighter gauge on top (below) actually
+                // reads as a distinct layer instead of matching pixel-for-pixel.
+                var baseColor = GameplayColors.Dodge;
+                baseColor.a = 0.35f;
+                zoneImage.color = baseColor;
             }
             if (gaugeImage != null)
             {
-                gaugeImage.color = GameplayColors.Dodge;
+                // Contrast TINT of the same Dodge channel (see GameplayColors.Brighten) -
+                // this is what makes the clockwise remaining-time depletion (§6.2 MUST)
+                // visible on screen instead of disappearing into an identical fill.
+                gaugeImage.color = GameplayColors.Brighten(GameplayColors.Dodge);
                 gaugeImage.type = Image.Type.Filled;
                 gaugeImage.fillMethod = Image.FillMethod.Radial360;
                 gaugeImage.fillClockwise = true;

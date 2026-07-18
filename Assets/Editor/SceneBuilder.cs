@@ -386,6 +386,9 @@ namespace TouchRPG.EditorTools
                 step.anchorPartId = string.Empty; // ground-anchored (GDD §6.1 전장층), not a monster part
                 step.parryBeats = System.Array.Empty<ParryBeat>();
                 step.dodgeZoneCount = 1;
+                step.dodgeZoneWindowSource = DodgeZoneWindowSource.DodgeZoneP3Window;
+                step.showGroundTelegraphLine = true; // GDD §7.2 P3 예고: "지면 붉은 라인"
+                step.knockbackOnDodgeFailure = true; // GDD §7.2 P3 실패: "중피해+넉백"
                 step.minPhase = 1;
                 step.failureSeverity = FailureSeverity.Medium;
                 step.rhythmNote = "GDD §7.2 P3 - 존 위치 좌우 랜덤. 윈도우 1.2s는 " +
@@ -415,6 +418,7 @@ namespace TouchRPG.EditorTools
                 step.anchorPartId = string.Empty;
                 step.parryBeats = System.Array.Empty<ParryBeat>();
                 step.dodgeZoneCount = 3;
+                step.dodgeZoneWindowSource = DodgeZoneWindowSource.CastP6Window;
                 step.minPhase = 3;
                 step.failureSeverity = FailureSeverity.Small;
                 step.rhythmNote = "GDD §7.2 P6 - 다중 낙하점, 회피 실패마다 개별 소피해(다단). " +

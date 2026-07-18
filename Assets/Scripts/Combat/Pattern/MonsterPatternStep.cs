@@ -41,13 +41,39 @@ namespace TouchRPG.Combat.Pattern
         public string rhythmNote = "정박 2연 (학습용)";
 
         [Header("C-2/C-5 dodge zone (P3/P6) - window seconds is READ FROM GameplayConfig " +
-                 "by pattern id (dodgeZoneP3WindowSeconds / castP6WindowSeconds) at execution " +
-                 "time, NOT duplicated on this asset - same reasoning as the C1 windows above.")]
+                 "at execution time via dodgeZoneWindowSource below, NOT duplicated on this " +
+                 "asset - same reasoning as the C1 windows above.")]
         [Tooltip("Number of simultaneous dodge zones this step spawns. GDD §7.2 P3 = 1 " +
                  "(position randomizes left/right), P6 = multiple '낙하점'. Structural/" +
                  "compositional detail, like parryBeats.Length is for C1 - not a judgment " +
                  "window number.")]
         public int dodgeZoneCount = 1;
+
+        [Tooltip("Which GameplayConfig window this step's dodge zone(s) read their display " +
+                 "duration from (GDD §12: dodge.zone.p3.window vs cast.p6.window - two " +
+                 "DIFFERENT named constants, not a shared value). This is a per-asset DATA " +
+                 "choice, not a code branch: MonsterPatternPlayer.ResolveDodgeWindowSeconds " +
+                 "switches on THIS enum, never on patternId/displayName, so a brand new " +
+                 "dodge-zone pattern that reuses one of these two windows is authored purely " +
+                 "as a new asset - no code edit required (a prior review round flagged a " +
+                 "literal 'P3'/'P6' string switch on patternId as breaking exactly that " +
+                 "invariant; this field is the fix).")]
+        public DodgeZoneWindowSource dodgeZoneWindowSource = DodgeZoneWindowSource.DodgeZoneP3Window;
+
+        [Tooltip("GDD §7.2 P3 row '예고': '지면 붉은 라인' - a brief ground-line telegraph " +
+                 "shown just before this step's dodge zone(s) appear. Color tie-break " +
+                 "(documented on GroundTelegraphLine): §4.5 fixes C-2's channel as BLUE and " +
+                 "states the 4-channel mapping is MUST/고정, so this renders in the Dodge " +
+                 "channel rather than introducing red (reserved for C-3/relay) into a C-2 " +
+                 "pattern. P6's telegraph is the different '하늘 캐스팅+다중 낙하점' visual, " +
+                 "not a ground line, so this defaults false and is only set true on P3.")]
+        public bool showGroundTelegraphLine = false;
+
+        [Tooltip("GDD §7.2 P3 실패: '중피해+넉백' - an unanswered dodge zone additionally " +
+                 "knocks the player back away from the zone, on top of the usual failure " +
+                 "damage. P6 실패 ('다단 소피해') names no knockback, so this defaults false " +
+                 "and is only set true on P3.")]
+        public bool knockbackOnDodgeFailure = false;
 
         [Header("C-1 fake variant - GDD §7.2 P4 ('C-1 변형')")]
         [Tooltip("GDD §7.2 P4: '볼주머니 페이크... 진짜만 패링'. When true, MonsterPatternPlayer " +

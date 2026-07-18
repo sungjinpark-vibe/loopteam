@@ -45,6 +45,15 @@ namespace TouchRPG.Combat.Pattern
         [Tooltip("PROVISIONAL staging value - how far left/right of center a single (P3-style) " +
                  "dodge zone spawns.")]
         [SerializeField] private float dodgeZoneSingleOffsetPixels = 280f;
+        [Tooltip("PROVISIONAL staging value, purely cosmetic pacing (does not change any " +
+                 "judgment/outcome) - how long a GDD §7.2 P3 ground-line telegraph (see " +
+                 "MonsterPatternStep.showGroundTelegraphLine) is visible before the dodge " +
+                 "zone itself spawns at the same position.")]
+        [SerializeField] private float groundTelegraphLeadSeconds = 0.3f;
+        [Tooltip("PROVISIONAL staging value - how far a GDD §7.2 P3 failure ('넉백') knocks " +
+                 "the player back away from the missed zone. Not a judgment number, purely " +
+                 "a movement-pacing value (same status as PlayerToken.dashSpeedMultiplier).")]
+        [SerializeField] private float dodgeFailureKnockbackDistancePixels = 160f;
 
         [Header("IN-6 rush (P7) - GDD §4.1/§6.2")]
         [SerializeField] private RushZone rushZoneTemplate;
@@ -68,7 +77,10 @@ namespace TouchRPG.Combat.Pattern
         // instead of once per loop iteration of a coroutine designed to run forever.
         private WaitForSeconds _repeatWait;
 
-        private bool? _forcedP4RealOverride;
+        // P4's real/fake pick + its dev/QA forced-outcome override live in their own
+        // plain-C# helper (see P4FakeOutcomePicker) - split out so this MonoBehaviour's
+        // job stays "drive the pattern sheet", not also "own P4's randomness state".
+        private readonly P4FakeOutcomePicker _p4FakeOutcomePicker = new P4FakeOutcomePicker();
 
         public bool AutoPlayEnabled => autoPlayEnabled;
 
@@ -121,7 +133,7 @@ namespace TouchRPG.Combat.Pattern
         /// demonstrated deterministically. Consumed once, then reverts to random.</summary>
         public void ForceNextP4Outcome(bool isReal)
         {
-            _forcedP4RealOverride = isReal;
+            _p4FakeOutcomePicker.ForceNext(isReal);
         }
 
         private IEnumerator DriveLoop()
@@ -280,17 +292,9 @@ namespace TouchRPG.Combat.Pattern
             {
                 return;
             }
-            int damage = severity switch
-            {
-                FailureSeverity.Small => demoNumbers.failureDamageSmall,
-                FailureSeverity.Medium => demoNumbers.failureDamageMedium,
-                // GDD §7.2 P4: "가짜 조기 탭 시 카운터 피격" - no separate counter-hit number
-                // exists in the GDD, and a counter-hit reads as at least as punishing as a
-                // medium failure, so this is a documented reuse decision (see
-                // P0DemoNumbers.failureDamageMedium's tooltip), not a new invented value.
-                FailureSeverity.Counter => demoNumbers.failureDamageMedium,
-                _ => 0
-            };
+            // Number lookup lives in FailureDamageResolver, not here - see that class's
+            // remark for why this was split out of MonsterPatternPlayer.
+            int damage = FailureDamageResolver.Resolve(severity, demoNumbers);
             playerHealth.TakeDamage(damage);
         }
 
@@ -311,7 +315,7 @@ namespace TouchRPG.Combat.Pattern
                 yield break;
             }
 
-            bool isReal = ResolveP4RealOrFake();
+            bool isReal = _p4FakeOutcomePicker.ResolveIsReal();
             // GDD §7.2 P4 MUST: the tell lives ONLY in monster animation - played BEFORE
             // the marker spawns, same as the real telegraph would read.
             if (cheekTellAnimator != null)
@@ -373,19 +377,6 @@ namespace TouchRPG.Combat.Pattern
             }
         }
 
-        private bool ResolveP4RealOrFake()
-        {
-            if (_forcedP4RealOverride.HasValue)
-            {
-                bool result = _forcedP4RealOverride.Value;
-                _forcedP4RealOverride = null;
-                return result;
-            }
-            // PROVISIONAL 50/50 - GDD names no fake frequency number, only the qualitative
-            // "참는 판단 요구" rhythm note. Team-discretion staging value.
-            return Random.value < 0.5f;
-        }
-
         // ── C2_HeavyAttack / C5_CastAoE - IN-3 dodge zones (P3/P6) ─────────────────
 
         private IEnumerator ExecuteDodgeZonePattern(MonsterPatternStep step)
@@ -408,19 +399,34 @@ namespace TouchRPG.Combat.Pattern
                     // GDD §7.2 P6: "다중 낙하점" - multiple scattered fall points.
                     : Random.Range(-halfWidth, halfWidth);
 
-                var zone = Instantiate(dodgeZoneTemplate, battlefieldPanel);
-                zone.gameObject.SetActive(true);
-                var zoneRect = (RectTransform)zone.transform;
-                zoneRect.anchoredPosition = new Vector2(x, 0f);
-                zone.Initialize(windowSeconds, dodgeZoneRadiusPixels, playerToken, battlefieldPanel);
-
-                StartCoroutine(RunDodgeZone(step, zone, group));
+                StartCoroutine(SpawnDodgeZone(step, x, windowSeconds, group));
             }
 
             while (group.Remaining > 0)
             {
                 yield return null;
             }
+        }
+
+        /// <summary>Optionally shows the P3 ground-line telegraph (GDD §7.2 '예고: 지면
+        /// 붉은 라인' - see GroundTelegraphLine/MonsterPatternStep.showGroundTelegraphLine)
+        /// for <see cref="groundTelegraphLeadSeconds"/> BEFORE the dodge zone itself
+        /// spawns at the same x position, then hands off to RunDodgeZone as before.</summary>
+        private IEnumerator SpawnDodgeZone(MonsterPatternStep step, float x, float windowSeconds, BeatGroup group)
+        {
+            if (step.showGroundTelegraphLine)
+            {
+                GroundTelegraphLine.Spawn(battlefieldPanel, x, groundTelegraphLeadSeconds);
+                yield return new WaitForSeconds(groundTelegraphLeadSeconds);
+            }
+
+            var zone = Instantiate(dodgeZoneTemplate, battlefieldPanel);
+            zone.gameObject.SetActive(true);
+            var zoneRect = (RectTransform)zone.transform;
+            zoneRect.anchoredPosition = new Vector2(x, 0f);
+            zone.Initialize(windowSeconds, dodgeZoneRadiusPixels, playerToken, battlefieldPanel);
+
+            yield return StartCoroutine(RunDodgeZone(step, zone, group));
         }
 
         private IEnumerator RunDodgeZone(MonsterPatternStep step, DodgeZone zone, BeatGroup group)
@@ -431,10 +437,15 @@ namespace TouchRPG.Combat.Pattern
             }
             if (zone.Result == DodgeResult.Miss)
             {
-                // GDD §7.2 P3 실패: "중피해+넉백" (medium damage; knockback is a staging
-                // visual not built in this task - see the provisional-numbers report).
-                // P6 실패: "다단 소피해" - reuses the small-failure number per zone.
+                // GDD §7.2 P3 실패: "중피해+넉백" - medium damage (via failureSeverity)
+                // PLUS a knockback move away from the zone when the step opts in.
+                // P6 실패: "다단 소피해" - reuses the small-failure number per zone, no
+                // knockback (knockbackOnDodgeFailure defaults/stays false on P6).
                 ApplyFailureDamageForSeverity(step.failureSeverity);
+                if (step.knockbackOnDodgeFailure && playerToken != null)
+                {
+                    playerToken.KnockbackAwayFrom(zone.LocalPosition, dodgeFailureKnockbackDistancePixels);
+                }
             }
             group.Remaining--;
         }
@@ -446,14 +457,13 @@ namespace TouchRPG.Combat.Pattern
                 return 1f;
             }
             // GDD §4.3: dodge-zone display duration is pattern-specific (not a shared
-            // judgment window) - §12 already names these per pattern
-            // (dodge.zone.p3.window, cast.p6.window), so this switches on the KNOWN GDD
-            // pattern id rather than duplicating a number on MonsterPatternStep (same
-            // reasoning as why C1's windows aren't duplicated there either).
-            return step.patternId switch
+            // judgment window) - §12 names these per pattern (dodge.zone.p3.window,
+            // cast.p6.window). Which one applies is a DATA choice authored on the step
+            // (MonsterPatternStep.dodgeZoneWindowSource), never inferred from patternId -
+            // see that enum's remark for why.
+            return step.dodgeZoneWindowSource switch
             {
-                "P3" => gameplayConfig.dodgeZoneP3WindowSeconds,
-                "P6" => gameplayConfig.castP6WindowSeconds,
+                DodgeZoneWindowSource.CastP6Window => gameplayConfig.castP6WindowSeconds,
                 _ => gameplayConfig.dodgeZoneP3WindowSeconds
             };
         }

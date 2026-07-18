@@ -23,6 +23,9 @@ MonoBehaviour:
     \uAC1C\uBCC4 \uC18C\uD53C\uD574(\uB2E4\uB2E8). \uC708\uB3C4\uC6B0 2.0s\uB294
     GameplayConfig.castP6WindowSeconds\uC5D0\uC11C \uC77D\uB294\uB2E4."
   dodgeZoneCount: 3
+  dodgeZoneWindowSource: 1
+  showGroundTelegraphLine: 0
+  knockbackOnDodgeFailure: 0
   isFakeVariant: 0
   rushRequiredTaps: 8
   triggeredOnSuccess: {fileID: 0}

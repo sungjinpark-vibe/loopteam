@@ -52,10 +52,21 @@ namespace TouchRPG.Combat.Core
             _finished = false;
             _expired = false;
 
-            if (zoneImage != null) zoneImage.color = GameplayColors.Gold; // C-4 groggy channel, GDD §4.5
+            if (zoneImage != null)
+            {
+                // Translucent base fill (same reasoning as DodgeZone) so the brighter
+                // progress gauge on top is a visibly distinct layer, not an identical
+                // color rendering an invisible fillAmount change.
+                var baseColor = GameplayColors.Gold;
+                baseColor.a = 0.35f;
+                zoneImage.color = baseColor; // C-4 groggy channel, GDD §4.5
+            }
             if (gaugeImage != null)
             {
-                gaugeImage.color = GameplayColors.Gold;
+                // Contrast TINT of the same Gold channel - makes the progress gauge
+                // (§6.2 MUST) actually readable tap-by-tap instead of blending into the
+                // zone fill beneath it.
+                gaugeImage.color = GameplayColors.Brighten(GameplayColors.Gold);
                 gaugeImage.type = Image.Type.Filled;
                 gaugeImage.fillMethod = Image.FillMethod.Radial360;
                 gaugeImage.fillAmount = 0f;

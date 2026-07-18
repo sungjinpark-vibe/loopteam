@@ -18,5 +18,18 @@ namespace TouchRPG.Combat.Core
         public static readonly Color Relay = new Color(0.90f, 0.15f, 0.15f); // red
         public static readonly Color Gold = new Color(1f, 0.78f, 0.20f); // gold (reward / perfect burst)
         public static readonly Color GoodBurst = Color.white; // GDD §6.2: good = white burst
+
+        /// <summary>
+        /// A brighter TINT of an existing gameplay channel - same hue family, NOT a 5th
+        /// channel - used only so a depleting/filling progress gauge rendered on top of
+        /// that channel's own base fill is actually perceptible (a gauge drawn in the
+        /// exact same RGBA as the fill beneath it conveys zero information: T002 round 1
+        /// shipped exactly that bug on both DodgeZone's remaining-time gauge and
+        /// RushZone's progress gauge, and QA could not verify either as a result).
+        /// </summary>
+        public static Color Brighten(Color channel, float amount = 0.55f)
+        {
+            return Color.Lerp(channel, Color.white, amount);
+        }
     }
 }
