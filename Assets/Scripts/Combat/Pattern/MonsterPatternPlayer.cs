@@ -7,17 +7,25 @@ namespace TouchRPG.Combat.Pattern
 {
     /// <summary>
     /// Drives a <see cref="MonsterPatternSheet"/>: picks phase-eligible steps and executes
-    /// them by <see cref="PatternClass"/>. All five classes now have a real execution path
-    /// (T001 only built C1_Basic and left the rest as a logged seam - this task fills them
-    /// in): C1_Basic (plain + P4's fake variant), C2_HeavyAttack/C5_CastAoE (dodge zones,
+    /// them by <see cref="PatternClass"/>. All five classes have a real execution path:
+    /// C1_Basic (plain + P4's fake variant), C2_HeavyAttack/C5_CastAoE (dodge zones,
     /// IN-3), C3_Relay (solo substitute sequence, GDD §5.2), C4_Groggy (rush, IN-6).
     ///
-    /// The repeat loop below (waiting <see cref="repeatIntervalSeconds"/> between steps) is
-    /// a P0 demo driver only, NOT the GDD §5.1 three-phase session system - that is a
-    /// separate, larger task. <see cref="TriggerPatternById"/> is the independent-trigger
-    /// escape hatch this task's brief requires (each of P1-P7 observable on demand) and is
-    /// also how <see cref="AutoPlayToggleButton"/>/<see cref="PatternTriggerButton"/> (dev/QA
-    /// tooling, GDD §0 team discretion) drive the demo scene.
+    /// DEFAULT PLAY PATH (this task, GDD §5.1): DriveLoop below is the real 3-phase hunt
+    /// session, not a demo cycle. Phase is read live from <see cref="phaseTracker"/> (which
+    /// itself derives it from the monster's actual current HP, GDD §5.1's HP table - see
+    /// HuntPhaseTracker), and the next step to run is chosen by <see cref="PhasePatternSelector"/>,
+    /// which enforces each phase's eligibility gates/composition and guarantees a relay
+    /// attempt near each phase transition (GDD §5.1 MUST: at least one groggy rush (C4)
+    /// per phase transition - see that class's remark for the exact mechanism). The
+    /// monster's death (HP 0) stops this loop via <see cref="StopHunt"/>, called by
+    /// HuntCompletionController - see that class for the hunt-complete UI/restart flow.
+    ///
+    /// DEV/QA ESCAPE HATCH (unchanged by this task): <see cref="TriggerPatternById"/> lets
+    /// any of P1-P7 be triggered independently of phase gating, and is how
+    /// <see cref="AutoPlayToggleButton"/>/<see cref="PatternTriggerButton"/> (dev/QA
+    /// tooling, GDD §0 team discretion) drive the demo scene - both keep working exactly
+    /// as before; they bypass PhasePatternSelector entirely rather than being gated by it.
     ///
     /// Beat scheduling: every beat in a step is launched as its OWN coroutine timed from
     /// the step's start time, not chained one-after-another (except C3_Relay, which is
@@ -61,28 +69,49 @@ namespace TouchRPG.Combat.Pattern
         [Header("P4 fake tell (GDD §7.2 MUST - animation only, never the marker)")]
         [SerializeField] private LampangCheekTellAnimator cheekTellAnimator;
 
-        [Tooltip("Seconds between repeated pattern-step executions in this P0 demo driver. " +
-                 "Not a GDD number (the real session/phase pacing is a separate task) - " +
-                 "PROVISIONAL staging value, team discretion.")]
+        [Tooltip("Seconds between repeated pattern-step executions in phase 1/2. Not a GDD " +
+                 "number - PROVISIONAL staging value, team discretion.")]
         [SerializeField] private float repeatIntervalSeconds = 2.5f;
 
-        [SerializeField] [Range(1, 3)] private int currentPhase = 1;
+        [Tooltip("Seconds between repeated pattern-step executions in phase 3 ONLY. GDD " +
+                 "§5.1 phase 3: '패턴 밀도 최대' (maximum pattern density) - this is that " +
+                 "density knob: a SHORTER gap between beats than phase 1/2, not a new " +
+                 "per-beat judgment timing (those are unchanged, still ParryBeat/GameplayConfig " +
+                 "values). PROVISIONAL staging value, team discretion, same category as " +
+                 "repeatIntervalSeconds above.")]
+        [SerializeField] private float repeatIntervalSecondsPhase3 = 1.2f;
+
+        [Tooltip("GDD §5.1: the hunt's real 3-phase session, driven by the monster's live " +
+                 "HP - see HuntPhaseTracker. Required for the default (non-dev-override) " +
+                 "play path; TriggerPatternById does not need this (it bypasses phase gating).")]
+        [SerializeField] private HuntPhaseTracker phaseTracker;
 
         [Tooltip("Dev/QA only - pauses the auto-cycling DriveLoop so a manually triggered " +
                  "pattern (TriggerPatternById) can be observed without the next auto-cycled " +
                  "step spawning on top of it.")]
         [SerializeField] private bool autoPlayEnabled = true;
 
-        // Constant per the current repeatIntervalSeconds value, so it is created once
-        // instead of once per loop iteration of a coroutine designed to run forever.
+        // Constant per the current repeatIntervalSeconds/Phase3 values, so each is created
+        // once instead of once per loop iteration of a coroutine designed to run forever.
         private WaitForSeconds _repeatWait;
+        private WaitForSeconds _repeatWaitPhase3;
 
         // P4's real/fake pick + its dev/QA forced-outcome override live in their own
         // plain-C# helper (see P4FakeOutcomePicker) - split out so this MonoBehaviour's
         // job stays "drive the pattern sheet", not also "own P4's randomness state".
         private readonly P4FakeOutcomePicker _p4FakeOutcomePicker = new P4FakeOutcomePicker();
 
+        // GDD §5.1 phase-weighted pattern selection + guaranteed-relay-per-phase logic -
+        // split out for the same single-responsibility reason as P4FakeOutcomePicker (see
+        // PhasePatternSelector's own remark for the full mechanism).
+        private readonly PhasePatternSelector _patternSelector = new PhasePatternSelector();
+
         public bool AutoPlayEnabled => autoPlayEnabled;
+
+        /// <summary>GDD §5.1 live phase, read from <see cref="phaseTracker"/> (which derives
+        /// it from the monster's actual HP). Falls back to phase 1 if no tracker is wired
+        /// (e.g. a test fixture that only cares about TriggerPatternById).</summary>
+        public int CurrentPhase => phaseTracker != null ? phaseTracker.CurrentPhase : 1;
 
         /// <summary>Bookkeeping-only holder so a step's parallel beats/zones can report
         /// completion back to the driving coroutine without a per-beat delegate/lambda
@@ -95,6 +124,7 @@ namespace TouchRPG.Combat.Pattern
         private void Start()
         {
             _repeatWait = new WaitForSeconds(repeatIntervalSeconds);
+            _repeatWaitPhase3 = new WaitForSeconds(repeatIntervalSecondsPhase3);
             if (patternSheet != null)
             {
                 StartCoroutine(DriveLoop());
@@ -104,6 +134,32 @@ namespace TouchRPG.Combat.Pattern
         public void SetAutoPlayEnabled(bool enabled)
         {
             autoPlayEnabled = enabled;
+        }
+
+        /// <summary>Called once by HuntCompletionController when the monster's HP reaches
+        /// 0 (this task's brief: "stop the pattern-drive loop cleanly (no orphaned
+        /// coroutines/markers)"). Stops DriveLoop AND every in-flight beat/zone coroutine
+        /// this MonoBehaviour owns (StopAllCoroutines - same technique already used by
+        /// LampangP4P5P7ScenePlayModeTests to isolate a manually-driven pattern), then
+        /// destroys any marker/zone still on screen so nothing interactable is left
+        /// orphaned after the hunt ends.</summary>
+        public void StopHunt()
+        {
+            autoPlayEnabled = false;
+            StopAllCoroutines();
+
+            foreach (var marker in FindObjectsByType<ParryMarker>(FindObjectsSortMode.None))
+            {
+                Destroy(marker.gameObject);
+            }
+            foreach (var zone in FindObjectsByType<DodgeZone>(FindObjectsSortMode.None))
+            {
+                Destroy(zone.gameObject);
+            }
+            foreach (var rush in FindObjectsByType<RushZone>(FindObjectsSortMode.None))
+            {
+                Destroy(rush.gameObject);
+            }
         }
 
         /// <summary>Dev/QA escape hatch (this task's brief: "each of P2-P7 can be triggered
@@ -136,32 +192,33 @@ namespace TouchRPG.Combat.Pattern
             _p4FakeOutcomePicker.ForceNext(isReal);
         }
 
+        /// <summary>GDD §5.1 real hunt session: repeatedly asks <see cref="_patternSelector"/>
+        /// for the next phase-appropriate step (live phase from <see cref="phaseTracker"/>)
+        /// and executes it. Stops entirely once the monster is depleted - HuntCompletionController
+        /// calls <see cref="StopHunt"/>, which StopAllCoroutines()'s this loop away; the extra
+        /// CurrentHP guard below is a defensive belt-and-suspenders so a pattern is never
+        /// freshly picked against an already-dead monster even in the single frame between
+        /// HP hitting 0 and StopHunt() actually landing.</summary>
         private IEnumerator DriveLoop()
         {
             while (true)
             {
-                if (!autoPlayEnabled)
+                if (!autoPlayEnabled || (monsterHealth != null && monsterHealth.CurrentHP <= 0))
                 {
                     yield return null;
                     continue;
                 }
 
-                var eligible = patternSheet.GetStepsForPhase(currentPhase);
-                if (eligible.Length == 0)
+                int phase = CurrentPhase;
+                var step = _patternSelector.PickNext(phase, patternSheet.steps);
+                if (step == null)
                 {
                     yield return null;
                     continue;
                 }
 
-                foreach (var step in eligible)
-                {
-                    if (!autoPlayEnabled)
-                    {
-                        break;
-                    }
-                    yield return StartCoroutine(ExecuteStep(step));
-                    yield return _repeatWait;
-                }
+                yield return StartCoroutine(ExecuteStep(step));
+                yield return phase >= 3 ? _repeatWaitPhase3 : _repeatWait;
             }
         }
 

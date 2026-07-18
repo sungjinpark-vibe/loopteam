@@ -101,6 +101,13 @@ namespace TouchRPG.EditorTools
             var comboText = BuildText("ComboText", infoLayer, string.Empty, 30, GameplayColors.Gold,
                 new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-20f, -14f), new Vector2(260f, 40f), TextAnchor.UpperRight);
 
+            // GDD §5.1 - explicit "PHASE N" readout next to the name, on top of the HP
+            // bar's own tick marks (HealthBarUI already renders phase boundaries visually
+            // via live fill%) - see PhaseIndicatorUI's remark for why this is additive,
+            // not a replacement for the tick display.
+            var phaseText = BuildText("PhaseText", infoLayer, "PHASE 1", 24, Color.white,
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -58f), new Vector2(200f, 34f), TextAnchor.UpperLeft);
+
             // ── Monster layer: chunky squirrel silhouette with visible cheek pouches ──
             var monsterRoot = new GameObject("MonsterRoot", typeof(RectTransform)).GetComponent<RectTransform>();
             monsterRoot.SetParent(monsterLayer, false);
@@ -210,6 +217,14 @@ namespace TouchRPG.EditorTools
             var monsterHealth = monsterHealthGo.AddComponent<HealthController>();
             SetPrivateField(monsterHealth, "maxHP", demoNumbers.monsterMaxHP);
 
+            // GDD §5.1: real hunt phase, driven by the monster's live HP (not a
+            // manually-set field) - see HuntPhaseTracker's own remark.
+            var phaseTrackerGo = new GameObject("HuntPhaseTracker");
+            phaseTrackerGo.transform.SetParent(systemsRoot.transform, false);
+            var phaseTracker = phaseTrackerGo.AddComponent<HuntPhaseTracker>();
+            SetPrivateField(phaseTracker, "monsterHealth", monsterHealth);
+            SetPrivateField(phaseTracker, "gameplayConfig", config);
+
             var playerHealthGo = new GameObject("PlayerHealth");
             playerHealthGo.transform.SetParent(systemsRoot.transform, false);
             var playerHealth = playerHealthGo.AddComponent<HealthController>();
@@ -244,8 +259,20 @@ namespace TouchRPG.EditorTools
             SetPrivateField(patternPlayer, "battlefieldPanel", battlefieldLayer);
             SetPrivateField(patternPlayer, "playerToken", playerToken);
             SetPrivateField(patternPlayer, "cheekTellAnimator", cheekTellAnimator);
+            SetPrivateField(patternPlayer, "phaseTracker", phaseTracker);
 
             BuildDemoControlPanel(canvasRoot, patternPlayer);
+            var resultPanel = BuildHuntResultPanel(canvasRoot);
+
+            var completionGo = new GameObject("HuntCompletionController");
+            completionGo.transform.SetParent(systemsRoot.transform, false);
+            var completionController = completionGo.AddComponent<HuntCompletionController>();
+            SetPrivateField(completionController, "monsterHealth", monsterHealth);
+            SetPrivateField(completionController, "patternPlayer", patternPlayer);
+            SetPrivateField(completionController, "resultPanel", resultPanel.gameObject);
+
+            var restartButton = resultPanel.GetComponentInChildren<Button>(includeInactive: true);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(restartButton.onClick, completionController.RestartHunt);
 
             // ── UI bindings ──
             var healthBarUiGo = hpBarBg.gameObject;
@@ -261,6 +288,10 @@ namespace TouchRPG.EditorTools
             var comboUi = comboText.gameObject.AddComponent<ComboUI>();
             SetPrivateField(comboUi, "combo", combo);
             SetPrivateField(comboUi, "comboText", comboText);
+
+            var phaseIndicatorUi = phaseText.gameObject.AddComponent<PhaseIndicatorUI>();
+            SetPrivateField(phaseIndicatorUi, "phaseTracker", phaseTracker);
+            SetPrivateField(phaseIndicatorUi, "phaseText", phaseText);
 
             SetPrivateField(inputController, "eventSystem", eventSystem);
 
@@ -634,6 +665,33 @@ namespace TouchRPG.EditorTools
             SetPrivateField(zone, "gaugeImage", gaugeImg);
             SetPrivateField(zone, "tapArea", tapArea);
             return zone;
+        }
+
+        /// <summary>This task's brief: "reaching 0% HP ends the hunt... show a clear
+        /// hunt-complete state" + "make it possible to start a fresh run afterward". A
+        /// full-screen overlay, inactive by default (HuntCompletionController activates
+        /// it once, on the monster's OnDepleted), with a Restart button wired by the
+        /// caller (needs the not-yet-created HuntCompletionController.RestartHunt
+        /// method reference).</summary>
+        private static RectTransform BuildHuntResultPanel(RectTransform canvasRoot)
+        {
+            var panelImg = BuildImage("HuntResultPanel", canvasRoot, PlaceholderSprites.RoundedRect,
+                new Color(0.05f, 0.05f, 0.07f, 0.92f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, true);
+            StretchFull(panelImg.rectTransform);
+
+            BuildText("ResultTitle", panelImg.transform, "HUNT COMPLETE", 56, GameplayColors.Gold,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 80f), new Vector2(800f, 100f), TextAnchor.MiddleCenter);
+
+            var restartButtonImg = BuildImage("RestartButton", panelImg.transform, PlaceholderSprites.RoundedRect,
+                new Color(0.20f, 0.55f, 0.30f, 1f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -60f), new Vector2(300f, 80f), true);
+            var restartButton = restartButtonImg.gameObject.AddComponent<Button>();
+            restartButton.targetGraphic = restartButtonImg;
+            BuildText("RestartLabel", restartButtonImg.transform, "RESTART", 30, Color.white,
+                Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, TextAnchor.MiddleCenter);
+
+            panelImg.gameObject.SetActive(false);
+            return panelImg.rectTransform;
         }
 
         /// <summary>Dev/QA-only overlay (GDD §0: "내부 툴" is team discretion) so each of

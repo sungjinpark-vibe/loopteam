@@ -164,3 +164,52 @@ config asset.
 
 TBD-1/TBD-2/TBD-11/TBD-12/TBD-13 are not touched by this task, per the task's own instruction that they
 are the director's alone.
+
+---
+
+## Addendum 2 - GDD §5.1 real hunt-session task (phase transitions, phase-weighted selection, hunt completion)
+
+Source of truth for this addendum: `docs/spec/00-gdd-v0.4.md` §5.1-§5.3, §6.1. Same rule as above: every
+number below is either (a) a genuinely new placeholder, reported as team-discretion (non-gameplay-affecting
+per GDD §0's own split), or (b) an explicit reuse of an existing config value. No gameplay-affecting number
+(judgment, damage, drop rate) was invented for this task - the phase HP boundaries (70%/35%) and the groggy
+rush guarantee itself are both already GDD §5.1 MUST values, read from the existing `GameplayConfig`
+(`phaseBoundaryHighPercent`/`phaseBoundaryLowPercent`) unchanged.
+
+### New provisional values (team discretion - not asking, reporting)
+
+| Field | Value | Why it's non-gameplay | Location |
+|---|---|---|---|
+| `MonsterPatternPlayer.repeatIntervalSecondsPhase3` | 1.2s | GDD §5.1 phase 3: "패턴 밀도 최대" (maximum pattern density) names no exact number, only the qualitative direction ("shorter gaps than earlier phases"). Same category as the existing `repeatIntervalSeconds` (2.5s, used for phase 1/2) already reported above - pure pacing between pattern-step executions, not a judgment/damage number. | `MonsterPatternPlayer.cs` |
+| `PhasePatternSelector.RelayPityIntervalPhase3` | 3 (non-relay picks) | This task's brief explicitly calls for a "guarantee" mechanism and names "a pity-counter" as one acceptable option (either is fine, per the brief) - GDD gives no number for how often relay should recur within phase 3 beyond the qualitative "2~3회". This constant governs how many non-relay picks pass before the pity counter forces another relay attempt. | `PhasePatternSelector.cs` |
+| `PhasePatternSelector` phase 1/2/3 bucket weights (e.g. phase 2: C1 65% / C2 35%; phase 3: C1 40% / C1-fake 20% / C2 15% / C5 15% / C3 10%) | see table in the class's own remark | This task's brief explicitly states "the exact selection algorithm... is your call - but the phase-eligibility gates above (what CAN appear each phase) are MUST, not suggestions." Phase 1's weights (C-1 ~70% / C-2 ~30%) ARE a direct GDD §5.1 number and are reproduced verbatim, not invented. Phase 2/3 have no GDD-given numeric composition (only qualitative notes), so those bucket weights are a documented team-discretion judgment call governing ONLY the relative mix of classes that are already eligibility-gated correctly - they do not change what CAN appear, only how often within what's already allowed. | `PhasePatternSelector.cs` |
+
+### Guarantee mechanism - stated explicitly (not a new number, a design decision per the brief's own request)
+
+GDD §5.1 MUST: "페이즈 전환마다 그로기 러시(C-4)를 최소 1회 보장한다." Chosen mechanism: **forced injection**,
+not a pure pity counter, for the moment of phase entry - `PhasePatternSelector.EnterPhase` forces the very
+NEXT pick after transitioning into phase 2 or phase 3 to be the relay step (P5), instead of leaving it to
+the weighted pool (which could, by bad luck, never draw relay before the phase ends). Phase 2 additionally
+enforces GDD §5.1's own "1회 한정" cap (the relay bucket is excluded from the phase-2 pool once that one
+forced attempt is spent). Phase 3 has no such cap, so a pity counter (`RelayPityIntervalPhase3`) is layered
+on top to keep multiple occurrences recurring across the phase, matching §5.1's "2~3회" note.
+
+**Important clarification, stated in-code and repeated here**: "guaranteed" means the relay ATTEMPT is
+deterministically scheduled, not that it auto-succeeds. Whether the attempt actually lands a groggy rush
+still depends on the player's tap timing, same as every other judgment in this game (GDD P-1: "실력은
+회피와 리듬이다") - auto-granting success would remove player skill from the one MUST-guaranteed moment per
+phase, which reads as a bigger GDD violation than leaving success to input. This was verified via
+`HuntPhaseSystemPlayModeTests` (correctly-timed relay taps through the real DriveLoop/PhasePatternSelector
+path, not TriggerPatternById) - see that file for the observed evidence.
+
+### Reuse decisions (not new values)
+
+| Situation | Reused value | Rationale |
+|---|---|---|
+| Phase transition HP boundaries (70%/35%) | `GameplayConfig.phaseBoundaryHighPercent`/`phaseBoundaryLowPercent` | Already a GDD §12 canonical constant (§5.1's own table), already externalized by T001 for `HealthBarUI`'s tick marks. `HuntPhaseTracker` reads the SAME fields - no second copy of this number exists anywhere in the codebase. |
+| Groggy-rush duration, rush required taps, relay solo window, failure severities | Unchanged from T001/T002 | This task adds WHEN/HOW OFTEN each pattern is picked, not how any individual pattern executes - every already-tuned per-pattern number is untouched. |
+
+### TBD list - unchanged (this addendum)
+
+TBD-1/2/3/4/5/6/7/14/15 are not touched by this task, per the task's own instruction that they are the
+director's alone.

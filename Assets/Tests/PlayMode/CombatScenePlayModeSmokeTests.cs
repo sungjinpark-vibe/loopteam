@@ -17,7 +17,7 @@ namespace TouchRPG.Combat.Tests.PlayMode
     public class CombatScenePlayModeSmokeTests
     {
         [UnityTest]
-        public IEnumerator CombatScene_LoadsAndSpawnsTheFirstLampangP1MarkerWithoutErrors()
+        public IEnumerator CombatScene_LoadsAndSpawnsPhase1ContentWithoutErrors()
         {
             yield return SceneManager.LoadSceneAsync("CombatScene", LoadSceneMode.Single);
 
@@ -26,14 +26,22 @@ namespace TouchRPG.Combat.Tests.PlayMode
             Assert.IsNotNull(GameObject.Find("ComboController"), "ComboController must exist in the loaded scene");
             Assert.IsNotNull(GameObject.Find("MonsterPatternPlayer"), "MonsterPatternPlayer must exist in the loaded scene");
 
-            bool markerSeen = false;
-            for (int frame = 0; frame < 90 && !markerSeen; frame++) // ~1.5s at 60fps
+            // Phase 1's DEFAULT play path picks between P1 (C-1, spawns a ParryMarker) and
+            // P3 (C-2, spawns a DodgeZone) via PhasePatternSelector's weighted random -
+            // NOT a fixed P1-always-first order any more (see that class's own remark).
+            // This smoke test's job is confirming the hunt actually starts driving SOME
+            // phase-1 content without errors, not pinning which specific pattern happens
+            // to be picked first.
+            bool contentSeen = false;
+            float deadline = Time.time + 3f;
+            while (!contentSeen && Time.time < deadline)
             {
                 yield return null;
-                markerSeen = Object.FindFirstObjectByType<ParryMarker>() != null;
+                contentSeen = Object.FindFirstObjectByType<ParryMarker>() != null
+                    || Object.FindFirstObjectByType<DodgeZone>() != null;
             }
 
-            Assert.IsTrue(markerSeen, "Expected a ParryMarker (Lampang P1 beat 1) to spawn within ~1.5s of scene start");
+            Assert.IsTrue(contentSeen, "Expected phase 1 to spawn a ParryMarker (P1) or a DodgeZone (P3) within ~3s of scene start");
         }
     }
 }
