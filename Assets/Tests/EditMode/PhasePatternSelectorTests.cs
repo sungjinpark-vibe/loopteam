@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
+using TouchRPG.Combat.Config;
 using TouchRPG.Combat.Pattern;
 
 namespace TouchRPG.Combat.Tests
@@ -14,6 +15,15 @@ namespace TouchRPG.Combat.Tests
     /// </summary>
     public class PhasePatternSelectorTests
     {
+        /// <summary>Fresh default-valued PhasePatternWeights per call (T004 fix: weights
+        /// externalized from PhasePatternSelector into this ScriptableObject) - the default
+        /// field values are byte-for-byte identical to the const/static fields this replaces,
+        /// so every assertion below still exercises the same numbers as before the move.</summary>
+        private static PhasePatternWeights CreateWeights()
+        {
+            return ScriptableObject.CreateInstance<PhasePatternWeights>();
+        }
+
         private static MonsterPatternStep CreateStep(string id, PatternClass cls, int minPhase, bool isFake = false)
         {
             var step = ScriptableObject.CreateInstance<MonsterPatternStep>();
@@ -81,7 +91,7 @@ namespace TouchRPG.Combat.Tests
         public void Phase1_NeverPicksRelayFakeOrOffBeatP2_OverManyDraws()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
 
             for (int i = 0; i < 200; i++)
             {
@@ -98,7 +108,7 @@ namespace TouchRPG.Combat.Tests
         public void Phase1_OnlyOffersC1AndC2_BothClassesActuallyAppear()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
             var seenIds = new HashSet<string>();
 
             for (int i = 0; i < 200; i++)
@@ -117,7 +127,7 @@ namespace TouchRPG.Combat.Tests
         public void Phase2_FirstPickOnEnteringPhaseIsForcedRelay()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
 
             var first = selector.PickNext(2, sheet);
             Assert.AreEqual("P5", first.patternId, "Entering phase 2 must force the relay attempt first - this is the groggy-rush guarantee mechanism.");
@@ -127,7 +137,7 @@ namespace TouchRPG.Combat.Tests
         public void Phase2_RelayNeverPickedAgainAfterTheOneGuaranteedAttempt()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
 
             var first = selector.PickNext(2, sheet);
             Assert.AreEqual(PatternClass.C3_Relay, first.classification);
@@ -144,7 +154,7 @@ namespace TouchRPG.Combat.Tests
         public void Phase3_FirstPickOnEnteringPhaseIsForcedRelay()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
 
             var first = selector.PickNext(3, sheet);
             Assert.AreEqual("P5", first.patternId);
@@ -154,7 +164,7 @@ namespace TouchRPG.Combat.Tests
         public void Phase3_RelayRecursViaPityCounter_MultipleOccurrencesOverExtendedPlay()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
 
             int relayCount = 0;
             const int draws = 60;
@@ -174,7 +184,7 @@ namespace TouchRPG.Combat.Tests
         public void Phase3_FakeVariantCanAppear_OverManyDraws()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
             bool sawFake = false;
 
             for (int i = 0; i < 200 && !sawFake; i++)
@@ -189,7 +199,7 @@ namespace TouchRPG.Combat.Tests
         public void ReenteringAPhaseAfterLeaving_ForcesTheGuaranteedRelayAgain()
         {
             var sheet = BuildLampangLikeSheet();
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
 
             // Spend phase 2's single guaranteed relay.
             var p2First = selector.PickNext(2, sheet);
@@ -204,7 +214,7 @@ namespace TouchRPG.Combat.Tests
         [Test]
         public void PickNext_ReturnsNull_WhenNoStepsProvided()
         {
-            var selector = new PhasePatternSelector();
+            var selector = new PhasePatternSelector(CreateWeights());
             Assert.IsNull(selector.PickNext(1, System.Array.Empty<MonsterPatternStep>()));
             Assert.IsNull(selector.PickNext(1, null));
         }

@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1430c03b36b44b46a30b2120d37b9ff, type: 3}
+  m_Name: PhasePatternWeights
+  m_EditorClassIdentifier: TouchRPG.Combat.Runtime::TouchRPG.Combat.Config.PhasePatternWeights
+  relayPityIntervalPhase3: 3
+  phase1Weights:
+  - Classification: 0
+    FakeVariant: 0
+    Weight: 70
+  - Classification: 1
+    FakeVariant: 0
+    Weight: 30
+  phase2Weights:
+  - Classification: 0
+    FakeVariant: 0
+    Weight: 65
+  - Classification: 1
+    FakeVariant: 0
+    Weight: 35
+  phase3Weights:
+  - Classification: 0
+    FakeVariant: 0
+    Weight: 40
+  - Classification: 0
+    FakeVariant: 1
+    Weight: 20
+  - Classification: 1
+    FakeVariant: 0
+    Weight: 15
+  - Classification: 4
+    FakeVariant: 0
+    Weight: 15
+  - Classification: 2
+    FakeVariant: 0
+    Weight: 10

@@ -37,6 +37,7 @@ namespace TouchRPG.Combat.Pattern
         [SerializeField] private MonsterPatternSheet patternSheet;
         [SerializeField] private GameplayConfig gameplayConfig;
         [SerializeField] private P0DemoNumbers demoNumbers;
+        [SerializeField] private PhasePatternWeights phasePatternWeights;
         [SerializeField] private MonsterPartRegistry partRegistry;
         [SerializeField] private ComboController combo;
         [SerializeField] private HealthController playerHealth;
@@ -103,8 +104,10 @@ namespace TouchRPG.Combat.Pattern
 
         // GDD §5.1 phase-weighted pattern selection + guaranteed-relay-per-phase logic -
         // split out for the same single-responsibility reason as P4FakeOutcomePicker (see
-        // PhasePatternSelector's own remark for the full mechanism).
-        private readonly PhasePatternSelector _patternSelector = new PhasePatternSelector();
+        // PhasePatternSelector's own remark for the full mechanism). Constructed in Start()
+        // (not a field initializer) because it needs phasePatternWeights, which Unity only
+        // populates from the scene AFTER field initializers run but BEFORE Start().
+        private PhasePatternSelector _patternSelector;
 
         public bool AutoPlayEnabled => autoPlayEnabled;
 
@@ -125,6 +128,7 @@ namespace TouchRPG.Combat.Pattern
         {
             _repeatWait = new WaitForSeconds(repeatIntervalSeconds);
             _repeatWaitPhase3 = new WaitForSeconds(repeatIntervalSecondsPhase3);
+            _patternSelector = new PhasePatternSelector(phasePatternWeights);
             if (patternSheet != null)
             {
                 StartCoroutine(DriveLoop());

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using TouchRPG.Combat.Config;
 
 namespace TouchRPG.Combat.Pattern
 {
@@ -27,7 +28,10 @@ namespace TouchRPG.Combat.Pattern
     ///    C-2 ~30%). Phase 2/3 numbers are NOT given by the GDD beyond qualitative
     ///    composition notes, so this class's bucket weights are a documented judgment
     ///    call, reported as provisional in docs/qa/P0-provisional-gameplay-numbers-REPORT.md
-    ///    like every other non-GDD number in this codebase.
+    ///    like every other non-GDD number in this codebase. The weights themselves (and the
+    ///    phase-3 pity interval) are externalized into <see cref="PhasePatternWeights"/> (a
+    ///    ScriptableObject, GDD §0 MUST) rather than hardcoded here - this class only owns
+    ///    the selection ALGORITHM that consumes them.
     ///
     /// GUARANTEE MECHANISM (GDD §5.1 MUST: "페이즈 전환마다 그로기 러시(C-4)를 최소 1회
     /// 보장한다") - chosen mechanism: FORCED INJECTION, not a pity counter, for the
@@ -40,7 +44,7 @@ namespace TouchRPG.Combat.Pattern
     /// phase ends). Phase 2 additionally respects GDD §5.1's "1회 한정" cap: once that
     /// forced attempt is spent, C3_Relay is excluded from the phase-2 pool for the rest
     /// of the phase. Phase 3 has no such cap (§5.1: "2~3회"), so on top of its own forced
-    /// entry-pick this class ALSO runs a pity counter (<see cref="RelayPityIntervalPhase3"/>)
+    /// entry-pick this class ALSO runs a pity counter (<see cref="PhasePatternWeights.relayPityIntervalPhase3"/>)
     /// that re-forces another relay attempt after enough non-relay picks pass, so
     /// multiple relay (and therefore potential groggy-rush) opportunities keep recurring
     /// across the phase instead of depending purely on the small organic weight.
@@ -56,56 +60,17 @@ namespace TouchRPG.Combat.Pattern
     /// </summary>
     public class PhasePatternSelector
     {
-        /// <summary>PROVISIONAL staging value (team discretion, GDD §5.1 gives no exact
-        /// count) - after this many non-relay picks in phase 3, the pity counter forces
-        /// another relay attempt so multiple occurrences (§5.1: "2~3회") keep recurring
-        /// rather than depending purely on the small organic weight below.</summary>
-        public const int RelayPityIntervalPhase3 = 3;
+        // Externalized (T004 fix, GDD §0 MUST): weights + pity interval now live on a
+        // ScriptableObject asset instead of const/static readonly fields on this class -
+        // see PhasePatternWeights for the values and the per-field GDD-sourced-vs-provisional
+        // rationale. Required (non-null) constructor argument, not a default-null field, so
+        // a caller cannot silently forget to wire a real asset.
+        private readonly PhasePatternWeights _weights;
 
-        private struct BucketWeight
+        public PhasePatternSelector(PhasePatternWeights weights)
         {
-            public readonly PatternClass Classification;
-            public readonly bool FakeVariant;
-            public readonly float Weight;
-
-            public BucketWeight(PatternClass classification, bool fakeVariant, float weight)
-            {
-                Classification = classification;
-                FakeVariant = fakeVariant;
-                Weight = weight;
-            }
+            _weights = weights != null ? weights : ScriptableObject.CreateInstance<PhasePatternWeights>();
         }
-
-        // GDD §5.1 verbatim: "C-1 위주(약 70%) + C-2(약 30%). 릴레이·페이크 금지."
-        private static readonly BucketWeight[] Phase1Weights =
-        {
-            new BucketWeight(PatternClass.C1_Basic, false, 70f),
-            new BucketWeight(PatternClass.C2_HeavyAttack, false, 30f),
-        };
-
-        // PROVISIONAL (team discretion) - GDD §5.1 phase 2 gives no numeric composition,
-        // only "엇박 변형 등장, C-3 릴레이 첫 등장". The relay itself is NOT weighted here -
-        // it is handled entirely by the forced-injection guarantee above (exactly one
-        // shot, per §5.1's "1회 한정"), so this pool only governs the C-1/C-2 mix.
-        private static readonly BucketWeight[] Phase2Weights =
-        {
-            new BucketWeight(PatternClass.C1_Basic, false, 65f),
-            new BucketWeight(PatternClass.C2_HeavyAttack, false, 35f),
-        };
-
-        // PROVISIONAL (team discretion) - GDD §5.1 phase 3 gives no numeric composition,
-        // only "C-3 2~3회 + C-5, 페이크 해금, 패턴 밀도 최대". Relay keeps a small organic
-        // weight on top of its forced entry-pick + pity counter so extra occurrences can
-        // also happen "naturally"; density itself is handled by MonsterPatternPlayer's
-        // shorter phase-3 repeat interval, not by this weight table.
-        private static readonly BucketWeight[] Phase3Weights =
-        {
-            new BucketWeight(PatternClass.C1_Basic, false, 40f),
-            new BucketWeight(PatternClass.C1_Basic, true, 20f),   // P4 fake variant
-            new BucketWeight(PatternClass.C2_HeavyAttack, false, 15f),
-            new BucketWeight(PatternClass.C5_CastAoE, false, 15f),
-            new BucketWeight(PatternClass.C3_Relay, false, 10f),
-        };
 
         private int _trackedPhase;
         private bool _phase2RelayConsumed;
@@ -202,7 +167,7 @@ namespace TouchRPG.Combat.Pattern
                 else
                 {
                     _picksSinceRelayPhase3++;
-                    if (_picksSinceRelayPhase3 >= RelayPityIntervalPhase3)
+                    if (_picksSinceRelayPhase3 >= _weights.relayPityIntervalPhase3)
                     {
                         _forceRelayNextPick = true;
                     }
@@ -227,9 +192,9 @@ namespace TouchRPG.Combat.Pattern
         {
             BucketWeight[] buckets = phase switch
             {
-                1 => Phase1Weights,
-                2 => Phase2Weights,
-                _ => Phase3Weights,
+                1 => _weights.phase1Weights,
+                2 => _weights.phase2Weights,
+                _ => _weights.phase3Weights,
             };
 
             var result = new List<(MonsterPatternStep, float)>();

@@ -50,6 +50,7 @@ namespace TouchRPG.EditorTools
             // was wired. Re-loading by path after the switch sidesteps that entirely.
             GetOrCreateConfig();
             GetOrCreateDemoNumbers();
+            GetOrCreatePhasePatternWeights();
             GetOrCreatePatternSheet();
 
             ConfigurePortraitPlayerSettings();
@@ -58,6 +59,7 @@ namespace TouchRPG.EditorTools
 
             var config = AssetDatabase.LoadAssetAtPath<GameplayConfig>(ConfigDir + "/GameplayConfig.asset");
             var demoNumbers = AssetDatabase.LoadAssetAtPath<P0DemoNumbers>(ConfigDir + "/P0DemoNumbers.asset");
+            var phasePatternWeights = AssetDatabase.LoadAssetAtPath<PhasePatternWeights>(ConfigDir + "/PhasePatternWeights.asset");
             var patternSheet = AssetDatabase.LoadAssetAtPath<MonsterPatternSheet>(PatternDir + "/Lampang_PatternSheet.asset");
 
             BuildCamera();
@@ -248,6 +250,7 @@ namespace TouchRPG.EditorTools
             SetPrivateField(patternPlayer, "patternSheet", patternSheet);
             SetPrivateField(patternPlayer, "gameplayConfig", config);
             SetPrivateField(patternPlayer, "demoNumbers", demoNumbers);
+            SetPrivateField(patternPlayer, "phasePatternWeights", phasePatternWeights);
             SetPrivateField(patternPlayer, "partRegistry", partRegistry);
             SetPrivateField(patternPlayer, "combo", combo);
             SetPrivateField(patternPlayer, "playerHealth", playerHealth);
@@ -342,6 +345,22 @@ namespace TouchRPG.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.ImportAsset(path);
             return numbers;
+        }
+
+        private static PhasePatternWeights GetOrCreatePhasePatternWeights()
+        {
+            Directory.CreateDirectory(ConfigDir);
+            string path = ConfigDir + "/PhasePatternWeights.asset";
+            var existing = AssetDatabase.LoadAssetAtPath<PhasePatternWeights>(path);
+            if (existing != null)
+            {
+                return existing;
+            }
+            var weights = ScriptableObject.CreateInstance<PhasePatternWeights>();
+            AssetDatabase.CreateAsset(weights, path);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(path);
+            return weights;
         }
 
         private static MonsterPatternSheet GetOrCreatePatternSheet()
