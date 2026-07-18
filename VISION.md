@@ -311,6 +311,12 @@ With only a success brake, a loop never stops on work that can never succeed.
 - Disabling tests, or lowering a rubric, to make something pass
 - Writing off a Gate 1 failure as "an environment problem" and marking work done
 - Rewriting project history (force push) without director approval
+- **Deleting a file or directory that was not explicitly named as the target** — even one that looks
+  like obvious build/log garbage (found 2026-07-18: a QA subagent `rm -rf`'d a stray nested folder it
+  judged safe; it turned out to genuinely be safe — a duplicate log dir from a gate.ps1 bug, since fixed
+  — but "gitStatus is clean" only proves nothing tracked would be lost, not that the folder's actual
+  contents are disposable). Report the stray path to the PM instead and let a human/PM-level decision
+  authorize the delete, the same way a boundary question would be surfaced.
 
 ## 5. Failure policy
 

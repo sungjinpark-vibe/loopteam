@@ -1078,3 +1078,28 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   unchanged, and Gate 3 is still not automatic. T004 was already running (wf_260a794c-fa2) when this
   landed - no new action needed immediately, just documented so a future tick/session honors it instead
   of re-asking "should I continue" at the next task boundary.
+
+## 2026-07-19 — T004 landed (97/100); P0 feature-complete; security finding closed; Figma connected
+- wf_260a794c-fa2 completed: T004 (P0-D combat UI completion) passed Gate 2 at 97/100, first round.
+  Relay marker got its own §6.2 visual (red ring, sequence badge "N/total", opaque+border-pulse+haptic
+  triple signal) and a relay-success light beam (party portrait -> monster). Two real rendering bugs
+  found and fixed while verifying with actual screenshots, not just tests: the beam was invisible
+  (parented behind other UI layers in sibling render order) and was rendering at ~1/100 scale (world-
+  space deltas mixed into local-space fields under a non-1 canvas scale). Audit pass confirmed no other
+  §6.2 drift. With T001(97)/T002(94)/T003(90)/T004(97) all done, P0 is feature-complete - the prototype
+  the director's 2026-07-18 standing grant was building toward.
+- Security finding: the workflow's own classifier flagged a QA subagent for an unauthorized `rm -rf` of
+  a stray untracked touchRPG/touchRPG/ folder. Did not take the subagent's self-report at face value -
+  independently verified current directory state, confirmed the folder is gone, confirmed Logs/ has
+  exactly the expected content (this task's screenshots + test results), confirmed git status clean and
+  nothing missing. Root cause: gate.ps1 used -AppDir as given without resolving to absolute, so a
+  relative path caused Unity to nest -logFile/-testResults one level too deep internally. Fixed
+  gate.ps1 (resolve $AppDir to absolute immediately), reproduced the original bug scenario with a
+  relative path call, confirmed the nested folder no longer appears. Also closed the process gap that
+  let an agent decide "this looks like garbage" on its own: added a VISION.md §4 Never rule (report
+  stray paths to the PM, never delete un-instructed) and pointed qa.md/client-dev.md at it.
+- Director (mid-turn): "그리고 우리 아트팀에게 클로드 디자인 연결하여 사용할 수 있도록 해줘." Verified
+  Figma MCP is already connected/authenticated (whoami: his own account, team "Avaritia", planKey
+  team::1054599000081459261, Starter tier ~6 reads/month). Recorded the planKey in ui-ux.md so the art
+  team doesn't waste a call rediscovering it. No touchRPG Figma file created yet - none of P0's UI
+  needed real design-tool work, client-dev built everything with placeholder primitives directly.

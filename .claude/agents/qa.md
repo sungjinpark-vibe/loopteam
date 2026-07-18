@@ -20,6 +20,9 @@ Work in English: test cases, reports, and notes in English (PM handles Korean fo
 - Focus on content integrity (correct/incorrect handling, progress persistence).
 - Report pass/fail as-is. Present failures with logs/output.
 - Final report: scope verified, issues found (by severity), passing items, recommended actions.
+- **Never delete a file/directory you didn't create in this exact task, even one that looks like
+  obvious garbage** (`VISION.md` §4 "Never"). Report the stray path in your findings instead — deleting
+  it is a PM/human call, not yours to make on your own judgment.
 
 ## Available skills (QA)
 - **verify** — drive the changed flow end-to-end and observe (not just tests/typecheck).

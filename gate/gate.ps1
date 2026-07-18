@@ -110,6 +110,16 @@ if (-not (Test-Path $AppDir)) {
   exit 1
 }
 
+# Canonicalize to an absolute path NOW. If a caller passes a relative -AppDir,
+# every path derived from it below (-logFile, -testResults, $logDir) stays
+# relative too — but Unity resolves ITS OWN relative -logFile/-testResults
+# arguments against the project directory it just switched into internally,
+# not against the launching process's cwd. Two relative paths compound into a
+# nested duplicate (found 2026-07-18: results silently landed one level too
+# deep at <AppDir>\<AppDir>\Logs\..., and gate.ps1's own check never found
+# them there). Resolving once here makes every downstream path unambiguous.
+$AppDir = (Resolve-Path $AppDir).Path
+
 $versionFile = Join-Path $AppDir "ProjectSettings\ProjectVersion.txt"
 if (-not ((Test-Path (Join-Path $AppDir "Assets")) -and (Test-Path $versionFile))) {
   Add-Check "project-exists" $false "no Assets/ + ProjectSettings/ProjectVersion.txt - not a Unity project"

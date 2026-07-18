@@ -30,6 +30,9 @@ Work in English: code comments, notes, and your final report in English (PM hand
   gate also scans the editor log — a build that "seemed fine locally" will not slip through.
 - Do not leave the editor holding the project lock; the gate cannot open a locked project and will
   report that as a failure.
+- **Never delete a file/directory you didn't create in this exact task, even one that looks like
+  obvious garbage** (`VISION.md` §4 "Never"). Report the stray path instead — deleting it is a PM/human
+  call, not yours to make on your own judgment.
 
 ## Available skills (client)
 - **verify** — confirm a change actually works end-to-end (drive the flow, not just tests). Use after nontrivial changes.

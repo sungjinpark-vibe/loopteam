@@ -35,35 +35,46 @@
   code, not externalized) — fixed separately as a frugal follow-up (moved to a new `PhasePatternWeights`
   ScriptableObject, values unchanged, no re-score needed). **P0's core loop is now solo-completable
   start to finish** — the precondition GDD §10's 손맛 question needs.
-- **T004 P0-D — combat UI §6.1-6.2 completion**: **IN PROGRESS**, quality-loop running in the background
-  (`wf_260a794c-fa2`). Director said "계속 진행해줘" — narrow scope: relay marker's own visual (red ring
-  + sequence number + triple signal, currently reuses the plain yellow parry marker) + relay-success
-  light-beam. **Expected to be P0's last task.** Brief: `backlog/tasks/T004.md`.
+- **T004 P0-D — combat UI §6.1-6.2 completion**: **DONE** — Gate 1 green (compile 0, EditMode 50/50,
+  PlayMode 44/44 manual), **Gate 2 = 97/100** (1 round). Relay marker got its own §6.2 visual (red ring +
+  sequence badge + opaque/pulse/haptic triple signal) + a relay-success light beam; two real rendering
+  bugs found and fixed while verifying with actual screenshots. Audit confirmed no other §6.2 drift.
+  Minor deductions (presentation-only, not gameplay-affecting — left as noted hardening, not fixed).
+  **🎉 P0 IS FEATURE-COMPLETE** — all four tasks (T001 97, T002 94, T003 90, T004 97) done. This is the
+  prototype the director's 2026-07-18 standing grant was building toward.
+- **Security finding, investigated and closed (2026-07-19)**: a QA subagent `rm -rf`'d a stray untracked
+  `touchRPG/touchRPG/` directory without being told to. Independently verified (not just trusting the
+  subagent) — genuinely a duplicate log dir from a `gate/gate.ps1` bug (relative `-AppDir` caused Unity
+  to nest `-logFile`/`-testResults` output one level too deep), nothing real was lost. **Fixed the root
+  cause**: `gate.ps1` now resolves `$AppDir` to an absolute path immediately; reproduced and confirmed
+  fixed. **Fixed the process gap**: added a `VISION.md` §4 "Never" rule — agents must not delete
+  anything they didn't create in-task, even obvious-looking garbage; report it to the PM instead.
+  `qa.md`/`client-dev.md` now point at this rule.
+- **Figma MCP connected** (2026-07-19, director-requested for the art team): verified via `whoami` —
+  director's own account, team "Avaritia" (`planKey: team::1054599000081459261`, Starter tier, ~6 MCP
+  read calls/month). Recorded in `ui-ux.md` so the art team doesn't need to rediscover it. No touchRPG
+  Figma file created yet — none of P0's UI needed real design-tool work (client-dev built it directly
+  with placeholder primitives); create one when an actual ui-ux task needs it.
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
-- **Last updated**: 2026-07-18 (in-session)
+- **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **When T004 (`wf_260a794c-fa2`) lands**: read the result. `ok:true` → mark T004 `done`, commit+push
-   touchRPG, report score to the director on Discord. This should complete P0 — flag to the director that
-   a milestone Gate 3 (5-expert playtest) is now possible whenever he wants it (`VISION.md` §3.3/§6; not
-   automatic, needs the panel/rubric from §3.3 and a QA evidence pass). `ok:false, escalate:true` → do
-   NOT mark done; push to `blocked`, add to Needs Human Review below, tell the director plainly.
+1. **P0 is feature-complete — report this to the director as the prototype** (fulfills the 2026-07-18
+   standing grant). Ask what he wants next: a Gate-3-style milestone playtest of the 손맛 question
+   (`VISION.md` §3.3/§6 — needs the panel/rubric + a real QA evidence pass, not automatic/free), or hold
+   here for his own hands-on look first, or something else.
 2. **Get director/planner confirmation on the 5 provisional numbers** in
    `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
    P1/medium failure damage) — explained to him in plain terms 2026-07-18, awaiting his call: confirm
    as-is, replace, or defer.
 3. **TBD-14/15 are new and still open** (GDD v0.4 §4.6.1/§4.6.2 — exact shield reduction % + trigger
-   condition; exact range-axis mechanism + what stops 총 from structurally dodging melee patterns). Both
-   are implementation-blocking for weapon-differentiation work specifically, **not** for T004 (doesn't
-   touch weapon identity or distance).
-4. If the director says continue: T004 (P0-D — combat UI completion, unblocked since T001) is the last
-   P0 task. After that, P0 is feature-complete and a real Gate-3-style solo playtest of the 손맛 question
-   becomes possible (milestone gate, not per-task — `VISION.md` §6).
-5. **Consider resuming the autonomous loop** (`loop.json` → `paused: false` + `/tick`) now that replies
-   route through Discord — see Decisions Made 2026-07-18 "Discord reply-drain gap" below. Without the
-   loop's own tick cycle draining the inbox, a Discord reply only gets processed when the director
-   happens to prompt again in-session; this has already caused two missed-reply false alarms in one day.
+   condition; exact range-axis mechanism + what stops 총 from structurally dodging melee patterns). Not
+   blocking anything built so far — only future weapon-differentiation work.
+4. **Consider resuming the autonomous loop** (`loop.json` → `paused: false` + `/tick`) now that replies
+   route through Discord — see Decisions Made 2026-07-18 "Discord reply-drain gap". Without the loop's
+   own tick cycle draining the inbox, a Discord reply only gets processed when the director happens to
+   prompt again in-session; this already caused two missed-reply false alarms in one day (2026-07-18).
 
 ## Last Run
 - **Date**: 2026-07-17 22:00 (Tick 49)
@@ -206,5 +217,13 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
   confirmed to also apply to PlayMode. Drop `-quit` when running PlayMode tests manually.
 - **Never `git add` from the home folder** (`C:\Users\user`) — it is an accidental git repo and would
   swallow the whole home directory.
+- ✅ **FIXED 2026-07-19**: `gate.ps1` with a relative `-AppDir` caused Unity to nest `-logFile`/
+  `-testResults` output one level too deep (`<AppDir>\<AppDir>\Logs\...`), since Unity resolves its own
+  relative log-path args against the project dir it just switched into, not the launcher's cwd. This led
+  a QA subagent to `rm -rf` the resulting stray folder on its own judgment (investigated, confirmed
+  harmless — just duplicate logs — but the unauthorized delete itself was the real problem). Fixed by
+  resolving `$AppDir` to an absolute path immediately in `gate.ps1`. Also added a hard rule (`VISION.md`
+  §4 "Never"): agents must never delete anything they didn't create in-task, even obvious-looking
+  garbage — report it to the PM instead.
 - Discord resource-scoped routes 403 with `{"code":40333}` unless a real `User-Agent` is sent — every
   `.discord` script already does this.

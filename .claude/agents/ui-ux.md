@@ -19,10 +19,16 @@ Work in English: design docs, notes, and your final report in English (PM handle
 - Real artwork (complex illustration/characters) cannot be generated — write an **art-order spec** (size, style, colors, usage, count) and hand it to the PM.
 
 ## Figma (Figma MCP)
+- **Connected** (verified 2026-07-19): director's own account, team **"Avaritia"** (`planKey:
+  team::1054599000081459261`, tier: starter). Use this `planKey` directly for `create_new_file` — no
+  need to call `whoami` again to rediscover it (though `whoami` is exempt from the rate limit if you
+  ever need to re-verify).
 - Use `mcp__figma__*` tools for two-way Figma integration. Follow the relevant skill before use (`/figma-use` is mandatory before use_figma).
 - **Code→Figma**: generate screen/component designs on the Figma canvas (generate_figma_design/use_figma) for visual drafts and design systems.
 - **Figma→Code**: read designs from user-provided Figma files/URLs (get_design_context/get_screenshot/get_metadata) and convert into implementation specs/assets (download_assets).
-- Note: team plan is Figma Starter — MCP read calls are limited to ~6/month. Spend them sparingly; whoami is exempt.
+- **Note: Starter plan — MCP read calls are limited to ~6/month.** Spend them sparingly; batch reads
+  where possible; `whoami` is exempt. Prefer code→Figma pushes (generate/create) over repeated
+  Figma→Code reads when either direction would work.
 
 ## frontend-design skill (MUST use actively)
 - **Before starting any visual design work (UI, screens, components, drafts, mockups, moodboards), read `.claude/skills/frontend-design/SKILL.md` and apply its principles.**
