@@ -966,3 +966,25 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - Clean areas per audit: team-lead/game-expert/gate-runner/client-dev/server-dev agents (no hardcoded
   rubrics), .discord scripts (UA header, PID-only kills, mutex), gate.ps1 otherwise as documented.
 - Next: per director, split git branches per project on the loopteam remote and push.
+
+## 2026-07-18 — T001 landed (97/100); T002 opened; git branches split by project (in-session)
+- Director: "touchrpg 프로젝트 계속 진행해줘." Resumed T001 from where the session died last night.
+- Found uncommitted touchRPG work from the interrupted quality-loop run: a PlayMode test closing the
+  ground-tap gap the team lead's earlier review flagged, and QA's report on 5 gameplay-affecting numbers
+  absent from the GDD entirely (monster/player HP, basic attack damage, P1/medium failure damage) -
+  isolated properly into P0DemoNumbers.asset but never surfaced to the director. Committed it
+  (e1a9528) rather than losing it, and a stray untracked duplicate GDD file at touchRPG root was removed
+  (byte-identical to the tracked copy under docs/spec/).
+- Ran T001 to completion: fresh Gate 1 (compile 0, EditMode 19/19), fresh QA evidence pass (rendered-
+  pixel captures, PlayMode tests with graphics enabled since -nographics can't rasterize, a live
+  config-edit demonstration proving judgment windows are genuinely config-driven), then 클라이언트팀장
+  scored 97/100 (-3 for two unexercised defensive paths: mobile touch dispatch, auto-miss-on-timeout -
+  both noted as hardening, not blockers). TBD discipline called exemplary. T001 marked done.
+- Found and logged (not fixed): gate/gate.ps1 only runs EditMode tests, never PlayMode - the new test
+  compiled but the gate itself never executed it. Added to Do Not Repeat.
+- Opened T002 (P0-B: IN-3/IN-5/IN-6 + 람팡 P2-P7) with a sharpened brief and launched the quality-loop
+  workflow in the background (wf_5427d9a7-5a2).
+- Director: "브랜치를 프로젝트 이름별로 나눠서 다시 푸시해줘." touchRPG and lifetown had no git remote;
+  added `origin` = the same loopteam GitHub URL as the engine to both, and pushed each to its own branch
+  (touchrpg, lifetown) rather than creating separate repos. A stale duplicate branch (capital "touchRPG",
+  an ancestor commit of the real push) was found and - after director confirmation - deleted.

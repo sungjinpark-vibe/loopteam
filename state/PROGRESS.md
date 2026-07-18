@@ -3,33 +3,43 @@
 > Only what the next tick needs to choose its next action. Bulk history lives in `state/journal.md`.
 
 ## Current State
-- **Status**: ⏸ **PAUSED** (`paused: true`), tick 50 — director 2026-07-17 23:30: *"오늘은 여기까지.
-  내일 계속할꺼야."* Clean stop, nothing in a broken state. **Resume**: `paused=false` + `/tick`.
+- **Status**: ▶ Active (in-session, director-directed) — engine/state updated 2026-07-18. `loop.json`
+  still carries `paused: true` from the 2026-07-17 stop; this session's work was done directly at the
+  director's request, not via the autonomous `/tick` loop. Resume the autonomous loop with
+  `paused=false` + `/tick` whenever desired.
 - **Project**: **touchRPG** — touch-first online hunting action + persistent growth (**not** an MMORPG).
   Portrait fixed. Party 1-4. Hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."* Target 20-30s
   light-midcore. Refs: Monster Hunter / Vindictus + Clair Obscur (timing parry).
 - **Source of truth**: **GDD v0.3** → `touchRPG/docs/spec/00-gdd-v0.3.md` (v0.1/v0.2 kept as history).
   Its §0: if code/conversation/convention conflicts with it, *the doc wins*.
-- **T001 P0-A parry core**: **Gate 1 PASSED** 23:25 (`state/gate-result.json` — compile exit=0,
-  CS errors=0, tests **19/19**). ⚠️ **Gate 2 (클라이언트팀장 ≥90) result NOT received** before the stop.
-  **It is NOT done** — a passed mechanical gate only makes it *scoreable* (`VISION.md` §3).
+- **T001 P0-A parry core**: **DONE** — Gate 1 green (compile 0 errors, EditMode 19/19), **Gate 2 =
+  97/100** (클라이언트팀장), scored 2026-07-18 against fresh QA evidence (rendered-pixel captures,
+  PlayMode tests with graphics enabled, a live config-edit demonstration). Minor deductions (−3, C2):
+  mobile touch-dispatch path and the auto-miss-on-timeout path were never directly exercised — noted as
+  hardening for later, not a blocker. **TBD discipline called exemplary**: TBD-1/TBD-2 externalized +
+  labeled; 5 additional gameplay-affecting numbers absent from the GDD entirely (monster/player HP,
+  basic attack damage, P1/medium failure damage) were surfaced as open questions in
+  `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` rather than invented — **still awaiting
+  director/planner confirmation.**
+- **T002 P0-B — remaining input + 람팡 P2-P7**: **IN PROGRESS**, quality-loop running in the background
+  (`wf_5427d9a7-5a2`). IN-3 회피존/IN-5 차지/IN-6 러시 + patterns P2-P7. Brief: `backlog/tasks/T002.md`.
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
-- **Last updated**: 2026-07-17 23:30 (Tick 50)
+- **Last updated**: 2026-07-18 (in-session)
 
-## ▶ Tomorrow, in this order
-1. **Finish T001.** The quality-loop run (`wf_756e669b-8fe`) **died with the session — workflow runs do
-   not survive session ends, so there is no result to check.** Run **only the Gate 2 scoring**: a fresh
-   `team-lead` call as 클라이언트팀장, rubric `VISION.md` §3.2 C1-C5 verbatim, given the deliverable +
-   rubric only (never the member's reasoning). The build is committed and Gate-1 green; do not rebuild.
-   Then report the score to the director **and list every provisional/TBD value used**
-   (esp. TBD-1 combo cap / TBD-2 damage curve — the agent appears to have isolated them into
-   `Assets/Data/Config/P0DemoNumbers.asset`; **verify that separation is real**, don't take it on faith).
-2. **Collect the director's answers to TBD-12 and TBD-13** — he said he'd give them tomorrow.
-3. **TBD-11** (skill/weapon dev priority) is still unanswered. PM recommendation stands: **P1**, because
+## ▶ Next, in this order
+1. **When T002 (`wf_5427d9a7-5a2`) lands**: read the result. `ok:true` → mark T002 `done`, commit+push
+   touchRPG, report score + any new provisional/TBD values to the director (channel per §7 rule 8).
+   `ok:false, escalate:true` → do NOT mark done; push to `blocked`, add to Needs Human Review below, tell
+   the director plainly with the score history. See `VISION.md` §5.
+2. **Collect the director's answers to TBD-12 and TBD-13** — still outstanding (asked 2026-07-17).
+3. **Get director/planner confirmation on the 5 provisional numbers** in
+   `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
+   P1/medium failure damage) — these are separate from TBD-1/2 and were never explicitly asked yet.
+4. **TBD-11** (skill/weapon dev priority) is still unanswered. PM recommendation stands: **P1**, because
    GDD §10 forbids starting P1 before the 손맛 question is answered.
-4. Only then: T002 (P0-B — IN-3 회피존 / IN-5 차지 / IN-6 러시 + 람팡 P2-P7 into the same data-driven
-   pattern sheet).
+5. After T002: T003 (P0-C — 3-phase session + solo run to completion, `blocked` on T002) then T004
+   (P0-D — combat UI completion, `blocked` on T001, now unblockable).
 
 ## Last Run
 - **Date**: 2026-07-17 22:00 (Tick 49)
@@ -68,10 +78,14 @@
    monetization, pattern classification, screen orientation, anything on the §11 non-goal list.
 
 ## Open Items
-- **T001 awaiting Gate 2 only** — nothing is running (the workflow died with the session). Score it
-  fresh (see "Tomorrow" #1), report in the channel the director last spoke in, list every
-  provisional/TBD value the agent used.
-- **touchRPG has no git remote** (same as lifetown). Local commits only until the director provides one.
+- **T002 in flight** (`wf_5427d9a7-5a2`) — on landing: read the result, report in the channel the
+  director last spoke in, list every new provisional/TBD value used.
+- **Director confirmation still needed** on the 5 provisional numbers in
+  `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md`, and on TBD-11/12/13.
+- **git remotes**: touchRPG and lifetown now both push to `origin` = the `loopteam` GitHub remote (same
+  URL as the engine), each on its **own branch** (`touchrpg`, `lifetown`) rather than a separate repo —
+  set up 2026-07-18 per director instruction ("브랜치를 프로젝트 이름별로 나눠서"). Engine stays on
+  `main`. Push touchRPG/lifetown work with `git push origin <local-branch>:<touchrpg|lifetown>`.
 
 ## Paused: Life Town
 Paused, **not cancelled** — fully resumable. Snapshot: `lifetown/docs/paused-state/` (its VISION §2, its
@@ -86,27 +100,29 @@ the village scene) → playable slice → Gate 3. **Do not re-ask polish-vs-game
 See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history.
 
 ## Blockers
-- None. (Nothing is running — T001 needs only its Gate 2 scoring, see "Tomorrow" #1.)
+- None. T002 is running (`wf_5427d9a7-5a2`).
 
 ## Needs Human Review
 - None.
 
 ## Next Run Should
-1. **Score T001's Gate 2, then act on the result.** If 클라이언트팀장 ≥90 (Gate 1 already green): mark
-   it `done`, commit touchRPG, report to the director with the score **and every provisional/TBD value
-   used**. Then open
-   **T002** (P0-B: IN-3 회피존 / IN-5 차지 / IN-6 러시 + 람팡 P2-P7 into the same data-driven pattern
-   sheet). Rubric = `VISION.md` §3.2 클라이언트팀장 C1-C5 **verbatim** — never invented at grading time.
-2. **If T001 comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
+1. **Read T002's result, then act on it.** `ok:true` (Gate 1 green + 클라이언트팀장 ≥90) → mark it
+   `done`, commit+push touchRPG (`git push origin main:touchrpg`), report to the director with the score
+   **and every new provisional/TBD value used**. Then open **T003** (P0-C: 3-phase session + solo run to
+   completion) or **T004** (P0-D: combat UI completion) — both unblocked once T002 lands; T003 depends on
+   T002's patterns existing, T004 only needed T001. Rubric = `VISION.md` §3.2 클라이언트팀장 (or 아트팀장
+   if T004 starts with a ui-ux explore pass) — verbatim, never invented at grading time.
+2. **If T002 comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
    refused): **do not mark it done**. Push it to `blocked`, add to Needs Human Review + `loop.json`
-   `escalations`, and tell the director plainly on Discord that it is unfinished, with the score
-   history (`VISION.md` §5). A silently-shipped rejection is the Ralph Wiggum Loop.
+   `escalations`, and tell the director plainly (channel per §7 rule 8) that it is unfinished, with the
+   score history (`VISION.md` §5). A silently-shipped rejection is the Ralph Wiggum Loop.
 3. **If it fails without `escalate`** (infrastructure): leave it `ready`, record the cause in
    **Do Not Repeat**, journal it, don't loop on it.
 4. **Gate 3 (5-expert playtest) is NOT for now** — it runs when a meaningful slice is playable, i.e.
    after P0 is genuinely completable solo. Five experts × five rounds on a half-built screen is pure
    burn (`VISION.md` §6).
-5. Commit the engine repo on any `state/`/`backlog/` change; touchRPG commits locally in its own repo.
+5. Commit the engine repo on any `state/`/`backlog/` change; push touchRPG/lifetown to their own remote
+   branch (see Open Items) after any commit there.
 
 ## Decisions Made
 - 2026-07-17 — **Channel rule (director)**: *"내가 vs코드로 대화하면 디스코드로는 보내지 말아줘."*
@@ -124,6 +140,9 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
   resumed agent.
 - 2026-07-17 — **Don't spend big speculatively**: when a large, direction-heavy build has been teed up
   as a question to the director, wait for the answer rather than pre-build it.
+- 2026-07-18 — **Git branch-per-project** (director): touchRPG and lifetown push to the same `loopteam`
+  remote as the engine, each on its own branch (`touchrpg`, `lifetown`) rather than separate GitHub
+  repos, since no separate remotes exist yet. Engine stays `main`.
 
 ## Do Not Repeat
 (engine-level; still binding across projects)
@@ -133,6 +152,10 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
 - `args` arrives as a **JSON string**, not an object. Our scripts coerce it — don't "fix" that away.
 - Unity can **exit 0 with compile errors** — `gate/gate.ps1` also scans the editor log for `error CS####`.
   Never trust the exit code alone. Never leave an editor holding the project lock (use `-quit`).
+- **`gate/gate.ps1` only runs EditMode tests, not PlayMode** (found 2026-07-18 during T001's Gate 2 —
+  touchRPG's `Assets/Tests/PlayMode/*` compiled fine but the gate never executed them; QA had to run
+  PlayMode manually). Not yet fixed. Any task adding PlayMode tests must verify them manually (QA
+  evidence step) until the gate itself is extended to cover both platforms.
 - **Never `git add` from the home folder** (`C:\Users\user`) — it is an accidental git repo and would
   swallow the whole home directory.
 - Discord resource-scoped routes 403 with `{"code":40333}` unless a real `User-Agent` is sent — every

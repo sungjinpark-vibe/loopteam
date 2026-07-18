@@ -27,8 +27,8 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 
 | ID | Title | Status | Agent | Mode | Priority | Notes |
 |---|---|---|---|---|---|---|
-| T001 | P0-A — parry core (the "손맛" prototype) | `ready` | client-dev | build | 1 | **Gate 1 PASSED** 2026-07-17 23:25 (compile 0 errors, tests 19/19; build committed). **Gate 2 outstanding** — the quality-loop run died with the session, so on resume run **only the 클라이언트팀장 scoring** (rubric §3.2 C1-C5), do NOT rebuild. Answers GDD §10's single P0 question: *"터치 패링이 손맛이 있는가"*. |
-| T002 | P0-B — remaining input (IN-3 회피존, IN-5 차지, IN-6 러시) + 람팡 P2-P7 | `blocked` | client-dev | build | 2 | Depends on T001. Do **not** start until the 손맛 question is answered (GDD §10). |
+| T001 | P0-A — parry core (the "손맛" prototype) | `done` | client-dev | build | 1 | **Both gates cleared 2026-07-18**: Gate 1 green (compile 0 errors, EditMode 19/19), Gate 2 = **97/100** (클라이언트팀장). TBD-1/TBD-2 externalized; 5 more gameplay numbers absent from the GDD reported open in `docs/qa/P0-provisional-gameplay-numbers-REPORT.md`, awaiting director confirmation. |
+| T002 | P0-B — remaining input (IN-3 회피존, IN-5 차지, IN-6 러시) + 람팡 P2-P7 | `in-progress` | client-dev | build | 2 | quality-loop running (클라이언트팀장, 90). |
 | T003 | P0-C — 3-phase session + solo run to completion | `blocked` | client-dev | build | 3 | Depends on T002. GDD §5.1; groggy rush guaranteed once per phase transition. |
 | T004 | P0-D — combat UI §6.1-6.2 completion | `blocked` | ui-ux → client-dev | build | 4 | Depends on T001. Marker visual language, party layer. (ui-ux explores the visual spec first if needed, then client-dev builds.) |
 

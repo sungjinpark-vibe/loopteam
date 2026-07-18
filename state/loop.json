@@ -2,7 +2,7 @@
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets.",
   "tick": 50,
   "project": "touchRPG (working title 람팡) — touch hunting action, Unity, portrait",
-  "active_task": "T001 P0-A parry core: GATE 1 PASSED 23:25 (compile exit=0/CS errors=0; tests 19/19). GATE 2 (클라이언트팀장 90) RESULT NOT RECEIVED — verify on resume before calling it done.",
+  "active_task": "T002 P0-B remaining input + 람팡 P2-P7: quality-loop running in background (wf_5427d9a7-5a2). T001 is DONE (Gate 1 green, Gate 2 = 97/100).",
   "last_tick_at": "2026-07-17 23:30",
   "consecutive_idle_ticks": 0,
   "paused": true,
