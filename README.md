@@ -11,13 +11,14 @@ rubrics, boundaries and failure policy. The contract lives in `../VISION.md`.
 Working title **람팡**. Touch-first online hunting action + persistent growth (**not** an MMORPG).
 Portrait fixed, party 1-4, one hunt 10-15 min. *"탭 하나로 즐기는 타이밍 패링 협동 헌팅."*
 
-**The spec is the director's own GDD — `docs/spec/00-gdd-v0.3.md` — and it is the single source of
-truth** (its §0: when anything conflicts with it, the doc wins). v0.1/v0.2 are kept as history. There
-was no planner spec task; the team implements the GDD directly.
+**The spec is the director's own GDD — `docs/spec/00-gdd-v0.4.md` — and it is the single source of
+truth** (its §0: when anything conflicts with it, the doc wins). v0.1/v0.2/v0.3 are kept as history.
+There was no planner spec task; the team implements the GDD directly.
 
 Current focus: **P0 vertical slice** (GDD §10) — its one validation question is *"터치 패링이 손맛이
-있는가."* T001 (parry core) has passed Gate 1 (compile clean, 19/19 tests); Gate 2 scoring pending.
-The GDD's `[TBD]` items are deliberately the director's — the team **must not** fill them in.
+있는가."* T001 (parry core) is **done** (Gate 1 green, Gate 2 = 97/100). T002 (remaining input +
+람팡 P2-P7) in progress. The GDD's `[TBD]` items are deliberately the director's — the team **must not**
+fill them in.
 
 ## Layout
 
