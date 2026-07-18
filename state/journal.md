@@ -1121,3 +1121,40 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - Current mission: the loop engine itself. Improvement candidates proposed to the director (gate.ps1
   PlayMode coverage; Discord reply-drain gap; emulator-driven playtest evidence; build/delivery
   automation) — awaiting his pick. No speculative engine work before that.
+
+## 2026-07-19 — Engine improvement session 1 (director's four directives)
+- **(1) Skill/library research** (two parallel agents, all four parts):
+  - 기획: anthropics/skills xlsx (balance sheets as real Excel), claude-game-design-suite (22 GDD/balance
+    skills), ityes22/game-design-document (publisher-grade GDD export). Rejected Kalivra (GUI-only).
+  - QA: Dev-GOM unity-dev-toolkit (EditMode/PlayMode batchmode skill, 92★), AltTester Unity SDK (drives
+    real builds incl. Android AVD — the Gate-3 evidence upgrade), Unity Graphics Test Framework (visual
+    regression, official), GameCI (CI net). No good log-analysis lib — honest gap.
+  - 아트: anthropics algorithmic-art + canvas-design skills (render via existing render-html.ps1),
+    pixel-plugin (Aseprite MCP, needs paid Aseprite), pixel-sprite-generator (vendorable), Kenney CC0
+    packs (scriptable placeholder pipeline), com.unity.vectorgraphics (SVG→Unity, closes ui-ux's SVG loop).
+  - 기술: CoplayDev/unity-mcp (12.6k★, the Unity MCP CLAUDE.md anticipated; alt IvanMurzak), UniTask/R3,
+    PrimeTween (headless-installable vs DOTween), openupm-cli (agent-driven package management),
+    everything-claude-unity (quarry, not framework). Nothing adopted — director's pick pending.
+- **(2) rtk/ponytail subagent coverage — verified empirically** (haiku probe + rtk gain + manual hook run):
+  - rtk ✅ all subagents (user-level PreToolUse hook on Bash/PowerShell fires for subagent calls too;
+    70.7% avg savings over 1,002 commands).
+  - ponytail ❌ NOT active anywhere in this project: installed project-scoped to `c:\Users\user` (home),
+    so in loop_engine its hooks never fired — mode flag said "full" but no injection (probe confirmed).
+    **Fixed**: added a loop_engine entry to `~/.claude/plugins/installed_plugins.json` + created project
+    `.claude/settings.json` with `PONYTAIL_SUBAGENT_MATCHER` scoping injection to code-producing agents
+    (client-dev|server-dev|qa|ui-ux|general-purpose|claude|workflow) — graders/scout stay clean.
+    Takes effect next session start. Both JSONs validated.
+- **(3)+(4) Token-leak audit + per-tick restructure** — per-tick fixed reads 74KB → 40KB (−46%):
+  - loop.json 4.3→1.0KB: stale `_state_reason`/`_paused_reason` blobs removed — one carried the
+    SUPERSEDED channel rule (in-session⇒no-Discord), a live drift hazard.
+  - VISION.md 30.8→22.6KB: §2 → paused-projects table; touchRPG full §2 verbatim to
+    `touchRPG/docs/paused-state/VISION-s2-snapshot.md`; Life Town subsection folded into the table.
+  - PROGRESS.md 19.2→6.7KB: true cockpit again; touchRPG sections verbatim to
+    `touchRPG/docs/paused-state/PROGRESS-snapshot.md` (resume banner added).
+  - CLAUDE.md 19.9→10.0KB: dedup to pointers (gates→VISION §3, tick→skill, escalation→§5, workflow
+    invocation→skill+Do-Not-Repeat, daemon internals→new `.discord/DAEMON.md`). Multiplier: CLAUDE.md
+    is injected into every subagent context too.
+  - New leak closed: `incoming.log` grows forever and the scout reads it every tick — rotation duty
+    added to loop-scout.md (archive handled prefix at >20KB), documented in DAEMON.md.
+  - New Do Not Repeat: `python3 ... || py ...` heredoc fallback chains open an interactive REPL and
+    hang the shell 2 minutes.

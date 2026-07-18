@@ -3,11 +3,12 @@
 /lifetown/
 /touchRPG/
 
-# ── From .claude, track team agents + skills + workflows ──
+# ── From .claude, track team agents + skills + workflows + project settings ──
 .claude/*
 !.claude/agents/
 !.claude/skills/
 !.claude/workflows/
+!.claude/settings.json
 
 # ── Secrets: NEVER commit ──
 .discord/config.json

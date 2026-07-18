@@ -1,0 +1,5 @@
+{
+  "env": {
+    "PONYTAIL_SUBAGENT_MATCHER": "client-dev|server-dev|qa|ui-ux|general-purpose|claude|workflow"
+  }
+}

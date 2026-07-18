@@ -30,6 +30,10 @@ not a side constraint.
   just report that one is waiting.
 - Update `.discord\handled.txt` to the highest id you processed. **Do this only after you have written
   the resulting backlog changes** — if you crash mid-tick, it must be safe to re-run.
+- **Rotation (you own this)**: if `incoming.log` exceeds ~20KB, append the fully-handled prefix (all
+  messages with id ≤ handled mark) to `.discord\incoming-archive.log` and rewrite `incoming.log` with
+  only the unhandled tail. Never touch messages above the handled id. This keeps your own per-tick read
+  from growing forever.
 
 **2. Reconcile the backlog** (`backlog\BACKLOG.md`, task files in `backlog\tasks\`)
 - Apply approvals: `awaiting-approval` → `ready`.
