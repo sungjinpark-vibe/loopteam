@@ -28,7 +28,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | ID | Title | Status | Agent | Mode | Priority | Notes |
 |---|---|---|---|---|---|---|
 | T001 | P0-A — parry core (the "손맛" prototype) | `done` | client-dev | build | 1 | **Both gates cleared 2026-07-18**: Gate 1 green (compile 0 errors, EditMode 19/19), Gate 2 = **97/100** (클라이언트팀장). TBD-1/TBD-2 externalized; 5 more gameplay numbers absent from the GDD reported open in `docs/qa/P0-provisional-gameplay-numbers-REPORT.md`, awaiting director confirmation. |
-| T002 | P0-B — remaining input (IN-3 회피존, IN-5 차지, IN-6 러시) + 람팡 P2-P7 | `in-progress` | client-dev | build | 2 | quality-loop running (클라이언트팀장, 90). |
+| T002 | P0-B — remaining input (IN-3 회피존, IN-5 차지, IN-6 러시) + 람팡 P2-P7 | `done` | client-dev | build | 2 | **Both gates cleared 2026-07-18**: Gate 1 green (compile 0, EditMode 30/30, PlayMode 31/31 manual), Gate 2 = **94/100** (2 rounds, 89→94). One undocumented gameplay literal found (`dissolveLead`) — fixed separately, see task log. |
 | T003 | P0-C — 3-phase session + solo run to completion | `blocked` | client-dev | build | 3 | Depends on T002. GDD §5.1; groggy rush guaranteed once per phase transition. |
 | T004 | P0-D — combat UI §6.1-6.2 completion | `blocked` | ui-ux → client-dev | build | 4 | Depends on T001. Marker visual language, party layer. (ui-ux explores the visual spec first if needed, then client-dev builds.) |
 

@@ -1006,3 +1006,22 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - Sent a plain-language Discord explanation of what the "5 P0DemoNumbers" actually are (placeholder
   numbers needed just to render an HP bar/damage, since the GDD only has qualitative labels like
   "소피해") since the director asked to have it re-explained less technically.
+
+## 2026-07-18 — T002 landed (94/100); dissolveLead literal fixed
+- wf_5427d9a7-5a2 completed: T002 (P0-B remaining input + Lampang P2-P7) passed Gate 2 at 94/100 after
+  2 rounds (89 -> 94). Round 1 fixes: invisible IN-3/IN-6 gauges (same color as base fill), missing P3
+  knockback + ground telegraph, hardcoded P3/P6 pattern-ID switch (replaced with a data-driven
+  DodgeZoneWindowSource enum on MonsterPatternStep), SRP extraction, unpooled ParryBurstEffect
+  allocation. 31 PlayMode + 30 EditMode tests green; rendered-pixel screenshots confirmed on-screen.
+- Round 2 scoring flagged an undocumented gameplay-affecting literal: MonsterPatternPlayer's P4
+  fake-dissolve formula (Mathf.Max(0.5f, goodWindow + 0.15f), governs the early-tap counter-hit risk
+  window) was invented in code, never listed in the provisional-numbers report. Given how central this
+  project's TBD/no-hallucination discipline has been all along, fixed it immediately via the frugal path
+  (one client-dev call, not a full re-run): externalized both literals into P0DemoNumbers (values
+  unchanged, only relocated) and documented them. Re-verified Gate 1 green; did not re-score since no
+  observable behavior changed.
+- New engine finding: PlayMode batchmode tests silently produce zero results when `-runTests` is
+  combined with `-quit` (same trap already documented for EditMode, now confirmed for PlayMode too).
+  Logged in Do Not Repeat.
+- T002 marked done, committed + pushed to origin/touchrpg (779f288 implementation, c49f019 the
+  dissolveLead fix). Reported score + fix to the director on Discord.

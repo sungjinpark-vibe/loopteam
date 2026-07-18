@@ -21,27 +21,31 @@
   basic attack damage, P1/medium failure damage) were surfaced as open questions in
   `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` rather than invented — **still awaiting
   director/planner confirmation.**
-- **T002 P0-B — remaining input + 람팡 P2-P7**: **IN PROGRESS**, quality-loop running in the background
-  (`wf_5427d9a7-5a2`). IN-3 회피존/IN-5 차지/IN-6 러시 + patterns P2-P7. Brief: `backlog/tasks/T002.md`.
+- **T002 P0-B — remaining input + 람팡 P2-P7**: **DONE** — Gate 1 green (compile 0, EditMode 30/30,
+  PlayMode 31/31 manual), **Gate 2 = 94/100** after 2 rounds (89→94; round 1 fixed invisible gauges,
+  missing P3 knockback/telegraph, hardcoded pattern-ID switch, SRP, unpooled allocation). One
+  undocumented gameplay literal found in round 2 (`dissolveLead` formula, P4's counter-hit risk window)
+  — fixed separately as a frugal follow-up (externalized + documented, no re-score needed since no
+  observable behavior changed). Two minor deductions left as noted hardening, not blockers (see
+  `backlog/tasks/T002.md` log).
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
 - **Last updated**: 2026-07-18 (in-session)
 
 ## ▶ Next, in this order
-1. **When T002 (`wf_5427d9a7-5a2`) lands**: read the result. `ok:true` → mark T002 `done`, commit+push
-   touchRPG, report score + any new provisional/TBD values to the director on Discord (§7 rule 8, now
-   unconditional). `ok:false, escalate:true` → do NOT mark done; push to `blocked`, add to Needs Human
-   Review below, tell the director plainly with the score history. See `VISION.md` §5.
+1. **Report T002's result to the director on Discord** (§7 rule 8, now unconditional): score 94/100,
+   what shipped (IN-3/IN-5/IN-6 + Lampang P2-P7), and the dissolveLead fix.
 2. **Get director/planner confirmation on the 5 provisional numbers** in
    `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
    P1/medium failure damage) — explained to him in plain terms 2026-07-18, awaiting his call: confirm
    as-is, replace, or defer.
 3. **TBD-14/15 are new and still open** (GDD v0.4 §4.6.1/§4.6.2 — exact shield reduction % + trigger
    condition; exact range-axis mechanism + what stops 총 from structurally dodging melee patterns). Both
-   are implementation-blocking for weapon-differentiation work specifically, **not** for T002/T003 (which
+   are implementation-blocking for weapon-differentiation work specifically, **not** for T003/T004 (which
    don't touch weapon identity or distance yet).
-4. After T002: T003 (P0-C — 3-phase session + solo run to completion, `blocked` on T002) then T004
-   (P0-D — combat UI completion, `blocked` on T001, now unblockable).
+4. Next task: **T003** (P0-C — 3-phase session + solo run to completion, unblocked now) or **T004**
+   (P0-D — combat UI completion, unblocked since T001). Pick T003 first — it's the one that makes P0
+   actually completable solo, which is what the 손맛 playtest question needs.
 
 ## Last Run
 - **Date**: 2026-07-17 22:00 (Tick 49)
@@ -83,8 +87,6 @@
    monetization, pattern classification, screen orientation, anything on the §11 non-goal list.
 
 ## Open Items
-- **T002 in flight** (`wf_5427d9a7-5a2`) — on landing: read the result, report in the channel the
-  director last spoke in, list every new provisional/TBD value used.
 - **Director confirmation still needed** on the 5 provisional numbers in
   `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (explained in plain terms 2026-07-18),
   and on the new TBD-14 (shield %) / TBD-15 (range mechanism).
@@ -106,19 +108,17 @@ the village scene) → playable slice → Gate 3. **Do not re-ask polish-vs-game
 See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history.
 
 ## Blockers
-- None. T002 is running (`wf_5427d9a7-5a2`).
+- None.
 
 ## Needs Human Review
 - None.
 
 ## Next Run Should
-1. **Read T002's result, then act on it.** `ok:true` (Gate 1 green + 클라이언트팀장 ≥90) → mark it
-   `done`, commit+push touchRPG (`git push origin main:touchrpg`), report to the director with the score
-   **and every new provisional/TBD value used**. Then open **T003** (P0-C: 3-phase session + solo run to
-   completion) or **T004** (P0-D: combat UI completion) — both unblocked once T002 lands; T003 depends on
-   T002's patterns existing, T004 only needed T001. Rubric = `VISION.md` §3.2 클라이언트팀장 (or 아트팀장
-   if T004 starts with a ui-ux explore pass) — verbatim, never invented at grading time.
-2. **If T002 comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
+1. **Open T003 or T004** (both unblocked). T003 (P0-C: 3-phase session + solo run to completion) is
+   recommended first — it's what makes P0 actually completable solo, the precondition for the 손맛
+   playtest question. Rubric = `VISION.md` §3.2 클라이언트팀장 (or 아트팀장 if T004 starts with a ui-ux
+   explore pass) — verbatim, never invented at grading time.
+2. **If a task comes back `escalate: true`** (5-round limit / score flat ±2 over 3 rounds / grader
    refused): **do not mark it done**. Push it to `blocked`, add to Needs Human Review + `loop.json`
    `escalations`, and tell the director plainly (channel per §7 rule 8) that it is unfinished, with the
    score history (`VISION.md` §5). A silently-shipped rejection is the Ralph Wiggum Loop.
@@ -165,6 +165,11 @@ See `VISION.md` §2 → "Paused project" and `state/journal.md` for full history
   touchRPG's `Assets/Tests/PlayMode/*` compiled fine but the gate never executed them; QA had to run
   PlayMode manually). Not yet fixed. Any task adding PlayMode tests must verify them manually (QA
   evidence step) until the gate itself is extended to cover both platforms.
+- **PlayMode batchmode: `-runTests -testPlatform PlayMode` combined with `-quit` races and silently
+  produces zero tests** (found 2026-07-18, T002's QA evidence pass — exit 0, no TestRunner activity, no
+  results XML; Unity's own auto-quit-when-done raced the explicit `-quit` and won). Same class of trap
+  already known for EditMode (`gate.ps1`'s own comment: `-runTests` must not be combined with `-quit`) —
+  confirmed to also apply to PlayMode. Drop `-quit` when running PlayMode tests manually.
 - **Never `git add` from the home folder** (`C:\Users\user`) — it is an accidental git repo and would
   swallow the whole home directory.
 - Discord resource-scoped routes 403 with `{"code":40333}` unless a real `User-Agent` is sent — every
