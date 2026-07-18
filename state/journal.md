@@ -1039,3 +1039,22 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   selection, guaranteed groggy rush per phase transition, hunt-complete state). MonsterPatternPlayer.cs
   already had a currentPhase field and its own comment marking this exact seam as future work - reused
   that context in the brief rather than re-deriving it. Launched via quality-loop (wf_42ac76c9-d26).
+
+## 2026-07-18 — T003 landed (90/100); balance weights externalized; P0 core loop solo-completable
+- wf_42ac76c9-d26 completed: T003 (P0-C 3-phase session + solo run to completion) passed Gate 2 at
+  90/100 in a single round, exactly at the bar. New classes: HuntPhaseTracker (live HP -> phase, not a
+  manually-set field), PhasePatternSelector (phase-gated weighted selection with a groggy-rush guarantee
+  via forced relay injection at phase entry + a phase-3 pity counter), HuntCompletionController
+  (stop/result-panel/restart on HP=0), PhaseIndicatorUI. Dev tools (TriggerPatternById,
+  AutoPlayToggleButton, PatternTriggerButton) confirmed still working, untouched by the new default path.
+- Round-1 scoring flagged a real MUST violation (C3, -3): PhasePatternSelector's phase-composition
+  weights and relay-pity interval were const/static readonly in code, not externalized (GDD SS0/SS12).
+  Unlike T002's dissolveLead, these WERE already documented in the QA report - purely a structural
+  externalization gap. Fixed via the frugal path: moved into a new PhasePatternWeights ScriptableObject
+  (values unchanged), wired through SceneBuilder. Re-verified Gate 1 green; no re-score needed.
+- This closes P0's core loop: parry core (T001) + full input grammar + all 7 Lampang patterns (T002) +
+  real phase-driven session with a genuine start-to-finish solo hunt (T003). GDD SS10's "손맛" question
+  is now something an actual playtest could validate, not just individual mechanics in isolation.
+- Reported to the director on Discord and asked direction (continue to T004, the last P0 task, or pause
+  at this milestone) rather than deciding autonomously - matches the standing "don't spend big
+  speculatively" decision from 2026-07-17.

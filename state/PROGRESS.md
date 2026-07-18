@@ -28,28 +28,34 @@
   — fixed separately as a frugal follow-up (externalized + documented, no re-score needed since no
   observable behavior changed). Two minor deductions left as noted hardening, not blockers (see
   `backlog/tasks/T002.md` log).
-- **T003 P0-C — 3-phase session + solo run to completion**: **IN PROGRESS**, quality-loop running in the
-  background (`wf_42ac76c9-d26`). Real HP-driven phase transitions, phase-weighted pattern selection,
-  guaranteed groggy rush per transition, hunt-complete end state. This is what makes P0 genuinely
-  completable solo — the precondition for the actual 손맛 playtest. Brief: `backlog/tasks/T003.md`.
+- **T003 P0-C — 3-phase session + solo run to completion**: **DONE** — Gate 1 green (compile 0, EditMode
+  50/50, PlayMode 39/39 manual), **Gate 2 = 90/100** (1 round, exactly at the bar). Real HP-driven phase
+  transitions, phase-gated weighted pattern selection, guaranteed groggy rush per phase (forced injection
+  + pity counter), clean hunt-complete/restart. One MUST violation found (balance weights hardcoded in
+  code, not externalized) — fixed separately as a frugal follow-up (moved to a new `PhasePatternWeights`
+  ScriptableObject, values unchanged, no re-score needed). **P0's core loop is now solo-completable
+  start to finish** — the precondition GDD §10's 손맛 question needs.
 - **Team/system**: unchanged by director's instruction — same agents, same three gates, same rubrics
   (`VISION.md` §3.2), same expert panel (§3.3), same boundaries/failure policy (§4/§5).
 - **Last updated**: 2026-07-18 (in-session)
 
 ## ▶ Next, in this order
-1. **When T003 (`wf_42ac76c9-d26`) lands**: read the result. `ok:true` → mark T003 `done`, commit+push
-   touchRPG, report score to the director on Discord. `ok:false, escalate:true` → do NOT mark done; push
-   to `blocked`, add to Needs Human Review below, tell the director plainly with the score history.
+1. **Report T003 to the director on Discord and ask direction**: score 90/100 + the externalization fix,
+   and note that P0's core loop is now solo-completable — ask whether to continue straight to **T004**
+   (P0-D combat UI completion, the last P0 task) or pause here since a meaningful milestone was just
+   reached. Don't decide this autonomously — this is exactly the kind of "big spend" checkpoint the
+   token-economy decisions (below) call for pausing on.
 2. **Get director/planner confirmation on the 5 provisional numbers** in
    `touchRPG/docs/qa/P0-provisional-gameplay-numbers-REPORT.md` (monster/player HP, basic attack damage,
    P1/medium failure damage) — explained to him in plain terms 2026-07-18, awaiting his call: confirm
    as-is, replace, or defer.
 3. **TBD-14/15 are new and still open** (GDD v0.4 §4.6.1/§4.6.2 — exact shield reduction % + trigger
    condition; exact range-axis mechanism + what stops 총 from structurally dodging melee patterns). Both
-   are implementation-blocking for weapon-differentiation work specifically, **not** for T003/T004 (which
-   don't touch weapon identity or distance yet).
-4. After T003: T004 (P0-D — combat UI completion, unblocked since T001), then P0 is feature-complete and
-   a real solo playtest of the 손맛 question becomes possible.
+   are implementation-blocking for weapon-differentiation work specifically, **not** for T004 (doesn't
+   touch weapon identity or distance).
+4. If the director says continue: T004 (P0-D — combat UI completion, unblocked since T001) is the last
+   P0 task. After that, P0 is feature-complete and a real Gate-3-style solo playtest of the 손맛 question
+   becomes possible (milestone gate, not per-task — `VISION.md` §6).
 5. **Consider resuming the autonomous loop** (`loop.json` → `paused: false` + `/tick`) now that replies
    route through Discord — see Decisions Made 2026-07-18 "Discord reply-drain gap" below. Without the
    loop's own tick cycle draining the inbox, a Discord reply only gets processed when the director
