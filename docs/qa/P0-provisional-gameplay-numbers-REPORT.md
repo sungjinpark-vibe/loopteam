@@ -142,6 +142,24 @@ this here so the planner can override the reading if the ±0.5s framing was inte
 | `MonsterPatternPlayer.dodgeFailureKnockbackDistancePixels` | 160px | GDD §7.2 P3 실패 ("중피해+넉백") names knockback qualitatively but gives no distance/force number. `PlayerToken.KnockbackAwayFrom` reuses the existing dash-speed channel (`dashSpeedMultiplier`, already reported above) for pacing, so only the distance is a new staging value. Round-2 fix (was previously flagged as a scope gap, not built - now built). | `MonsterPatternPlayer.cs` |
 | `MonsterPatternPlayer.groundTelegraphLeadSeconds` | 0.3s | GDD §7.2 P3's "예고" column ("지면 붉은 라인") is now built as `GroundTelegraphLine`, shown briefly before the dodge zone spawns. GDD names no lead-time number for this pre-roll; purely cosmetic pacing, does not change the zone's own judgment window (still `dodgeZoneP3WindowSeconds`, unchanged). Round-2 fix (was previously flagged not built). Color tie-break (blue, not the row text's literal "붉은"/red) documented on `GroundTelegraphLine` and `MonsterPatternStep.showGroundTelegraphLine` - §4.5's fixed C-2=blue channel mapping is treated as canonical over §7.2's informal row prose, since §4.5 explicitly states the 4-channel mapping is MUST/고정 and red is reserved for C-3/relay. | `MonsterPatternPlayer.cs`, `GroundTelegraphLine.cs` |
 
+### T004 fix - previously un-reported inline literals, now externalized (ask)
+
+Gate 2 review of T002 flagged that `MonsterPatternPlayer.ExecuteC1FakeVariant`'s dissolve-lead formula
+for P4 (볼주머니 페이크) used two inline literals that were never added to this report, violating GDD §0
+the same way the values above were correctly reported. This fix relocates them into `P0DemoNumbers`
+alongside the rest of this report's provisional values — **the numbers themselves are unchanged**, only
+their location moved from inline code to the config asset.
+
+| # | Field (`P0DemoNumbers`) | Placeholder used | Why a number was needed now | Question for the planner |
+|---|---|---|---|---|
+| 7 | `p4FakeDissolveLeadFloorSeconds` | 0.5s | Lower bound on how early a P4 fake marker must dissolve relative to its would-be judgment time, so an early tap on a fake can never fall inside a real judgment band. GDD §7.2 gives the qualitative outcome ("가짜 조기 탭 시 카운터 피격") but no timing number. | Is 0.5s the right floor, or should it scale with `goodWindowSeconds` differently? |
+| 8 | `p4FakeDissolveLeadMarginSeconds` | 0.15s | Margin added on top of the live `goodWindowSeconds` in `Mathf.Max(p4FakeDissolveLeadFloorSeconds, goodWindow + p4FakeDissolveLeadMarginSeconds)` — ensures the dissolve point tracks the judgment window's actual size, not just the fixed floor. GDD §7.2 gives no number for this margin. | Is 0.15s the right safety margin above `goodWindowSeconds`? |
+
+Both fields are used together in `MonsterPatternPlayer.ExecuteC1FakeVariant` (line ~358) as
+`Mathf.Max(demoNumbers.p4FakeDissolveLeadFloorSeconds, goodWindow + demoNumbers.p4FakeDissolveLeadMarginSeconds)`
+— the formula itself is unchanged from T002, only its data source moved from inline literals to this
+config asset.
+
 ### TBD list - unchanged
 
 TBD-1/TBD-2/TBD-11/TBD-12/TBD-13 are not touched by this task, per the task's own instruction that they

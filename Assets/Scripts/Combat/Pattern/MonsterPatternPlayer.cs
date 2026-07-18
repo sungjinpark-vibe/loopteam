@@ -303,7 +303,7 @@ namespace TouchRPG.Combat.Pattern
         private IEnumerator ExecuteC1FakeVariant(MonsterPatternStep step)
         {
             if (partRegistry == null || parryMarkerTemplate == null || gameplayConfig == null ||
-                step.parryBeats == null || step.parryBeats.Length == 0)
+                demoNumbers == null || step.parryBeats == null || step.parryBeats.Length == 0)
             {
                 yield break;
             }
@@ -355,7 +355,8 @@ namespace TouchRPG.Combat.Pattern
             // early tap on a fake can never land inside a real judgment band and be
             // mistaken for a genuine parry.
             float goodWindow = gameplayConfig.goodWindowSeconds;
-            float dissolveLead = Mathf.Max(0.5f, goodWindow + 0.15f);
+            float dissolveLead = Mathf.Max(demoNumbers.p4FakeDissolveLeadFloorSeconds,
+                goodWindow + demoNumbers.p4FakeDissolveLeadMarginSeconds);
             float dissolveTime = targetTime - dissolveLead;
 
             while (!marker.IsResolved && Time.time < dissolveTime)

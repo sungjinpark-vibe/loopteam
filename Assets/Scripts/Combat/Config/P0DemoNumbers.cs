@@ -55,5 +55,24 @@ namespace TouchRPG.Combat.Config
                  "is a NEW mechanic, not a re-description of an existing one), so this is a " +
                  "genuinely new placeholder, reported as a fresh ask.")]
         public int chargeAttackDamage = 25;
+
+        [Header("NEW in this task - P4 볼주머니 페이크 dissolve-lead formula (not in GDD)")]
+        [Tooltip("P4 fake-marker dissolve-lead floor (seconds). GDD §7.2 only says '가짜 조기 탭 시 " +
+                 "카운터 피격' - no number for how early the dissolve must happen relative to the " +
+                 "would-be judgment time. Used as the lower bound in " +
+                 "Mathf.Max(p4FakeDissolveLeadFloorSeconds, goodWindow + p4FakeDissolveLeadMarginSeconds) " +
+                 "in MonsterPatternPlayer.ExecuteC1FakeVariant. Relocated from an inline literal " +
+                 "(was 0.5f) - value unchanged, only its location moved. See " +
+                 "docs/qa/P0-provisional-gameplay-numbers-REPORT.md.")]
+        public float p4FakeDissolveLeadFloorSeconds = 0.5f;
+
+        [Tooltip("P4 fake-marker dissolve-lead margin (seconds) added on top of the live " +
+                 "goodWindowSeconds so an early tap on a fake can never land inside a real judgment " +
+                 "band. GDD §7.2 gives no number for this margin. Used in " +
+                 "Mathf.Max(p4FakeDissolveLeadFloorSeconds, goodWindow + p4FakeDissolveLeadMarginSeconds) " +
+                 "in MonsterPatternPlayer.ExecuteC1FakeVariant. Relocated from an inline literal " +
+                 "(was 0.15f) - value unchanged, only its location moved. See " +
+                 "docs/qa/P0-provisional-gameplay-numbers-REPORT.md.")]
+        public float p4FakeDissolveLeadMarginSeconds = 0.15f;
     }
 }
