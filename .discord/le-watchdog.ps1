@@ -14,6 +14,11 @@
 # Registered as Windows scheduled task `LoopEngine-DiscordDaemon-Watchdog`
 # (every 1 minute) => any kill/crash/reboot self-heals within ~60 seconds.
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Kill switch: director disabled the listener 2026-07-19. Delete this file to re-enable
+# (and re-enable the LoopEngine-DiscordDaemon-Watchdog scheduled task).
+if (Test-Path "$dir\DISABLED") { exit 0 }
+
 $hbFile = "$dir\le-daemon-heartbeat.txt"
 
 $fresh = $false
