@@ -5,9 +5,11 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ Active (in-session, director-directed). **Current mission: ENGINE IMPROVEMENT**
-  (director, 2026-07-19). No app project is active. `loop.json` carries `paused: true`; work is
-  direct in-session, not the autonomous `/tick` loop.
+- **Status**: ▶ Active (in-session, director-directed). **Current mission: LIFE TOWN (resumed
+  2026-07-19)** — director's sequence: T009 building polish → T010 gameplay slice → T011 APK.
+  Contract: `lifetown/VISION.md`. Backlog restored from its pause archive (touchRPG's backlog
+  archived to `touchRPG/docs/paused-state/backlog/` first). Discord DISABLED both ways (rule 8:
+  in-session only). Engine-improvement summary below kept for reference.
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,

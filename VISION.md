@@ -31,11 +31,10 @@ bar, and approve or reject.
 project-independent — the gates, rubrics, boundaries, failure policy, standing rules. This section
 never holds project detail again; it only points.
 
-- **Active project: none — the mission is the loop engine itself** (director, 2026-07-19: *"우리 루프
-  엔지니어링 팀의 고도화가 먼저"*). Direction within engine work is set by the director per task.
+- **Active project: Life Town** (RESUMED by the director 2026-07-19) → contract: `lifetown/VISION.md`.
+  Director's sequence: building polish (T009) → playable gameplay slice (T010) → APK build (T011).
 - **Paused** (not cancelled): **touchRPG** (2026-07-19, P0 complete, Gate 3 pending) →
-  `touchRPG/VISION.md`. **Life Town** (2026-07-17, next step already decided: real gameplay) →
-  `lifetown/VISION.md`.
+  `touchRPG/VISION.md`.
 
 **Tick rule**: when a project is active, Step 0 reads the engine `VISION.md` **and** that app's
 `VISION.md` — both, every tick. Paused projects' files are not read (that is the token point).
