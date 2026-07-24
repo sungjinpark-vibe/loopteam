@@ -2,6 +2,8 @@
 # Usage: send.ps1 "message"
 param([Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)][string[]]$Text)
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Kill switch: director disabled ALL Discord I/O 2026-07-19. Delete .discord\DISABLED to re-enable.
+if (Test-Path "$dir\DISABLED") { Write-Output "DISCORD_DISABLED (message not sent)"; exit 1 }
 # Self-heal: make sure our listener daemon is alive before messaging the user
 # (watchdog is idempotent — exits instantly when the heartbeat is fresh).
 try { & "$dir\le-watchdog.ps1" | Out-Null } catch {}

@@ -7,6 +7,8 @@ param(
   [string]$Caption = ""
 )
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Kill switch: director disabled ALL Discord I/O 2026-07-19. Delete .discord\DISABLED to re-enable.
+if (Test-Path "$dir\DISABLED") { Write-Output "DISCORD_DISABLED (file not sent)"; exit 1 }
 try { & "$dir\le-watchdog.ps1" | Out-Null } catch {}
 $cfg = Get-Content "$dir\config.json" -Raw | ConvertFrom-Json
 if (-not (Test-Path $Path)) { Write-Output "ERROR: file not found: $Path"; exit 1 }

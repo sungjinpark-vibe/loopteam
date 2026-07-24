@@ -273,20 +273,16 @@ listener's 100-message window with team chatter and re-create the exact cursor f
    exists and it is needed.
 6. **Every team is member + lead; the lead gates at 90** (§3.2).
 7. **The app ends at the 5-expert playtest gate** (§3.3), not at the PM's judgment.
-8. **Reports to the director go to Discord.** (Superseded 2026-07-18 by the director, in-session:
-   *"지금부터 답변은 디스코드로 해줘."* — overrides the 2026-07-17 in-session-only default below.)
-   - **CURRENT (2026-07-18 →): answer via Discord**, via `.discord\send.ps1` (absolute path), **even
-     when the director is talking in-session.** Do not silently fall back to in-session replies — this
-     was an explicit, unqualified instruction ("from now on"), not a one-off.
-   - The in-session chat window is still fine for quick back-and-forth *during* a live conversation
-     (e.g. this kind of instruction itself, or a clarifying question mid-task) — but the actual
-     deliverable/report/decision-grade summary goes to Discord.
-   - *(Dormant unless the director reverts to it)* — the 2026-07-17 rule was: if talking in-session,
-     answer in-session only, never mirror to Discord; Discord was for when he is away; judge by where he
-     last spoke. That heuristic is **not in effect** while the 2026-07-18 instruction stands. If the
-     director later says something like "다시 세션 안에서 답해줘" or stops mentioning Discord, ask which
-     regime applies rather than silently reverting — the whole point of writing this down is to not
-     re-litigate it from memory.
+8. **Director's channel.**
+   - **CURRENT (2026-07-19 →): Discord fully DISABLED, both directions** (director: *"디스코드로
+     보내거나 요청 받는 부분 모두 비활성화 시켜줘"*). All reports/questions go **in-session only**.
+     Mechanics: `.discord\DISABLED` flag no-ops `send.ps1`/`send-file.ps1`/watchdog; listener daemon
+     stopped; scheduled task `LoopEngine-DiscordDaemon-Watchdog` disabled. To re-enable: delete the
+     flag + re-enable the task.
+   - *(Dormant history, newest first — do not silently revert; ask if unclear)*:
+     2026-07-18: answer via Discord unconditionally, even in-session ("지금부터 답변은 디스코드로").
+     2026-07-17: in-session ⇒ answer in-session only; Discord = away channel; judge by where he last
+     spoke.
    - This does not license blocking. A permission request is sent and the task is marked
      `awaiting-approval`; the loop **moves to the next `ready` task** (§4, §6).
    - The listener must run whenever the team is idle, or a brief simply never arrives.
@@ -342,3 +338,6 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   from its paused-state snapshot). This engine file keeps only project-independent content; §2 is a
   pointer, never project detail. Tick Step 0 reads the engine VISION + the active app's VISION (paused
   apps' files are not read). New-app bootstrap (tick Step 2) writes `<app>/VISION.md` before any code.
+- 2026-07-19 **Discord fully disabled** (director: *"디스코드로 보내거나 요청 받는 부분 모두 비활성화"*):
+  rule 8 now = in-session only. `.discord/DISABLED` flag no-ops send.ps1/send-file.ps1/watchdog;
+  daemon stopped, watchdog task disabled. Inbox-drain steps elsewhere become harmless no-ops.
