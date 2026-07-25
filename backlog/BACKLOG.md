@@ -34,7 +34,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T008 | Add Gym building (lightweight) | `done` | client-dev | — | 1 | Superseded by the all-7-buildings completion (tick 36, gate 81/81). Village v2 accepted by director 2026-07-17 ("실제 게임 동작 진행해줘"). |
 | T009 | Work building polish — wall items readability | `done` | client-dev | build | 1 | Director 2026-07-19: "건물 폴리싱부터 먼저". The known small gap from the pause snapshot: laptop/coffee wall items read less crisply than the other 6 buildings. Frugal path. |
 | T010 | Playable gameplay slice — tap building → timer → growth | `done` | client-dev | build | 2 | Director-approved next step (2026-07-17) + reconfirmed 2026-07-19. Wire Economy.Core (T002) + Platform (T003) + design system (T004) into the village scene. Full quality loop. After T009. |
-| T011 | Build delivery (APK) | `ready` | client-dev | build | 3 | Director 2026-07-19: "게임 플레이 후 빌드 진행". depends_on T010. |
+| T011 | Build delivery (APK) | `done` | client-dev | build | 3 | Director 2026-07-19: "게임 플레이 후 빌드 진행". depends_on T010. |
 
 ## Task file format
 
