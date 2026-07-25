@@ -15,6 +15,11 @@ namespace LifeTown.App.Buildings
     ///    briefcases, coffee cups, folder stacks), every item sized directly from the
     ///    cell's own colWidth/rowHeight so it fills the cell the way the Library's book
     ///    spines do (the explicit fix for the Gym round's "reads sparse" lesson).
+    ///    T009 readability pass: the laptop (<see cref="BuildingPrimitives.CreateLaptop"/>)
+    ///    and the mug (<see cref="BuildingPrimitives.CreateOfficeMug"/>, a Work-wall-only
+    ///    sibling of <see cref="BuildingPrimitives.CreateCoffeeCup"/>) were rebuilt flat-
+    ///    fronted and dark-bezel/tri-tone framed -- the earlier hinge-tilt laptop and
+    ///    smooth-blob mug both nearly vanished into the wall at village zoom.
     /// 2. Roof = a PLAIN warm gable topped by a big briefcase (<see cref="BuildingPrimitives.CreateBriefcase"/>)
     ///    on the ridge -- the single silhouette element that says "Work" at a glance.
     /// 3. Coquette touch: exactly one pink coffee mug, loose on the ground by the entrance
@@ -148,15 +153,15 @@ namespace LifeTown.App.Buildings
             {
                 case 0:
                     BuildingPrimitives.CreateLaptop($"Laptop_{seed}", parent,
-                        new Vector3(cellCenterX, rowBaseY, itemZ), colWidth * 0.86f, rowHeight * 0.55f, rowHeight * 0.82f, 98f, laptopBody, screenGlow);
+                        new Vector3(cellCenterX, rowBaseY, itemZ), colWidth * 0.90f, rowHeight * 0.55f, rowHeight * 0.88f, laptopBody, screenGlow);
                     break;
                 case 1:
                     BuildingPrimitives.CreateBriefcase($"Briefcase_{seed}", parent,
                         new Vector3(cellCenterX, rowBaseY, itemZ), colWidth * 0.85f, rowHeight * 0.90f, depth * 0.6f, briefcaseBody, briefcaseTrim, handleGrey);
                     break;
                 case 2:
-                    BuildingPrimitives.CreateCoffeeCup($"Cup_{seed}", parent,
-                        new Vector3(cellCenterX, rowBaseY, itemZ), colWidth * 0.32f, rowHeight * 0.70f, cupColor, lidColor, steamColor);
+                    BuildingPrimitives.CreateOfficeMug($"Cup_{seed}", parent,
+                        new Vector3(cellCenterX, rowBaseY, itemZ), colWidth * 0.52f, rowHeight * 0.76f, cupColor, lidColor, steamColor);
                     break;
                 default:
                     int count = Mathf.Max(5, Mathf.RoundToInt(rowHeight * 0.9f / 0.026f));

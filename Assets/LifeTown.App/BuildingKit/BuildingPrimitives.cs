@@ -1007,33 +1007,36 @@ namespace LifeTown.App.BuildingKit
         // ---- Work: laptops / briefcases / coffee cups / folder stacks ----
 
         /// <summary>
-        /// An open laptop: a flat deck (keyboard) with a lid tilted up from a hinge at the
-        /// back edge and a glowing screen inset proud of the lid's front face -- the Work
-        /// wall's strongest cue.
+        /// An open laptop: a keyboard deck flush against the wall topped by an upright
+        /// screen, dark-bezel framed -- the same "frame wraps a smaller pane" cue
+        /// <see cref="CreateArchedWindow"/> uses for glass, applied here so the glow reads
+        /// as a screen instead of a stray colored smudge. v2 (T009 readability pass): v1
+        /// hinged the lid backward by `openAngle` degrees past vertical, which at this
+        /// wall-mounted scale tipped the screen face away from the iso camera almost
+        /// entirely -- it rendered as a near-invisible edge-on sliver (the reported "reads
+        /// less crisp than the Library/Gym" gap). Standing the screen flat-fronted (no
+        /// rotation at all) removes that failure mode outright, matching how every other
+        /// wall-cladding item in this kit (book spines, folder stacks) is flat-fronted too.
         /// </summary>
-        public static GameObject CreateLaptop(string name, Transform parent, Vector3 baseCenter, float width, float depth, float screenHeight, float openAngle, Color bodyColor, Color screenGlow)
+        public static GameObject CreateLaptop(string name, Transform parent, Vector3 baseCenter, float width, float depth, float screenHeight, Color bodyColor, Color screenGlow)
         {
             var group = new GameObject(name);
             group.transform.SetParent(parent, false);
             group.transform.position = baseCenter;
 
-            float deckThickness = depth * 0.18f;
+            float deckThickness = depth * 0.34f; // chunkier than v1's 0.18f -- v1 read as a thin sliver
             CreateAccentBox($"{name}_Deck", group.transform, new Vector3(width, deckThickness, depth), baseCenter, bodyColor);
 
-            Vector3 hinge = new Vector3(baseCenter.x, baseCenter.y + deckThickness, baseCenter.z - depth * 0.5f);
-            var rotation = Quaternion.Euler(-openAngle, 0f, 0f);
-            float lidThickness = deckThickness * 0.7f;
+            float bezelDepth = depth * 0.6f;
+            Vector3 bezelBase = new Vector3(baseCenter.x, baseCenter.y + deckThickness, baseCenter.z);
+            Color bezelColor = Color.Lerp(bodyColor, Color.black, 0.55f); // dark frame -- the contrast that makes the glow read as a screen
+            CreateAccentBox($"{name}_Bezel", group.transform, new Vector3(width, screenHeight, bezelDepth), bezelBase, bezelColor);
 
-            Vector3 lidCenter = hinge + rotation * (Vector3.up * (screenHeight * 0.5f));
-            var lid = CreateAccentBox($"{name}_Lid", group.transform, new Vector3(width, screenHeight, lidThickness),
-                lidCenter - Vector3.up * (lidThickness * 0.5f), bodyColor);
-            lid.transform.rotation = rotation;
-
-            float screenPanelHeight = screenHeight * 0.76f;
-            Vector3 screenCenter = lidCenter + rotation * (Vector3.forward * (lidThickness * 0.5f + 0.005f));
-            var screen = CreateAccentBox($"{name}_Screen", group.transform, new Vector3(width * 0.8f, screenPanelHeight, 0.006f),
-                screenCenter - Vector3.up * (screenPanelHeight * 0.5f), screenGlow);
-            screen.transform.rotation = rotation;
+            float marginY = screenHeight * 0.14f;
+            float screenPanelHeight = screenHeight - marginY * 2f;
+            float screenFrontZ = baseCenter.z + bezelDepth * 0.5f + 0.006f;
+            Vector3 screenBase = new Vector3(baseCenter.x, bezelBase.y + marginY, screenFrontZ);
+            CreateAccentBox($"{name}_Screen", group.transform, new Vector3(width * 0.78f, screenPanelHeight, 0.008f), screenBase, screenGlow);
 
             return group;
         }
@@ -1096,6 +1099,44 @@ namespace LifeTown.App.BuildingKit
 
             var steam = CreateAccentBlob($"{name}_Steam", group.transform, radius * 0.28f, new Vector3(baseCenter.x, baseCenter.y + height + radius * 0.5f, baseCenter.z), steamColor);
             steam.transform.localScale = new Vector3(0.8f, 1.2f, 0.8f);
+
+            return group;
+        }
+
+        /// <summary>
+        /// A crisp, wall-mounted mug for the Work wall's item cells -- a tri-tone box body
+        /// (<see cref="CreateShadedBoxCustomTones"/>) instead of <see cref="CreateCoffeeCup"/>'s
+        /// smooth icosahedron blob, which has no light/dark face split and no hard edge --
+        /// at village zoom it read as a blank cream oval, not a cup (the reported "reads
+        /// less crisp than the Library/Gym" gap). A separate primitive, not a rework of
+        /// CreateCoffeeCup in place, because that one is also the Mind building's tea cup
+        /// and Work's own ground-prop cup -- both out of this task's scope. The lid band on
+        /// a chunky block is the same cue the Library's title band and the Gym's plate rim
+        /// both use.
+        /// </summary>
+        public static GameObject CreateOfficeMug(string name, Transform parent, Vector3 baseCenter, float width, float height, Color cupColor, Color lidColor, Color steamColor)
+        {
+            var group = new GameObject(name);
+            group.transform.SetParent(parent, false);
+            group.transform.position = baseCenter;
+
+            float depth = width * 0.85f;
+            float lidHeight = height * 0.22f;
+            float bodyHeight = height - lidHeight;
+            CreateShadedBoxCustomTones($"{name}_Body", group.transform, new Vector3(width, bodyHeight, depth), baseCenter,
+                Color.Lerp(cupColor, Color.white, 0.25f), Color.Lerp(cupColor, Color.white, 0.08f), Color.Lerp(cupColor, Color.black, 0.12f));
+
+            CreateAccentBox($"{name}_Lid", group.transform, new Vector3(width * 1.04f, lidHeight, depth * 1.04f),
+                new Vector3(baseCenter.x, baseCenter.y + bodyHeight, baseCenter.z), lidColor);
+
+            float handleWidth = width * 0.22f;
+            float handleHeight = bodyHeight * 0.6f;
+            CreateAccentBox($"{name}_Handle", group.transform, new Vector3(handleWidth, handleHeight, depth * 0.16f),
+                new Vector3(baseCenter.x + width * 0.5f + handleWidth * 0.5f, baseCenter.y + bodyHeight * 0.2f, baseCenter.z), lidColor);
+
+            var steam = CreateAccentBlob($"{name}_Steam", group.transform, width * 0.22f,
+                new Vector3(baseCenter.x, baseCenter.y + height + width * 0.3f, baseCenter.z), steamColor);
+            steam.transform.localScale = new Vector3(0.8f, 1.3f, 0.8f);
 
             return group;
         }
