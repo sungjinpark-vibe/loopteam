@@ -273,12 +273,11 @@ listener's 100-message window with team chatter and re-create the exact cursor f
 6. **Every team is member + lead; the lead gates at 90** (§3.2).
 7. **The app ends at the 5-expert playtest gate** (§3.3), not at the PM's judgment.
 8. **Director's channel.**
-   - **CURRENT (2026-07-19 →): Discord fully DISABLED, both directions** (director: *"디스코드로
-     보내거나 요청 받는 부분 모두 비활성화 시켜줘"*). All reports/questions go **in-session only**.
-     Mechanics: `.discord\DISABLED` flag no-ops `send.ps1`/`send-file.ps1`/watchdog; listener daemon
-     stopped; scheduled task `LoopEngine-DiscordDaemon-Watchdog` disabled. To re-enable: delete the
-     flag + re-enable the task.
+   - **CURRENT (2026-07-19, re-enabled): Discord back on, both directions** (director: *"디스코드
+     살려주고"*, after briefly disabling it the same day). `.discord\DISABLED` flag removed; watchdog
+     task `LoopEngine-DiscordDaemon-Watchdog` re-enabled; listener daemon confirmed alive.
    - *(Dormant history, newest first — do not silently revert; ask if unclear)*:
+     2026-07-19 (same day, ~1hr): briefly fully disabled both directions — superseded, above.
      2026-07-18: answer via Discord unconditionally, even in-session ("지금부터 답변은 디스코드로").
      2026-07-17: in-session ⇒ answer in-session only; Discord = away channel; judge by where he last
      spoke.
@@ -340,3 +339,5 @@ listener's 100-message window with team chatter and re-create the exact cursor f
 - 2026-07-19 **Discord fully disabled** (director: *"디스코드로 보내거나 요청 받는 부분 모두 비활성화"*):
   rule 8 now = in-session only. `.discord/DISABLED` flag no-ops send.ps1/send-file.ps1/watchdog;
   daemon stopped, watchdog task disabled. Inbox-drain steps elsewhere become harmless no-ops.
+- 2026-07-19 **Discord re-enabled** (director: *"디스코드 살려주고"*), same day as the disable — rule 8
+  updated in place; both directions confirmed live (heartbeat fresh, mockup image sent successfully).
