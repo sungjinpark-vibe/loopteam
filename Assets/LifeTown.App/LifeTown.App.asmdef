@@ -3,6 +3,7 @@
     "rootNamespace": "LifeTown.App",
     "references": [
         "LifeTown.Economy.Core",
+        "LifeTown.Platform",
         "Unity.ProBuilder"
     ],
     "includePlatforms": [],

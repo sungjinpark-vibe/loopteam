@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using LifeTown.App.BuildingKit;
 using LifeTown.App.Buildings;
@@ -57,31 +58,44 @@ namespace LifeTown.App.Village
         static readonly (float x, float rowZ)[] FrontColumns = { (-1.5f * Spacing, RowZ), (-0.5f * Spacing, RowZ), (0.5f * Spacing, RowZ), (1.5f * Spacing, RowZ) };
         static readonly (float x, float rowZ)[] BackColumns = { (-Spacing, -RowZ), (0f, -RowZ), (Spacing, -RowZ) };
 
-        public static GameObject Build(Transform parent)
+        public static GameObject Build(Transform parent) => Build(parent, out _);
+
+        /// <summary>
+        /// Same composition as <see cref="Build(Transform)"/>, plus the per-category
+        /// GameObject map (T010: the gameplay wiring needs to know which cottage IS the
+        /// "reading" building etc. to attach a tap target to it) -- kept as a second
+        /// overload rather than changing the return type so every existing call site
+        /// (<see cref="LifeTown.App.Editor.SpikeRenderer"/>'s static PNG renders) is
+        /// untouched.
+        /// </summary>
+        public static GameObject Build(Transform parent, out Dictionary<BuildingCategory, GameObject> buildingsByCategory)
         {
             var root = new GameObject("Village");
             root.transform.SetParent(parent, false);
 
             BuildGround(root.transform);
 
+            var byCategory = new Dictionary<BuildingCategory, GameObject>();
+
             // ---- Front row: natural orientation -- +Z decorated wall and door already
             // face this camera, no rotation needed (see class doc, lesson 1). ----
-            LibraryBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[0].x, 0f, RowZ));
-            StudyBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[1].x, 0f, RowZ));
-            GymBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[2].x, 0f, RowZ));
-            WorkBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[3].x, 0f, RowZ));
+            byCategory[BuildingCategory.Reading] = LibraryBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[0].x, 0f, RowZ));
+            byCategory[BuildingCategory.Study] = StudyBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[1].x, 0f, RowZ));
+            byCategory[BuildingCategory.Exercise] = GymBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[2].x, 0f, RowZ));
+            byCategory[BuildingCategory.Work] = WorkBuildingBuilder.Build(root.transform, new Vector3(FrontColumns[3].x, 0f, RowZ));
 
             // ---- Back row: same natural orientation -- their +Z front wall faces
             // toward the plaza/front row, so these doors read as facing the shared
             // space, while the front row's face the outer approach. ----
-            HobbyBuildingBuilder.Build(root.transform, new Vector3(BackColumns[0].x, 0f, -RowZ));
-            MindBuildingBuilder.Build(root.transform, new Vector3(BackColumns[1].x, 0f, -RowZ));
-            GameBuildingBuilder.Build(root.transform, new Vector3(BackColumns[2].x, 0f, -RowZ));
+            byCategory[BuildingCategory.Hobby] = HobbyBuildingBuilder.Build(root.transform, new Vector3(BackColumns[0].x, 0f, -RowZ));
+            byCategory[BuildingCategory.Mind] = MindBuildingBuilder.Build(root.transform, new Vector3(BackColumns[1].x, 0f, -RowZ));
+            byCategory[BuildingCategory.Game] = GameBuildingBuilder.Build(root.transform, new Vector3(BackColumns[2].x, 0f, -RowZ));
 
             BuildPathNetwork(root.transform);
             BuildPlazaProps(root.transform);
             BuildGroundDetails(root.transform);
 
+            buildingsByCategory = byCategory;
             return root;
         }
 

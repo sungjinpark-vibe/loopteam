@@ -4,6 +4,7 @@
     "references": [
         "LifeTown.App",
         "LifeTown.Economy.Core",
+        "LifeTown.Platform",
         "Unity.ProBuilder"
     ],
     "includePlatforms": [

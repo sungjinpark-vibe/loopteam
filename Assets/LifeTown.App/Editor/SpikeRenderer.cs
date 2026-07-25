@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using LifeTown.App.BuildingKit;
 using LifeTown.App.Buildings;
+using LifeTown.App.Game;
 using LifeTown.App.Scene;
 using LifeTown.App.Village;
 
@@ -201,7 +204,8 @@ namespace LifeTown.App.Editor
                     cameraDistance: 16f,
                     focusHeight: 0.22f);
 
-                VillageLayoutBuilder.Build(null);
+                var villageRoot = VillageLayoutBuilder.Build(null, out var buildingsByCategory);
+                WireVillageController(villageRoot, buildingsByCategory, cam);
 
                 SaveSceneAsset(scene, sceneAssetPath);
 
@@ -289,6 +293,26 @@ namespace LifeTown.App.Editor
                 }
                 if (tex != null) UnityEngine.Object.DestroyImmediate(tex);
             }
+        }
+
+        /// <summary>
+        /// T010: attaches a live <see cref="VillageController"/> to the village root the
+        /// screenshot pipeline just built, wired to the same 7 cottages via
+        /// <see cref="VillageLayoutBuilder.Build(Transform, out Dictionary{BuildingCategory, GameObject})"/>'s
+        /// category map. The screenshot render itself never enters Play Mode so this
+        /// component stays inert for that purpose -- but because it is baked into the
+        /// saved scene asset (<see cref="SaveSceneAsset"/> below), opening
+        /// SpikeVillageV2.unity by hand and pressing Play makes the tap -&gt; timer -&gt;
+        /// settle -&gt; growth loop live, without any separate hookup step.
+        /// </summary>
+        static void WireVillageController(GameObject villageRoot, Dictionary<BuildingCategory, GameObject> buildingsByCategory, Camera cam)
+        {
+            var links = new List<CategoryBuildingLink>();
+            foreach (var kvp in buildingsByCategory)
+                links.Add(new CategoryBuildingLink { categoryId = kvp.Key.ToString().ToLowerInvariant(), buildingRoot = kvp.Value });
+
+            var controller = villageRoot.AddComponent<VillageController>();
+            controller.Configure(links, cam);
         }
 
         static void SaveSceneAsset(UnityEngine.SceneManagement.Scene scene, string sceneAssetPath)
