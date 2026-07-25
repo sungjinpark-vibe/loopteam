@@ -5,14 +5,11 @@
 > everything project-independent: the three gates, rubrics, boundaries, failure policy, standing rules.
 > When Life Town is the **active** project, the tick reads BOTH files (engine first, then this).
 >
-> **Status: PAUSED 2026-07-17** (director switched to touchRPG). NOT cancelled. Where it stopped:
-> 7 category buildings + village v2, gate-green 81/81. **The next step is already decided** — the
-> director approved *"실제 게임 동작 진행해줘"* (2026-07-17): proceed to real gameplay (tap building →
-> timer → growth/build; wire Economy.Core T002 + Platform T003 + design system T004 into the village)
-> → playable slice → Gate 3. **Do not re-ask polish-vs-gameplay on resume.**
-> Full pause state: `docs/paused-state/` (PROGRESS cockpit with resume banner, backlog + task files).
-> **To resume**: point the engine's `state/loop.json` `project` here, restore the backlog, run the
-> gameplay task.
+> **Status: ACTIVE — resumed 2026-07-19** (paused 2026-07-17 → 07-19 for touchRPG + engine work).
+> Where it stood at resume: 7 category buildings + village v2, gate-green 81/81.
+> Director's resume sequence (2026-07-19): **building polish (T009) → playable gameplay slice
+> (T010: tap building → timer → growth; wire Economy.Core T002 + Platform T003 + design system T004)
+> → APK build (T011)** → eventually Gate 3. Pause-era archive: `docs/paused-state/`.
 
 ## The project
 
