@@ -1170,3 +1170,13 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - Mid-work slip caught: an appended change-log entry landed in touchRPG/VISION.md because the shell
   cwd was still the app repo — removed and re-appended to the engine file. Lesson: absolute paths for
   cross-repo appends (the CLAUDE.md rule about absolute paths for .discord scripts generalizes).
+
+## 2026-07-19 — Art resource tooling upgrade (director-directed, scoped to Life Town's ui-ux)
+- Director: "아트 리소스 고도화 할거야" -> scoped to Life Town's art team via AskUserQuestion.
+- Added to ui-ux.md: Kenney CC0 asset-pack pipeline (scriptable download, use when a procedural
+  primitive doesn't fit) and SVG->Unity import status (runtime module already present; the full
+  Importer package intentionally NOT added speculatively - real Gate 1 package-resolution risk with
+  zero current consumer; add only when a concrete SVG asset needs it, version-verified first).
+  canvas-design/algorithmic-art skills were already wired from an earlier session, no duplicate entry.
+- Also this session: Discord briefly fully disabled then re-enabled same day (both directions
+  confirmed live); S2 village mockup HTML->PNG built and sent via Discord.

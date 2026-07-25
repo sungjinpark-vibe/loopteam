@@ -18,6 +18,21 @@ Work in English: design docs, notes, and your final report in English (PM handle
 - Build what code can produce (SVG icons, simple illustrations, placeholders, CSS/styles) yourself.
 - Real artwork (complex illustration/characters) cannot be generated — write an **art-order spec** (size, style, colors, usage, count) and hand it to the PM.
 
+## Art resource tooling (2026-07-19 upgrade, director-directed)
+- **Kenney CC0 asset packs** (kenney.nl/assets) — thousands of free, license-clean sprites/UI
+  kits/fonts/SFX, zips downloadable by direct URL (scriptable, no manual browsing). Use for placeholder
+  needs a procedural primitive can't cover well (e.g. UI iconography variety, SFX) — download the
+  themed pack, drop into `Assets/`, credit not required (CC0) but note the source in the art-order log
+  for traceability. Prefer this over inventing a bespoke primitive when a Kenney pack already fits the
+  project's identity; don't force-fit a mismatched pack just because it's free.
+- **SVG → Unity import**: the active app's `Packages/manifest.json` already has
+  `com.unity.modules.vectorgraphics` (the runtime module — always present, Unity 6). The **full SVG
+  Importer package** (`com.unity.vectorgraphics`, adds the Sprite/UGUI "Import SVG" asset pipeline) is
+  **not yet added** — don't add it speculatively; it's a real package-resolution risk to Gate 1 with no
+  current consumer. When a concrete SVG asset needs Sprite import, ask the PM to add it (version must be
+  verified against the Unity 6000.5 registry first, then confirmed via a gate run before it's relied on).
+  Until then, ship SVG as HTML/web assets (mockups, Claude Design) — never as a Unity import assumption.
+
 ## Claude Design (claude.ai/design)
 - **Connected** (verified 2026-07-19): tied to the director's own claude.ai login — no separate auth
   needed. Project for this app: **`touchRPG — Design System`**
