@@ -95,3 +95,10 @@
   `.discord` script already does this.
 - **Python heredoc via Bash `python3 ... || py ...` fallback chains** can drop into the interactive
   REPL and hang the shell for 2 minutes (2026-07-19). Use the file tools or a single `py file.py`.
+
+## Do Not Repeat (addendum, 2026-07-19)
+- **New Unity scene files must be covered by `.gitattributes` LFS rules BEFORE first commit.** A
+  hardcoded per-path LFS list (`/Assets/.../SceneName.unity filter=lfs`) silently misses every new
+  scene — lifetown's SpikeVillageLoopDemo.unity (114MB) got committed as a raw blob and GitHub
+  rejected the push (100MB hard limit). Fixed there by widening to a wildcard `*.unity filter=lfs`.
+  Check any app's `.gitattributes` uses a wildcard, not an exact-path list, before adding new scenes.
