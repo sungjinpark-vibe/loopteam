@@ -1104,39 +1104,70 @@ namespace LifeTown.App.BuildingKit
         }
 
         /// <summary>
-        /// A crisp, wall-mounted mug for the Work wall's item cells -- a tri-tone box body
-        /// (<see cref="CreateShadedBoxCustomTones"/>) instead of <see cref="CreateCoffeeCup"/>'s
-        /// smooth icosahedron blob, which has no light/dark face split and no hard edge --
-        /// at village zoom it read as a blank cream oval, not a cup (the reported "reads
-        /// less crisp than the Library/Gym" gap). A separate primitive, not a rework of
-        /// CreateCoffeeCup in place, because that one is also the Mind building's tea cup
-        /// and Work's own ground-prop cup -- both out of this task's scope. The lid band on
-        /// a chunky block is the same cue the Library's title band and the Gym's plate rim
-        /// both use.
+        /// A crisp, wall-mounted mug for the Work wall's item cells. v2 (T009 gate re-fix --
+        /// v1 of this primitive used a tri-tone BOX body and scored A1/A4/A5 deductions:
+        /// "renders as a cream cuboid / paper-stack shape... no cup body, no visible
+        /// handle... reads as a generic box, not a designed object." The gate note pointed
+        /// back at v1's OWN <see cref="CreateCoffeeCup"/> blob ("blobby but cup-ish") as the
+        /// better silhouette -- so this keeps that round, front-facing-cylinder body (same
+        /// flattened-icosahedron technique CreateCoffeeCup's body uses) but bigger, with a
+        /// terracotta accent rim (the one warm accent the gate asked for, distinct from the
+        /// wall's gold-heavy palette instead of repeating it) and a real D-ring handle loop
+        /// (two posts + an outer bar -- the same three-box loop <see cref="CreateKettlebell"/>
+        /// uses for its handle, just built along X/Y instead of around the top) in place of
+        /// the old small flat handle nub. Still a separate primitive from CreateCoffeeCup
+        /// (also the Mind building's tea cup and Work's own ground-prop cup -- both out of
+        /// this task's scope), not a rework of it in place.
         /// </summary>
-        public static GameObject CreateOfficeMug(string name, Transform parent, Vector3 baseCenter, float width, float height, Color cupColor, Color lidColor, Color steamColor)
+        public static GameObject CreateOfficeMug(string name, Transform parent, Vector3 baseCenter, float width, float height, Color cupColor, Color accentColor, Color steamColor)
         {
             var group = new GameObject(name);
             group.transform.SetParent(parent, false);
             group.transform.position = baseCenter;
 
-            float depth = width * 0.85f;
-            float lidHeight = height * 0.22f;
-            float bodyHeight = height - lidHeight;
-            CreateShadedBoxCustomTones($"{name}_Body", group.transform, new Vector3(width, bodyHeight, depth), baseCenter,
-                Color.Lerp(cupColor, Color.white, 0.25f), Color.Lerp(cupColor, Color.white, 0.08f), Color.Lerp(cupColor, Color.black, 0.12f));
+            float radius = width * 0.5f;
+            float bodyHeight = height * 0.86f;
 
-            CreateAccentBox($"{name}_Lid", group.transform, new Vector3(width * 1.04f, lidHeight, depth * 1.04f),
-                new Vector3(baseCenter.x, baseCenter.y + bodyHeight, baseCenter.z), lidColor);
+            // Body: a squat, front-facing cylinder -- kept round on purpose (the gate's own
+            // "blobby but cup-ish v1 read better than a cuboid" note), just bigger/chunkier.
+            var body = CreateAccentBlob($"{name}_Body", group.transform, radius,
+                new Vector3(baseCenter.x, baseCenter.y + bodyHeight * 0.5f, baseCenter.z), cupColor);
+            body.transform.localScale = new Vector3(1f, bodyHeight / (radius * 2f), 0.8f);
 
-            float handleWidth = width * 0.22f;
-            float handleHeight = bodyHeight * 0.6f;
-            CreateAccentBox($"{name}_Handle", group.transform, new Vector3(handleWidth, handleHeight, depth * 0.16f),
-                new Vector3(baseCenter.x + width * 0.5f + handleWidth * 0.5f, baseCenter.y + bodyHeight * 0.2f, baseCenter.z), lidColor);
+            // Rim: a terracotta accent band capping the body -- the single warm-accent
+            // contrast cue the gate asked for.
+            float rimRadius = radius * 0.98f;
+            var rim = CreateAccentBlob($"{name}_Rim", group.transform, rimRadius,
+                new Vector3(baseCenter.x, baseCenter.y + bodyHeight, baseCenter.z), accentColor);
+            rim.transform.localScale = new Vector3(1f, (bodyHeight * 0.30f) / (rimRadius * 2f), 0.8f);
 
-            var steam = CreateAccentBlob($"{name}_Steam", group.transform, width * 0.22f,
-                new Vector3(baseCenter.x, baseCenter.y + height + width * 0.3f, baseCenter.z), steamColor);
-            steam.transform.localScale = new Vector3(0.8f, 1.3f, 0.8f);
+            // Handle: a D-ring loop on the +X side (bottom post, top post, outer bar) --
+            // reads as an actual handle at render scale, unlike v1's small flat nub. Pushed
+            // clear of the body's own silhouette on BOTH axes that matter: past the body's
+            // true X radius (not just past its scaled-down 0.85 -- the earlier version sat
+            // its inner edge almost exactly on the body's equator) and proud in Z of the
+            // body's front-most surface (baseCenter.z + radius*0.8) -- v1's un-offset Z put
+            // the whole loop at the body's own depth, so the body's opaque blob won the
+            // z-test and hid it completely (the actual cause of the gate's "no visible
+            // handle" note, not just size).
+            float postThickness = radius * 0.32f;
+            float handleReach = radius * 1.1f;
+            float handleSpan = bodyHeight * 0.6f;
+            float handleZ = baseCenter.z + radius * 0.95f;
+            float bodyEdgeX = baseCenter.x + radius * 1.05f;
+            float postCenterX = bodyEdgeX + handleReach * 0.5f;
+            float loopBottomY = baseCenter.y + bodyHeight * 0.5f - handleSpan * 0.5f;
+            float loopTopY = loopBottomY + handleSpan;
+            CreateAccentBox($"{name}_HandleLo", group.transform, new Vector3(handleReach, postThickness, postThickness),
+                new Vector3(postCenterX, loopBottomY, handleZ), accentColor);
+            CreateAccentBox($"{name}_HandleHi", group.transform, new Vector3(handleReach, postThickness, postThickness),
+                new Vector3(postCenterX, loopTopY, handleZ), accentColor);
+            CreateAccentBox($"{name}_HandleOuter", group.transform, new Vector3(postThickness, handleSpan + postThickness, postThickness),
+                new Vector3(bodyEdgeX + handleReach, loopBottomY, handleZ), accentColor);
+
+            var steam = CreateAccentBlob($"{name}_Steam", group.transform, radius * 0.26f,
+                new Vector3(baseCenter.x, baseCenter.y + height + radius * 0.4f, baseCenter.z), steamColor);
+            steam.transform.localScale = new Vector3(0.8f, 1.2f, 0.8f);
 
             return group;
         }

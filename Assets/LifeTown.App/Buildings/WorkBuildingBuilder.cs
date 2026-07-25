@@ -16,10 +16,13 @@ namespace LifeTown.App.Buildings
     ///    cell's own colWidth/rowHeight so it fills the cell the way the Library's book
     ///    spines do (the explicit fix for the Gym round's "reads sparse" lesson).
     ///    T009 readability pass: the laptop (<see cref="BuildingPrimitives.CreateLaptop"/>)
-    ///    and the mug (<see cref="BuildingPrimitives.CreateOfficeMug"/>, a Work-wall-only
-    ///    sibling of <see cref="BuildingPrimitives.CreateCoffeeCup"/>) were rebuilt flat-
-    ///    fronted and dark-bezel/tri-tone framed -- the earlier hinge-tilt laptop and
-    ///    smooth-blob mug both nearly vanished into the wall at village zoom.
+    ///    was rebuilt flat-fronted and dark-bezel framed -- the earlier hinge-tilt laptop
+    ///    nearly vanished into the wall at village zoom. The mug
+    ///    (<see cref="BuildingPrimitives.CreateOfficeMug"/>, a Work-wall-only sibling of
+    ///    <see cref="BuildingPrimitives.CreateCoffeeCup"/>) went through two rounds: v1's
+    ///    tri-tone BOX body gated at 83/100 ("reads as a generic box, not a cup"), so v2
+    ///    went back to a round front-facing-cylinder body with a terracotta accent rim and
+    ///    a proper D-ring handle loop instead.
     /// 2. Roof = a PLAIN warm gable topped by a big briefcase (<see cref="BuildingPrimitives.CreateBriefcase"/>)
     ///    on the ridge -- the single silhouette element that says "Work" at a glance.
     /// 3. Coquette touch: exactly one pink coffee mug, loose on the ground by the entrance
@@ -82,14 +85,14 @@ namespace LifeTown.App.Buildings
             BuildingPrimitives.CreateItemWall("FrontOffice", root.transform, frontWallSize, frontWallBase, wallBacking, columns: 10, rows: 2,
                 (cellParent, cx, rowBaseY, rowHeight, colWidth, depth, cellFrontZ, seed) =>
                     BuildOfficeCell(cellParent, cx, rowBaseY, rowHeight, colWidth, depth, cellFrontZ, seed,
-                        laptopBody, screenGlow, briefcaseBody, briefcaseTrim, handleGrey, cupColor, lidColor, steamColor, folderColors, tabColor));
+                        laptopBody, screenGlow, briefcaseBody, briefcaseTrim, handleGrey, cupColor, potColor, steamColor, folderColors, tabColor));
 
             Vector3 sideWallSize = new Vector3(bodySize.z * 0.90f, bodySize.y * 0.74f, 0.05f);
             Vector3 sideWallBase = new Vector3(sideX + 0.012f, baseOrigin.y + bodySize.y * 0.10f, baseOrigin.z);
             var sideWall = BuildingPrimitives.CreateItemWall("SideOffice", root.transform, sideWallSize, sideWallBase, wallBacking, columns: 6, rows: 2,
                 (cellParent, cx, rowBaseY, rowHeight, colWidth, depth, cellFrontZ, seed) =>
                     BuildOfficeCell(cellParent, cx, rowBaseY, rowHeight, colWidth, depth, cellFrontZ, seed,
-                        laptopBody, screenGlow, briefcaseBody, briefcaseTrim, handleGrey, cupColor, lidColor, steamColor, folderColors, tabColor));
+                        laptopBody, screenGlow, briefcaseBody, briefcaseTrim, handleGrey, cupColor, potColor, steamColor, folderColors, tabColor));
             sideWall.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
 
             Vector3 roofBaseCenter = new Vector3(baseOrigin.x, wallTopY, baseOrigin.z);
@@ -144,7 +147,7 @@ namespace LifeTown.App.Buildings
         /// comes from ALWAYS filling the cell from its own colWidth/rowHeight, not from a
         /// majority/minority mix like the Library's spines).</summary>
         static void BuildOfficeCell(Transform parent, float cellCenterX, float rowBaseY, float rowHeight, float colWidth, float depth, float cellFrontZ, int seed,
-            Color laptopBody, Color screenGlow, Color briefcaseBody, Color briefcaseTrim, Color handleGrey, Color cupColor, Color lidColor, Color steamColor, Color[] folderColors, Color tabColor)
+            Color laptopBody, Color screenGlow, Color briefcaseBody, Color briefcaseTrim, Color handleGrey, Color cupColor, Color mugAccent, Color steamColor, Color[] folderColors, Color tabColor)
         {
             float itemZ = cellFrontZ - depth * 0.15f;
             int cellType = seed % 4;
@@ -161,7 +164,7 @@ namespace LifeTown.App.Buildings
                     break;
                 case 2:
                     BuildingPrimitives.CreateOfficeMug($"Cup_{seed}", parent,
-                        new Vector3(cellCenterX, rowBaseY, itemZ), colWidth * 0.52f, rowHeight * 0.76f, cupColor, lidColor, steamColor);
+                        new Vector3(cellCenterX, rowBaseY, itemZ), colWidth * 0.62f, rowHeight * 0.86f, cupColor, mugAccent, steamColor);
                     break;
                 default:
                     int count = Mathf.Max(5, Mathf.RoundToInt(rowHeight * 0.9f / 0.026f));
