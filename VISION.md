@@ -31,13 +31,14 @@ bar, and approve or reject.
 project-independent — the gates, rubrics, boundaries, failure policy, standing rules. This section
 never holds project detail again; it only points.
 
-- **No active project** (2026-08-02 — director paused Life Town, "이 프로젝트 중단하자"). Both apps are
-  paused, not cancelled:
+- **Active project: app_in_toss** (created 2026-08-02) — a Toss mini-app: Fortune-City-style gamified
+  가계부 (household ledger), React/TS/Vite stack (**approved exception** to rule 7.5's Unity default —
+  Apps-in-Toss only supports Unity for the game category). T001 (MVP spec) in progress.
+  → `app_in_toss/VISION.md`.
   - **Life Town** (paused 2026-08-02): T001-T011 done, T012 unfinished mid-decision (landmark art
     pivoting to 2D illustration) → `lifetown/VISION.md`.
   - **touchRPG** (paused 2026-07-19, P0 complete, Gate 3 pending) → `touchRPG/VISION.md`.
-  Do not invent new work for either while paused — wait for the director to resume one or start
-  something new.
+  Both paused apps stay as-is — do not invent new work for them while app_in_toss is active.
 
 **Tick rule**: when a project is active, Step 0 reads the engine `VISION.md` **and** that app's
 `VISION.md` — both, every tick. Paused projects' files are not read (that is the token point).
@@ -350,3 +351,9 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   real Fortune City reference screenshots showed the reference is 2D card art, not 3D models — paused
   before that pivot was implemented. §2 updated to "no active project"; full detail archived in
   `lifetown/docs/paused-state/`.
+- 2026-08-02 **New project: app_in_toss** (director, same day as the Life Town pause): a Toss mini-app
+  gamified household ledger, adapting Fortune City's spend-tracking → city-growth loop. Stack is
+  React/TS/Vite via `create-ait-app` — an **approved exception** to rule 7.5 (Unity-only), since
+  Apps-in-Toss only supports Unity for the game category. §2 updated to point at
+  `app_in_toss/VISION.md`. T001 (MVP spec, `planner`, explore mode) opened. A client-dev rubric
+  adaptation (C3/C4, Unity criteria → React/TS criteria) is proposed there, pending director approval.

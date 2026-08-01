@@ -5,9 +5,14 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ⏸ IDLE — no active project (2026-08-02, director: *"이 프로젝트 중단하자"*, confirmed scope
-  = the whole Life Town project). Both apps paused; wait for the director to resume one or start
-  something new. Do not invent work. Discord ENABLED both ways (rule 8, current).
+- **Status**: ▶ ACTIVE — **app_in_toss** (created 2026-08-02, director: Fortune-City-style gamified
+  가계부 as a Toss mini-app). T001 (MVP spec, planner/explore) in progress. Stack = React/TS/Vite via
+  `create-ait-app` (director-approved exception to the Unity-only rule, since Apps-in-Toss only
+  supports Unity for games). A rubric adaptation (client-dev C3/C4) is proposed in
+  `app_in_toss/VISION.md`, pending director approval — do not run a build-mode task against it until
+  that lands. **Known gap**: `gate/gate.ps1` is Unity-only; no Node/React gate script exists yet —
+  must be written (and `quality-loop.js` parameterized to accept it) before any T002+ build task.
+  Life Town and touchRPG remain paused, untouched. Discord ENABLED both ways (rule 8, current).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,
@@ -25,10 +30,14 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **Report engine-improvement results to the director** (research lists + rtk/ponytail verdict +
-   token restructure) and get his pick on what to adopt/build first. Do not adopt libraries or start
-   speculative engine work without it.
-2. Remaining token work if approved: CLAUDE.md dedup trim (~20KB, loaded into every context).
+1. **T001** (app_in_toss MVP spec) — running via quality-loop (explore mode). On pass, send the spec
+   summary + the stack/rubric approvals to the director.
+2. **Before any T002+ (build mode) task**: write a Node/React mechanical gate script (npm install,
+   `tsc --noEmit`, `vite build`, tests if any) with the same JSON/exit-code contract as `gate/gate.ps1`,
+   and add a `gateScript` param to `quality-loop.js` (currently hardcodes the Unity gate's path at
+   quality-loop.js:512) so it can select the right one per project.
+3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
+   2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
 ## Open Items
 - **Discord reply-drain gap** (2026-07-18, twice): with the loop paused, a Discord reply sits unread
@@ -66,11 +75,14 @@
   instance's outcome.
 
 ## Next Run Should
-1. **Wait for the director to resume a project or bring a new one.** Nothing is `ready` in the backlog
-   (it's empty/idle-state while both apps are paused) — go idle rather than inventing work.
-2. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19). The
-   2026-07-18 standing grant expired with P0 — it does not cover engine work.
-3. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch.
+1. **Pick up T001** (app_in_toss MVP spec) if not yet landed; report its result to the director.
+2. Once T001's spec lands and is approved, plan T002 — but write the Node/React gate script first
+   (see ▶ Next above), or the first build-mode task will hang with no way to clear Gate 1.
+3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
+   lower priority than app_in_toss now).
+4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
+   (`app_in_toss` pushes to `origin/app_in_toss` on the shared `loopteam` remote, same pattern as
+   touchRPG/lifetown).
 
 ## Decisions Made (standing — full history in journal)
 - **Channel rule (CURRENT, 2026-07-18)**: *"지금부터 답변은 디스코드로 해줘"* — report to Discord even

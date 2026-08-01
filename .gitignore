@@ -2,6 +2,7 @@
 # (add each app folder as it is created, same rule as app-dev-team)
 /lifetown/
 /touchRPG/
+/app_in_toss/
 
 # ── From .claude, track team agents + skills + workflows + project settings ──
 .claude/*
