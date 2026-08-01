@@ -6,10 +6,13 @@
 
 ## Current State
 - **Status**: ▶ Active (in-session, director-directed). **Current mission: LIFE TOWN (resumed
-  2026-07-19)** — director's sequence: T009 building polish → T010 gameplay slice → T011 APK.
-  Contract: `lifetown/VISION.md`. Backlog restored from its pause archive (touchRPG's backlog
-  archived to `touchRPG/docs/paused-state/backlog/` first). Discord DISABLED both ways (rule 8:
-  in-session only). Engine-improvement summary below kept for reference.
+  2026-07-19)** — T009→T010→T011 all done (APK v0.0.9 delivered). **Now: T012 art resource upgrade
+  (2026-08-01)** — director wants art quality raised using the newly-installed local Blender (MCP
+  connection verified live). ui-ux granted `mcp__blender` tool access; T012 targets one Blender-modeled
+  village landmark (D11 scope, never built). Runs through the same Gate 2 structure (아트팀장 scores),
+  **passMark raised to 95** for this task only, director's explicit instruction. Quality-loop launched
+  in background 2026-08-01; on pass, PM sends the evidence screenshots to the director on Discord
+  (director's explicit ask). Contract: `lifetown/VISION.md`. Discord ENABLED both ways (rule 8, current).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,

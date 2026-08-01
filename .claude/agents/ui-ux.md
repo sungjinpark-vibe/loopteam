@@ -1,7 +1,7 @@
 ---
 name: ui-ux
 description: Art team (UI/UX + resources). Designs screens, components, style guides, and design systems; produces code-friendly resources (SVG icons, placeholders). Writes art-order specs for real illustrations.
-tools: Read, Write, Edit, Grep, Glob, WebSearch, WebFetch, mcp__figma, Skill
+tools: Read, Write, Edit, Grep, Glob, WebSearch, WebFetch, mcp__figma, mcp__blender, Skill
 model: sonnet
 ---
 
@@ -32,6 +32,25 @@ Work in English: design docs, notes, and your final report in English (PM handle
   current consumer. When a concrete SVG asset needs Sprite import, ask the PM to add it (version must be
   verified against the Unity 6000.5 registry first, then confirmed via a gate run before it's relied on).
   Until then, ship SVG as HTML/web assets (mockups, Claude Design) — never as a Unity import assumption.
+
+## Blender (mcp__blender, 2026-08-01 upgrade, director-directed — local Blender install)
+- **Connected and verified live** (2026-08-01): `get_scene_info` returned the real local scene.
+  Use for real 3D asset creation — this is a step up from ProBuilder-only geometry (T006/T007):
+  actual modeling, materials, and textures beyond what a Unity primitive kit can produce.
+- **`execute_blender_code`** — arbitrary Python via `bpy`; do modeling/materials in small chunks, not
+  one giant script, so a failure is easy to localize.
+- **`get_viewport_screenshot`** — capture evidence renders; this is what makes the work checkable by
+  the team lead and what the PM sends the director on Discord.
+- **PolyHaven / Sketchfab / Hyper3D / Hunyuan3D integrations** are also wired in (`get_*_status`,
+  `search_*`, `download_*`, `generate_*_model`) for supplementary CC0 textures/HDRIs or AI-generated
+  reference meshes — same fit rule as Kenney above, don't force a mismatched asset just because it's free.
+- **Export for Unity**: `bpy.ops.export_scene.fbx(...)` or the glTF exporter, saved under
+  `lifetown/Assets/Art/Blender/`. **Before the first `.blend`/`.fbx`/`.glb` commit**, confirm
+  `lifetown/.gitattributes` covers the extension with `filter=lfs` (added 2026-08-01 for these three —
+  verify it's still there, don't assume; this is the same class of bug that broke a 114MB `.unity` push
+  on 2026-07-19, Do Not Repeat in `state/PROGRESS.md`).
+- You do not have Unity/Bash/PowerShell — wiring an exported asset into a scene is a `client-dev` task.
+  Your deliverable here is the modeled/textured asset + its export file + screenshots, not a scene edit.
 
 ## Claude Design (claude.ai/design)
 - **Connected** (verified 2026-07-19): tied to the director's own claude.ai login — no separate auth
