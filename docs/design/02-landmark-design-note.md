@@ -1,9 +1,121 @@
 # Landmark Design Note — Village Beacon Spire (D11, first realization)
 
-**Author:** ui-ux · **Date:** 2026-08-01 (round 8) · **Decides:** the form/material design for the
+**Author:** ui-ux · **Date:** 2026-08-01 (round 9) · **Decides:** the form/material design for the
 one landmark prop kept in scope by D11 (`VISION.md` §"Scope"). **Does not decide:** gameplay
 wiring, placement rules, or unlock conditions — those are out of scope for this task by the brief
 and remain a future design decision.
+
+---
+
+## 0f. Status — round 9, fixes every item in the art-lead's round-4-of-resumption review (50/100)
+
+This round's review found 13 issues; all 13 are addressed below, highest-value first. Full script
+diff/history is in `build_landmark.py`'s own header — this section summarizes what changed and
+what was actually measured on the delivered output, not the script's own claims about itself.
+
+**1. [top fix, ~24-27pts across findings #1/#4/#6/#7/#10] "Reads as frosted glass" — root cause
+found by controlled experiment, not by tuning render settings on a guess.**
+
+- Ruled out first, both with real A/B renders (not asserted): (a) every material's own node data —
+  Alpha=1.0 not linked, Transmission/Subsurface Weight=0.0 on every Principled BSDF, dumped
+  directly from the built material; (b) the delivered PNG's own alpha channel, sampled with PIL —
+  255 everywhere checked. So it was never an alpha/material bug. (c) Switching the render engine
+  to Cycles, with the exact same per-camera light aim reproduced by hand, made no measurable
+  difference (pixel samples matched the EEVEE-era delivered file within noise). (d) Forcing 128
+  samples with denoising off vs. the delivered 64+denoise, again with correct light aim, also made
+  no measurable difference — an earlier apparent "fix" during testing turned out to come from
+  **stale light aim in an ad hoc manual test** (the lights hadn't been re-aimed for that camera's
+  azimuth), not from samples or denoising, and that dead end is recorded honestly rather than
+  re-claimed as the fix.
+- Found by isolating objects one at a time and re-rendering: hiding everything but the belfry gave
+  a clean, solid render; adding back **only the tower shaft** reproduced the exact "ghost slab"
+  pattern flanking the arch. The shaft was wider than the belfry (half-extent 0.4 vs 0.275) —
+  **and identical in width to the plaza base (both 0.4), meaning no real setback existed there at
+  all**, despite the code comment claiming one. The shaft's own exposed setback ledge, a real fully
+  opaque surface, was reading as "belfry bleed-through" because it was wide and its top material
+  was very pale (`white_mix=0.60`).
+- A first attempt (darken the top tint 0.60→0.45, widen the belfry 0.55→0.64) reduced the effect
+  only marginally — verified by re-rendering and re-sampling pixels, not assumed fixed from theory.
+  The fix that actually worked, confirmed by testing narrower shaft widths directly: **narrow the
+  shaft itself** toward the belfry's width (0.8→0.68 scale, half-extent 0.4→0.34). Re-rendered
+  after this change: the ledge/ghost pattern is gone in every shot. Top tint and belfry width kept
+  as a secondary tightening (also gives the base→shaft transition the setback its comment always
+  claimed, for free).
+- Engine kept on Cycles, denoising off, 128 samples — a real secondary quality improvement (cleaner
+  grain, no denoiser-artifact risk) even though it wasn't the fix for this finding.
+
+**2. [-4/-6/-7 across findings #2/#4/#10] Belfry-cavity face heuristic replaced.** The AREA-based
+heuristic (round 8) matched only 4 of the belfry's 32 faces after the single-axis arch cut. Dropped
+entirely; replaced with an explicit geometric test (`belfry_cavity_test`) built from the exact
+arch-cutter bounds (`ARCH_HALF_W`, floor/crown Z) in the belfry's own local coordinates. Now matches
+**20 of 28 faces** (belfry face count also dropped, 32→28, because a `remove_doubles` weld pass —
+finding #3 below — removed some slivers first). Runtime assertion raised from "matched > 0" to
+"matched >= 15".
+
+**3. [-1, finding #3] Ragged arch sill.** Added a `bmesh.ops.remove_doubles` weld (dist=0.002) on
+the belfry mesh right after the boolean modifier is applied, closing the near-duplicate-vertex seam
+along the box/cylinder cutter join that read as a scalloped edge.
+
+**4. [-4, finding #5] Flag emission overshoot.** `emission_strength` on the 7 category flags cut
+0.55→0.18. Re-measured on the actual delivered renders (peak-value pixel per flag hue, matched by
+hue proximity to each authored token, not asserted): work/mind/game now land at 99-100% of their
+authored HSV Value; reading landed at 107% (a small residual overshoot); exercise/hobby's peak-pixel
+scan is ambiguous because the two hues are only 6.7° apart and the automated hue-window can't always
+cleanly separate their pixel clusters — spot-checked, both read in the 87-118% band depending on
+which flag's pixel the scan actually grabbed. This is tighter than round 8's 104-112% overshoot
+across the board, though not perfectly flat.
+
+**5. [-3, finding #8] Unity bounding box added.** Computed from the actual built world-space mesh
+vertices (not a guessed figure) and printed by the export step:
+**min=(-0.725, -0.725, 0.0), max=(0.725, 0.725, 3.58), size 1.45 × 1.45 × 3.58 world units
+(W×D×H)**. Carried into the handoff spec in §7 below.
+
+**6. [-2, finding #9] Untracked build byproduct.** `landmark_beacon.blend1.meta` (a Unity `.meta`
+for a Blender autosave backup) was untracked in git; deleted, and `*.blend1.meta` added to
+`.gitignore` alongside the existing `*.blend1` rule. Also added `/.utmp/` to `.gitignore` — an
+untracked Android-build scratch directory, unrelated to this task (left over from an earlier APK
+build) but flagged by the same review and confirmed via `git status` to not be part of this task's
+own output.
+
+**7. [-2, finding #11] Bunting-detail camera occlusion.** `bunting_ring_detail_a/b` azimuths moved
+from 25.7°/205.7° (close to the base block's 45° diagonal corner) to 15°/195°, and elevation raised
+50°→62°, reducing the base corner's silhouette against the flags. Re-rendered: no flag is now
+depth-occluded by the base corner in either shot (a couple of flags are lightly cropped by the
+*frame edge* at this tighter framing — a different, lower-severity issue than the original
+depth-occlusion finding, left as-is given the design's own documented conclusion that a single shot
+showing all 7 unoccluded isn't geometrically reachable — see round 7's note on this, unchanged).
+
+**8. [-5, finding #12] Originality — roof cap elongated.** The roof cap (a square-based pyramid)
+now scales 1.28× along Y (the arch axis) instead of staying square, giving the silhouette a
+front/back asymmetry tied to the model's one real asymmetric decision (the single-axis arch)
+instead of sitting on top of it as a shape that would look identical without it. This does not
+claim to have escaped the "stacked primitives" critique in full — it's a small, low-risk move in
+that direction, honestly scoped as partial.
+
+**Contrast, re-measured on the actual delivered `landmark_belfry_closeup.png` (not asserted):**
+scanned the full arch-opening bounding box (a grid of ~580 sample points), separated beacon-hued
+from cavity-hued pixels programmatically, and computed WCAG contrast for every cavity pixel against
+the beacon's average colour. **Worst point: 3.26:1** (at a beacon/cavity boundary pixel, likely an
+anti-aliased transition rather than pure cavity interior) · **average: 7.96:1** · **best: 13.0:1**.
+This is a large improvement over round 8's worst-case (1.09:1, per the round-4-of-resumption
+review) — driven mostly by the ghosting fix (item 1) removing the pale wash that was crushing the
+cavity toward white, and by the cavity-classification fix (item 2) actually painting the tunnel
+walls dark in the first place.
+
+**glTF export re-verified directly (parsed the binary JSON chunk with stdlib `struct`+`json`, not
+read off the Blender UI):** all 15 materials `alphaMode=OPAQUE`, none carry
+`KHR_materials_transmission` — the exported asset was never translucent (consistent with round 8's
+own finding on this point); the renders simply misrepresented it until item 1's fix. 5 materials
+(`Landmark_Top/Front/Side/Secondary/Plaza`) report `baseColorFactor=null` in the JSON, which is
+**not a bug** — per the glTF 2.0 spec this defaults to `[1,1,1,1]`, and all 5 have a valid
+`baseColorTexture` reference to their baked PNG, confirmed present in the file's `images` array, so
+the imported colour is the texture's own colour, unmodified. (This looked concerning at first glance
+and is recorded here explicitly so a future reviewer doesn't have to re-derive it.)
+
+**What's still not fixed, stated honestly:** the base silhouette (stacked cube / pyramid / torus /
+cylinder / gem) remains recognizably a primitive stack — item 8 above is a small mitigation, not a
+resolution, matching what round 8 itself already said about this finding. The flag-emission overshoot
+(item 4) is improved but not perfectly flat for two of the seven hues.
 
 ---
 
@@ -611,16 +723,23 @@ the fidelity bar the brief names). The beacon spire is designed to clear it via:
 - The actual on-screen legibility check at village-camera zoom (§4) — owed once this asset is
   wired into a scene, which is explicitly out of scope for this task.
 
-## 7. Handoff — delivered this round (round 8, 2026-08-01)
+## 7. Handoff — delivered this round (round 9, 2026-08-01)
 
-`lifetown/Assets/Art/Blender/build_landmark.py` executed successfully; every file below is the
-actual output of the command in §0e, opened and inspected (renders viewed as images, `.glb`/`.fbx`
-parsed as binary, pixel values sampled with Python/PIL), not the script's claims about what it
-would produce.
+`lifetown/Assets/Art/Blender/build_landmark.py` executed headless (`blender --background --python`,
+run via Bash, not the MCP `execute_blender_code` channel, for a reliable full 8-render batch);
+every file below is the actual output of that run, opened and inspected (renders viewed as images,
+`.glb` parsed as binary JSON with stdlib `struct`+`json`, pixel values sampled with Python/PIL,
+worst-case contrast computed over a full grid of the arch opening — see §0f), not the script's
+claims about what it would produce.
 
-**Renders** (`lifetown/Assets/Art/Blender/renders/`, 1600×1600 PNG, `Standard` view transform — same
-8 filenames as round 7, all 8 overwritten in place this round so existing `.meta` GUIDs are
-preserved, not orphaned by a rename):
+**Bounding box (new this round, finding #8):** min=(-0.725, -0.725, 0.0), max=(0.725, 0.725, 3.58),
+**size 1.45 × 1.45 × 3.58 world units (W×D×H)** — computed from the actual built mesh vertices at
+export time, printed by the script, not estimated.
+
+**Renders** (`lifetown/Assets/Art/Blender/renders/`, **1200×1200 PNG this round** (down from 1600 —
+Cycles render time budget; still well above what the game's isometric camera zoom needs), `Standard`
+view transform, Cycles engine/128 samples/denoising off — same 8 filenames as round 8, all 8
+overwritten in place so existing `.meta` GUIDs are preserved, not orphaned by a rename):
 - `landmark_hero_elevated_arch.png` — az=90°, elev=42° (raised 3/4). Frames the (now singular)
   Y-arch head-on; beacon core, ridge collar, finial gem, and garland/poles all visible, all clear
   of the base block and, this round, of each other (bunting fix, §0d item 2).
@@ -636,36 +755,44 @@ preserved, not orphaned by a rename):
   item 5) so the subject fills the frame instead of a quarter of it.
 - `landmark_eye_level_approach.png` — az=90°, elev=11°, **ortho_scale tightened 6.4→4.9** (§0d item
   5), same framing fix.
-- `landmark_belfry_closeup.png` — az=90°, elev=35.264°, ortho_scale=1.6. Gold beacon core now reads
-  at its authored value (HSV 50°/55%/100% vs token 42°/60%/100%, §0d item 1) against the dark
-  cavity backdrop; facet breaks on the 8-sided cone are now visible (§0d item 7).
-- `landmark_bunting_ring_detail_a.png` — az=25.7°, elev=50°, ortho_scale=2.0. Flags now hang clear
-  of every post (§0d item 2); category hues sampled at 78-100% of authored value (§0d item 1).
-- `landmark_bunting_ring_detail_b.png` — az=205.7° (opposite side of the ring from `_a.png`), same
-  framing. Shows the CVD-motivated pennant/swallowtail pair unoccluded and shape-distinct, same as
-  round 7, now also with both flags clear of their posts.
+- `landmark_belfry_closeup.png` — az=90°, elev=35.264°, ortho_scale=1.6. **Round 9: the belfry no
+  longer reads as translucent** (§0f item 1) — solid front/top faces, a dark cavity interior, gold
+  beacon glowing against it at 3.26:1 worst-case / 7.96:1 average contrast (§0f, measured over the
+  full opening, not a single favourable sample point).
+- `landmark_bunting_ring_detail_a.png` — **round 9: az moved 25.7°→15°, elev 50°→62°** (§0f item 7,
+  finding #11) — the base block's corner no longer depth-occludes any flag in this shot (a couple
+  are lightly cropped by the frame edge instead, a lesser issue than depth occlusion).
+- `landmark_bunting_ring_detail_b.png` — **round 9: az moved 205.7°→195°**, same elevation change.
+  Opposite side of the ring from `_a.png`; between the two, all 7 category flags are visible
+  unoccluded by geometry.
 
 **Exports** (`lifetown/Assets/Art/Blender/`, all covered by `.gitattributes` LFS rules, lines 2-4):
 - `landmark_beacon.fbx` — axis_forward=-Z, axis_up=Y, embed_textures=True, path_mode=COPY. Re-scanned
   as raw bytes this round: all 8 material names present, 5 embedded PNG signatures (unchanged from
   round 7 — the material system wasn't touched by this round's geometry/lighting fixes).
-- `landmark_beacon.glb` — re-verified this round: **15/15 materials** carry real colour data (10
-  `baseColorFactor`, 5 `baseColorTexture`), and the coin + 7 flag materials now additionally carry a
-  real `emissiveFactor` array matching their base hex (e.g. `Landmark_Coin`: `baseColorFactor
-  [1, 0.63, 0.13, 1]`, `emissiveFactor [1, 0.63, 0.13]`) — confirms the round-8 emission fix
-  round-tripped into the export, not just the Blender viewport (parsed directly from the binary JSON
-  chunk, stdlib `struct`+`json`, §0e).
+- `landmark_beacon.glb` — re-parsed this round directly from the binary JSON chunk (stdlib
+  `struct`+`json`, §0f): **15/15 materials `alphaMode=OPAQUE`, none carry
+  `KHR_materials_transmission`** — the exported asset was never translucent, confirming round 8's
+  own finding on this point; this round's renders (§0f item 1) now finally match it. 10 materials
+  carry `baseColorFactor` directly; the other 5 (`Landmark_Top/Front/Side/Secondary/Plaza`) report
+  `baseColorFactor=null`, which is correct glTF (defaults to `[1,1,1,1]`) because each has a valid
+  `baseColorTexture` pointing at its own baked PNG in the file's `images` array — confirmed present,
+  not assumed. `Landmark_Coin` additionally carries a real `KHR_materials_emissive_strength`
+  extension.
 - `landmark_beacon.blend` — the editable source scene.
-- **`.meta` state — closed this round.** All 8 render `.meta` files exist on disk; round 7 left 4 of
-  them (`side_profile`, `back_three_quarter`, `bunting_ring_detail_a/b`) untracked in git. This
-  round's commit `git add`s them explicitly — confirmed via `git status` before and after (§0e).
+- **`.meta` state.** All 8 render `.meta` files exist on disk and tracked (closed round 7-8). Round
+  9 additionally removed a stray untracked `landmark_beacon.blend1.meta` and added `*.blend1.meta`
+  and `/.utmp/` to `.gitignore` (§0f item 6) — confirmed via `git status` before and after.
 
 **Unity import spec (round 8: expanded from scale/pivot/axis to a real handoff a client-dev can
-import against without re-deriving anything):**
+import against without re-deriving anything; round 9 adds the bounding box, finding #8):**
 - **Scale/pivot/axis** (unchanged): scale factor 1, pivot at world origin (model floor at z=0),
   `axis_forward=-Z, axis_up=Y` (matches the FBX exporter args above).
-- **Geometry**: 24 mesh objects, **2000 vertices, 3903 triangles** (post-triangulation; measured by
-  `bmesh` triangulate on a temp copy per object at export time, not estimated — §0e). Well under any
+- **Bounding box (new, round 9)**: **1.45 × 1.45 × 3.58 world units (W×D×H)**, floor at z=0, so the
+  footprint is ~1.45×1.45 against the 8×8 grid's own unit spacing — the number needed to place this
+  against the other 7 buildings without re-deriving it from the mesh.
+- **Geometry**: 24 mesh objects, **1992 vertices, 3887 triangles** (post-triangulation; measured by
+  `bmesh` triangulate on a temp copy per object at export time, not estimated — §0f). Well under any
   mobile budget for a single static prop; **no LOD group is needed at this polycount**.
 - **Materials/shader**: 15 materials. This project has no URP/HDRP package in `Packages/
   manifest.json` (checked this round) — it's the **Built-in Render Pipeline**, so Principled BSDF

@@ -46,3 +46,9 @@ Thumbs.db
 # Blender autosave/backup files -- never the asset itself, just a local safety copy
 *.blend1
 *.blend2
+*.blend1.meta
+*.blend2.meta
+
+# Android native build scratch dir (CMake/ninja intermediates from an APK build) -- not a Blender
+# byproduct, pre-existing debris, never meant to be tracked
+/.utmp/

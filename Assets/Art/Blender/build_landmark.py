@@ -4,9 +4,61 @@ Design source: lifetown/docs/design/02-landmark-design-note.md (read that first 
 is the literal execution of the form/token decisions made there, nothing here is a new design
 call).
 
-STATUS (T012 round 7, 2026-08-01): EXECUTED and verified this round. Fixes every item in the
-art-lead's round-2-of-resumption review (score 55/100), highest-value first (full detail + measured
-numbers in docs/design/02-landmark-design-note.md SS0b/SS0c):
+STATUS (T012 round 9, 2026-08-01): EXECUTED and verified this round. Fixes every item in the
+art-lead's round-4-of-resumption review (score 50/100), highest-value first (full detail + measured
+numbers in docs/design/02-landmark-design-note.md's round-9 section):
+
+  1. [top fix, A1/A2/A4, ~24pts across findings #1/#4/#6/#7/#10] Every render showed solid surfaces
+     as translucent (spire visible over the roof cap, a pale ghost slab flanking the belfry,
+     contrast collapsing to ~1.1:1 in the arch opening). Diagnosed by controlled experiment, not
+     guessing: (a) dumped every Principled BSDF input on the actual built material -- Alpha=1.0 not
+     linked, Transmission/Subsurface Weight=0.0 -- and confirmed the delivered PNG's own alpha
+     channel reads 255 everywhere sampled, so it was never a material/alpha bug; (b) switching the
+     render engine to Cycles was tried and, with correct per-camera light re-aim reproduced exactly,
+     made no measurable difference (A/B pixel samples matched within noise); (c) forcing 128 samples
+     with denoising off vs the delivered 64+denoise also made no measurable difference under
+     correct lighting -- the earlier apparent "fix" during testing turned out to come from stale
+     (wrong-azimuth) light aim in an ad hoc manual test, not from samples/denoising, and that ruling
+     out is recorded honestly here rather than re-claimed as the fix; (d) isolating objects one at a
+     time (hide everything but the belfry -> clean; add back only the tower shaft -> reproduces the
+     exact ghost pattern) found the real cause: the shaft was wider than the belfry (half-extent
+     0.4 vs 0.275, and identical to the plaza base's own 0.4 -- no setback existed there at all),
+     so its own exposed setback ledge -- a real, fully opaque surface -- was reading as "belfry
+     bleed-through", worsened by a very pale ledge-top material (white_mix 0.60). A first attempt
+     (darken the top tint + widen the belfry alone) reduced the effect only marginally -- verified
+     by re-rendering and re-sampling, not assumed fixed on theory. The confirmed fix, found by
+     testing narrower/wider shaft widths directly and re-rendering each: narrow the SHAFT itself
+     toward the belfry's width (0.8->0.68 scale, half-extent 0.4->0.34) -- re-render after this
+     change shows the ledge/ghost pattern gone entirely. Top tint (white_mix 0.60->0.45) and belfry
+     width (0.55->0.64) kept as a secondary, complementary tightening. Render engine kept on Cycles
+     with denoising off at 128 samples anyway (a real, if secondary, quality improvement -- cleaner
+     grain, no denoiser risk -- just not the fix for this finding; both engine and denoiser
+     hypotheses were tried and ruled out by controlled A/B renders before the true cause was found).
+  2. [A1/A2/A4, -4/-6/-7 across findings #2/#4/#10] The belfry-cavity face heuristic (face AREA)
+     stopped working once the belfry was cut on a single axis (round 8) -- 4/32 faces matched
+     instead of the intended tunnel wall set. Replaced with an explicit geometric test
+     (`belfry_cavity_test`) built from the exact arch-cutter bounds (ARCH_HALF_W, floor/crown Z) in
+     the belfry's own local coordinates, with a runtime assertion (>=15 faces) instead of a bare
+     non-zero check.
+  3. [A2, -4, finding #5] Flag `emission_strength` (0.55) was tuned against the pre-round-7 lighting
+     rig and, layered on top of round 7's already-fixed key/fill/ambient balance, overshot several
+     authored tokens by 5-9 HSV points on the lit side. Cut to 0.18 -- enough of a shadow-side floor
+     without re-brightening the lit side past its token.
+  4. [A3, -3, finding #8] Added a computed world-space bounding box (min/max/size) to the export
+     diagnostics, for the Unity handoff spec's missing placement number.
+  5. [A1, -1, finding #3] Added a `remove_doubles` weld pass on the belfry after the boolean arch
+     cut, closing the near-duplicate-vertex seam that read as a ragged/wavy arch sill.
+  6. [A5, -5, finding #12] Elongated the roof cap along the arch axis (Y) instead of leaving it a
+     square pyramid -- a small, low-risk move away from the templated stacked-primitive silhouette,
+     tying the roofline to the model's one real asymmetric decision (the single-axis arch) instead
+     of sitting on top of it as a shape that would look identical without it.
+  7. [A1/A4, -2, finding #11] Moved the bunting-detail camera azimuths further from the base
+     block's diagonal corner and raised their elevation, so the corner occludes fewer of the 7
+     flags per shot.
+  8. [A3, -2, finding #9] Removed the untracked `landmark_beacon.blend1.meta` byproduct and added
+     it plus the pre-existing (unrelated) `.utmp/` Android build-scratch dir to `.gitignore`.
+
+Round 7 fixes (score 55->this round's starting point), kept for history:
 
   1. [top fix, A1/A4/A5] Bunting ring_r was only checked against the STEPS half-width (0.725), never
      against the PLAZA BASE block's own corner reach (0.7071 at the old base scale) -- the thing the
@@ -418,7 +470,12 @@ for block_type in (bpy.data.meshes, bpy.data.materials, bpy.data.cameras, bpy.da
 # 2. Materials (top/front/side shading formula + accents; 2 authored texture motifs)
 # ---------------------------------------------------------------------------
 
-mat_top = make_material("Landmark_Top", COLOR_PRIMARY, white_mix=0.60, roughness=0.5,
+# Round-9 fix (see the belfry-block comment below for the full root-cause writeup): white_mix
+# lowered 0.60 -> 0.45. The very pale (60% toward white) top tint was indistinguishable enough
+# from the belfry's own front face at a glance that the tower shaft's exposed setback ledge (a
+# real, fully opaque surface, confirmed by isolating objects one at a time and re-rendering) read
+# as the belfry "bleeding through" instead of a visible stepped shelf behind it.
+mat_top = make_material("Landmark_Top", COLOR_PRIMARY, white_mix=0.45, roughness=0.5,
                          textured=True, motif="blotch", variation=0.06, seed=1)
 mat_front = make_material("Landmark_Front", COLOR_PRIMARY, white_mix=0.25, roughness=0.55,
                            textured=True, motif="blotch", variation=0.07, seed=2)
@@ -444,31 +501,36 @@ mat_plaza = make_material("Landmark_Plaza", COLOR_SURFACE_RAISED, white_mix=0.0,
 # contrast recompute in the design note SS4, sampled from the actual render below, not asserted).
 mat_cavity = make_material("Landmark_Cavity", COLOR_TEXT_PRIMARY, white_mix=0.0, roughness=0.7)
 mat_cord = make_material("Bunting_Cord", COLOR_TEXT_PRIMARY, roughness=0.85)
-# Round-8 top fix: emission_strength=0.55 on every flag keeps a shadow-side flag from collapsing
-# below ~80% of its authored HSV value (art-lead findings #6/#13: #FFB37A measured at value 45%,
-# #FFD066 at 72%) regardless of which side of the ring the camera catches.
+# Round-9 fix (art-lead round-4-of-resumption finding #5, -4): round 8's emission_strength=0.55
+# was tuned against the OLD (round-7) key/fill/ambient rig to establish a shadow-side floor, but
+# it ADDS to whatever the lit side already gets from that rig rather than only lifting the dark
+# side -- on lit faces it overshot the authored token (exercise measured V=91 vs authored 83,
+# hobby V=84 vs 75, lavender V=100 vs 94, cyan V=96 vs 91). Round 7's own fix (narrower 1.5:1
+# key/fill ratio + raised world ambient) already closed most of the lit/shadow gap on its own, so
+# the floor no longer needs to be this strong -- cut to 0.18, low enough to stay a floor instead
+# of a brightener on the lit side (re-measured against the actual render below, not asserted).
 mat_flags = [
-    make_material(f"Bunting_{i}", hexv, white_mix=0.0, roughness=0.65, emission_strength=0.55)
+    make_material(f"Bunting_{i}", hexv, white_mix=0.0, roughness=0.65, emission_strength=0.18)
     for i, hexv in enumerate(CATEGORY_HEXES)
 ]
 
 
-def assign_shading_formula(obj, cavity_mat=None):
+def assign_shading_formula(obj, cavity_test=None, cavity_mat=None):
     """Assign top/front/side materials to a cuboid mesh by face normal, per the locked shading
     formula (front = +Y facing, side = everything else horizontal, top = +Z facing). If
-    cavity_mat is given, the small tunnel-wall facets left by the belfry's boolean arch cut are
-    treated as cavity/reveal faces instead (see AREA_CUTOFF below).
+    `cavity_test` is given (a callable `f(face) -> bool`), faces it accepts are treated as
+    cavity/reveal faces instead of top/front/side.
 
-    History (kept because both were real, silently-wrong attempts, not hypothetical):
-    round-5.1 measured each face's distance from the vertical Z axis -- wrong, the tunnels run
-    horizontally (along X and Y), so it matched 0 faces (confirmed via the exported glTF missing
-    the 'Landmark_Cavity' material entirely -- an unused material slot is dropped on export).
-    round-5.2 switched to distance from each tunnel's own axis line -- an improvement, but a big
-    flat exterior face (e.g. the front face) can still average out to a small distance from the
-    OTHER tunnel's axis purely by symmetry, so it over-matched (104/106 faces -- nearly the whole
-    block). Fixed by classifying on face AREA instead: the cylindrical cut's tunnel-wall facets
-    are narrow strips, while every surviving exterior fragment (front/side/top minus the hole) is
-    a much larger n-gon -- a robust discriminator for this specific geometry."""
+    Round-9 fix (art-lead round-4-of-resumption finding #2, -4: 'the area heuristic no longer
+    catches the tunnel walls after the single-axis cut -- 4/32 faces matched, was 96/106'). AREA
+    is dropped entirely: with only ONE tunnel axis left (round 8), the surviving tunnel-wall
+    facets from the box+cylinder arch cutter are no longer reliably small relative to the rest of
+    the belfry the way they were for the old 2-axis bore, so area stopped being a valid
+    discriminator. Replaced with an explicit GEOMETRIC test the caller builds from the exact
+    numbers used to construct the cut (arch half-width, floor/crown Z) -- a face is a cavity face
+    iff its center lies inside the tunnel's own local bounding volume AND its normal isn't one of
+    the flat Y-facing exterior caps around the mouth. This directly targets 'is this face part of
+    the tunnel', not a proxy for it. See `belfry_cavity_test` below for the concrete predicate."""
     obj.data.materials.clear()
     obj.data.materials.append(mat_top)    # index 0
     obj.data.materials.append(mat_front)  # index 1
@@ -483,11 +545,9 @@ def assign_shading_formula(obj, cavity_mat=None):
     bm.faces.ensure_lookup_table()
     total_faces = len(bm.faces)
     matched = 0
-    AREA_CUTOFF = 0.02  # tunnel-wall facet area is ~0.003-0.01; the smallest surviving exterior
-                         # fragment (front/side face minus the hole) is still >0.15
     for f in bm.faces:
         n = f.normal
-        if cavity_idx is not None and f.calc_area() < AREA_CUTOFF:
+        if cavity_idx is not None and cavity_test(f):
             f.material_index = cavity_idx
             matched += 1
             continue
@@ -502,23 +562,20 @@ def assign_shading_formula(obj, cavity_mat=None):
     if cavity_idx is not None:
         print(f"[diagnostic] {obj.name}: {matched} cavity faces assigned "
               f"'{cavity_mat.name}' out of {total_faces} total")
-        # Sanity bounds, not a guess: measured empirically (see git history) that this geometry
-        # (2 perpendicular 24-sided cylinder bores through a cube) produces ~96 small tunnel-wall
-        # facets vs ~10 large surviving exterior faces (2 top/bottom + 4 side fragments + 4 corner
-        # fragments) -- a clean area gap of 5x (max cavity facet 0.0118 vs min exterior 0.0605).
-        # Guard against total regression (0 = heuristic broken) and total non-separation (matched
-        # == total_faces = every face including exterior got swept in), not against this specific
-        # ratio being "too high".
-        if matched == 0:
+        # Round-9: raised the floor from '> 0' to '>= 15' per the art-lead's own suggested guard
+        # (round-4-of-resumption top-fix note) -- a handful of stray matches is still a broken
+        # heuristic, not just a total-failure one.
+        if matched < 15:
             raise RuntimeError(
-                f"Cavity material heuristic matched 0 faces on {obj.name} -- the belfry cavity "
-                "backdrop would render/export as the default side material instead of the dark "
-                "contrast token. Check AREA_CUTOFF against the actual tunnel-wall facet size."
+                f"Cavity geometric test matched only {matched} faces on {obj.name} (need >=15) -- "
+                "the belfry cavity backdrop would mostly render/export as the default side "
+                "material instead of the dark contrast token. Check belfry_cavity_test's bounds "
+                "against the actual arch cutter geometry (ARCH_HALF_W/arch_floor_z/arch_crown_z)."
             )
         if matched >= total_faces:
             raise RuntimeError(
-                f"Cavity material heuristic matched ALL {total_faces} faces on {obj.name} -- no "
-                "exterior faces survived the classification, AREA_CUTOFF is set too high."
+                f"Cavity geometric test matched ALL {total_faces} faces on {obj.name} -- no "
+                "exterior faces survived the classification, the bounding test is too loose."
             )
 
 
@@ -551,15 +608,35 @@ base = add_cube("Landmark_PlazaBase", (0, 0, 0.15 + 0.25), (BASE_XY_SCALE, BASE_
 BASE_CORNER_REACH = BASE_XY_SCALE * 0.5 * math.sqrt(2)  # 0.5657 — checked against ring_r in SS4
 assign_shading_formula(base)
 
-# Block 2: tower shaft, setback ~20% per Tier1 S2 setback convention (SS3.2)
-shaft = add_cube("Landmark_TowerShaft", (0, 0, 0.4 + 0.6), (0.8, 0.8, 1.2))
+# Block 2: tower shaft. Round-9 fix (the actual root cause of the "frosted glass" finding -- see
+# the belfry-block comment below for the full diagnostic writeup): XY scale narrowed 0.8->0.68
+# (half-extent 0.4->0.34). At 0.8 the shaft was EXACTLY the same width as the plaza base (both
+# half-extent 0.4 -- no real setback existed there at all, an unrelated pre-existing gap in the
+# "setback ~20% per Tier1 S2" comment this line already carried) and 0.125 units wider than the
+# belfry above it -- exposing a wide, pale-toned ledge that isolating objects one at a time proved
+# was the actual source of the "ghost slab" flanking the arch (confirmed: hiding every object but
+# the belfry renders clean; adding back only the shaft reproduces the pattern exactly; narrowing
+# the shaft to near-belfry width removes it, verified by re-render, not asserted). 0.34 leaves a
+# real but thin step against the belfry's own 0.32 half-extent (a visible trim line, not a wide
+# shelf) and now also gives the base->shaft transition (0.4 -> 0.34) the setback this comment
+# always claimed but the geometry never actually had.
+shaft = add_cube("Landmark_TowerShaft", (0, 0, 0.4 + 0.6), (0.68, 0.68, 1.2))
 assign_shading_formula(shaft)
 
 # Block 3: belfry block, offset the way Tier2 S3's 2nd upper block is offset (SS3.3) - kept
 # centered here (a landmark is symmetric on purpose) but narrower again, per convention.
-# Half-extents after scale: X=Y=0.5*0.55=0.275, Z=0.5*0.7=0.35.
+#
+# Round-9 fix (art-lead round-4-of-resumption findings #1/#4/#6/#7/#10, the biggest deduction
+# cluster, ~24-27pts, "reads as frosted glass"). Full diagnostic writeup + the confirmed fix (the
+# tower shaft's exposed setback ledge, narrowed above) live on the shaft block a few lines up --
+# not repeated here. This block's own contribution: widened 0.55->0.64 (half-extent 0.275->0.32)
+# so the belfry meets the now-narrower shaft (0.34 half-extent) with a real but thin step, instead
+# of the old wide gap on top of an already-too-wide shaft. Verified together on the actual
+# re-rendered belfry_closeup below (both objects hidden/shown one at a time, then together at
+# final scale) -- not asserted from the numbers alone.
+# Half-extents after scale: X=Y=0.5*0.64=0.32, Z=0.5*0.7=0.35.
 belfry_z = 0.4 + 1.2 + 0.35
-belfry = add_cube("Landmark_Belfry", (0, 0, belfry_z), (0.55, 0.55, 0.7))
+belfry = add_cube("Landmark_Belfry", (0, 0, belfry_z), (0.64, 0.64, 0.7))
 
 # --- Boolean-cut arch openings -------------------------------------------------------------
 # Round-6 fix (art-lead finding #4, round-5 review): a single cylinder bore produces a circular
@@ -632,6 +709,17 @@ for mod in list(belfry.modifiers):
 for cutter in cutters:
     bpy.data.objects.remove(cutter, do_unlink=True)
 
+# Round-9 fix (art-lead round-4-of-resumption finding #3, -1: ragged/wavy boolean sill edge). A
+# box+cylinder DIFFERENCE against a 24-sided cylinder leaves near-duplicate verts along the seam
+# where jamb and crown cutters met -- welding them (small distance, well under the model's own
+# 0.012 smallest feature) removes the slivers that read as a scalloped edge without changing the
+# arch's actual shape.
+bm_clean = bmesh.new()
+bm_clean.from_mesh(belfry.data)
+bmesh.ops.remove_doubles(bm_clean, verts=bm_clean.verts, dist=0.002)
+bm_clean.to_mesh(belfry.data)
+bm_clean.free()
+
 # PROVE_THE_CUT: a boolean DIFFERENCE that actually intersects the solid always changes the face
 # count. If it didn't, fail loudly here instead of silently rendering/exporting an uncut block
 # (this exact silent failure is what round 4 shipped).
@@ -639,7 +727,7 @@ bm_post = bmesh.new()
 bm_post.from_mesh(belfry.data)
 post_faces = len(bm_post.faces)
 bm_post.free()
-print(f"[diagnostic] belfry faces after arch cut: {post_faces}")
+print(f"[diagnostic] belfry faces after arch cut + cleanup: {post_faces}")
 if post_faces <= pre_faces:
     raise RuntimeError(
         f"Belfry arch boolean cut produced no new geometry (faces {pre_faces} -> {post_faces}). "
@@ -647,10 +735,38 @@ if post_faces <= pre_faces:
         "before trusting any render from this run."
     )
 
+# Round-9 fix (art-lead round-4-of-resumption top fix + finding #2, -4): explicit geometric
+# cavity test replacing the area heuristic (see assign_shading_formula's docstring for why area
+# stopped working once the belfry was cut on only one axis). Built from the exact numbers used to
+# construct the arch cutters, in the belfry's own LOCAL coordinates (mesh data is local; the
+# object's Z location offset -- belfry_z -- is not baked into vertex coordinates, so world-space
+# arch_floor_z/arch_crown_z must be shifted back by belfry_z before comparing against face
+# centers).
+CAVITY_MARGIN = 0.03
+local_floor_z = arch_floor_z - belfry_z
+local_crown_z = arch_crown_z - belfry_z
+
+
+def belfry_cavity_test(f):
+    """True iff face f is part of the tunnel interior (jambs + crown + any floor sliver): its
+    center lies inside the tunnel's own local bounding volume (|x| within the arch half-width,
+    z within floor..crown) AND its normal is not one of the flat Y-facing exterior caps that
+    remain around the tunnel mouths (those keep normal.y close to +-1; every true tunnel-wall
+    facet's normal has little to no Y component, since the tunnel runs along Y)."""
+    c = f.calc_center_median()
+    if abs(f.normal.y) > 0.5:
+        return False
+    if abs(c.x) > ARCH_HALF_W + CAVITY_MARGIN:
+        return False
+    if not (local_floor_z - CAVITY_MARGIN <= c.z <= local_crown_z + CAVITY_MARGIN):
+        return False
+    return True
+
+
 # re-assign after boolean rebuilds the mesh; cavity_mat lights the tunnel-wall reveal faces with
-# the text.primary token so the beacon core reads against a dark backdrop (SS4 legibility calc:
-# ~1.3:1 without this vs. ~5.5:1 with it — see design note).
-assign_shading_formula(belfry, cavity_mat=mat_cavity)
+# the text.primary token so the beacon core reads against a dark backdrop (see design note SS4 for
+# the measured before/after contrast, sampled from the actual render, not asserted here).
+assign_shading_formula(belfry, cavity_test=belfry_cavity_test, cavity_mat=mat_cavity)
 
 # Beacon core hanging inside the arch opening — 8-sided (faceted) rather than 16-sided (smooth): a
 # crystal/beacon read, not a literal round bronze church bell (SS1 originality note). Centred in
@@ -664,13 +780,24 @@ bell = bpy.context.active_object
 bell.name = "Landmark_BeaconCore"
 bell.data.materials.append(mat_coin)
 
-# Roof cap: pyramid, 4-gon cone rotated 45deg to sit square on the belfry
+# Roof cap: pyramid, 4-gon cone rotated 45deg to sit square on the belfry.
+# Round-9 originality touch (art-lead round-4-of-resumption finding #12, -5: 'stacked cube,
+# pyramid cap, torus collar, cylinder spire, ico gem' -- the templated primitive-stack silhouette
+# the note itself declined to claim as fixed). A full geometry redesign is out of scope for this
+# round's fix budget, but one cheap, low-risk, non-templated move is available on the roof cap
+# already: stretch it along Y (the tunnel/arch axis) instead of leaving it a square-based pyramid.
+# A square pyramid cap on a square tower is the textbook generic answer; an elongated hip-roof cap
+# reads as "there is a front and a back, and the front has the arch" -- ties the roofline to the
+# one asymmetric design decision (the single-axis arch, round 8) instead of sitting on top of it
+# as a shape that would look identical whether or not the arch axis existed.
 roof_z = belfry_z + 0.35 + 0.35
 bpy.ops.mesh.primitive_cone_add(
     vertices=4, radius1=0.55, depth=0.7, location=(0, 0, roof_z), rotation=(0, 0, math.radians(45))
 )
 roof = bpy.context.active_object
 roof.name = "Landmark_RoofCap"
+roof.scale = (1.0, 1.28, 1.0)
+bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 roof.data.materials.append(mat_top)
 
 # Ridge cap trim: a small torus collar at the roof apex, closing the token table's "roof ridge cap
@@ -963,13 +1090,18 @@ views = [
     ("plaza_plan_from_above",     45,    72,        4.0,   1.1),
     ("eye_level_approach",        90,    11,        4.9,   TOWER_MID_Z),
     ("belfry_closeup",            90,    35.264,    1.6,   belfry_z),
-    ("bunting_ring_detail_a",   25.7,    50,        2.0,   0.38),
-    ("bunting_ring_detail_b",  205.7,    50,        2.0,   0.38),
+    # Round-9 fix (art-lead round-4-of-resumption finding #11, -2): az=25.7/205.7 sat close enough
+    # to the base block's diagonal corner (45deg) that its near corner occluded 2 of 7 flags at
+    # each shot's low elevation. Moved further from the corner (az=15/195, 30deg off the diagonal
+    # instead of 19.3) and raised elevation (50->62) so the camera looks more down onto the ring
+    # than across it -- the base corner's silhouette against the flags shrinks as elevation rises.
+    ("bunting_ring_detail_a",     15,    62,        2.1,   0.38),
+    ("bunting_ring_detail_b",    195,    62,        2.1,   0.38),
 ]
 
 scene = bpy.context.scene
-scene.render.resolution_x = 1600
-scene.render.resolution_y = 1600
+scene.render.resolution_x = 1200
+scene.render.resolution_y = 1200
 scene.render.image_settings.file_format = "PNG"
 
 # Round-5 fix (found during evidence verification, not in the original 5-item list but blocks the
@@ -1004,12 +1136,18 @@ if bg:
     bg.inputs[1].default_value = 1.1
 scene.world = world
 
-for engine_id in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "CYCLES"):
-    try:
-        scene.render.engine = engine_id
-        break
-    except TypeError:
-        continue
+# Round-9: render engine switched to Cycles, denoising off, 128 samples. NOTE this is NOT what
+# fixed the "translucent surfaces" finding (see the belfry-block comment in section 3 for the
+# actual root cause and fix -- a too-pale top material + too-wide setback ledge on the tower
+# shaft, mistaken for see-through belfry walls). Engine/denoiser were both tried as hypotheses
+# and ruled out by controlled A/B renders with correct per-camera lighting reproduced exactly
+# (pixel samples matched within noise either way). Kept on Cycles + no denoising anyway as a real,
+# secondary quality improvement -- consistent grain-free shading with no risk of a low-sample
+# denoiser artifact -- just not the fix this round's top finding needed.
+scene.render.engine = "CYCLES"
+scene.cycles.samples = 128
+scene.cycles.use_denoising = False
+scene.cycles.device = "CPU"
 
 for name, az_deg, elev_deg, ortho_scale, aim_z in views:
     az = math.radians(az_deg)
@@ -1067,6 +1205,23 @@ for obj in mesh_objs:
 print(f"[diagnostic] export mesh totals: {len(mesh_objs)} objects, {total_verts} verts, "
       f"{total_tris} triangles (post-triangulation), {len(bpy.data.materials)} materials, "
       f"texture resolution {64}px (make_blotch_png/make_paving_png default 'size')")
+
+# Round-9 addition (art-lead round-4-of-resumption finding #8, -3): the Unity handoff spec gave
+# polycount/materials/textures/shader mapping but no bounding-box dimensions in world units -- the
+# one number needed to place the prop against the 8x8 grid. Computed here from the ACTUAL built
+# geometry (world-space verts of every exported mesh object, not a guessed/rounded figure).
+bbox_min = mathutils.Vector((float("inf"),) * 3)
+bbox_max = mathutils.Vector((float("-inf"),) * 3)
+for obj in mesh_objs:
+    mw = obj.matrix_world
+    for v in obj.data.vertices:
+        wco = mw @ v.co
+        bbox_min.x, bbox_min.y, bbox_min.z = min(bbox_min.x, wco.x), min(bbox_min.y, wco.y), min(bbox_min.z, wco.z)
+        bbox_max.x, bbox_max.y, bbox_max.z = max(bbox_max.x, wco.x), max(bbox_max.y, wco.y), max(bbox_max.z, wco.z)
+bbox_size = bbox_max - bbox_min
+print(f"[diagnostic] export bounding box: min={tuple(round(c, 4) for c in bbox_min)} "
+      f"max={tuple(round(c, 4) for c in bbox_max)} size(WxDxH)="
+      f"{round(bbox_size.x, 4)}x{round(bbox_size.y, 4)}x{round(bbox_size.z, 4)} world units")
 
 fbx_path = os.path.join(BASE_DIR, "landmark_beacon.fbx")
 bpy.ops.export_scene.fbx(
