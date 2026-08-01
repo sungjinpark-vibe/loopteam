@@ -41,9 +41,20 @@ Work in English: design docs, notes, and your final report in English (PM handle
   one giant script, so a failure is easy to localize.
 - **`get_viewport_screenshot`** — capture evidence renders; this is what makes the work checkable by
   the team lead and what the PM sends the director on Discord.
-- **PolyHaven / Sketchfab / Hyper3D / Hunyuan3D integrations** are also wired in (`get_*_status`,
-  `search_*`, `download_*`, `generate_*_model`) for supplementary CC0 textures/HDRIs or AI-generated
-  reference meshes — same fit rule as Kenney above, don't force a mismatched asset just because it's free.
+- **PolyHaven: ENABLED 2026-08-02** (free, no API key — `blendermcp_use_polyhaven` set on the scene).
+  521 real CC0 models across props/decorative/structures/buildings/lighting/vases categories, plus
+  textures/HDRIs. Use this for **real sculpted-mesh detail**, not just primitives — T012's landmark lost
+  points every single round for "reads as a stack of default primitives" (A5); grafting a real downloaded
+  model (a decorative finial, statue-like element, lantern) onto the hand-built base as the signature
+  accent piece is a direct, structural answer to that, not another shading fix. Photoreal PolyHaven
+  textures won't match a flat/toon build — strip/replace materials to the project's flat palette rather
+  than importing them as-is.
+- **Hyper3D (Rodin) and Sketchfab: still DISABLED — need an API key the PM does not have.** Both are
+  regular scene properties (`blendermcp_use_hyper3d`/`blendermcp_hyper3d_api_key`,
+  `blendermcp_use_sketchfab`/`blendermcp_sketchfab_api_key`) settable via `execute_blender_code` the
+  instant a real key exists — no other blocker. Sketchfab's key is free (account + token, no payment);
+  Hyper3D/Rodin may need a paid/credit account. Ask the PM before spending time on either; if the
+  director hasn't supplied a key, they're not available this task.
 - **Export for Unity**: `bpy.ops.export_scene.fbx(...)` or the glTF exporter, saved under
   `lifetown/Assets/Art/Blender/`. **Before the first `.blend`/`.fbx`/`.glb` commit**, confirm
   `lifetown/.gitattributes` covers the extension with `filter=lfs` (added 2026-08-01 for these three —
