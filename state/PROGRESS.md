@@ -6,16 +6,18 @@
 
 ## Current State
 - **Status**: ▶ Active. **Current mission: LIFE TOWN (resumed 2026-07-19)** — T009→T010→T011 all done
-  (APK v0.0.9 delivered). **T012 art resource upgrade — THIRD escalation, 2026-08-02, not relaunching
-  without director input.** Three full attempts, 15 rounds, ~6.3M subagent tokens: attempt 1 final 44/95,
-  attempt 2 final 66/95 (best so far), attempt 3 (Fortune City flat/toon style) final 60/95 (trajectory
-  66→56→53→53→60). Every round's fixes were real and verified, but the score has never trended up for
-  more than 2 rounds running in any attempt — closing one batch of findings reliably surfaces a new batch
-  of similar size. That pattern is the actual signal now, not execution quality. Reported to the director
-  with the full history and a request to pick the next lever (lower the bar for this task / try a
-  Sketchfab-or-PolyHaven-sourced base mesh instead of hand-scripted primitives / accept attempt 2's
-  66/95 as a placeholder and move on / something else). Contract: `lifetown/VISION.md`. Discord ENABLED
-  both ways (rule 8, current).
+  (APK v0.0.9 delivered). **T012 art resource upgrade — FOURTH escalation, 2026-08-02, not relaunching
+  without director input.** Four full attempts, 20 rounds, ~8.8M subagent tokens: 44/95 → 66/95 → 60/95 →
+  **65/90** (director lowered the bar to 90 and enabled PolyHaven + Sketchfab after attempt 3; attempt 4
+  used PolyHaven, best single round hit 68/90). Real progress this time — a genuine PolyHaven-sourced
+  mesh broke the "just primitives" ceiling that cost points in all 20 rounds — but a more structural
+  problem surfaced: the palette drifted outside the design system's own tokens into territory it
+  explicitly warns against, and a render-quantization step reintroduced a tautological verifier for the
+  third time. Reported to the director with the full history, renders attached, and a recommendation to
+  judge the actual visuals directly rather than keep chasing the number — 8.8M tokens and 20 rounds is a
+  lot to have spent without a gate pass. Sketchfab is now also enabled (director-supplied key) and unused
+  so far, available for attempt 5 if the director wants one. Contract: `lifetown/VISION.md`. Discord
+  ENABLED both ways (rule 8, current).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,
@@ -58,11 +60,12 @@
 - None.
 
 ## Needs Human Review
-- **T012 (Blender landmark) — THIRD escalation, needs a real director decision, not another auto-retry.**
-  44/95 → 66/95 → 60/95 across three full attempts (15 rounds, ~6.3M tokens). The pattern (real fixes
-  every round, no sustained score improvement) suggests the bar or the approach is the constraint, not
-  effort — see Current State and `backlog/tasks/T012.md` for the full history and options. Do not launch
-  a 4th attempt on the same premise without the director choosing a different lever.
+- **T012 (Blender landmark) — FOURTH escalation, needs a real director decision, not another auto-retry.**
+  44/95 → 66/95 → 60/95 → 65/90 across four full attempts (20 rounds, ~8.8M tokens). This round's finding
+  is more structural than execution polish: the color palette itself drifted outside the design system's
+  documented tokens. Recommended the director judge the actual renders directly rather than the score —
+  see Current State and `backlog/tasks/T012.md` for full history. Do not launch a 5th attempt without the
+  director's explicit go-ahead.
 - **Security note on the same run, resolved**: round 1's QA evidence step ran `git checkout --` on files
   outside the task's scope (a Unity scene, ProjectSettings) — flagged by the harness as a possible
   destructive action, same class as the 2026-07-18 `rm -rf` incident. **Investigated: no data was

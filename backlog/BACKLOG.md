@@ -35,7 +35,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T009 | Work building polish — wall items readability | `done` | client-dev | build | 1 | Director 2026-07-19: "건물 폴리싱부터 먼저". The known small gap from the pause snapshot: laptop/coffee wall items read less crisply than the other 6 buildings. Frugal path. |
 | T010 | Playable gameplay slice — tap building → timer → growth | `done` | client-dev | build | 2 | Director-approved next step (2026-07-17) + reconfirmed 2026-07-19. Wire Economy.Core (T002) + Platform (T003) + design system (T004) into the village scene. Full quality loop. After T009. |
 | T011 | Build delivery (APK) | `done` | client-dev | build | 3 | Director 2026-07-19: "게임 플레이 후 빌드 진행". depends_on T010. |
-| T012 | Art resource upgrade — Blender-modeled village landmark | `in-progress` | ui-ux | build | 1 | Attempt 4: director lowered passMark to 90 and approved AI/asset tooling. PolyHaven enabled (free); Hyper3D/Sketchfab still need an API key from the director. See task log. |
+| T012 | Art resource upgrade — Blender-modeled village landmark | `blocked` | ui-ux | build | 1 | **4th escalation.** 20 rounds total, 4 attempts, still never passed (best single-round score 68/90). Genuine new finding: color drifted outside the design system's own tokens ("neon-dark" risk it explicitly warns against). Awaiting director decision — see task log. |
 
 ## Task file format
 
