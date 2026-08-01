@@ -5,9 +5,17 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ Active (in-session, director-directed). **Current mission: LIFE TOWN (resumed
-  2026-07-19)** — T009→T010→T011 all done (APK v0.0.9 delivered). **T012 art resource upgrade
-  (2026-08-01) is BLOCKED, not done** — see Needs Human Review below. Contract: `lifetown/VISION.md`.
+- **Status**: ⏸ Session wrap-up 2026-08-01, director asked to continue tomorrow. **Current mission:
+  LIFE TOWN (resumed 2026-07-19)** — T009→T010→T011 all done (APK v0.0.9 delivered). **T012 art resource
+  upgrade is IN PROGRESS, attempt 3 (Fortune City flat/toon style), not done.** Score history: attempt 1
+  =44/95, attempt 2=66/95 (both escalated, both reported). Attempt 3 is genuinely stronger (root-caused
+  the color-clipping bug for real, fixed a broken verifier, added real originality elements) but its
+  round-3 score was never captured — the workflow got interrupted by a session restart right as the
+  lead was about to score it. **Resumed via `Workflow({scriptPath: '.claude/workflows/quality-loop.js',
+  resumeFromRunId: 'wf_4d73e7d7-d50', args: <same args as the attempt-3 launch, see backlog/tasks/T012.md
+  Log>})`** — still running in the background as of this write-up; check `/workflows` or wait for its
+  completion notification first thing tomorrow before doing anything else with T012. If it also gets
+  interrupted, resume the SAME way again (cached rounds replay free). Contract: `lifetown/VISION.md`.
   Discord ENABLED both ways (rule 8, current).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
@@ -51,15 +59,11 @@
 - None.
 
 ## Needs Human Review
-- **T012 (Blender landmark, 2026-08-01) — SECOND escalation, still blocked.** After a session restart
-  fixed the tooling gap and the director approved Bash/PowerShell, T012 ran for real (executed builds,
-  inspected real pixel/material output) across 5 more rounds: score 60→55→49→50→**66/95**. Combined with
-  the first attempt, 10 rounds and ~3M subagent tokens spent; still 29 points short. Remaining gaps are
-  now genuine rendering/color-fidelity issues (material clipping, occlusion, an A5 originality ceiling
-  from the primitive-stack approach) rather than infrastructure. **Not relaunching a third attempt
-  without director input** — recommended considering a Sketchfab/PolyHaven-sourced base mesh instead of
-  more rounds on hand-authored primitives. Full history: `backlog/tasks/T012.md` Log. Reported to the
-  director on Discord.
+- **T012 (Blender landmark) — not yet resolved, no action needed overnight.** Two escalations so far
+  (44/95, then 66/95 — full history in `backlog/tasks/T012.md`). Director then gave a concrete style
+  target (Fortune City flat/toon look); attempt 3 is running now (see Current State for the resume
+  command) — do not treat this as a stuck escalation, it's actively progressing, just check its result
+  first thing tomorrow.
 - **Security note on the same run, resolved**: round 1's QA evidence step ran `git checkout --` on files
   outside the task's scope (a Unity scene, ProjectSettings) — flagged by the harness as a possible
   destructive action, same class as the 2026-07-18 `rm -rf` incident. **Investigated: no data was
