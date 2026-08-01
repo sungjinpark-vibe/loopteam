@@ -4,14 +4,56 @@ Design source: lifetown/docs/design/02-landmark-design-note.md (read that first 
 is the literal execution of the form/token decisions made there, nothing here is a new design
 call).
 
-STATUS (T012 resumption, 2026-08-01): EXECUTED and verified this round -- Bash + mcp__blender__*
-were both live this session. The renders/FBX/GLB/.blend under this folder are current output from
-this exact script version, opened and inspected (not assumed correct from a read-through). See the
-design note's §0 for the six additional bugs found and fixed only by actually running this
-(a TypeError, AgX view-transform desaturation, a light-rig/camera aim mismatch, a locale-fragile
-node lookup, a belfry-cavity material that was silently never assigned, and roof overexposure).
+STATUS (T012 round 6, 2026-08-01): EXECUTED and verified this round. Fixes every item in the
+art-lead's round-5 review (score 60/100), highest-value first:
 
-Round-4 team-lead findings -> what changed this round, concretely (highest-value fix first):
+  1. [A2 -8, the single biggest deduction] Lighting was two SUNs aimed once in world space, so
+     only the one camera they happened to face got real key light -- a #FFFFFF plaza-top sample
+     read 217/122/129 across three "identical" shots. Fixed: the rig is now CAMERA-RELATIVE,
+     re-aimed every render at a fixed offset from that shot's own azimuth (`light_dirs_for_azimuth`,
+     `set_sun_dir`, called inside the camera loop in SS6) instead of once before it. Because the
+     light's elevation (Z) component is now a fixed constant across every view, a horizontal face's
+     Lambertian brightness is IDENTICAL shot to shot by construction — not tuned into agreement.
+  2. [A1 -6] Three face-on azimuths (90/0/180) on a 4-fold-symmetric model were three near-identical
+     silhouettes -- swapping corner views for face-on views moved the redundancy, didn't remove it.
+     Replaced with 4 shots that vary ELEVATION as well as azimuth, each showing something the others
+     don't: `hero_elevated_arch` (raised 3/4, still frames the Y-tunnel head-on), `plaza_plan_from_
+     above` (high plan view — stepped massing + garland ring read from above), `eye_level_approach`
+     (low, full-height silhouette), `belfry_closeup` (unchanged tight framing). Filenames now
+     describe what's actually in frame (round-5's `_three_quarter`/`_profile` names were flagged as
+     inaccurate — the old files are deleted, not left stale alongside the new ones).
+  3. [A1 -2, A5 -5] The belfry opening was a single cylinder bore -- a circular PORTHOLE, not an
+     arch (no straight jambs, just a bore). Rebuilt as a real two-part arch cutter per tunnel axis:
+     a box for the vertical jambs up to a springline, unioned (via sequential DIFFERENCE, no
+     separate union step needed) with a cylinder for the rounded crown above it
+     (`add_arch_cutters`). The beacon core is now centred in the FULL opening (floor to crown) with
+     margin on every side, not just the old cylinder's bore.
+  4. [A1 -3, A5 -2] The bunting cord was a perfect-circle torus (constant radius/height) with flags
+     radiating outward/upward from it, and its radius (0.95) exceeded the plaza half-width (0.725)
+     so it overhung the slab at all 4 face midpoints. Fixed: `ring_r` shrunk to 0.60 (inside 0.725,
+     no overhang); the cord is now a POLY curve (`build_garland_cord`) sampled with a parabolic sag
+     between posts and ZERO sag at each post — a real garland droop, not a hoop; flags are rebuilt
+     directly in world space from their post's attach point (`build_flag`), hanging straight down
+     from the cord instead of radiating from it.
+  5. [A4 -2] All 7 categories were colour-coded only, with two hues (`#8AD3B4`/`#6FBFA6`)
+     indistinguishable to some colour-vision-deficient viewers (and to QA, who called them
+     "green, dark-green"). Fixed: flag SHAPE now alternates pennant (plain triangle, even index) /
+     swallowtail (notched, two tails, odd index) in `build_flag` — a second, non-colour channel on
+     top of the locked category hue and the already-fixed positional ordering.
+  6. [A3 -3] 12 `.meta` files existed on disk (Unity had imported the folder at some point) but were
+     never committed, so a fresh clone would mint new GUIDs. Committed alongside this round's output
+     (see git log on this file/folder) — no script change needed, this was a git-hygiene gap, not a
+     geometry bug.
+  7. [A4 -4] No village-camera-zoom check existed for whether the beacon core survives at gameplay
+     scale — still true this round (the model is explicitly not wired into a scene yet, this task's
+     stated boundary); noted honestly in the design note rather than re-claimed as resolved.
+
+Round 3/4/5 fixes (crash fix, node-tree-by-type, ridge cap geometry, gem/spire token fix,
+render-engine selection, arch box-cutter Z-scale bug, colored-fill-light hue-shift, baked-PNG
+textures replacing live noise graphs, the PROVE_THE_CUT boolean assertion, belfry-cavity face
+classification) all remain in place. Full line-level history: git log on this file.
+
+Round-4 team-lead findings -> what changed in round 5, concretely (kept for history):
 
   1. [A1/A4/A5 -22] Belfry arch + beacon core were invisible in every render. Root cause found by
      hand-computing the geometry (I cannot render to verify visually, so I verified by arithmetic
@@ -278,18 +320,30 @@ def make_material(name, hex_str, white_mix=0.0, roughness=0.6, metallic=0.0,
     return mat
 
 
+# Round-6 fix (art-lead finding #5, round-5 review): smart_project packs each face into an
+# arbitrarily-sized UV island (however tightly the packer chooses), so the authored 64px paving
+# grid could end up sampled from a fraction of a single grid cell -- the texture existed but no
+# periodicity ever reached the render. cube_project instead maps world units directly to UV tiles
+# at a FIXED, specifiable ratio: TEXEL_TILE_UNITS world units per full 0..1 texture tile, the same
+# value for every part, so the spec is one number, not "whatever the packer decided" (closes the
+# "texel-density or UV-scale spec" gap the finding named explicitly).
+TEXEL_TILE_UNITS = 0.5  # 1 texture tile (64px, 4x4 paving grid) per 0.5 world units on any face
+
+
 def smart_unwrap(obj):
-    """Best-effort UV unwrap so the Image Texture node samples something reasonable. Wrapped in
-    try/except because uv.smart_project/mode_set are viewport-context operators of uncertain
-    reliability under --background; every mesh primitive already ships a default UV layer, so a
-    failed unwrap here degrades to "less pretty mapping", not a missing texture."""
+    """UV-unwrap via cube projection at a fixed, documented texel density (TEXEL_TILE_UNITS)
+    instead of smart_project's unpredictable island packing — see the fix note above. Wrapped in
+    try/except because these are viewport-context operators of uncertain reliability under
+    --background; every mesh primitive already ships a default UV layer, so a failed unwrap here
+    degrades to "less pretty mapping", not a missing texture."""
     try:
         bpy.ops.object.select_all(action="DESELECT")
         obj.select_set(True)
         bpy.context.view_layer.objects.active = obj
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_all(action="SELECT")
-        bpy.ops.uv.smart_project(angle_limit=math.radians(66))
+        bpy.ops.uv.cube_project(cube_size=TEXEL_TILE_UNITS, correct_aspect=True,
+                                 clip_to_bounds=False, scale_to_bounds=False)
         bpy.ops.object.mode_set(mode="OBJECT")
     except RuntimeError as e:
         print(f"UV unwrap skipped for {obj.name}: {e}")
@@ -446,14 +500,18 @@ belfry_z = 0.4 + 1.2 + 0.35
 belfry = add_cube("Landmark_Belfry", (0, 0, belfry_z), (0.55, 0.55, 0.7))
 
 # --- Boolean-cut arch openings -------------------------------------------------------------
-# Round-5 fix (top-priority finding): the round-4 cutters were centred at offset=0.6 against a
-# belfry half-width of 0.275 -- they never reached the solid at all (verified by hand-computing
-# the geometry above, not assumed). Replaced with 2 through-tunnels, one per horizontal axis,
-# both centred on the belfry (no offset arithmetic that can drift out of range again) and both
-# using a depth (1.4) far larger than the 0.55 full belfry width, so an intersection is
-# geometrically guaranteed regardless of small parameter tweaks later.
-arch_r = 0.18
-arch_center_z = belfry_z - 0.05
+# Round-6 fix (art-lead finding #4, round-5 review): a single cylinder bore produces a circular
+# PORTHOLE, not an arch -- a full ellipse with no straight jambs reads as a birdhouse hole. A real
+# arch has straight vertical sides (jambs) up to a springline, then a curved crown above it. Built
+# per tunnel axis from TWO cutter shapes (box = jambs, cylinder = crown), both DIFFERENCE-cut from
+# the belfry -- differencing box-then-cylinder is geometrically identical to differencing their
+# union, so no separate union step is needed.
+ARCH_HALF_W = 0.16       # jamb half-width == crown radius, so the curve meets the jambs flush
+ARCH_STRAIGHT_H = 0.14   # jamb height below the springline
+arch_floor_z = belfry_z - 0.22                      # where the opening starts (near belfry base)
+arch_spring_z = arch_floor_z + ARCH_STRAIGHT_H       # springline: jambs end, curve begins
+arch_crown_z = arch_spring_z + ARCH_HALF_W           # top of the arch
+arch_center_z = (arch_floor_z + arch_spring_z) / 2   # kept for the beacon-core placement below
 tunnel_depth = 1.4
 
 bm_pre = bmesh.new()
@@ -462,20 +520,35 @@ pre_faces = len(bm_pre.faces)
 bm_pre.free()
 print(f"[diagnostic] belfry faces before arch cut: {pre_faces}")
 
-cutters = []
-bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=arch_r, depth=tunnel_depth,
-                                     location=(0, 0, arch_center_z))
-cyl_y = bpy.context.active_object
-cyl_y.name = "ArchTunnel_Y"
-cyl_y.rotation_euler = (math.pi / 2, 0, 0)  # cylinder's local Z axis -> world Y axis
-cutters.append(cyl_y)
 
-bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=arch_r, depth=tunnel_depth,
-                                     location=(0, 0, arch_center_z))
-cyl_x = bpy.context.active_object
-cyl_x.name = "ArchTunnel_X"
-cyl_x.rotation_euler = (0, math.pi / 2, 0)  # cylinder's local Z axis -> world X axis
-cutters.append(cyl_x)
+def add_arch_cutters(axis):
+    """Return [box, cylinder] cutter objects forming one arch-shaped tunnel along world axis
+    'X' or 'Y', both already positioned/rotated -- ready to be wired as DIFFERENCE modifiers."""
+    box_center_z = (arch_floor_z + arch_spring_z) / 2
+    if axis == "Y":
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, box_center_z))
+        box = bpy.context.active_object
+        box.scale = (ARCH_HALF_W * 2, tunnel_depth, ARCH_STRAIGHT_H)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=ARCH_HALF_W, depth=tunnel_depth,
+                                             location=(0, 0, arch_spring_z))
+        cyl = bpy.context.active_object
+        cyl.rotation_euler = (math.pi / 2, 0, 0)  # local Z -> world Y
+    else:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, box_center_z))
+        box = bpy.context.active_object
+        box.scale = (tunnel_depth, ARCH_HALF_W * 2, ARCH_STRAIGHT_H)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=ARCH_HALF_W, depth=tunnel_depth,
+                                             location=(0, 0, arch_spring_z))
+        cyl = bpy.context.active_object
+        cyl.rotation_euler = (0, math.pi / 2, 0)  # local Z -> world X
+    box.name = f"ArchJambs_{axis}"
+    cyl.name = f"ArchCrown_{axis}"
+    return [box, cyl]
+
+
+cutters = add_arch_cutters("Y") + add_arch_cutters("X")
 
 for cutter in cutters:
     mod = belfry.modifiers.new(name=f"bool_{cutter.name}", type="BOOLEAN")
@@ -501,7 +574,7 @@ print(f"[diagnostic] belfry faces after arch cut: {post_faces}")
 if post_faces <= pre_faces:
     raise RuntimeError(
         f"Belfry arch boolean cut produced no new geometry (faces {pre_faces} -> {post_faces}). "
-        "The cutter did not intersect the belfry solid -- fix arch_r/arch_center_z/tunnel_depth "
+        "The cutter did not intersect the belfry solid -- fix ARCH_HALF_W/arch_floor_z/tunnel_depth "
         "before trusting any render from this run."
     )
 
@@ -510,13 +583,14 @@ if post_faces <= pre_faces:
 # ~1.3:1 without this vs. ~5.5:1 with it — see design note).
 assign_shading_formula(belfry, cavity_mat=mat_cavity)
 
-# Beacon core hanging inside the crossing point of both tunnels — 8-sided (faceted) rather than
-# 16-sided (smooth): a crystal/beacon read, not a literal round bronze church bell (SS1
-# originality note). Sized/placed to sit inside the tunnel's vertical opening with margin on both
-# sides (tunnel spans arch_center_z +/- arch_r = -0.23..+0.13 relative to belfry_z; beacon spans
-# -0.15..+0.05 relative to belfry_z — comfortably inside).
-bpy.ops.mesh.primitive_cone_add(vertices=8, radius1=0.11, radius2=0.03, depth=0.20,
-                                 location=(0, 0, arch_center_z))
+# Beacon core hanging inside the arch opening — 8-sided (faceted) rather than 16-sided (smooth): a
+# crystal/beacon read, not a literal round bronze church bell (SS1 originality note). Centred in
+# the FULL opening (floor to crown, 0.30 tall) rather than only the jamb section, so it reads as
+# "suspended in the cavity" with margin on every side (beacon spans arch_floor_z+0.07..+0.23,
+# opening spans 0..0.30 -- 0.07 clearance top and bottom).
+beacon_center_z = (arch_floor_z + arch_crown_z) / 2
+bpy.ops.mesh.primitive_cone_add(vertices=8, radius1=0.10, radius2=0.025, depth=0.16,
+                                 location=(0, 0, beacon_center_z))
 bell = bpy.context.active_object
 bell.name = "Landmark_BeaconCore"
 bell.data.materials.append(mat_coin)
@@ -554,20 +628,57 @@ orb.data.materials.append(mat_secondary)
 # ---------------------------------------------------------------------------
 # 4. Bunting garland — 7 flags on a string, ringing the plaza edge (SS4.1)
 # ---------------------------------------------------------------------------
+#
+# Round-6 fixes (art-lead findings #3/#9/#11, round-5 review):
+#  - ring_r shrunk from 0.95 to 0.60, comfortably inside the steps half-width (0.725) so no flag
+#    or cord segment ever draws outside the plaza silhouette.
+#  - the cord is no longer a perfect-circle torus (constant radius+height): it's a POLY curve
+#    sampled around the ring with a parabolic sag between each pair of posts, zero sag AT each
+#    post -- a real garland droop instead of a rigid hoop.
+#  - flags are built directly in world space from their post's attach point (top edge centred on
+#    the post, hanging straight down) instead of via an Euler-rotated local triangle -- fixes the
+#    round-5 bug where flags radiated outward/upward from the cord rather than hanging beneath it.
+#  - flag SHAPE alternates pennant (plain triangle) / swallowtail (notched, two tails) by index
+#    parity, so the 7 categories are distinguishable by silhouette, not colour alone (art-lead
+#    finding #9 — colour-only encoding is not colour-vision-deficiency safe; see design note SS4).
 
 n_flags = len(CATEGORY_HEXES)
-ring_r = 0.95          # just past the step edge (steps half-width 0.725) — SS4 legibility calc
-FLAG_W, FLAG_H = 0.30, 0.26
-FLAG_Z = 0.30
-STEPS_TOP_Z = 0.15      # steps: center 0.075 + half-height 0.075
+ring_r = 0.60           # inside the steps half-width 0.725 — no overhang past the plaza edge
+FLAG_W, FLAG_H = 0.26, 0.22
+FLAG_Z = 0.30            # cord height AT each post (zero sag point)
+SAG = 0.055              # extra downward dip at the midpoint between two posts
+STEPS_TOP_Z = 0.15       # steps: center 0.075 + half-height 0.075
 
-# Round-5 fix (A4 finding #10): flags previously had no string/pole connecting them to anything.
-# Ring + poles are placed at the SAME FLAG_Z / ring_r constants the flags below already use, so
-# they coincide exactly with no separate alignment step.
-bpy.ops.mesh.primitive_torus_add(major_radius=ring_r, minor_radius=0.012, location=(0, 0, FLAG_Z))
-garland = bpy.context.active_object
-garland.name = "Bunting_Garland"
-garland.data.materials.append(mat_cord)
+
+def build_garland_cord(n_posts, radius, z_top, sag, segs_per_span=14):
+    """A POLY curve, beveled into a round cord, sampled around the ring: 0 sag exactly at each
+    post (where a flag/pole attaches) and max `sag` at the midpoint between two adjacent posts —
+    the parabolic-droop reading a real garland has, vs. the old constant-height torus."""
+    span = math.tau / n_posts
+    curve_data = bpy.data.curves.new("BuntingCordCurve", type="CURVE")
+    curve_data.dimensions = "3D"
+    curve_data.bevel_depth = 0.012
+    curve_data.bevel_resolution = 3
+    spline = curve_data.splines.new("POLY")
+    total_pts = n_posts * segs_per_span
+    spline.points.add(total_pts)  # spline starts with 1 point already
+    for i in range(total_pts + 1):
+        theta = (i / total_pts) * math.tau
+        t_in_span = (theta % span) / span            # 0 at a post, 1 approaching the next post
+        t_from_post = min(t_in_span, 1.0 - t_in_span)  # 0 at post, 0.5 at midpoint
+        droop = sag * (1.0 - (1.0 - t_from_post * 2.0) ** 2)  # 0 at post -> sag at midpoint
+        x, y = radius * math.cos(theta), radius * math.sin(theta)
+        spline.points[i].co = (x, y, z_top - droop, 1.0)
+    curve_obj = bpy.data.objects.new("Bunting_Garland", curve_data)
+    bpy.context.collection.objects.link(curve_obj)
+    bpy.context.view_layer.objects.active = curve_obj
+    curve_obj.select_set(True)
+    bpy.ops.object.convert(target="MESH")  # bake the bevel to real geometry for FBX/glTF export
+    curve_obj.data.materials.append(mat_cord)
+    return curve_obj
+
+
+garland = build_garland_cord(n_flags, ring_r, FLAG_Z, SAG)
 
 for i in range(n_flags):
     angle = (i / n_flags) * math.tau
@@ -578,25 +689,44 @@ for i in range(n_flags):
     pole.name = f"Bunting_Pole_{i}"
     pole.data.materials.append(mat_cord)
 
+
+def build_flag(i, mat, attach, tangent_hat):
+    """Build a flag hanging straight down from `attach` (world point on the cord, sag=0 at a
+    post), spanning FLAG_W along the cord's own tangent direction and FLAG_H straight down —
+    world-space verts, no Euler rotation to get backwards. Even index = pennant (plain
+    triangle), odd index = swallowtail (notched, two tails) — a shape difference on top of the
+    colour difference (art-lead finding #9)."""
+    up = mathutils.Vector((0, 0, -1))
+    tl = attach - tangent_hat * (FLAG_W / 2)
+    tr = attach + tangent_hat * (FLAG_W / 2)
+    bm = bmesh.new()
+    if i % 2 == 0:
+        bottom = attach + up * FLAG_H
+        verts = [bm.verts.new(tl), bm.verts.new(tr), bm.verts.new(bottom)]
+        bm.faces.new(verts)
+    else:
+        br = tr + up * FLAG_H
+        bl = tl + up * FLAG_H
+        notch = attach + tangent_hat * 0.0 + up * (FLAG_H * 0.5)
+        v_tl, v_tr, v_br, v_n, v_bl = (bm.verts.new(p) for p in (tl, tr, br, notch, bl))
+        bm.faces.new((v_tl, v_tr, v_n))
+        bm.faces.new((v_tr, v_br, v_n))
+        bm.faces.new((v_tl, v_n, v_bl))
+    flag_data = bpy.data.meshes.new(f"Bunting_{i}_mesh")
+    bm.to_mesh(flag_data)
+    bm.free()
+    flag = bpy.data.objects.new(f"Bunting_{i}", flag_data)
+    bpy.context.collection.objects.link(flag)
+    flag.data.materials.append(mat)
+    return flag
+
+
 flag_group = []
 for i, mat in enumerate(mat_flags):
     angle = (i / n_flags) * math.tau
-    x, y = ring_r * math.cos(angle), ring_r * math.sin(angle)
-    bpy.ops.mesh.primitive_plane_add(size=0.001, location=(x, y, FLAG_Z))
-    flag = bpy.context.active_object
-    flag.name = f"Bunting_{i}"
-    bm = bmesh.new()
-    verts = [
-        bm.verts.new((0, 0, 0)),
-        bm.verts.new((FLAG_W, 0, 0)),
-        bm.verts.new((FLAG_W / 2, 0, -FLAG_H)),
-    ]
-    bm.faces.new(verts)
-    bm.to_mesh(flag.data)
-    bm.free()
-    flag.data.materials.append(mat)
-    flag.rotation_euler = (math.pi / 2, 0, angle + math.pi / 2)
-    flag_group.append(flag)
+    attach = mathutils.Vector((ring_r * math.cos(angle), ring_r * math.sin(angle), FLAG_Z))
+    tangent_hat = mathutils.Vector((-math.sin(angle), math.cos(angle), 0))
+    flag_group.append(build_flag(i, mat, attach, tangent_hat))
 
 # ---------------------------------------------------------------------------
 # 4b. Polish — bevel (soft, non-black edges) + best-effort UV unwrap on the main blocks.
@@ -614,39 +744,51 @@ for obj in (steps, base, shaft, belfry, roof, spire, orb):
 # 5. Lighting — 3-point rig approximating the daytime Light2D keyframe (09:00, #FFFFFF, 1.0)
 # ---------------------------------------------------------------------------
 
-# Round-5 fix (found during evidence verification): the previous key/fill rotations were tuned
-# for the OLD 45/135/-45 corner camera azimuths. After the camera fix moved to face-on 0/90/180
-# azimuths (see SS6 note below), those same light rotations pointed away from every face the new
-# cameras actually look at -- hand-computing the sun's travel direction confirmed the front
-# (+Y, az=90) face got a NEGATIVE dot product with the key light (i.e. zero illumination, back-lit
-# instead of front-lit), which is why the first re-render of this round still looked dark/muted
-# even after the view-transform fix. Sun lights are aimed the same way the cameras below are aimed
-# (Vector.to_track_quat) instead of hand-picked Euler angles, so "does this hit the face the camera
-# sees" is a direct vector check, not manual trig.
-def aim_sun(travel_dir, energy, name):
-    """travel_dir: unit-ish vector the light travels ALONG (from light source toward the scene).
-    A Sun's local -Z axis is its emission direction, so track '-Z' onto travel_dir, same convention
-    as the camera aim below."""
+# Round-6 fix (art-lead top-priority finding, round-5 review): two SUNS aimed once in WORLD space
+# only keyed the one camera they happened to face -- a #FFFFFF plaza-top sample read 217/122/129
+# across the three "identical" shots because only one camera's front face got real key light; the
+# other two saw it edge-on or in shadow. Fixed by making the rig CAMERA-RELATIVE: the lights are
+# re-aimed every render, at an offset from that shot's own camera azimuth, so whatever the camera
+# is looking at gets the same key/fill treatment every time. This also makes the effect
+# mathematically guaranteed for horizontal faces specifically: a face normal of (0,0,1)'s Lambertian
+# term depends only on the light's Z (elevation) component, and that component is now a fixed
+# constant across every view -- so the plaza-top brightness cannot drift shot to shot by
+# construction, not by luck.
+def create_sun(energy, name):
     bpy.ops.object.light_add(type="SUN")
     light = bpy.context.active_object
     light.name = name
     light.data.energy = energy
     light.data.color = (1.0, 1.0, 1.0)  # neutral white only -- a colored fill hue-shifts every
                                          # face's rendered color away from its authored hex (the
-                                         # original round-5 A2 finding; kept fixed here)
-    quat = mathutils.Vector(travel_dir).to_track_quat("-Z", "Y")
-    light.rotation_euler = quat.to_euler()
+                                         # round-5 A2 finding; kept fixed here)
     return light
 
-# Key: travels down + toward -X/-Y, so -travel_dir = (+X,+Y,+Z) lights the front (+Y) face, the
-# +X side face (side_profile), and every top/roof face at a strong angle.
+
+def set_sun_dir(light, travel_dir):
+    """travel_dir: unit-ish vector the light travels ALONG (from light source toward the scene).
+    A Sun's local -Z axis is its emission direction, so track '-Z' onto travel_dir, same convention
+    as the camera aim below."""
+    quat = mathutils.Vector(travel_dir).to_track_quat("-Z", "Y")
+    light.rotation_euler = quat.to_euler()
+
+
+def light_dirs_for_azimuth(az):
+    """Key/fill travel directions, offset from the CURRENT camera's own azimuth rather than fixed
+    in world space -- see the fix note above. Z components (elevation) are fixed constants, which
+    is what keeps a horizontal face's brightness (e.g. the plaza top) identical across every shot."""
+    key_az = az + math.radians(40)
+    fill_az = az - math.radians(35)
+    key_dir = (-math.cos(key_az) * 0.75, -math.sin(key_az) * 0.75, -0.9)
+    fill_dir = (-math.cos(fill_az) * 0.75, -math.sin(fill_az) * 0.75, -0.55)
+    return key_dir, fill_dir
+
+
 # Energies tuned down from an initial 3.5/2.0 pass -- that overexposed the near-normal-incidence
 # roof faces to pure white (255,255,255), clipping past the authored top-face hex entirely rather
-# than just brightening it. 2.4/1.2 keeps the front tower face legible without roof clipping.
-aim_sun((-0.6, -0.8, -0.9), energy=2.4, name="KeySun")
-# Fill: travels down + toward +X/-Y, so -travel_dir = (-X,+Y,+Z) reinforces the front face and
-# lights the -X side face (back_three_quarter) that the key light leaves in shadow.
-aim_sun((0.6, -0.8, -0.5), energy=1.2, name="FillSun")
+# than just brightening it. 2.4/1.2 keeps faces legible without roof clipping.
+key_sun = create_sun(2.4, "KeySun")
+fill_sun = create_sun(1.2, "FillSun")
 
 # ---------------------------------------------------------------------------
 # 6. Cameras — orthographic, matching the design system's isometric convention
@@ -655,18 +797,21 @@ aim_sun((0.6, -0.8, -0.5), energy=1.2, name="FillSun")
 # ---------------------------------------------------------------------------
 
 CAM_DIST = 6.0
-CAM_ELEV = math.radians(35.264)
 TOWER_MID_Z = 1.6
 
-# Round-5 fix (A1 finding #2): 45/135/-45 were all corner views of an axis-aligned cube and could
-# never frame a face-normal-aligned arch. Now 90/0/180 face the belfry's arch openings head-on,
-# plus a 4th, tighter close-up centred on the belfry band. Filenames kept for the first 3 (legacy
-# from earlier rounds) so a re-run overwrites them in place instead of leaving stale duplicates.
+# Round-6 fix (art-lead findings #2/#7, round-5 review): three face-on shots at az 90/0/180 on a
+# 4-fold-symmetric model are three near-identical silhouettes -- swapping corner views for face-on
+# views didn't add coverage, it just moved the redundancy. Each shot below now varies ELEVATION,
+# not just azimuth, so each one shows something the others don't: a raised 3/4 that still frames
+# the Y-tunnel arch head-on, a high plan view that reads the stepped plaza + garland ring in plan,
+# and a low eye-level view for the full-height silhouette. Filenames now describe what's actually
+# in the frame (round-5's "_three_quarter"/"_profile" names were flagged as inaccurate).
 views = [
-    ("front_three_quarter", math.radians(90), 4.5, TOWER_MID_Z),
-    ("side_profile", math.radians(0), 4.5, TOWER_MID_Z),
-    ("back_three_quarter", math.radians(180), 4.5, TOWER_MID_Z),
-    ("belfry_closeup", math.radians(90), 1.6, belfry_z),
+    # name,                az_deg, elev_deg, ortho_scale, aim_z
+    ("hero_elevated_arch",     90,    42,        4.2,   TOWER_MID_Z),
+    ("plaza_plan_from_above",  45,    72,        5.6,   1.1),
+    ("eye_level_approach",     90,    11,        6.4,   TOWER_MID_Z),
+    ("belfry_closeup",         90,    35.264,    1.6,   belfry_z),
 ]
 
 scene = bpy.context.scene
@@ -708,10 +853,12 @@ for engine_id in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "CYCLES"):
     except TypeError:
         continue
 
-for name, az, ortho_scale, aim_z in views:
-    x = CAM_DIST * math.cos(CAM_ELEV) * math.cos(az)
-    y = CAM_DIST * math.cos(CAM_ELEV) * math.sin(az)
-    z = CAM_DIST * math.sin(CAM_ELEV) + aim_z
+for name, az_deg, elev_deg, ortho_scale, aim_z in views:
+    az = math.radians(az_deg)
+    elev = math.radians(elev_deg)
+    x = CAM_DIST * math.cos(elev) * math.cos(az)
+    y = CAM_DIST * math.cos(elev) * math.sin(az)
+    z = CAM_DIST * math.sin(elev) + aim_z
     bpy.ops.object.camera_add(location=(x, y, z))
     cam = bpy.context.active_object
     cam.name = f"Cam_{name}"
@@ -720,6 +867,12 @@ for name, az, ortho_scale, aim_z in views:
     direction = (0 - x, 0 - y, aim_z - z)
     quat = mathutils.Vector(direction).to_track_quat("-Z", "Y")
     cam.rotation_euler = quat.to_euler()
+
+    # Re-aim both suns relative to THIS shot's azimuth (top-priority fix, see SS5) before
+    # rendering it -- not once, in world space, before the loop.
+    key_dir, fill_dir = light_dirs_for_azimuth(az)
+    set_sun_dir(key_sun, key_dir)
+    set_sun_dir(fill_sun, fill_dir)
 
     scene.camera = cam
     scene.render.filepath = os.path.join(RENDER_DIR, f"landmark_{name}.png")

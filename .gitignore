@@ -42,3 +42,7 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Blender autosave/backup files -- never the asset itself, just a local safety copy
+*.blend1
+*.blend2

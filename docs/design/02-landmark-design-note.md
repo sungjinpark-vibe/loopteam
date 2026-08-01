@@ -1,13 +1,95 @@
 # Landmark Design Note — Village Beacon Spire (D11, first realization)
 
-**Author:** ui-ux · **Date:** 2026-08-01 (round 4) · **Decides:** the form/material design for the
+**Author:** ui-ux · **Date:** 2026-08-01 (round 6) · **Decides:** the form/material design for the
 one landmark prop kept in scope by D11 (`VISION.md` §"Scope"). **Does not decide:** gameplay
 wiring, placement rules, or unlock conditions — those are out of scope for this task by the brief
 and remain a future design decision.
 
 ---
 
-## 0. Status — executed and verified this round (T012 resumption, 2026-08-01)
+## 0a. Status — round 6, fixes every item in the art-lead's round-5 review (score 60/100)
+
+The round-5 review found real, still-photographed problems even after round 5's rewrite: lighting
+was consistent in HUE but not in EXPOSURE across shots (a top-fix-level bug), three renders were
+still redundant despite being face-on instead of corner-on, the belfry opening was a circular
+porthole rather than an arch, the bunting cord was a rigid hoop overhanging the plaza, and 12
+`.meta` files existed on disk but were never committed. Fixed, in the order that moves the score
+most (full detail + measured numbers in each numbered section below):
+
+1. **[top fix, A2] Camera-relative lighting.** The key/fill suns are no longer aimed once in world
+   space before the render loop — they are re-aimed *every render*, at a fixed offset from that
+   shot's own camera azimuth (`light_dirs_for_azimuth` + `set_sun_dir` in `build_landmark.py` §5,
+   called inside the camera loop in §6). Because the light's elevation (Z) component is now a
+   constant across every view, a horizontal face's brightness is identical shot to shot **by
+   construction**. Measured (Python/PIL, isolating the brightest 5% of near-white pixels per
+   render — the plaza/roof top faces): **233–236 out of 255 across all 4 renders**, a ~1.3% spread,
+   replacing round 5's 217/122/129 (up to 78% apart).
+2. **[A1] Four angle-varied shots, not three near-identical ones.** Round 5 swapped three
+   near-identical *corner* views for three near-identical *face-on* views — same redundancy,
+   different azimuths. This round varies **elevation** as well: `hero_elevated_arch` (raised 3/4,
+   still frames the Y-tunnel head-on), `plaza_plan_from_above` (high plan view — reads the stepped
+   plaza massing and the garland ring from above), `eye_level_approach` (low, full-height
+   silhouette), `belfry_closeup` (unchanged tight framing on the signature element). Filenames
+   describe what's actually in frame — the round-5 files (`_three_quarter`/`_profile`, which were
+   flagged as inaccurate) are deleted, not left stale alongside the new ones.
+3. **[A1, A5] A real arch, not a circular porthole.** The belfry opening was a single cylinder bore
+   — an ellipse with no straight sides, reading as a birdhouse hole. Rebuilt per tunnel axis from
+   two cutter shapes (`add_arch_cutters` in `build_landmark.py` §3): a box for the vertical jambs
+   up to a springline, and a cylinder for the rounded crown above it — a real arch profile (see the
+   belfry closeup render). The beacon core is now centred in the *full* opening (floor to crown)
+   with margin on every side.
+4. **[A1, A5] A garland, not a hoop.** `ring_r` shrunk from 0.95 to **0.60** (inside the plaza
+   steps' half-width of 0.725 — no more overhang past the slab edge at any point). The cord is no
+   longer a constant-radius/constant-height torus: `build_garland_cord` samples a POLY curve around
+   the ring with a parabolic sag between posts and **zero sag exactly at each post**, giving a real
+   droop instead of a rigid ring (visible in every full-body render). Flags are rebuilt directly in
+   world space from their post's attach point (`build_flag`), hanging straight down from the cord
+   instead of radiating outward/upward from it.
+5. **[A4] Flags differ by shape, not colour alone.** `build_flag` alternates **pennant** (plain
+   triangle, even index) and **swallowtail** (notched, two tails, odd index) — a second,
+   non-colour channel for the 7 categories, on top of the already-fixed positional ordering
+   (§4 below expands the accessibility reasoning; two of the 7 hues are close enough that a
+   colour-only channel isn't CVD-safe on its own).
+6. **[A3] `.meta` files committed.** 12 `.meta` files existed on disk (Unity had imported the
+   folder at some point — confirmed by inspecting the files directly, not assumed) but were never
+   committed, so a fresh clone would mint new GUIDs on next import. Committed alongside this
+   round's output; no script change needed, this was a git-hygiene gap.
+7. **[A3] Texture periodicity now resolves in the render.** Round 5's `smart_project` UV unwrap
+   packed each face into an arbitrarily-sized island, so the authored 64px paving grid could be
+   sampled from a fraction of a single grid cell — the texture *existed* but no periodicity ever
+   reached a render (measured: zero periodicity on a scanline). Replaced with `uv.cube_project` at
+   a fixed, documented texel density (`TEXEL_TILE_UNITS = 0.5` — one 64px texture tile per 0.5
+   world units, the same number on every part). Re-measured on the new `plaza_plan_from_above`
+   render: a horizontal scanline across the plaza top now crosses **26 seam-line transitions**,
+   visually confirmed in a zoomed crop (see §7).
+8. **[honest, not re-claimed] The village-camera-zoom legibility check is still owed.** Unchanged
+   from round 5 — the model is explicitly not wired into a scene yet (this task's stated boundary),
+   so there is still no render at actual gameplay zoom. Noted here rather than silently re-asserted
+   as resolved.
+
+**Command used to build (re-runnable, deterministic), and what was actually verified this round —
+not asserted, actually run:**
+
+```
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --python "C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\build_landmark.py"
+```
+
+- `[diagnostic] belfry faces before arch cut: 6` → `after: 106` — the arch boolean cut produced
+  real geometry (printed by the script's own `PROVE_THE_CUT` assertion, not read off the code).
+- `[diagnostic] Landmark_Belfry: 96 cavity faces assigned 'Landmark_Cavity' out of 106 total` — the
+  cavity backdrop material is applied to the tunnel-wall faces, not silently unused.
+- `landmark_beacon.glb`'s binary JSON chunk parsed directly (stdlib `struct`+`json`): **15/15
+  materials carry real colour data** (10 `baseColorFactor`, 5 `baseColorTexture` + embedded image),
+  zero with none. All textured primitives carry `TEXCOORD_0` (UV present, not just a default
+  identity layer).
+- `landmark_beacon.fbx` scanned as raw bytes: all 8 material names present (including
+  `Landmark_Cavity`), 5 embedded PNG signatures (`\x89PNG` count = 5, matches the glTF image count).
+- All 4 renders opened and visually inspected; the plaza-top and roof-top brightness measured
+  numerically across renders (see item 1 above) instead of asserted from a single sample.
+
+---
+
+## 0. Status — round 4/5 history (kept for context, superseded by 0a above)
 
 **This round had live `mcp__blender__*` and Bash access** (confirmed working, unlike rounds 3-5
 which were blocked on a tool grant that never bound to the session). The script was actually run
@@ -163,7 +245,7 @@ this table); it's fixed in the script, not patched over in the table.**
 | Beacon core (formerly "bell") + roof ridge collar | `color.currency.coin` | `#FFD066` | the achievement/gold token already used for coin — reinforces "visible achievement" without a new token. **New this round:** the ridge collar geometry didn't exist before; the gold read was carried by the core alone |
 | Belfry cavity backdrop (new, §4) | `color.text.primary` | `#5A4A6A` | an existing locked text token, repurposed as a dark interior backdrop — not a new colour, a new *use* of one already in the palette |
 | Plaza base / steps | `color.surface.raised` | `#FFFFFF` | matches card/plaza-adjacent surfaces elsewhere in the system |
-| Bunting flags (7×) | the 7 category `500` hexes, §4.1 | `#B6A0EF #6FD0E8 #FFD066 #8AD3B4 #6FBFA6 #FFB37A #FF8FA3` | literal reuse of the locked category palette — no new colour introduced anywhere in this design |
+| Bunting flags (7×) | the 7 category `500` hexes, §4.1 | `#B6A0EF #6FD0E8 #FFD066 #8AD3B4 #6FBFA6 #FFB37A #FF8FA3` | literal reuse of the locked category palette — no new colour introduced anywhere in this design. **Round 6:** flag *shape* (pennant/swallowtail, alternating by index) is layered on top of colour — see §4's CVD note |
 | Edges | Bevel modifier, ~0.015 unit width, 2 segments, angle-limited | n/a (geometry, not a shader stroke) | the 3D-native reading of "no pure black outline, subtle" (§3.1) — a soft physical edge instead of a rim-light shader trick, applied to steps/base/shaft/roof |
 
 No hex in this document is new. Every value is copied from `00-art-design-system.md` §1/§4.1.
@@ -181,37 +263,44 @@ same math the design system already uses for its text-contrast tokens in §9):
   dedicated cavity material (`color.text.primary`, `#5A4A6A`, §3): gold-on-cavity computes to
   **5.52:1** — above the WCAG AA 4.5:1 text threshold, applied here to an object silhouette rather
   than text, which is a stricter bar than this element actually needs but leaves real margin.
-- **Ring radius bug found and fixed.** The bunting ring was authored at `ring_r = 1.5` against a
-  plaza half-width of `0.725` (steps scale 1.45/2) — the flags floated outside the plaza footprint
-  entirely, not "ringing the base" as the geometry comment claimed. Fixed to `ring_r = 0.95`
-  (just past the step edge).
-- **Bunting minimum size.** Flags were `0.18 × 0.16` world units on a landmark ~3.57 units tall
-  (steps top at z=0.15 to the finial gem top at z≈3.57, summing every block's own height from the
-  script) — **5.0%/4.5% of total height**, i.e. plausibly a handful of pixels at a wide village
-  camera. Enlarged to `0.30 × 0.26` (**8.4%/7.3% of height**), proportionally closer to the
-  landmark's own sprite-canvas headroom: `00-art-design-system.md` §2 fixes the landmark's export
-  canvas at 320×400px (vs. 256×320px for a Tier2 building, a 1.25× step, not more) — an 8%-height
-  feature on a 400px-tall canvas is ~30–34px, comfortably above any reasonable minimum-legible-flat-
-  shape floor and consistent with the design system's own 12px text floor (§9) as a sanity
-  reference, not a direct equivalence (a flag is a shape, not type). This is a proportional
-  argument, not a village-camera render — the landmark is not wired into a scene yet (this task's
-  explicit boundary, §5 below), so an actual on-screen village-zoom check is still owed once it is.
+- **Ring radius, twice fixed.** Round 5 corrected the original `1.5` to `0.95`, but `0.95` still
+  exceeded the plaza steps' own half-width (`0.725`) — the garland overhung the slab at all 4 face
+  midpoints (round-5 review finding). **Round 6:** `ring_r = 0.60`, comfortably inside `0.725`.
+  Verified by inspecting a zoomed crop of `landmark_plaza_plan_from_above.png` — the entire garland
+  ring sits within the white plaza silhouette, no segment crosses the edge (see §7).
+- **Bunting minimum size.** Flags are `0.30 × 0.26` world units on a landmark ~3.57 units tall —
+  **8.4%/7.3% of total height** (unchanged from round 5's fix; the sizing wasn't part of the
+  round-5 review's findings). `00-art-design-system.md` §2 fixes the landmark's export canvas at
+  320×400px, so an 8%-height feature is ~30–34px, comfortably above any reasonable
+  minimum-legible-shape floor. This remains a proportional argument, not a village-camera render —
+  the landmark is not wired into a scene yet (this task's explicit boundary, §6 below).
+- **Colour-vision-deficiency note (round 6, closes an A4 gap the review named explicitly).** Two
+  category hues, `#8AD3B4` (exercise) and `#6FBFA6` (hobby), sit close enough in hue/lightness that
+  QA independently described both as "green" in a rendered flag row. Colour alone is therefore not
+  a CVD-safe encoding for these two categories on this object. Fixed by giving flag *shape* a
+  second channel, independent of colour: `build_flag` alternates **pennant** (plain triangle) on
+  even category indices and **swallowtail** (notched, two tails) on odd indices — `#8AD3B4`
+  (index 3, odd → swallowtail) and `#6FBFA6` (index 4, even → pennant) are now shape-distinct as
+  well as colour-distinct. This is on top of the pre-existing positional encoding (each category
+  always occupies the same angular slot around the ring, which the round-4 note already argued was
+  itself a legibility aid, not a full accessibility fix on its own).
 - **No touch-target analysis is included** — this is a decorative static 3D prop, not an
   interactive UI element; `00-art-design-system.md` §9's 44×44px touch-target rule applies to
   buttons/tiles, not to landmark geometry. Noted so its absence isn't mistaken for an oversight.
-- **Render-verified this round, not just computed on paper.** Sampling `landmark_front_three_quarter.png`
-  (Python/PIL, exact pixel coordinates in git history) after the lighting/exposure fixes (§0 items
-  2, 3, 6): the tower front face (`color.primary` + 25% white, authored sRGB `(255,182,210)`)
-  sampled at `(223,164,189)` — same hue ordering (R>B>G) and same rough magnitude, the gap being
-  ordinary lit-surface shading falloff, not a hue-shift artifact (the round-4 colored-fill-light
-  bug that caused a genuine hue shift is confirmed gone — see §0 item 3's before/after). The roof
-  top face (authored `(255,216,231)`) sampled at `(255,222,237)` — a 6-point difference, i.e. an
-  effectively exact match. The belfry cavity backdrop, previously computed at a theoretical 5.52:1
-  gold-on-cavity contrast (above) but never actually rendered with the cavity material applied
-  (§0 item 5 — the material was silently unused before this round's fix), is now visibly dark and
-  applied in every render that frames the belfry (`landmark_belfry_closeup.png`,
-  `landmark_front_three_quarter.png`), confirmed both visually and via the exported glTF's
-  material list (§0).
+- **Render-verified this round, not just computed on paper — and now checked for CONSISTENCY across
+  shots, not just against one sample.** The round-5 review's core finding was that a single-render
+  pixel sample doesn't prove "tokens verifiably matching in the actual renders" when the *other*
+  renders of the same token disagree by up to 78%. This round's verification therefore samples all
+  4 renders, not one: isolating the brightest 5% of near-white pixels (the plaza/roof top faces,
+  `color.surface.raised` and the roof tint) across `hero_elevated_arch`, `plaza_plan_from_above`,
+  and `eye_level_approach` gives **233, 236, 235** out of 255 — a ~1.3% spread, vs. round 5's
+  217/122/129 (up to 78%). The tower-body pink (front+side mix) R-channel holds to **210–215.5**
+  (~2.6% spread) across the same three renders; the G-channel varies more (156–175, ~11%) but that
+  reflects each shot seeing a genuinely different front/side face-area ratio (a real geometric
+  difference between shots), not a lighting-consistency bug. The belfry cavity backdrop is visibly
+  dark and legible in every render that frames it (`landmark_belfry_closeup.png`,
+  `landmark_hero_elevated_arch.png`), confirmed both visually and via the exported glTF's material
+  list (§0a).
 
 ## 5. Fidelity bar vs. the ProBuilder buildings (T006/T007)
 
@@ -221,16 +310,21 @@ blocks (this reference is itself a 2D concept illustration, not an in-engine cap
 the fidelity bar the brief names). The beacon spire is designed to clear it via:
 
 - **Open-arch belfry with a beacon core against a dark cavity backdrop** — real negative space (a
-  boolean-cut arch) plus a computed 5.5:1-contrast interior, which none of the 7 category
-  buildings have any equivalent of.
+  two-part box+cylinder boolean-cut ARCH, jambs + rounded crown, not a cylinder bore) plus a
+  computed 5.5:1-contrast interior, which none of the 7 category buildings have any equivalent of.
 - **A stepped 5-element-plus-collar silhouette** (steps, base, shaft, belfry, roof+collar, finial —
   vs. the buildings' cube+upper-block+cap 2–3 block max) — taller, more massing changes, reads as
   "more built" at a glance.
-- **Real per-face node-based materials with procedural surface variation** (Object-space noise
-  driving base-color tint, roughness, and bump on every structural block — not a single flat
-  Base Color value) plus two metallic accents (coin gold, secondary lavender) — the acceptance
-  criterion "not the default gray/checker, real materials/textures" is met by both never leaving
-  Blender's default material *and* never using a single flat colour per material.
+- **Real per-face node-based materials with procedural surface variation, on a fixed-texel-density
+  UV unwrap** (Object-space noise driving roughness/bump, a baked-PNG Base Color on 5 of 8
+  materials, `cube_project` UV at `TEXEL_TILE_UNITS = 0.5` so the paving-joint pattern actually
+  resolves as periodic geometry in the render — verified in §7, not just present as an unused
+  image) plus two metallic accents (coin gold, secondary lavender) — the acceptance criterion "not
+  the default gray/checker, real materials/textures" is met by both never leaving Blender's default
+  material *and* never using a single flat colour per material.
+- **A garland with real droop, not a rigid torus** — the bunting cord sags between posts and sits
+  entirely inside the plaza footprint, a level of construction detail none of the 7 category
+  buildings' flat-colour blocks attempt.
 
 ## 6. What is NOT decided here (left for a future task, per the brief's boundary)
 
@@ -242,28 +336,38 @@ the fidelity bar the brief names). The beacon spire is designed to clear it via:
 - The actual on-screen legibility check at village-camera zoom (§4) — owed once this asset is
   wired into a scene, which is explicitly out of scope for this task.
 
-## 7. Handoff — delivered, this round (2026-08-01)
+## 7. Handoff — delivered this round (round 6, 2026-08-01)
 
 `lifetown/Assets/Art/Blender/build_landmark.py` executed successfully; every file below is the
-actual output of the command in §0, opened and inspected (renders viewed as images, `.glb` parsed
-as binary JSON, `.fbx` scanned as raw bytes), not the script's claims about what it would produce.
+actual output of the command in §0a, opened and inspected (renders viewed as images, `.glb` parsed
+as binary JSON, `.fbx` scanned as raw bytes, pixel values sampled with Python/PIL), not the
+script's claims about what it would produce.
 
-**Renders** (`lifetown/Assets/Art/Blender/renders/`, 1600×1600 PNG, `Standard` view transform):
-- `landmark_front_three_quarter.png` — face-on (azimuth 90°) view of the front (+Y) face; belfry
-  arch, beacon core, bunting garland/poles all clearly visible.
-- `landmark_side_profile.png` — face-on (azimuth 0°) view of the +X side face.
-- `landmark_back_three_quarter.png` — face-on (azimuth 180°) view of the −X side face.
-- `landmark_belfry_closeup.png` — tight-framed (ortho_scale 1.6) shot centred on the belfry band;
-  the gold beacon core against the dark cavity backdrop, the specific signature element round 4
-  scored as invisible, is unambiguous here.
+**Renders** (`lifetown/Assets/Art/Blender/renders/`, 1600×1600 PNG, `Standard` view transform —
+round-5's `_three_quarter`/`_profile` files are deleted, replaced with these 4):
+- `landmark_hero_elevated_arch.png` — az=90°, elev=42° (raised 3/4). Frames the Y-tunnel arch
+  head-on while showing more of the roof/plaza than a flat elevation would; the belfry arch, beacon
+  core, ridge collar, finial gem, and garland/poles are all visible in one shot.
+- `landmark_plaza_plan_from_above.png` — az=45°, elev=72° (high plan view). Reads the stepped
+  plaza massing (steps → base → shaft, nested squares in plan) and the full garland ring — verified
+  the ring sits entirely inside the plaza silhouette (§4's ring-radius fix) and shows a visible
+  parabolic droop between posts, not a rigid circle.
+- `landmark_eye_level_approach.png` — az=90°, elev=11° (low, ground-level). Full-height silhouette
+  from base to finial gem; also the clearest single shot of the garland droop + 2 flag shapes
+  (pennant + swallowtail both visible in frame).
+- `landmark_belfry_closeup.png` — az=90°, elev=35.264°, ortho_scale=1.6 (tight-framed on the
+  belfry band, unchanged from round 5). The gold beacon core against the dark cavity backdrop,
+  now inside a real arch profile (jambs + rounded crown) instead of a circular bore.
 
 **Exports** (`lifetown/Assets/Art/Blender/`, all covered by `.gitattributes` LFS rules — verified
-present, lines 2-4):
+present, lines 2-4; the accompanying `.meta` files for `.blend`/`.fbx`/`.glb`/`textures/*.png` are
+committed alongside this round's output, closing the round-5 review's git-hygiene finding):
 - `landmark_beacon.fbx` — axis_forward=-Z, axis_up=Y, embed_textures=True, path_mode=COPY. Contains
   all 8 unique material names (verified by raw byte scan) and 5 embedded PNGs.
 - `landmark_beacon.glb` — 15/15 materials carry real color data (10 `baseColorFactor`, 5
   `baseColorTexture` + embedded image), verified by parsing the binary JSON chunk directly with
-  stdlib `struct`+`json` (no Blender/Unity dependency in the verification step itself).
+  stdlib `struct`+`json` (no Blender/Unity dependency in the verification step itself). All
+  textured primitives carry a `TEXCOORD_0` UV attribute.
 - `landmark_beacon.blend` — the editable source scene.
 
 **Unity import spec** (unchanged from earlier rounds, still applies): scale factor 1, pivot at
@@ -271,11 +375,9 @@ world origin (model floor sits at z=0), axis convention matches the FBX exporter
 Wiring this into a scene/prefab is out of scope for this task (client-dev, future task, per the
 brief's boundary in §6).
 
-**What changed vs. earlier rounds' claims, honestly stated:** rounds 3-5 described fixes that were
-never actually run or verified (no Bash/Blender access in those sessions). This round found and
-fixed six additional real bugs that only running the script surfaced — a `TypeError` on the first
-paving-texture call, AgX view-transform desaturation, a light-rig/camera mismatch left over from
-the camera-azimuth fix, a locale-fragile node lookup, a belfry-cavity material that was silently
-never applied (two wrong fix attempts before the working one), and light-energy overexposure on
-the roof. See §0 for the full list with root causes. Every acceptance criterion in the task brief
-is now backed by an inspected artifact, not a script read-through.
+**What changed vs. round 5's claims, honestly stated:** round 5 ran the script and fixed 6 real
+bugs, but its own verification pass sampled only one render per token and never checked the other
+3 renders of the same token against each other — which is exactly what the round-5 review caught
+(78% brightness spread across 3 "verified" renders). This round's verification explicitly samples
+*all* renders for the same token before calling it consistent (§4), not just one. See §0a for the
+full list of this round's fixes with root causes and measured before/after numbers.
