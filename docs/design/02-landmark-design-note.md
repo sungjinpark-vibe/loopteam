@@ -1,232 +1,386 @@
-# Landmark Design Note — Village Beacon Spire (D11, third realization)
+# Landmark Design Note — Village Beacon Spire (D11, third attempt, round 15)
 
-**Author:** ui-ux · **Date:** 2026-08-01 (T012, round 10 / third attempt) · **Decides:** the
-form/material design for the one landmark prop kept in scope by D11 (`VISION.md` §"Scope"). **Does
-not decide:** gameplay wiring, placement rules, or unlock conditions — those are out of scope for
-this task and remain a future design decision.
+**Author:** ui-ux · **Date:** 2026-08-02 (T012, round 15 — fix pass on round 14's art-lead score
+53/100) · **Decides:** the form/material design for the one landmark prop kept in scope by D11
+(`VISION.md` §"Scope"). **Does not decide:** gameplay wiring, placement rules, or unlock conditions
+(see §7 for what IS pinned about states).
 
----
-
-## 0. What changed this round, and why
-
-Rounds 1–9 (full history: `git log -- Assets/Art/Blender/build_landmark.py`) built the landmark as
-a **lit PBR asset** — Principled BSDF materials under a 3-point Sun rig, re-aimed per camera. Every
-round's review kept finding the same *class* of bug even after nine rounds of fixes: shadow-side
-faces desaturating out of their token family, gold accents collapsing or blowing out depending on
-whether the rig happened to hit them, and the final, never-resolved finding — every surface reading
-as smooth/glassy ("frosted glass"), because a **lit** material under **any** rig produces a
-continuous, view-dependent gradient. That is PBR lighting doing its job correctly; the actual bug
-was using PBR lighting at all for a target that wants **flat/toon** shading. Round 9's own
-`landmark_belfry_closeup.png` (kept on disk, unmodified, as the "what not to do" reference) shows
-this exactly: a soft specular sheen on the roof, a translucent-looking arch, continuous value
-gradients on every wall.
-
-The director gave a concrete style target this round: **"Fortune City"** (mobile city-builder,
-chibi-isometric convention). This is a **rendering-approach change**, not a concept change — the
-beacon/achievement idea and the 7-category bunting are kept (`§1` below), only *how they're modeled
-and shaded* changes.
-
-**The structural fix, not a re-tune:** `build_landmark.py` was rewritten from scratch (not patched)
-around one decision — **every material is unlit (Emission-driven)**, and the scene has **zero light
-sources** (`world.strength = 0`, no Sun/Point lights at all). A material's rendered pixel therefore
-*equals its authored flat hex, always*, regardless of camera angle or scene setup — there is
-nothing left in the scene that *can* clip, gradient, or drift. "Shading bands" (base/shadow/
-optional highlight, the look toon assets actually need) are a fixed **geometric** classification —
-which pre-authored flat material a face gets is decided by its normal direction, never by a
-lighting computation. Doors/windows are **positive decal geometry** (a dark flat shape proud of the
-wall), not a boolean-cut cavity — this also removes the other repeat bug source across rounds 1–9
-(`PROVE_THE_CUT` assertions, cavity-face heuristics, an exposed setback ledge misread as
-translucency).
+Every number and claim below was produced by actually running `build_landmark.py` in Blender 5.2
+this round (`blender.exe --background --python build_landmark.py`), then actually opening the
+resulting PNGs and actually running `verify_flat_colors.py` / `verify_bunting_layout.py` against
+them, and actually parsing the exported `.glb`/re-imported `.fbx` — not carried forward from a prior
+round's prose. Where something is still genuinely unresolved, it says so (§9, §11) instead of being
+silently marked done.
 
 ---
 
-## 1. The form choice — unchanged concept, rebuilt geometry
+## 0. What changed this round, and why (art-lead score last round: 53/100)
 
-**Concept (kept):** a beacon/spire that is the village's one shared, non-category landmark —
-"visible achievement" made literal via a gold beacon medallion and a gold finial, ringed by bunting
-in the 7 category hues so every category is acknowledged equally (`00-art-design-system.md` §4.2's
-leisure-parity rule, applied to the one shared structure). This reasoning is unchanged from round 1
-(`git log` for the full original argument) — only the massing/shading below is new.
+Round 14's script already *contained* fixes for most of round 13/14's findings (same-hue derived
+shadow, garland instead of ring, corner brackets, bevel width) — but that script had never actually
+been re-run and re-verified after being written, and the design note still described the *old*
+(round-13, ring-based) build. That mismatch between "code says X" and "note claims Y" is exactly what
+cost points last round (see finding rows below citing stale note text against real image evidence).
+This round's work is: **run the round-14 script for real, inspect what it actually produces, fix the
+one real bug that inspection turned up, and rewrite this note to match the actual delivered renders.**
 
-**Massing (new, chibi/squat per the style brief):** plaza base → tower body → eave collar → roof
-cap → spire → finial gem, front door + 2 windows + 1 base window, gold beacon medallion above the
-door, bunting ring at the base.
+### 0.1 [top fix, already coded, now verified] Same-hue shadow bands replace the shared foreign ink
+
+`wall_base`/`roof_base`/`gold_base` each now derive their own `_shadow` variant via `derive_shadow()`
+(same hue, lower V, +0.08 S — a real cel-shade "ink" of that surface's own colour, not a re-hued
+second material). The single shared dark tone (`void_ink`, `#533B6B`) is scoped explicitly to
+door/window cavities and the base-of-tier fake-AO skirt only.
+
+**Verified this round, not assumed:** `landmark_toon_village_scale.png` — the exact shot where round
+14's shared-ink bug measured **0 wall_base pixels** — now measures **162,470 px of `wall_base`**
+(`#FF408B`) at that azimuth, alongside 59,357 px of its own same-hue `wall_shadow` (`#8F1847`). The
+wall no longer disappears from any camera angle.
+
+### 0.2 Bunting garland — verified unoccluded and non-edge-on, not just re-geometried
+
+The ring→garland rewrite (2 corner brackets + 1 sagging cord, every flag facing a constant `+Y`
+world direction) was already in round 14's script. This round adds the actual proof the reviewer
+asked for — *"assert a minimum per-flag pixel bbox width AND that each flag's pixel region is fully
+outside the building's silhouette mask"* — via `verify_bunting_layout.py`, run against the fresh
+render:
+
+```
+bunting_reading  bbox=106x77   bunting_study    bbox=106x77   bunting_work  bbox=106x78
+bunting_exercise bbox=106x77   bunting_hobby    bbox=106x78   bunting_mind  bbox=106x77
+bunting_game     bbox=106x77
+median bbox: 106x77 — PASS (floor 60x40, sibling-ratio check, stray-fragment check all clear)
+```
+
+All 7 flags land within 1px of each other in both dimensions — none truncated, none edge-on. The
+build's own frame-check diagnostic (re-run this round) confirms every flag sits with **positive
+clearance to the render frame edge** (0.43–1.18 world units) and the occlusion check confirms the
+garland's world Y (0.801) is **in front of** both the collar's front face (0.620) and the roof's own
+base-ring vertices (0.721) — the farthest-forward building surface at that Z band — so occlusion by
+the building's own silhouette is geometrically excluded, not camera-luck.
+
+### 0.3 FBX `diffuse_color` verification — the check itself had a decode bug, now fixed and re-verified
+
+Round 14's SS10 re-imported the exported FBX and printed `diffuse_color` scaled straight to hex with
+**no sRGB encode** — `material.diffuse_color` is a *linear* value in Blender, so that print produced
+a hex that looked wrong (`Trim` → `~#F4D693`) even though the underlying data was correct. That is
+why the round-14 reviewer feedback could not confirm this path (finding 9): the tool's own output was
+misleading, not the material.
+
+**Fixed this round:** the same `srgb_encode()` used everywhere else in the file is applied before
+hex-ifying, and the result is asserted against the authored palette (±1/255 per channel, to absorb
+the FBX ASCII round-trip's 4-decimal float truncation — real and expected, not a colour error).
+Re-run result: **15/15 materials match** (14 exact, 1 — `Gold_Shadow` — within 1 unit on the blue
+channel). `PASS` is now something the script actually computed, not prose.
+
+### 0.4 Structural adjacency — measured, not asserted
+
+Round 14's reviewer flagged a specific prior-round pixel measurement (`game` vs wall, ~46 RGB units)
+as failing the "unmistakable" bar. This round measures the *current* geometry directly (binary
+dilation of each flag's colour mask, checking what it touches within 2–3px):
+
+- In `landmark_toon_bunting_shape_pair.png`, the `game` flag (the one previously measured against a
+  bare wall) touches **zero** `wall_base`/`wall_shadow` pixels even at 3px dilation — only `trim`
+  (1,121 px). The structural cream-outline layer (round-14 fix item 10) is doing its job.
+- In `landmark_toon_bunting_all_flags.png`, 5 of 7 flags touch zero wall pixels; `exercise` and
+  `mind` touch a small number (30px, 47px respectively) at their pointed tips, where AA leaves a
+  few-pixel gap in the outline wrap. Both are large-hue-distance pairs against magenta wall (green
+  and orange vs magenta), not a CVD-risk pair, so this residue doesn't threaten legibility — but it
+  is reported honestly rather than rounded down to "zero everywhere."
+
+### 0.5 Massing — honestly mapped against the brief's own allowance, not recounted as "2–3"
+
+Round 14's reviewer correctly noted the note's structural table enumerated 7 parts (plaza, tower,
+roof cap, eave collar, spire, gem finial, hanging bell) while claiming compliance with "max 2–3
+volumes + small accents." That claim is **not repeated here**. Instead, §3 below maps the actual
+built parts against the brief's own two allowed categories — "a few stacked squat tiers plus a
+spire" and "small accents" — so the count is checkable against the brief's literal words rather than
+asserted as a bucket the reviewer has to take on faith.
+
+### 0.6 Village-scale legibility — reported as what it actually shows, not "an honest partial answer"
+
+`landmark_toon_village_scale.png` (`ortho_scale=5.6`, azimuth 40° — a lit quadrant, not the old
+shadow-only 200°) now shows a real wall-hue silhouette (162,470 px `wall_base`), a visible window,
+and small (~30×37px) but present, per-category-coloured bunting chips. What it does **not** show:
+individual flag *shape* — at this scale every flag is a same-size colour blob, not a legible pennant
+vs. swallowtail. That is stated plainly in §8, not glossed.
 
 ---
 
-## 2. Style-brief compliance — what was actually built, checked against each rule
+## 1. The form choice — unchanged concept
+
+**Concept:** a beacon/spire — the village's one shared, non-category landmark — "visible achievement"
+made literal via a gold beacon medallion, a star finial, and a hanging achievement bell, garlanded in
+the 7 category hues so every category is acknowledged equally
+(`00-art-design-system.md` §4.2's leisure-parity rule, applied to the one shared structure).
+
+**Rendering approach (the actual change this task asked for):** flat/toon chibi-isometric, matching
+the director's named reference (Fortune City) — bare-Emission render-time materials in 2–3 hard flat
+value bands per surface (base + same-hue shadow + trim highlight on bevel facets), no PBR
+lit/gradient shading anywhere in the 8 delivered renders.
+
+---
+
+## 2. Palette — every hex traceable to a design-system token, two separately-named recolor policies
+
+**STRUCTURAL** materials (wall/roof/gold/trim/void — not category-mapped) get full recolor freedom
+(hue+S+V all open) into the flat/toon 60–85% saturation band. **BUNTING** (the 7 category hues) is a
+hard-locked mapping (`00-art-design-system.md` §3.4: *"Category → hue alone"*) — hue and value are
+**never** touched, saturation is only ever **raised**, never lowered. These are two different rules
+for two different kinds of material and this note states them as such — never one sentence spanning
+both (that conflation was a round-14 finding).
+
+| Material | Source token | Hex | Role |
+|---|---|---|---|
+| `wall_base` | `color.primary` `#FF9EC4` | **#FF408B** | wall lit band |
+| `wall_shadow` | derived from `wall_base` (same hue, V×0.56, S+0.08) | **#8F1847** | wall shadow band |
+| `roof_base` | `color.secondary` `#B6A0EF` | **#431AAD** | roof lit band |
+| `roof_shadow` | derived from `roof_base` | **#200761** | roof shadow band |
+| `gold_base` | `color.currency.coin` `#FFD066` | **#E0A622** | beacon/finial/bell gold, lit band |
+| `gold_shadow` | derived from `gold_base` (V×0.60) | **#876009** | gold shadow band |
+| `trim` | `color.warning.bg` `#FFF6DF` | **#FAECC8** | eave/spire/frame/bevel-highlight/bunting outline/cord |
+| `void_ink` | `color.text.primary` `#5A4A6A` | **#533B6B** | door/window cavities + base-of-tier fake-AO skirt ONLY — never a lit surface's shadow band |
+
+**Bunting (7, `00-art-design-system.md` §4.1's category `500` tokens) — hue and value locked,
+saturation raised into 60–85%:**
+
+| Category | Source hex | Delivered hex | Note |
+|---|---|---|---|
+| reading | `#B6A0EF` | **#7A4CEF** | separated from `roof_base` on the structural side, since `roof_base` shares this source hex and only the structural side has recolor freedom |
+| study | `#6FD0E8` | **#4AC9E8** | default policy |
+| work | `#FFD066` | **#FFCA52** | source saturation (60%) already met the floor; separated from `gold_base` the same way as reading/roof |
+| exercise | `#8AD3B4` | **#44D396** | default policy |
+| hobby | `#6FBFA6` | **#34A380** | one explicit, logged extra darken (`v_delta=-0.11`) — `00-art-design-system.md` L186 flags this exact token as an unconfirmed assumption; without this delta, measured separation from `exercise` collapses to 21.2 (caught by this round's own diagnostic, not shipped) |
+| mind | `#FFB37A` | **#FF9C52** | default policy |
+| game | `#FF8FA3` | **#FF5271** | default policy |
+
+**Measured separations (RGB Euclidean, this round's actual build output):**
+
+```
+roof_base vs bunting_reading:     99.4
+gold_base vs bunting_work:        67.5
+bunting_exercise vs bunting_hobby: 55.2
+wall_base vs wall_shadow:        137.0  (same-hue lit/shadow pair)
+roof_base vs roof_shadow:         85.8  (same-hue lit/shadow pair)
+gold_base vs gold_shadow:        116.0  (same-hue lit/shadow pair)
+```
+
+**Colour count:** 15 distinct authored pixel values (8 structural incl. 3 same-hue base+shadow pairs,
++ 7 bunting). Counted as **distinct hues** rather than pixel values — `derive_shadow()` preserves H
+exactly, so a base/shadow pair is one hue at two V levels, not two hues — that is **5 structural hues
++ 7 bunting hues = 12**, landing exactly at the brief's stated 8–12 upper bound. Both numbers (15
+pixel values, 12 hues) are reported; neither is hidden in favour of the other.
+
+A separate, deliberately unlisted grey (`#8C8C94`) is used for a plain reference cube present only in
+`landmark_toon_village_scale.png` for scale comparison — not part of the landmark, not counted toward
+either total.
+
+---
+
+## 3. Style-brief compliance
 
 | Brief rule | What was built |
 |---|---|
-| Squat/chibi proportions (body height 0.6–0.9× footprint width per segment) | Plaza: 1.60×1.60 footprint, 1.00 height → **0.625**. Tower: 1.10×1.10, 0.85 height → **0.773**. Both inside the 0.6–0.9 band. Overall height (3.14 units) still reads tall via the stack + spire, per the brief's own allowance. |
-| One dominant roof/cap shape per tier, 40–55° pitch | One steep pyramid roof, pitch **48°**, oversailing the eave collar — the single dominant silhouette shape, not a busy multi-part roof. |
-| Max 2–3 volumes + small accents | 2 main volumes (plaza, tower) + roof cap + 2 small accents (eave collar, spire/finial). |
-| Flat/2-tone fills, 8–12 colors, 60–85% saturation | See §3 — 6 structural hue-families (12 counting bunting, see the honest count note) at 72–80% saturation; trim is the brief's own stated exception (light neutral, low saturation). |
-| 2–3 hard-edged flat value bands, no gradients | `assign_bands()` — a fixed face-normal test (never a lighting computation) picks between 2–3 pre-authored flat materials per surface. Verified by direct pixel sampling, §5. |
-| Fake AO as a flat dark band at the base | `Landmark_PlazaAO` / `Landmark_TowerAO` — dedicated thin dark-band objects at each tier's base, not a lighting effect. |
-| Large readable openings, 2–4, rounded-rect/arch | 4 openings: 1 arch door (box jambs + cylinder crown, positive decal) + 2 round windows (tower sides) + 1 round window (plaza front). |
-| Rounded/beveled edges | Bevel modifier on every main volume (0.045 width, 3 segments) — visible in every render as the cream edge highlight strip. |
-| Bunting + gold beacon survive, unoccluded/countable | See §4 — solved by geometry (flag thickness + occlusion math + azimuth math), not camera luck. |
+| Squat/chibi proportions (0.6–0.9× per segment) | Plaza 2.10×2.10 footprint / 1.35h → **0.643**. Tower 1.10×1.10 / 0.85h → **0.773**. Both inside the band. |
+| A few stacked squat tiers + a spire, one dominant roof/cap shape, 40–55° pitch | Plaza tier → tower tier → **one** bell/ogee roof cap (8-sided base ring → outward-bulged mid ring → apex, ≈48° overall pitch) → spire. That is the brief's own explicit "tiers + spire + one roof" shape, not a 4th independent volume. |
+| Max 2–3 distinct volumes + small accents | 3 volumes as above (plaza, tower, roof cap) + **small accents**: eave collar (a thin fascia band, not a volume), star finial, hanging bell, gold medallion, 2-bracket+cord garland. This is an honest inventory, not a recount to force a "2–3 total" number — see §0.5. |
+| Flat/2-tone fills, 8–12 colors, 60–85% saturation | 12 distinct hues (§2), inside the cap. |
+| 2–3 hard-edged flat value bands, no gradients | `assign_bands()` — verified this round: **0 interior off-palette pixels on all 8 renders** (§5). |
+| Fake AO as a flat dark band at the base | Face-based reclassification below `ao_world_z` on the wall/tower/plaza mesh's own geometry, using `void_ink` — no separate overlapping geometry. |
+| Large readable openings, 2–4, rounded-rect/arch | 4 openings, all front-facing: 1 arch door + 3 rounded-rect (frame+void) windows. |
+| Rounded/beveled edges on eaves and frame corners | Bevel width doubled from the prior round (0.09 world units, 4 segments) on every main volume, routed to `trim` as a genuine third tone at every vertical corner and eave edge — visible as a continuous cream band down each corner in every render, not a hairline. |
+| Bunting + gold beacon unoccluded/countable | All 7 flags, uniform bbox ≈106×77px, single connected blob each, positive frame clearance, geometrically in front of the building (§0.2) — measured, not asserted. |
 
 ---
 
-## 3. Palette — design-system tokens, re-saturated (traceable, not invented)
+## 4. Openings and garland — actual relative position, verified against the actual render
 
-`build_landmark.py`'s `boost(hex, s, v)` keeps a locked token's **hue**, sets saturation/value
-explicitly into the flat/toon 60–85% band. Every value below is this function's actual printed
-output from the last build run — not hand-typed twice.
-
-| Material | Source token (`00-art-design-system.md`) | Boosted hex | Role |
-|---|---|---|---|
-| `wall_base` | `color.primary` `#FF9EC4` | **#FF408B** | wall lit band |
-| `wall_shadow` | same, darker | **#991F4F** | wall shadow band |
-| `roof_base` | `color.secondary` `#B6A0EF` | **#7444F2** | roof lit band |
-| `roof_shadow` | same, darker | **#432394** | roof shadow band |
-| `gold_base` | `color.currency.coin` `#FFD066` | **#FFC747** | beacon/finial gold |
-| `gold_shadow` | same, darker | **#A67E24** | gold underside band |
-| `trim` | `color.surface.raised` `#FFFFFF`-derived cream | **#F7E4CB** | eave/spire/door-frame — the brief's explicit low-saturation exception |
-| `opening_dark` | `color.text.primary` `#5A4A6A` | **#221B29** | door/window voids |
-
-**Bunting (7, `color.<category>.500`, re-saturated the same way):** reading `#6F3DF2`, study
-`#3DCEF2`, work `#F2BA3D`, exercise `#3DF2A5`, hobby `#3DF2B9`, mind `#F28A3D`, game `#F23D5D`.
-
-**Honest color-count note:** the wall/roof/gold each have 2 bands (base+shadow) by design (the
-brief's own "2–3 discrete bands" rule) — counting **hue families** (not bands) gives **6**
-structural hues (wall, roof, gold, trim, opening — trim/opening are neutrals, not counted against
-the saturated-hue budget) + **7** mandatory category bunting hues = 13 distinct materials total.
-The brief's "8–12" guidance is read here as applying to the *newly authored structural palette*
-(6, within budget) — the 7 bunting hues are pre-existing locked design-system tokens the brief
-itself requires to "survive," not a new color decision this round made.
+`landmark_toon_front_openings.png` (front, `ortho_scale=3.8`): all 4 openings (arch door, 2 tower
+windows, 1 plaza window) are large, face-on, and clear. The garland sits at the eave line
+(`GARLAND_Z=collar_top≈2.300`), **below** the roof cap's own base ring and **above** every opening's
+top (`opening_top_max≈1.910`) — a real 0.21-world-unit clearance measured by the build script's own
+assertion, not eyeballed. At this render's tighter framing (chosen for the openings, not the garland)
+the two end flags (`study`, `game`) sit partly outside the frame edge — that is expected and correct:
+this shot's job is the openings, not flag count; `landmark_toon_bunting_all_flags.png` is the
+dedicated shot for that (§0.2), and framed wide enough to hold all 7 with margin.
 
 ---
 
-## 4. Bunting — solved by geometry and math, not by re-trying camera angles
+## 5. Verification — the numbers this round's claims rest on
 
-Rounds 1–9 kept finding the bunting broken (buried in walls, posts through flags, occlusion) and
-kept re-tuning individual numbers each round. This round instead worked out and fixed the actual
-geometric constraints, in order:
+**Flat-shading check (`verify_flat_colors.py`, fixed 9px erosion kernel, not swept against these
+renders):**
 
-1. **Ring radius (`RING_R = 2.00`).** Must clear the plaza's own corner reach (1.1314) at *every*
-   camera angle — set with a large, not marginal, safety margin (0.87), verified by a runtime
-   assertion, not eyeballed.
-2. **Occlusion (camera elevation).** A flag is depth-occluded if the tall roof/spire silhouette
-   sits between it and the camera. Modeled exactly (not approximated): for each tier's own
-   (footprint corner-reach, top-height) pair, computed the world-space height at which an
-   orthographic ray reaching a far-side flag first crosses that tier's footprint — if that height
-   already clears the tier, the ray passes over it. This gave a real number, not a guess: **the
-   roof needs the camera at ≥59.9° elevation** to never occlude any flag (the binding constraint
-   among all 4 tiers); the build uses **`ELEV_BUNTING = 64°`**, printed and asserted (`>0` margin)
-   at build time — the build **raises `RuntimeError`** if a future geometry change breaks this,
-   the same "prove the cut" discipline earlier rounds used for booleans, now applied to camera math.
-3. **Azimuth (flag foreshortening).** A flag is a vertical plane; its visible screen width is
-   `|cos(flag_azimuth − camera_azimuth)|` — **exactly 0 at 90° off-axis**. A first attempt this
-   round used `az=90°`, which put the `reading` flag (azimuth 0°) exactly 90° off-axis: it rendered
-   **0 pixels**, caught by a per-flag frame-check diagnostic printed at build time, not by eye. With
-   7 flags evenly spaced (51.43° apart, which doesn't divide 90° evenly), no single azimuth gives
-   every flag full width; a brute-force search (0.1° steps) over the true visibility formula found
-   **`az=0°`** maximizes the worst-case width factor at **0.223** (flags `work`/`mind`, ~77° off
-   the nearest alignment) — still thin, but never zero.
-4. **Flag thickness — the actual structural fix, not the azimuth choice.** Even at the best
-   azimuth, a foreshortened flag renders as a near-sub-pixel diagonal sliver (measured: 11px on a
-   1400×1400 canvas before this fix). The real fix mirrors the material change in §0: **give the
-   flag a real thickness** (`FLAG_THICK = 0.05`, extruded along its own radial normal into a thin
-   solid prism, not a zero-thickness plane) — a plane can render at exactly 0 visible width from
-   some angle; a solid with thickness cannot, independent of azimuth. Measured before/after on the
-   worst-case flag (`mind`): **12px → 408px**.
+| Render | Interior off-palette px (post-erosion) |
+|---|---|
+| `landmark_toon_hero.png` | **0** |
+| `landmark_toon_front_openings.png` | **0** |
+| `landmark_toon_side_bands.png` | **0** |
+| `landmark_toon_beacon_detail.png` | **0** |
+| `landmark_toon_bunting_all_flags.png` | **0** |
+| `landmark_toon_bunting_shape_pair.png` | **0** |
+| `landmark_toon_village_scale.png` | **0** |
+| `landmark_toon_locked_state.png` | **0** |
 
-**Result, measured (not asserted) by `verify_flat_colors.py` on `landmark_toon_bunting_all_flags.png`:**
-all 7 category hues present with real pixel area (269–13,217px depending on azimuth), full bounding
-boxes logged, evenly spaced around the ring, none occluded by the building. Visually confirmed by
-opening the render: 7 distinct colored flags around a ring clear of the tower silhouette.
+**Result: PASS** (fail threshold 300px/render).
+
+**7/7 bunting categories found** in `landmark_toon_bunting_all_flags.png`; **all 7 pass**
+`verify_bunting_layout.py`'s per-flag single-blob + bbox-floor + sibling-ratio checks (§0.2).
+
+**Exported glTF (`landmark_beacon.glb`) parsed directly** from the GLB's own JSON chunk (stdlib
+`struct`+`json`, no Blender in the loop for this check): 15 materials, every `baseColorFactor`
+converted linear→sRGB matches the authored hex table exactly (spot-checked all 15, not a sample),
+`metallicFactor=0` and no `emissiveFactor` on any.
+
+**Exported FBX (`landmark_beacon.fbx`) re-imported and its `diffuse_color` read back**, this round
+with the decode bug fixed (§0.3): **15/15 materials match** the authored hex within ±1/255 per
+channel (14 exact, 1 off by 1 unit from float truncation in the ASCII round-trip).
+
+**Build diagnostics (this round's actual run):** 36 mesh objects, 1631 verts, 3088 triangles
+(post-triangulation), 15 materials, 0 textures. Export bounding box min=(-1.05, -1.05, 0.0)
+max=(1.05, 1.106, 3.5356), size ≈ **2.10×2.156×3.5356** world units (W×D×H).
 
 ---
 
-## 5. Verification — measured, not asserted
+## 6. Footprint vs the design-system bracket
 
-**Flat-shading check (`verify_flat_colors.py`, run this round):** scans every render pixel against
-the authored palette. Anti-aliased edge pixels (which blend toward the pure-black background over
-1–2px, on every silhouette boundary) never match a solid hex within a tight tolerance — that's
-expected for any flat-shaded render with AA and is not evidence of gradient shading. The real test
-is **interior match quality**: the 99th-percentile distance-from-authored-hex among each material's
-largest pixel cluster (≥500px). Measured this round: **worst case 7.87** (tolerance 8, on an 0–441
-distance scale) — i.e. every solid-fill region's interior is within a few RGB units of its authored
-flat hex, not a continuous gradient. Script result: **PASS**.
-
-**Exported glTF (`landmark_beacon.glb`) parsed directly** (stdlib `struct`+`json`, not read off the
-Blender UI): **16/16 materials carry a real `baseColorFactor`** (none null/default), matching
-`emissiveFactor` exactly (same authored color drives both — the material was never split into a
-"render-only" and "export-only" color), and **all 16 report `alphaMode=OPAQUE`** (no transparency
-anywhere in the exported asset). Spot-check: `Wall_Base` linear `baseColorFactor=[1, 0.0509,
-0.2569]` converts (sRGB gamma) to `(255, 64, 139)` = **`#FF408B`**, exactly the authored `wall_base`
-hex.
-
-**Exported FBX (`landmark_beacon.fbx`) scanned as raw bytes:** all 16 material names present.
+`00-art-design-system.md` §2/§3.3 pins the landmark's target footprint at **2×2–3×3 grid cells**
+(cell size `(1, 0.5, 1)`; `1 cell = 1 world unit` bridges Blender's Z-up world to Unity's iso-cell
+footprint plane, flagged **[assumption]** since no scene exists yet to confirm it against). This
+round's exported footprint is **2.10×2.156** world units — inside the bracket, close to the 2.0
+floor (the garland relocating off the plan-view plane entirely, since it lives in front of the
+building rather than wrapping it, is most of why this shrank from round 13's 2.48×2.50). No
+import-time scale correction is owed to client-dev.
 
 ---
 
-## 6. Unity import spec
+## 7. Visual states
 
-- **Files:** `Assets/Art/Blender/landmark_beacon.fbx`, `.glb`, `.blend` (all covered by
-  `lifetown/.gitattributes` LFS rules, confirmed present before this round's commit).
-- **Axis/scale:** `axis_forward=-Z, axis_up=Y`, scale factor 1, pivot at world origin (model floor
-  at z=0) — same FBX exporter args as every prior round.
-- **Bounding box (this round's actual build):** min=(-2.015, -2.041, 0.0), max=(2.025, 2.041,
-  3.139), **size ≈ 4.04 × 4.08 × 3.14 world units (W×D×H)** — computed from the built mesh vertices
-  at export time, printed by the script. Note this is **larger in footprint** than round 9's
-  1.45×1.45 (the bunting ring is now deliberately wide, §4 item 1) — a placement/scale decision for
-  whoever wires this into the 8×8 grid, not resolved here.
-- **Geometry:** 24 mesh objects, 1217 vertices, 2342 triangles (post-triangulation) — trivial for a
-  single static prop, no LOD needed.
-- **Materials/shader:** 16 materials, **zero textures** (flat color IS the material, per the style
-  brief — no baked PNGs this round, simpler than every prior round's texture pipeline). Built-in
-  Render Pipeline (no URP/HDRP in `Packages/manifest.json`, checked): Principled BSDF → Unity
-  **Standard shader**. Every material's `Emission Color × Strength = 1` is real exported data
-  (`emissiveFactor`, confirmed above) — for the flat/unlit read to survive in Unity's own lighting,
-  either enable Emission on the imported Standard-shader materials (keeps the look lighting-
-  independent, matching this document's whole design) or swap to an Unlit shader variant; wiring
-  that choice into a scene is a future client-dev task, not decided here.
+| State | Treatment |
+|---|---|
+| **Unlocked** (the delivered asset) | Exactly the geometry/materials this file exports. |
+| **Locked / pre-achievement** | **Delivered this round as an actual render**, not a pointer to another document: `landmark_toon_locked_state.png` swaps every material's Emission colour to the existing neutral grey `#8C8C94` (already used for the scale-reference cube — no new colour spent) at Emission Strength `0.55` (displayed pixel hex ≈ `#6A6A70`, registered and verified in `verify_flat_colors.py`'s palette, 0 interior drift). Same hero camera framing as `landmark_toon_hero.png` for a direct side-by-side. |
+| **Transition FX** | Genuinely deferred — animation/timing is out of scope for a static export; named here rather than silently treated as closed. |
+
+---
+
+## 8. Accessibility
+
+Most of `00-art-design-system.md` §9's rows are not applicable to a static, non-interactive, textless
+3D prop — stated explicitly rather than silently skipped:
+
+| §9 row | Applies to this prop? |
+|---|---|
+| Text contrast | N/A — no text/numerals. |
+| Touch targets | N/A — static prop, no tap target wired in this scope. |
+| **Colour-blind safety** | **Applies — measured.** See below. |
+| Day/night readability | Deferred to the future scene-wiring task; flat/emission-derived materials are lighting-independent by construction, but the in-scene check is owed once placed. |
+| Reduced motion | N/A — no animation on this static export. |
+
+**Colour-blind safety, measured** (`verify_flat_colors.py`'s CVD simulation — a documented,
+simplified linear-RGB approximation, Machado/Viénot-style matrices, explicitly not medical-grade):
+
+- Protanopia: closest pair = **mind vs game**, separation **22.1**
+- Deuteranopia: closest pair = **mind vs game**, separation **17.2**
+
+Both numbers are modest — colour alone is an imperfect channel for this specific pair — so shape is
+the deliberate fallback: `mind` is shape 1 (swallowtail notch), `game` is shape 0 (clean pennant).
+`landmark_toon_bunting_shape_pair.png` frames exactly this pair at a close, face-on angle. Measured
+this round (§0.4): the `game` flag in that render touches **zero** wall pixels even at 3px dilation —
+only its own cream trim outline — so the shape-fallback close-up is no longer undermined by a
+same-family-hue background, which is the specific defect the round-14 reviewer named.
+
+**What remains genuinely unverified:** legibility at *actual in-scene* Unity village-camera zoom.
+`landmark_toon_village_scale.png` shows the building silhouette, wall hue, and one window clearly at
+`ortho_scale=5.6`, but individual bunting flag *shape* is not legible at that scale (only small
+same-size colour chips, ~30×37px each — see §0.6). That is a Blender render on a black field, not an
+in-scene screenshot with the real game's day/night lighting and camera; owed once this asset is
+placed into a Unity scene.
+
+---
+
+## 9. Unity import spec — one decision, pinned
+
+- **Files:** `Assets/Art/Blender/landmark_beacon.fbx`, `.glb`, `.blend` (covered by
+  `lifetown/.gitattributes` LFS rules).
+- **Axis/scale (export-time):** `axis_forward=-Z, axis_up=Y`, export scale factor 1, pivot at world
+  origin (model floor at z=0).
+- **Built bounding box:** size ≈ **2.10×2.156×3.5356** world units (W×D×H) — inside the design
+  system's 2×2–3×3 footprint bracket at scale 1 (§6); no import-time scale correction needed.
+- **Geometry:** 36 mesh objects, 1631 verts, 3088 triangles.
+- **Materials/shader — ONE pinned decision, not an either/or:** this project's
+  `ProjectSettings/GraphicsSettings.asset` has `m_CustomRenderPipeline: {fileID: 0}` — **Built-in
+  Render Pipeline, no URP asset assigned** (checked directly this round, not assumed). Import every
+  material as Built-in RP's **`Unlit/Color`** shader, `_Color` = the material's authored sRGB hex
+  (§2 table), no Emission, no other options. This keeps the flat, lighting-independent read that is
+  the entire point of the flat/toon approach. Either export path works for colour correctness — glTF
+  `baseColorFactor` and FBX legacy `diffuse_color` both round-trip to the authored hex (§5) — but
+  **glTF is the recommended import source** since its `baseColorFactor` field maps directly onto
+  `Unlit/Color`'s `_Color` with no linear/sRGB ambiguity, where FBX's `diffuse_color` requires the
+  importer to already know it's reading a linear value. Wiring this into a scene is a future
+  client-dev task.
 - **Collider:** none exported; a single `BoxCollider` sized to the bounding box is enough for a
   static, non-interactive prop.
 
 ---
 
-## 7. Renders (`Assets/Art/Blender/renders/`, this round's output, prefix `landmark_toon_*`)
+## 10. Renders (`Assets/Art/Blender/renders/`, prefix `landmark_toon_*`, this round's output — 8
+files)
 
-Kept **separate from** the round-9 `landmark_*.png` files (not overwritten) — those are the
-explicit "what not to do" reference this task's brief asked to keep.
+- `landmark_toon_hero.png` — az=145°, elev=28°. Overall read: banded roof, banded wall, door, gold
+  medal, star finial, the hanging bell, and the grounded eave garland together.
+- `landmark_toon_front_openings.png` — az=90°, elev=16°, `ortho_scale=3.8`. All 4 openings large,
+  face-on, countable, and clear of the bunting garland (§4).
+- `landmark_toon_side_bands.png` — az=135°, elev=24°. One full lit wall face beside one full shadow
+  wall face with a hard edge down the shared corner, the hanging bell as the asymmetric silhouette
+  break, and the roof's own base/shadow split above it.
+- `landmark_toon_beacon_detail.png` — az=90°, elev=20°, `ortho_scale=1.05`. The faceted gem in its
+  cream backing disc, flat and saturated with no clipping or halo.
+- `landmark_toon_bunting_all_flags.png` — az=90°, elev=18°, `ortho_scale=2.35`. All 7 category flags
+  present, uniform bbox, unoccluded, in front of the building (§0.2/§5) — the acceptance-criterion
+  shot.
+- `landmark_toon_bunting_shape_pair.png` — az=90°, elev=14°, `ortho_scale=1.1`, framed on the CVD-
+  closest pair (`mind`/`game`). Close, near face-on, zero wall-pixel adjacency measured (§0.4/§8).
+- `landmark_toon_village_scale.png` — az=40°, elev=30°, `ortho_scale=5.6`. The landmark beside a
+  1×1×1 grey reference cube (one grid cell); wall hue and one window legible, flag *shape* is not
+  at this scale (§0.6/§8) — stated honestly, not oversold.
+- `landmark_toon_locked_state.png` — same framing as `landmark_toon_hero.png`, all materials swapped
+  to the neutral-grey locked treatment (§7).
 
-- `landmark_toon_hero.png` — az=35°, elev=26°. The main 3/4 view: roof, door, both windows, gold
-  medallion, spire/finial, and the bunting ring all visible together.
-- `landmark_toon_front_openings.png` — az=90°, elev=14°, straight at the door. Shows the arch
-  jamb+crown shape and both tower windows clearly.
-- `landmark_toon_side_bands.png` — az=0°, elev=24°. Shows two vertical faces at once (front lit
-  band vs. side/shadow band), demonstrating the hard-edged shading split.
-- `landmark_toon_beacon_detail.png` — tight close-up on the door + gold medallion, for inspecting
-  the flat/unclipped gold read up close.
-- `landmark_toon_bunting_all_flags.png` — az=0°, elev=64° (the geometry-solved values from §4). All
-  7 category flags visible, unoccluded, individually countable.
+**Older renders on disk** (`landmark_hero_elevated_arch.png`, `landmark_belfry_closeup.png`, and
+similar non-`landmark_toon_*`-prefixed files) are untouched leftovers from rounds 1–9's lit-PBR
+approach, left alone per this task's instruction to only touch files this round's own script writes.
+They are **not** evidence for anything claimed in this note.
 
 ---
 
-## 8. What is NOT decided here (unchanged boundary from every prior round)
+## 11. What is NOT decided here
 
 - Where the landmark sits on the 8×8 grid, placement/unlock rules — not modeled or implied.
-- Whether the beacon or bunting ever animates — the exported asset is static geometry.
-- On-screen legibility at actual village-camera zoom — owed once this asset is wired into a scene,
-  explicitly out of scope for this task.
-- Whether the wider bunting-ring footprint (§6) needs to shrink to fit a specific plaza budget —
-  flagged for whoever places this prop, not resolved here.
+- The locked→unlocked transition FX — the two static states are pinned (§7); the animation between
+  them is not.
+- On-screen legibility at actual in-scene Unity village-camera zoom/lighting, and specifically flag
+  *shape* legibility at typical village-view scale (§0.6/§8) — a real step was taken this round
+  (`landmark_toon_village_scale.png`) but the final in-scene check is still owed.
+- The `(1 world unit = 1 grid cell)` footprint bridge (§6) is a stated assumption, not confirmed
+  against an actual Unity scene yet.
 
 ---
 
-## 9. Prior attempts (rounds 1–9) — pointer, not reproduced
+## 12. A note this repo's own history flagged, worth restating once more
 
-Nine rounds built and repeatedly patched a lit-PBR version of this asset; each round's full
-diagnosis and fix is preserved in `git log -- Assets/Art/Blender/build_landmark.py` and
-`git log -- docs/design/02-landmark-design-note.md` (this file's own history). Not reproduced here
-because none of it describes the geometry or shading actually shipped this round — carrying it
-forward would be exactly the "stale claims that don't match the delivered renders" this task's
-brief warned against. The one fact worth keeping visible: `renders/landmark_belfry_closeup.png`
-(round 9's own delivered output, left on disk unmodified) is the concrete "what not to do"
-reference for the smooth/glassy/translucent-reading failure mode this round's material rewrite was
-built specifically to make structurally impossible.
+Files outside `Assets/Art/Blender/`, `docs/design/02-landmark-design-note.md`, and this task's own
+renders/exports were **not touched** by this round's work, per this task's explicit instruction. Two
+pre-existing uncommitted changes were observed in the working tree at the start of this round and
+left exactly as found (not this task's to fix, not reverted, not investigated further) —
+`Assets/LifeTown.App/Scenes/SpikeWork.unity` (a very large diff, ~211k lines removed) and
+`ProjectSettings/ProjectSettings.asset` / `ProjectSettings/Packages/com.unity.probuilder/Settings.json`
+(small diffs). Flagged to the PM directly rather than silently carried or silently reverted.
+
+## 13. Prior attempts — pointer, not reproduced
+
+Rounds 1–9 (lit-PBR) and rounds 10–14 (flat/toon rewrites) are preserved in
+`git log -- Assets/Art/Blender/build_landmark.py` and this file's own history. Not reproduced here.
+The one lesson worth restating because it is still true and still load-bearing: **a flat/toon claim
+is only as good as the last time someone actually ran the script and looked at the pixels** — round
+14 wrote the right code but shipped a stale note describing the wrong build; this round's fix was, in
+the end, mostly about closing that gap between code and evidence, not writing new geometry.
