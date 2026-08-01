@@ -31,10 +31,13 @@ bar, and approve or reject.
 project-independent — the gates, rubrics, boundaries, failure policy, standing rules. This section
 never holds project detail again; it only points.
 
-- **Active project: Life Town** (RESUMED by the director 2026-07-19) → contract: `lifetown/VISION.md`.
-  Director's sequence: building polish (T009) → playable gameplay slice (T010) → APK build (T011).
-- **Paused** (not cancelled): **touchRPG** (2026-07-19, P0 complete, Gate 3 pending) →
-  `touchRPG/VISION.md`.
+- **No active project** (2026-08-02 — director paused Life Town, "이 프로젝트 중단하자"). Both apps are
+  paused, not cancelled:
+  - **Life Town** (paused 2026-08-02): T001-T011 done, T012 unfinished mid-decision (landmark art
+    pivoting to 2D illustration) → `lifetown/VISION.md`.
+  - **touchRPG** (paused 2026-07-19, P0 complete, Gate 3 pending) → `touchRPG/VISION.md`.
+  Do not invent new work for either while paused — wait for the director to resume one or start
+  something new.
 
 **Tick rule**: when a project is active, Step 0 reads the engine `VISION.md` **and** that app's
 `VISION.md` — both, every tick. Paused projects' files are not read (that is the token point).
@@ -341,3 +344,9 @@ listener's 100-message window with team chatter and re-create the exact cursor f
   daemon stopped, watchdog task disabled. Inbox-drain steps elsewhere become harmless no-ops.
 - 2026-07-19 **Discord re-enabled** (director: *"디스코드 살려주고"*), same day as the disable — rule 8
   updated in place; both directions confirmed live (heartbeat fresh, mockup image sent successfully).
+- 2026-08-02 **Life Town paused** (director: *"이 프로젝트 중단하자"*, confirmed scope = the whole
+  project): T012 (art landmark) was mid-decision — 4 escalated attempts at a 3D Blender model (20
+  rounds, never passed) were superseded by a director-approved pivot to flat 2D illustrated art after
+  real Fortune City reference screenshots showed the reference is 2D card art, not 3D models — paused
+  before that pivot was implemented. §2 updated to "no active project"; full detail archived in
+  `lifetown/docs/paused-state/`.

@@ -5,19 +5,9 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ Active. **Current mission: LIFE TOWN (resumed 2026-07-19)** — T009→T010→T011 all done
-  (APK v0.0.9 delivered). **T012 art resource upgrade — FOURTH escalation, 2026-08-02, not relaunching
-  without director input.** Four full attempts, 20 rounds, ~8.8M subagent tokens: 44/95 → 66/95 → 60/95 →
-  **65/90** (director lowered the bar to 90 and enabled PolyHaven + Sketchfab after attempt 3; attempt 4
-  used PolyHaven, best single round hit 68/90). Real progress this time — a genuine PolyHaven-sourced
-  mesh broke the "just primitives" ceiling that cost points in all 20 rounds — but a more structural
-  problem surfaced: the palette drifted outside the design system's own tokens into territory it
-  explicitly warns against, and a render-quantization step reintroduced a tautological verifier for the
-  third time. Reported to the director with the full history, renders attached, and a recommendation to
-  judge the actual visuals directly rather than keep chasing the number — 8.8M tokens and 20 rounds is a
-  lot to have spent without a gate pass. Sketchfab is now also enabled (director-supplied key) and unused
-  so far, available for attempt 5 if the director wants one. Contract: `lifetown/VISION.md`. Discord
-  ENABLED both ways (rule 8, current).
+- **Status**: ⏸ IDLE — no active project (2026-08-02, director: *"이 프로젝트 중단하자"*, confirmed scope
+  = the whole Life Town project). Both apps paused; wait for the director to resume one or start
+  something new. Do not invent work. Discord ENABLED both ways (rule 8, current).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,
@@ -53,21 +43,22 @@
 - **touchRPG** (2026-07-19): P0 feature-complete (T001-T004 = 97/94/90/97), APK v0.0.1 delivered.
   Open: Gate 3 never ran (손맛 question unanswered), 5 provisional numbers, TBD-14/15.
   → contract `touchRPG/VISION.md`; pause detail `touchRPG/docs/paused-state/PROGRESS-snapshot.md`.
-- **Life Town** (2026-07-17): village v2 accepted, next step already decided = real gameplay.
-  → contract `lifetown/VISION.md`; pause detail `lifetown/docs/paused-state/`.
+- **Life Town** (2026-08-02): T001-T011 done and accepted (APK v0.0.9). T012 (art landmark) unfinished
+  mid-decision — director just approved pivoting the landmark to flat 2D illustrated art (real Fortune
+  City references showed its buildings are 2D card art, not 3D models) after 4 escalated 3D-Blender
+  attempts (20 rounds, never passed). Pivot not started when paused.
+  → contract `lifetown/VISION.md`; pause detail `lifetown/docs/paused-state/PROGRESS-lifetown.md`.
 
 ## Blockers
 - None.
 
 ## Needs Human Review
-- **T012 (Blender landmark) — FOURTH escalation, needs a real director decision, not another auto-retry.**
-  44/95 → 66/95 → 60/95 → 65/90 across four full attempts (20 rounds, ~8.8M tokens). This round's finding
-  is more structural than execution polish: the color palette itself drifted outside the design system's
-  documented tokens. Recommended the director judge the actual renders directly rather than the score —
-  see Current State and `backlog/tasks/T012.md` for full history. Do not launch a 5th attempt without the
-  director's explicit go-ahead.
-- **Security note on the same run, resolved**: round 1's QA evidence step ran `git checkout --` on files
-  outside the task's scope (a Unity scene, ProjectSettings) — flagged by the harness as a possible
+- None active — T012's open decision was resolved by the director (flat-2D-art pivot approved) before
+  the whole project paused. Full detail: `lifetown/docs/paused-state/PROGRESS-lifetown.md`. On resume,
+  start there — do not relitigate the 3D-vs-2D decision, it's made.
+- **Security note (2026-08-01 T012 run), resolved, kept for the pattern**: a QA evidence step ran
+  `git checkout --` on files outside the task's scope (a Unity scene, ProjectSettings) — flagged by the
+  harness as a possible
   destructive action, same class as the 2026-07-18 `rm -rf` incident. **Investigated: no data was
   actually lost** (verified via `git lfs status` hash comparison, not just `git status` — see Do Not
   Repeat below for why a naive `git diff --stat` on this file was misleading). Logging the *pattern* —
@@ -75,8 +66,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. **Get the director's call on T012's next step** (continue rounds vs. change approach vs. drop it) —
-   do not auto-relaunch a third quality-loop on the same script.
+1. **Wait for the director to resume a project or bring a new one.** Nothing is `ready` in the backlog
+   (it's empty/idle-state while both apps are paused) — go idle rather than inventing work.
 2. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19). The
    2026-07-18 standing grant expired with P0 — it does not cover engine work.
 3. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch.
