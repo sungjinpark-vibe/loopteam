@@ -1,0 +1,12 @@
+# ── Node / React (Apps-in-Toss mini-app via create-ait-app + Vite) ──
+node_modules/
+dist/
+.ait/
+*.ait
+.env
+.env.local
+
+# ── OS / editor ──
+Thumbs.db
+.DS_Store
+*.log
