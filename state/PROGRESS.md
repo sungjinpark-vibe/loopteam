@@ -51,22 +51,29 @@
 - None.
 
 ## Needs Human Review
-- **T012 (Blender landmark, 2026-08-01)**: hit the 5-round limit at 44/95 — never marked done. Root
-  cause was mostly infra, not creative failure: `mcp__blender` was added to ui-ux's tool list mid-session
-  but never actually reached the subagent (needs a session restart to bind — confirmed 3x independently).
-  Round 4 still produced real WIP (script, 3 renders, fbx/glb/blend exports) via QA running Blender
-  headless directly; 아트팀장's deductions are a concrete fix list, not thrown away. Also: giving ui-ux
-  Bash/PowerShell as a Blender-execution fallback was attempted and **blocked by the permission
-  classifier** — needs the director's explicit yes/no. Full detail: `backlog/tasks/T012.md` Log.
-  Reported to the director on Discord as unfinished.
+- **T012 (Blender landmark, 2026-08-01) — SECOND escalation, still blocked.** After a session restart
+  fixed the tooling gap and the director approved Bash/PowerShell, T012 ran for real (executed builds,
+  inspected real pixel/material output) across 5 more rounds: score 60→55→49→50→**66/95**. Combined with
+  the first attempt, 10 rounds and ~3M subagent tokens spent; still 29 points short. Remaining gaps are
+  now genuine rendering/color-fidelity issues (material clipping, occlusion, an A5 originality ceiling
+  from the primitive-stack approach) rather than infrastructure. **Not relaunching a third attempt
+  without director input** — recommended considering a Sketchfab/PolyHaven-sourced base mesh instead of
+  more rounds on hand-authored primitives. Full history: `backlog/tasks/T012.md` Log. Reported to the
+  director on Discord.
+- **Security note on the same run, resolved**: round 1's QA evidence step ran `git checkout --` on files
+  outside the task's scope (a Unity scene, ProjectSettings) — flagged by the harness as a possible
+  destructive action, same class as the 2026-07-18 `rm -rf` incident. **Investigated: no data was
+  actually lost** (verified via `git lfs status` hash comparison, not just `git status` — see Do Not
+  Repeat below for why a naive `git diff --stat` on this file was misleading). Logging the *pattern* —
+  an agent overstepping file scope with a git command — as a real recurring gap regardless of this
+  instance's outcome.
 
 ## Next Run Should
-1. **Resume T012 after a session restart** (required for the `mcp__blender` grant to actually bind) —
-   hand the resuming agent the r4 script + 아트팀장's fix list rather than starting over.
-2. Get the director's call on whether ui-ux also gets Bash/PowerShell (Blender-headless fallback).
-3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19). The
+1. **Get the director's call on T012's next step** (continue rounds vs. change approach vs. drop it) —
+   do not auto-relaunch a third quality-loop on the same script.
+2. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19). The
    2026-07-18 standing grant expired with P0 — it does not cover engine work.
-4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch.
+3. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch.
 
 ## Decisions Made (standing — full history in journal)
 - **Channel rule (CURRENT, 2026-07-18)**: *"지금부터 답변은 디스코드로 해줘"* — report to Discord even
@@ -115,6 +122,16 @@
   tool *before* the session that will use it starts.
 - Bash/PowerShell grants to an agent that doesn't have them are gated by the permission classifier as a
   meaningful capability change — expect a manual approval step, don't assume an Edit-tool grant is live.
+- **Agents running `git checkout --`/similar reverting commands on files they didn't create is the same
+  class of violation as unauthorized `rm -rf`** (2026-07-18 incident) — an agent should only ever revert
+  the specific file(s) its own task touched, never sweep up "looks stray" changes. Confirmed once
+  (T012 QA evidence step, 2026-08-01) — no actual loss that time, but don't rely on luck; brief
+  evidence/QA steps to touch only what they were told to inspect, never to "clean up" the working tree.
+- **`git diff --stat` on an LFS-tracked file can report a huge, scary, and WRONG line-count diff** when
+  the committed blob is compared as its LFS pointer text against the working tree's smudged real
+  content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
+  a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
+  hash match, nothing changed.
 
 ## Do Not Repeat (addendum, 2026-07-19)
 - **New Unity scene files must be covered by `.gitattributes` LFS rules BEFORE first commit.** A

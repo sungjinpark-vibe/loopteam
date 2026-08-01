@@ -35,7 +35,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T009 | Work building polish — wall items readability | `done` | client-dev | build | 1 | Director 2026-07-19: "건물 폴리싱부터 먼저". The known small gap from the pause snapshot: laptop/coffee wall items read less crisply than the other 6 buildings. Frugal path. |
 | T010 | Playable gameplay slice — tap building → timer → growth | `done` | client-dev | build | 2 | Director-approved next step (2026-07-17) + reconfirmed 2026-07-19. Wire Economy.Core (T002) + Platform (T003) + design system (T004) into the village scene. Full quality loop. After T009. |
 | T011 | Build delivery (APK) | `done` | client-dev | build | 3 | Director 2026-07-19: "게임 플레이 후 빌드 진행". depends_on T010. |
-| T012 | Art resource upgrade — Blender-modeled village landmark | `in-progress` | ui-ux | build | 1 | Resumed 2026-08-01 after session restart + director-approved Bash/PowerShell grant. Building on r4's script/renders, not starting over — see task log. |
+| T012 | Art resource upgrade — Blender-modeled village landmark | `blocked` | ui-ux | build | 1 | 2nd escalation: 66/95 after 10 rounds total (~3M tokens). Real progress, real remaining gaps (pixel-level material clipping, bunting occlusion, A5 originality). Awaiting director's call — see task log. |
 
 ## Task file format
 
