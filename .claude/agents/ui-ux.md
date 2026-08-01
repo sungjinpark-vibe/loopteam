@@ -49,8 +49,22 @@ Work in English: design docs, notes, and your final report in English (PM handle
   `lifetown/.gitattributes` covers the extension with `filter=lfs` (added 2026-08-01 for these three —
   verify it's still there, don't assume; this is the same class of bug that broke a 114MB `.unity` push
   on 2026-07-19, Do Not Repeat in `state/PROGRESS.md`).
-- You do not have Unity/Bash/PowerShell — wiring an exported asset into a scene is a `client-dev` task.
-  Your deliverable here is the modeled/textured asset + its export file + screenshots, not a scene edit.
+- **Verify tool access before trusting this doc**: T012 (2026-08-01) found `mcp__blender` granted here
+  did not actually reach the ui-ux subagent for three straight rounds — a mid-session edit to this
+  file's `tools:` line does not propagate to subagents spawned later in the same session (same class of
+  bug as the ponytail plugin lesson, `state/PROGRESS.md` Do Not Repeat). If `mcp__blender__*` calls
+  fail with "No such tool available," don't burn rounds re-trying it — say so and stop; it needs a
+  session restart, not a different prompt.
+- **Fallback under consideration, not yet granted**: calling the local Blender binary headless via
+  Bash/PowerShell (`"C:\Program Files\Blender Foundation\Blender <ver>\blender.exe" --background
+  --python <script.py>`) doesn't depend on MCP binding and was proven working when QA ran a T012 script
+  this way mid-task. Adding Bash/PowerShell to this agent to make that the normal path was attempted
+  2026-08-01 and **blocked by the permission classifier** (shell access is a meaningful capability grant
+  it gates) — needs the director's explicit call, not a PM decision. Until then, this agent has no way
+  to execute Blender itself even after a restart fixes the MCP binding; producing a script is not the
+  same as having run it.
+- You still do not have Unity — wiring an exported asset into a scene is a `client-dev` task. Your
+  deliverable is the modeled/textured asset + its export file + screenshots, not a scene edit.
 
 ## Claude Design (claude.ai/design)
 - **Connected** (verified 2026-07-19): tied to the director's own claude.ai login — no separate auth

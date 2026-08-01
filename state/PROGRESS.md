@@ -6,13 +6,9 @@
 
 ## Current State
 - **Status**: ▶ Active (in-session, director-directed). **Current mission: LIFE TOWN (resumed
-  2026-07-19)** — T009→T010→T011 all done (APK v0.0.9 delivered). **Now: T012 art resource upgrade
-  (2026-08-01)** — director wants art quality raised using the newly-installed local Blender (MCP
-  connection verified live). ui-ux granted `mcp__blender` tool access; T012 targets one Blender-modeled
-  village landmark (D11 scope, never built). Runs through the same Gate 2 structure (아트팀장 scores),
-  **passMark raised to 95** for this task only, director's explicit instruction. Quality-loop launched
-  in background 2026-08-01; on pass, PM sends the evidence screenshots to the director on Discord
-  (director's explicit ask). Contract: `lifetown/VISION.md`. Discord ENABLED both ways (rule 8, current).
+  2026-07-19)** — T009→T010→T011 all done (APK v0.0.9 delivered). **T012 art resource upgrade
+  (2026-08-01) is BLOCKED, not done** — see Needs Human Review below. Contract: `lifetown/VISION.md`.
+  Discord ENABLED both ways (rule 8, current).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,
@@ -55,12 +51,22 @@
 - None.
 
 ## Needs Human Review
-- None.
+- **T012 (Blender landmark, 2026-08-01)**: hit the 5-round limit at 44/95 — never marked done. Root
+  cause was mostly infra, not creative failure: `mcp__blender` was added to ui-ux's tool list mid-session
+  but never actually reached the subagent (needs a session restart to bind — confirmed 3x independently).
+  Round 4 still produced real WIP (script, 3 renders, fbx/glb/blend exports) via QA running Blender
+  headless directly; 아트팀장's deductions are a concrete fix list, not thrown away. Also: giving ui-ux
+  Bash/PowerShell as a Blender-execution fallback was attempted and **blocked by the permission
+  classifier** — needs the director's explicit yes/no. Full detail: `backlog/tasks/T012.md` Log.
+  Reported to the director on Discord as unfinished.
 
 ## Next Run Should
-1. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19). The
+1. **Resume T012 after a session restart** (required for the `mcp__blender` grant to actually bind) —
+   hand the resuming agent the r4 script + 아트팀장's fix list rather than starting over.
+2. Get the director's call on whether ui-ux also gets Bash/PowerShell (Blender-headless fallback).
+3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19). The
    2026-07-18 standing grant expired with P0 — it does not cover engine work.
-2. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch.
+4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch.
 
 ## Decisions Made (standing — full history in journal)
 - **Channel rule (CURRENT, 2026-07-18)**: *"지금부터 답변은 디스코드로 해줘"* — report to Discord even
@@ -98,6 +104,17 @@
   `.discord` script already does this.
 - **Python heredoc via Bash `python3 ... || py ...` fallback chains** can drop into the interactive
   REPL and hang the shell for 2 minutes (2026-07-19). Use the file tools or a single `py file.py`.
+
+## Do Not Repeat (addendum, 2026-08-01)
+- **A mid-session edit to an agent's `tools:` frontmatter line does not propagate to subagents spawned
+  later in the same running session.** Confirmed twice now: the ponytail plugin (2026-07-19) and
+  `mcp__blender` granted to ui-ux (2026-08-01, T012) — three independent ui-ux subagent rounds each
+  freshly re-checked their own tool list and found the addition simply absent. If a subagent reports
+  "No such tool available" for something the agent file clearly grants, don't re-prompt it — that wastes
+  rounds against a wall. It needs a session restart. Plan tool-grant tasks accordingly, or grant the
+  tool *before* the session that will use it starts.
+- Bash/PowerShell grants to an agent that doesn't have them are gated by the permission classifier as a
+  meaningful capability change — expect a manual approval step, don't assume an Edit-tool grant is live.
 
 ## Do Not Repeat (addendum, 2026-07-19)
 - **New Unity scene files must be covered by `.gitattributes` LFS rules BEFORE first commit.** A
