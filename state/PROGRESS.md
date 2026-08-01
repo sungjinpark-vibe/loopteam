@@ -5,14 +5,16 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss** (created 2026-08-02, director: Fortune-City-style gamified
-  가계부 as a Toss mini-app). T001 (MVP spec, planner/explore) in progress. Stack = React/TS/Vite via
-  `create-ait-app` (director-approved exception to the Unity-only rule, since Apps-in-Toss only
-  supports Unity for games). A rubric adaptation (client-dev C3/C4) is proposed in
-  `app_in_toss/VISION.md`, pending director approval — do not run a build-mode task against it until
-  that lands. **Known gap**: `gate/gate.ps1` is Unity-only; no Node/React gate script exists yet —
-  must be written (and `quality-loop.js` parameterized to accept it) before any T002+ build task.
-  Life Town and touchRPG remain paused, untouched. Discord ENABLED both ways (rule 8, current).
+- **Status**: ⏸ AWAITING APPROVAL — **app_in_toss** (created 2026-08-02). T001 (MVP spec) passed
+  90/100 and is written to `app_in_toss/docs/spec/MVP-SPEC.md`, but carries **16 open decisions**
+  (D-1..D-16) that are the director's call, reported on Discord. **Do not start T002 until the
+  director responds** — nothing else is `ready` in the backlog right now, so go idle rather than
+  inventing work. Stack = React/TS/Vite via `create-ait-app` (director-approved exception to the
+  Unity-only rule). A rubric adaptation (client-dev C3/C4) is proposed in `app_in_toss/VISION.md`
+  (also listed as D-9 inside the spec) — still pending approval. **Known gap**: `gate/gate.ps1` is
+  Unity-only; no Node/React gate script exists yet — must be written (and `quality-loop.js`
+  parameterized to accept it) before any T002+ build task. Life Town and touchRPG remain paused,
+  untouched. Discord ENABLED both ways (rule 8, current).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,
@@ -30,8 +32,9 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **T001** (app_in_toss MVP spec) — running via quality-loop (explore mode). On pass, send the spec
-   summary + the stack/rubric approvals to the director.
+1. **Wait for the director's answers on T001's 16 open decisions** (headline: app name D-1, art-style
+   proximity to Fortune City's Fourdesire look D-12 — brand/legal risk, must resolve before any art
+   order, monetization D-7, the React rubric substitution D-9). Reported on Discord 2026-08-02.
 2. **Before any T002+ (build mode) task**: write a Node/React mechanical gate script (npm install,
    `tsc --noEmit`, `vite build`, tests if any) with the same JSON/exit-code contract as `gate/gate.ps1`,
    and add a `gateScript` param to `quality-loop.js` (currently hardcodes the Unity gate's path at
@@ -75,9 +78,10 @@
   instance's outcome.
 
 ## Next Run Should
-1. **Pick up T001** (app_in_toss MVP spec) if not yet landed; report its result to the director.
-2. Once T001's spec lands and is approved, plan T002 — but write the Node/React gate script first
-   (see ▶ Next above), or the first build-mode task will hang with no way to clear Gate 1.
+1. **Check Discord for the director's answers on T001's open decisions** before doing anything else
+   on app_in_toss.
+2. Once T001 is approved, write the Node/React gate script (see ▶ Next above) before opening T002 —
+   or the first build-mode task will hang with no way to clear Gate 1.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch

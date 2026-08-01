@@ -24,7 +24,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 
 | ID | Title | Status | Agent | Mode | Priority |
 |---|---|---|---|---|---|
-| T001 | app_in_toss MVP spec — Fortune-City-style gamified ledger for Toss | ready | planner | explore | 1 |
+| T001 | app_in_toss MVP spec — Fortune-City-style gamified ledger for Toss | awaiting-approval | planner | explore | 1 |
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._
