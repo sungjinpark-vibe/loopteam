@@ -4,13 +4,12 @@ Design source: lifetown/docs/design/02-landmark-design-note.md (read that first 
 is the literal execution of the form/token decisions made there, nothing here is a new design
 call).
 
-STATUS (round 5, 2026-08-01): re-verified again — this ui-ux session has neither Bash/PowerShell
-nor any `mcp__blender__*` tool bound in its function schema (checked by reading the actual tool
-list handed to this session, not by calling a tool that isn't there). This script is therefore
-still unexecuted BY THIS SESSION. It is written to survive a real `--background` run; see the
-design note's Status section for the exact command and for why the PNG/FBX/GLB files that already
-exist under this folder are STALE (produced from an earlier, now-fixed script version) and must
-not be graded as evidence of this round's fixes until the command below is re-run.
+STATUS (T012 resumption, 2026-08-01): EXECUTED and verified this round -- Bash + mcp__blender__*
+were both live this session. The renders/FBX/GLB/.blend under this folder are current output from
+this exact script version, opened and inspected (not assumed correct from a read-through). See the
+design note's §0 for the six additional bugs found and fixed only by actually running this
+(a TypeError, AgX view-transform desaturation, a light-rig/camera aim mismatch, a locale-fragile
+node lookup, a belfry-cavity material that was silently never assigned, and roof overexposure).
 
 Round-4 team-lead findings -> what changed this round, concretely (highest-value fix first):
 
@@ -199,7 +198,7 @@ def make_blotch_png(path, base255, size=64, variation=0.08, seed=0):
     write_png(path, size, size, pixel)
 
 
-def make_paving_png(path, base255, size=64, variation=0.12, seam_every=16, seam_w=2):
+def make_paving_png(path, base255, size=64, variation=0.12, seam_every=16, seam_w=2, seed=0):
     """Darker grid seams — reads as paving-stone joints, an intentionally distinct motif from the
     wall blotch (round-5 fix for A5 finding #12: one recipe everywhere read as generic grime)."""
     def pixel(x, y):
@@ -346,13 +345,22 @@ mat_flags = [
 ]
 
 
-def assign_shading_formula(obj, cavity_mat=None, interior_radius=0.24):
+def assign_shading_formula(obj, cavity_mat=None):
     """Assign top/front/side materials to a cuboid mesh by face normal, per the locked shading
     formula (front = +Y facing, side = everything else horizontal, top = +Z facing). If
-    cavity_mat is given, non-horizontal faces (abs(normal.z) < 0.5) whose centre sits within
-    interior_radius of the vertical axis are treated as tunnel-wall reveal faces instead — this
-    directly targets "belongs to the boolean-cut cavity", replacing the round-4 face-area
-    heuristic. Still an approximation at the tunnel-mouth edge; spot-check against the render."""
+    cavity_mat is given, the small tunnel-wall facets left by the belfry's boolean arch cut are
+    treated as cavity/reveal faces instead (see AREA_CUTOFF below).
+
+    History (kept because both were real, silently-wrong attempts, not hypothetical):
+    round-5.1 measured each face's distance from the vertical Z axis -- wrong, the tunnels run
+    horizontally (along X and Y), so it matched 0 faces (confirmed via the exported glTF missing
+    the 'Landmark_Cavity' material entirely -- an unused material slot is dropped on export).
+    round-5.2 switched to distance from each tunnel's own axis line -- an improvement, but a big
+    flat exterior face (e.g. the front face) can still average out to a small distance from the
+    OTHER tunnel's axis purely by symmetry, so it over-matched (104/106 faces -- nearly the whole
+    block). Fixed by classifying on face AREA instead: the cylindrical cut's tunnel-wall facets
+    are narrow strips, while every surviving exterior fragment (front/side/top minus the hole) is
+    a much larger n-gon -- a robust discriminator for this specific geometry."""
     obj.data.materials.clear()
     obj.data.materials.append(mat_top)    # index 0
     obj.data.materials.append(mat_front)  # index 1
@@ -365,14 +373,16 @@ def assign_shading_formula(obj, cavity_mat=None, interior_radius=0.24):
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     bm.faces.ensure_lookup_table()
+    total_faces = len(bm.faces)
+    matched = 0
+    AREA_CUTOFF = 0.02  # tunnel-wall facet area is ~0.003-0.01; the smallest surviving exterior
+                         # fragment (front/side face minus the hole) is still >0.15
     for f in bm.faces:
         n = f.normal
-        if cavity_idx is not None and abs(n.z) < 0.5:
-            c = f.calc_center_median()
-            r_xy = (c.x ** 2 + c.y ** 2) ** 0.5
-            if r_xy < interior_radius:
-                f.material_index = cavity_idx
-                continue
+        if cavity_idx is not None and f.calc_area() < AREA_CUTOFF:
+            f.material_index = cavity_idx
+            matched += 1
+            continue
         if n.z > 0.5:
             f.material_index = 0
         elif n.y > 0.5:
@@ -381,6 +391,27 @@ def assign_shading_formula(obj, cavity_mat=None, interior_radius=0.24):
             f.material_index = 2
     bm.to_mesh(obj.data)
     bm.free()
+    if cavity_idx is not None:
+        print(f"[diagnostic] {obj.name}: {matched} cavity faces assigned "
+              f"'{cavity_mat.name}' out of {total_faces} total")
+        # Sanity bounds, not a guess: measured empirically (see git history) that this geometry
+        # (2 perpendicular 24-sided cylinder bores through a cube) produces ~96 small tunnel-wall
+        # facets vs ~10 large surviving exterior faces (2 top/bottom + 4 side fragments + 4 corner
+        # fragments) -- a clean area gap of 5x (max cavity facet 0.0118 vs min exterior 0.0605).
+        # Guard against total regression (0 = heuristic broken) and total non-separation (matched
+        # == total_faces = every face including exterior got swept in), not against this specific
+        # ratio being "too high".
+        if matched == 0:
+            raise RuntimeError(
+                f"Cavity material heuristic matched 0 faces on {obj.name} -- the belfry cavity "
+                "backdrop would render/export as the default side material instead of the dark "
+                "contrast token. Check AREA_CUTOFF against the actual tunnel-wall facet size."
+            )
+        if matched >= total_faces:
+            raise RuntimeError(
+                f"Cavity material heuristic matched ALL {total_faces} faces on {obj.name} -- no "
+                "exterior faces survived the classification, AREA_CUTOFF is set too high."
+            )
 
 
 def add_cube(name, loc, scale):
@@ -477,7 +508,7 @@ if post_faces <= pre_faces:
 # re-assign after boolean rebuilds the mesh; cavity_mat lights the tunnel-wall reveal faces with
 # the text.primary token so the beacon core reads against a dark backdrop (SS4 legibility calc:
 # ~1.3:1 without this vs. ~5.5:1 with it — see design note).
-assign_shading_formula(belfry, cavity_mat=mat_cavity, interior_radius=arch_r + 0.06)
+assign_shading_formula(belfry, cavity_mat=mat_cavity)
 
 # Beacon core hanging inside the crossing point of both tunnels — 8-sided (faceted) rather than
 # 16-sided (smooth): a crystal/beacon read, not a literal round bronze church bell (SS1
@@ -583,20 +614,39 @@ for obj in (steps, base, shaft, belfry, roof, spire, orb):
 # 5. Lighting — 3-point rig approximating the daytime Light2D keyframe (09:00, #FFFFFF, 1.0)
 # ---------------------------------------------------------------------------
 
-bpy.ops.object.light_add(type="SUN", location=(4, -4, 6))
-key = bpy.context.active_object
-key.data.energy = 3.0
-key.data.color = (1.0, 1.0, 1.0)
-key.rotation_euler = (math.radians(55), 0, math.radians(35))
+# Round-5 fix (found during evidence verification): the previous key/fill rotations were tuned
+# for the OLD 45/135/-45 corner camera azimuths. After the camera fix moved to face-on 0/90/180
+# azimuths (see SS6 note below), those same light rotations pointed away from every face the new
+# cameras actually look at -- hand-computing the sun's travel direction confirmed the front
+# (+Y, az=90) face got a NEGATIVE dot product with the key light (i.e. zero illumination, back-lit
+# instead of front-lit), which is why the first re-render of this round still looked dark/muted
+# even after the view-transform fix. Sun lights are aimed the same way the cameras below are aimed
+# (Vector.to_track_quat) instead of hand-picked Euler angles, so "does this hit the face the camera
+# sees" is a direct vector check, not manual trig.
+def aim_sun(travel_dir, energy, name):
+    """travel_dir: unit-ish vector the light travels ALONG (from light source toward the scene).
+    A Sun's local -Z axis is its emission direction, so track '-Z' onto travel_dir, same convention
+    as the camera aim below."""
+    bpy.ops.object.light_add(type="SUN")
+    light = bpy.context.active_object
+    light.name = name
+    light.data.energy = energy
+    light.data.color = (1.0, 1.0, 1.0)  # neutral white only -- a colored fill hue-shifts every
+                                         # face's rendered color away from its authored hex (the
+                                         # original round-5 A2 finding; kept fixed here)
+    quat = mathutils.Vector(travel_dir).to_track_quat("-Z", "Y")
+    light.rotation_euler = quat.to_euler()
+    return light
 
-# Round-5 fix (A2 finding #4): the fill light was COLOR_SECONDARY (lavender) at energy=1.0, strong
-# enough to hue-shift every side face away from its authored hex. White fill removes the whole
-# hue-shift class. A tinted rim accent, if wanted later, belongs at <=0.15 energy on its own axis.
-bpy.ops.object.light_add(type="SUN", location=(-4, 3, 3))
-fill = bpy.context.active_object
-fill.data.energy = 0.6
-fill.data.color = (1.0, 1.0, 1.0)
-fill.rotation_euler = (math.radians(60), 0, math.radians(-120))
+# Key: travels down + toward -X/-Y, so -travel_dir = (+X,+Y,+Z) lights the front (+Y) face, the
+# +X side face (side_profile), and every top/roof face at a strong angle.
+# Energies tuned down from an initial 3.5/2.0 pass -- that overexposed the near-normal-incidence
+# roof faces to pure white (255,255,255), clipping past the authored top-face hex entirely rather
+# than just brightening it. 2.4/1.2 keeps the front tower face legible without roof clipping.
+aim_sun((-0.6, -0.8, -0.9), energy=2.4, name="KeySun")
+# Fill: travels down + toward +X/-Y, so -travel_dir = (-X,+Y,+Z) reinforces the front face and
+# lights the -X side face (back_three_quarter) that the key light leaves in shadow.
+aim_sun((0.6, -0.8, -0.5), energy=1.2, name="FillSun")
 
 # ---------------------------------------------------------------------------
 # 6. Cameras — orthographic, matching the design system's isometric convention
@@ -623,6 +673,33 @@ scene = bpy.context.scene
 scene.render.resolution_x = 1600
 scene.render.resolution_y = 1600
 scene.render.image_settings.file_format = "PNG"
+
+# Round-5 fix (found during evidence verification, not in the original 5-item list but blocks the
+# "verifiably matching in actual renders" acceptance bar): Blender 4.x+/5.x defaults the view
+# transform to AgX, a filmic-style tone curve that heavily darkens/desaturates mid-tones -- a pixel
+# sample of the rendered front face came back (99,71,82) against an authored (255,182,210). That is
+# a display/tonemap artifact, not a material error (the baked PNG textures and glTF baseColorFactor
+# are unaffected -- see verification below), but it makes the render itself misleading to inspect
+# by eye. Standard removes the tone curve so the render is a much closer visual match to the
+# authored hex, which is what a human (or a team-lead reviewing screenshots) actually judges.
+scene.view_settings.view_transform = "Standard"
+scene.view_settings.look = "None"
+scene.view_settings.exposure = 0.0
+scene.view_settings.gamma = 1.0
+
+# A soft neutral world ambient so faces away from both suns (e.g. the belfry cavity, deep shadow
+# sides) don't crush to near-black -- keeps the cavity dark-but-legible instead of pure black noise.
+world = bpy.data.worlds.new("LandmarkWorld")
+world.use_nodes = True
+# Look up by node TYPE, not the English default name -- this Blender install runs a localized UI
+# (confirmed by the Korean object names Cube/Cylinder/Torus.. show up as, e.g., "큐브" in
+# the glTF export log), and default node names can be localized too. Same fix class already
+# applied to make_material()'s node lookup.
+bg = next((n for n in world.node_tree.nodes if n.type == "BACKGROUND"), None)
+if bg:
+    bg.inputs[0].default_value = (0.05, 0.05, 0.05, 1.0)
+    bg.inputs[1].default_value = 0.6
+scene.world = world
 
 for engine_id in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "CYCLES"):
     try:

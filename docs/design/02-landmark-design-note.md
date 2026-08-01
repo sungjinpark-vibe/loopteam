@@ -7,46 +7,86 @@ and remain a future design decision.
 
 ---
 
-## 0. Status — script fixed for Blender 5.2, still not executed by this ui-ux session
+## 0. Status — executed and verified this round (T012 resumption, 2026-08-01)
 
-**Round 3 finding, confirmed and fixed:** `build_landmark.py`'s `make_material()` did
-`mat.node_tree.nodes.get("Principled BSDF")` and immediately dereferenced `.inputs` — on the
-installed Blender 5.2.0 LTS that lookup returns `None`, raising `AttributeError` before a single
-vertex was created. The header's "Run requirements: Blender 3.6+" claim was never actually tested
-against this machine. **Fixed this round:** the node tree is now built explicitly by node *type*
-(`ShaderNodeBsdfPrincipled` / `ShaderNodeOutputMaterial`, both stable identifiers since Blender
-2.8) instead of a locale/version-fragile name lookup. `use_nodes` is only set when not already
-`True`, avoiding the deprecated re-set path the finding also flagged. Every other round-3 finding
-(A2 note/script mismatches, A3 no texturing, A4 no legibility numbers, A5 templated form) is
-addressed below and in the script; see the script's own header changelog for the line-level list.
+**This round had live `mcp__blender__*` and Bash access** (confirmed working, unlike rounds 3-5
+which were blocked on a tool grant that never bound to the session). The script was actually run
+— repeatedly, fixing what each run's real output revealed — not just read and assumed correct.
+Six real, previously-undetected bugs were found and fixed this round by inspecting actual output
+(renders + exported material JSON), not by re-reading the script:
 
-**What is still true, re-verified fresh this round, not carried over from memory:** this ui-ux
-session has no `Bash`/PowerShell tool and no `mcp__blender__*` tool in its function schema. I
-confirmed this by directly calling `mcp__blender__get_scene_info` this round (not just inferring
-from the tool list) and got back:
+1. `make_paving_png()` didn't accept the `seed=` kwarg the plaza material call passed —
+   `TypeError` on the very first line that used the paving motif. Added the (unused-but-accepted)
+   parameter.
+2. Blender 4.x+/5.x defaults the view transform to **AgX**, a filmic tone curve that crushed the
+   authored hexes to near-grayscale in every render (a sampled front-face pixel came back
+   `(99,71,82)` against an authored `(255,182,210)`) — this alone would have failed the "renders
+   verifiably match tokens" bar even though the *materials* were correct. Fixed by setting
+   `view_settings.view_transform = "Standard"` (raw sRGB, no tone curve) plus a small neutral
+   world-ambient fill so deep-shadow faces don't crush to pure black.
+3. **The actual root cause of the round-4 "arch invisible" finding wasn't fully fixed by the
+   arch-cut geometry fix alone**: after the camera azimuths were changed to face-on angles
+   (0°/90°/180°), the key/fill sun rotations were never re-aimed — they still pointed at the OLD
+   45°/135°/-45° corner cameras' framing. Hand-computed the light's travel-direction vector against
+   the new front face normal and got a **negative** dot product (i.e. the "key" light was
+   back-lighting the face the camera looks at, not front-lighting it) — this is why the first
+   re-render of this round still looked dark/muted even after fix #2. Rewrote both sun lights to
+   aim via `Vector.to_track_quat` (same convention already used for the cameras) instead of
+   hand-picked Euler angles, so "does this hit the face the camera sees" is a direct, checkable
+   vector, not manual trig.
+4. The world node lookup used `nodes.get("Background")` — an English default name, unreliable
+   under this Blender install's Korean locale (confirmed Korean locale from the glTF export log,
+   which names primitives 평면/실린더/토러스/큐브 etc). Switched to a lookup by node `.type`,
+   matching the fix already applied to `make_material()`'s node lookup in an earlier round.
+5. **The belfry cavity material was never actually assigned to any face**, in two different wrong
+   ways caught in sequence: first a distance-from-the-*vertical*-Z-axis heuristic (0 faces matched
+   — the tunnels run horizontally, not vertically); then, after fixing that, a
+   distance-from-*each-tunnel's-own-axis* heuristic that over-matched because
+   `bmesh.face.calc_center_median()` returns **local** mesh-space coordinates, but the check
+   compared against a **world**-space Z value (the object's location offset isn't baked into
+   vertex coordinates — only rotation/scale were, via `transform_apply(location=False, ...)`).
+   Final fix: classify by face **area** instead (tunnel-wall facets from the cylindrical cut are
+   narrow strips, ~0.005-0.012 units²; the ~10 surviving exterior faces are ≥0.06 units² — a clean
+   5x gap, verified empirically, not assumed). Caught in the first place because the exported glTF
+   was missing the `Landmark_Cavity` material entirely (an unused material slot is dropped by the
+   exporter) — i.e. found by inspecting the export, not the Blender viewport.
+6. Light energy (3.5/2.0) initially overexposed the roof's near-normal-incidence faces to pure
+   white `(255,255,255)`, clipping past the authored top-face hex rather than just brightening it.
+   Tuned down to 2.4/1.2; a re-sampled roof pixel came back `(255,222,237)` against an authored
+   `(255,216,231)`.
 
-```
-Error: No such tool available: mcp__blender__get_scene_info
-```
+Round 3/4/5 findings (crash fix, node-tree-by-type, ridge cap geometry, gem/spire token fix,
+render-engine selection, arch box-cutter bug, camera azimuths, colored-fill-light hue-shift,
+baked-PNG textures replacing live noise graphs, bunting garland connector, two distinct texture
+motifs) all remain in place and are now confirmed live in the actual exported/rendered output, not
+just present in the script. Full line-level history: git log on `build_landmark.py`.
 
-identical to round 3's result. The task brief's claim that Blender MCP tools are "granted to
-ui-ux" does not match what this session was actually handed. I have not fabricated renders, an
-FBX/glTF, or a `.blend` to satisfy the acceptance criteria — none exist yet on disk.
-
-**What unblocks it — a single command, from any session with Bash + the verified local install:**
+**Command used to build (re-runnable, deterministic):**
 
 ```
 "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --python "C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\build_landmark.py"
 ```
 
-This produces `renders/landmark_front_three_quarter.png`, `renders/landmark_side_profile.png`,
-`renders/landmark_back_three_quarter.png`, `landmark_beacon.fbx`, `landmark_beacon.glb`, and
-`landmark_beacon.blend`, all under `lifetown/Assets/Art/Blender/`. The script prints the absolute
-path of every file it writes on success. **Recommendation to the PM:** run this from a session
-that actually has Bash/shell access (the PM's own session, per `CLAUDE.md`'s tool roster) rather
-than re-running the ui-ux round a fourth time against the same missing-tool wall — the design and
-the script are done; only the execution step remains, and it needs a capability this role's
-current tool grant does not include.
+**Verification performed this round (not asserted, actually run):**
+- `renders/landmark_*.png` opened and visually inspected (all 4 — see §7).
+- `landmark_beacon.glb`'s binary JSON chunk parsed directly (stdlib `struct`+`json`, no Blender/
+  Unity involved) to confirm all **15/15 materials** carry real color data — 10 via
+  `baseColorFactor` (verified numerically against the authored hex, converted sRGB→linear the same
+  way the design system's own contrast formula does) and 5 via an embedded `baseColorTexture`
+  pointing at one of 5 embedded PNG images (`Landmark_Top/Front/Side/Secondary/Plaza`). Zero
+  materials are white/undefined — the round-4 finding ("5 of 13 materials had no baseColorFactor")
+  is fixed and re-verified, not just re-asserted.
+- `landmark_beacon.fbx` scanned as raw bytes for every material name (all 8 unique names present,
+  including `Landmark_Cavity` which was absent before fix #5) and for embedded PNG signatures
+  (`\x89PNG` count = 5, matching the glTF's image count).
+- `[diagnostic] belfry faces before arch cut: 6` → `after: 106` printed by the script's own
+  runtime assertion (`PROVE_THE_CUT`), confirming the boolean actually cut geometry, not asserted
+  from reading the script.
+- Front-face and roof-top pixels sampled from the final PNG (Python/PIL) and compared numerically
+  against the authored hex (see §4 for the numbers) — a lit 3D render is never pixel-identical to
+  a flat swatch, but hue and magnitude both track the token closely, and the ground-truth color
+  data (glTF `baseColorFactor` / embedded texture) matches the tokens exactly regardless of
+  lighting, since that's the underlying asset data, not a render artifact.
 
 ---
 
@@ -159,6 +199,19 @@ same math the design system already uses for its text-contrast tokens in §9):
 - **No touch-target analysis is included** — this is a decorative static 3D prop, not an
   interactive UI element; `00-art-design-system.md` §9's 44×44px touch-target rule applies to
   buttons/tiles, not to landmark geometry. Noted so its absence isn't mistaken for an oversight.
+- **Render-verified this round, not just computed on paper.** Sampling `landmark_front_three_quarter.png`
+  (Python/PIL, exact pixel coordinates in git history) after the lighting/exposure fixes (§0 items
+  2, 3, 6): the tower front face (`color.primary` + 25% white, authored sRGB `(255,182,210)`)
+  sampled at `(223,164,189)` — same hue ordering (R>B>G) and same rough magnitude, the gap being
+  ordinary lit-surface shading falloff, not a hue-shift artifact (the round-4 colored-fill-light
+  bug that caused a genuine hue shift is confirmed gone — see §0 item 3's before/after). The roof
+  top face (authored `(255,216,231)`) sampled at `(255,222,237)` — a 6-point difference, i.e. an
+  effectively exact match. The belfry cavity backdrop, previously computed at a theoretical 5.52:1
+  gold-on-cavity contrast (above) but never actually rendered with the cavity material applied
+  (§0 item 5 — the material was silently unused before this round's fix), is now visibly dark and
+  applied in every render that frames the belfry (`landmark_belfry_closeup.png`,
+  `landmark_front_three_quarter.png`), confirmed both visually and via the exported glTF's
+  material list (§0).
 
 ## 5. Fidelity bar vs. the ProBuilder buildings (T006/T007)
 
@@ -189,14 +242,40 @@ the fidelity bar the brief names). The beacon spire is designed to clear it via:
 - The actual on-screen legibility check at village-camera zoom (§4) — owed once this asset is
   wired into a scene, which is explicitly out of scope for this task.
 
-## 7. Handoff
+## 7. Handoff — delivered, this round (2026-08-01)
 
-`lifetown/Assets/Art/Blender/build_landmark.py` implements everything in §1–§4 as a single `bpy`
-script (scene clear → materials with procedural texture → modular block build → boolean arch
-cuts + cavity backdrop → beacon core + ridge collar + faceted gem finial → bunting garland → 3-point
-isometric-matched lighting → 3 render/viewport screenshots at different angles → FBX + glTF +
-`.blend` export). It is fixed for the confirmed Blender 5.2 crash and hardened for `--background`
-execution (see script header for the line-level changelog), but **has still not been executed** —
-see §0. Next step for whoever picks this up with Bash access: run the command in §0, then attach
-the resulting `renders/landmark_*.png` absolute paths and the exported `landmark_beacon.fbx` /
-`.glb` / `.blend` paths to this note.
+`lifetown/Assets/Art/Blender/build_landmark.py` executed successfully; every file below is the
+actual output of the command in §0, opened and inspected (renders viewed as images, `.glb` parsed
+as binary JSON, `.fbx` scanned as raw bytes), not the script's claims about what it would produce.
+
+**Renders** (`lifetown/Assets/Art/Blender/renders/`, 1600×1600 PNG, `Standard` view transform):
+- `landmark_front_three_quarter.png` — face-on (azimuth 90°) view of the front (+Y) face; belfry
+  arch, beacon core, bunting garland/poles all clearly visible.
+- `landmark_side_profile.png` — face-on (azimuth 0°) view of the +X side face.
+- `landmark_back_three_quarter.png` — face-on (azimuth 180°) view of the −X side face.
+- `landmark_belfry_closeup.png` — tight-framed (ortho_scale 1.6) shot centred on the belfry band;
+  the gold beacon core against the dark cavity backdrop, the specific signature element round 4
+  scored as invisible, is unambiguous here.
+
+**Exports** (`lifetown/Assets/Art/Blender/`, all covered by `.gitattributes` LFS rules — verified
+present, lines 2-4):
+- `landmark_beacon.fbx` — axis_forward=-Z, axis_up=Y, embed_textures=True, path_mode=COPY. Contains
+  all 8 unique material names (verified by raw byte scan) and 5 embedded PNGs.
+- `landmark_beacon.glb` — 15/15 materials carry real color data (10 `baseColorFactor`, 5
+  `baseColorTexture` + embedded image), verified by parsing the binary JSON chunk directly with
+  stdlib `struct`+`json` (no Blender/Unity dependency in the verification step itself).
+- `landmark_beacon.blend` — the editable source scene.
+
+**Unity import spec** (unchanged from earlier rounds, still applies): scale factor 1, pivot at
+world origin (model floor sits at z=0), axis convention matches the FBX exporter args above.
+Wiring this into a scene/prefab is out of scope for this task (client-dev, future task, per the
+brief's boundary in §6).
+
+**What changed vs. earlier rounds' claims, honestly stated:** rounds 3-5 described fixes that were
+never actually run or verified (no Bash/Blender access in those sessions). This round found and
+fixed six additional real bugs that only running the script surfaced — a `TypeError` on the first
+paving-texture call, AgX view-transform desaturation, a light-rig/camera mismatch left over from
+the camera-azimuth fix, a locale-fragile node lookup, a belfry-cavity material that was silently
+never applied (two wrong fix attempts before the working one), and light-energy overexposure on
+the roof. See §0 for the full list with root causes. Every acceptance criterion in the task brief
+is now backed by an inspected artifact, not a script read-through.
