@@ -54,3 +54,7 @@
 ## Change log
 - 2026-08-02 Created. Stack (React/TS/Vite/TDS via `create-ait-app`) approved by the director as an
   exception to the engine's Unity-only rule. T001 opened for `planner` (explore mode, MVP spec).
+- 2026-08-02 **T001 passed 90/100** (기획팀장, 2 rounds). Spec at `docs/spec/MVP-SPEC.md` — status
+  `awaiting-approval`, 16 open decisions for the director (D-1..D-16, §13 of the spec), including the
+  rubric substitution proposed above (D-9) and an art-style/brand-risk question (D-12) that must be
+  answered before any art order. Do not start T002 (scaffold/build) until the director responds.
