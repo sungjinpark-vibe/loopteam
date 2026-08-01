@@ -276,12 +276,23 @@ def make_paving_png(path, base255, size=64, variation=0.12, seam_every=16, seam_
 
 
 def make_material(name, hex_str, white_mix=0.0, roughness=0.6, metallic=0.0,
-                   textured=False, motif="blotch", variation=0.07, seed=0):
+                   textured=False, motif="blotch", variation=0.07, seed=0, emission_strength=0.0):
     """Build the node tree explicitly by node type (no locale/version-fragile name lookup — the
     round-3 crash). When textured=True, Base Color is driven by a REAL baked PNG (round-5 fix —
     the round-4 live-noise-graph version never exported past white). Bump/Roughness still come
     from a live procedural noise for extra render detail; that part is cosmetic and not export-
-    critical, so it can stay procedural without risking the export-correctness bar."""
+    critical, so it can stay procedural without risking the export-correctness bar.
+
+    Round-8 addition (top fix, art-lead round-3-of-resumption review): direction-dependent
+    Lambertian shading was letting the coin-gold beacon/ridge-collar and the category flags fall
+    to 45-52% of their authored HSV value wherever the key/fill rig didn't happen to hit them
+    (the belfry cavity interior, shadow-side flags) -- no amount of rig tuning fixes this for an
+    object whose whole job is to be visible from an arbitrary angle inside a dark cavity. Added
+    `emission_strength`: when > 0, wires Emission Color = the material's own base hex (so the
+    self-glow can never introduce an off-token hue) at a strength that establishes a brightness
+    FLOOR without flattening the material to a flat shadeless card -- Roughness/Metallic/specular
+    response are untouched, so facet/fold shading still reads on top of the glow (verified per-
+    render in the design note, not asserted here)."""
     mat = bpy.data.materials.new(name)
     if not mat.use_nodes:
         mat.use_nodes = True
@@ -299,6 +310,9 @@ def make_material(name, hex_str, white_mix=0.0, roughness=0.6, metallic=0.0,
     bsdf.inputs["Roughness"].default_value = roughness
     if "Metallic" in bsdf.inputs:
         bsdf.inputs["Metallic"].default_value = metallic
+    if emission_strength > 0.0 and "Emission Color" in bsdf.inputs:
+        bsdf.inputs["Emission Color"].default_value = base_rgb
+        bsdf.inputs["Emission Strength"].default_value = emission_strength
 
     if textured:
         base255 = hex_to_srgb255(hex_str, white_mix)
@@ -410,16 +424,31 @@ mat_front = make_material("Landmark_Front", COLOR_PRIMARY, white_mix=0.25, rough
                            textured=True, motif="blotch", variation=0.07, seed=2)
 mat_side = make_material("Landmark_Side", COLOR_PRIMARY, white_mix=0.0, roughness=0.6,
                           textured=True, motif="blotch", variation=0.07, seed=3)
+# Round-8: roughness raised 0.35 -> 0.55 and metallic trimmed 0.15 -> 0.08 (art-lead finding #16:
+# the finial gem's near-normal facet clipped to (255,243,255), a blown specular highlight, not a
+# material-color error -- a duller, less mirror-like accent removes the clip without touching the
+# global exposure/view-transform pipeline every other correctly-matching token depends on).
 mat_secondary = make_material("Landmark_Secondary", COLOR_SECONDARY, white_mix=0.0,
-                               roughness=0.35, metallic=0.15, textured=True, motif="blotch",
+                               roughness=0.55, metallic=0.08, textured=True, motif="blotch",
                                variation=0.05, seed=4)
-mat_coin = make_material("Landmark_Coin", COLOR_COIN, white_mix=0.0, roughness=0.15, metallic=0.6)
+# Round-8 top fix: emission_strength=1.1 gives the beacon/ridge-collar gold a brightness floor
+# independent of whether a given render angle happens to catch direct key light -- this is what
+# makes it a BEACON (a light source) rather than a lit ornament, which is also the more honest
+# reading of "achievement made visible" than a passively-lit gold blob (see design note SS1).
+mat_coin = make_material("Landmark_Coin", COLOR_COIN, white_mix=0.0, roughness=0.15, metallic=0.6,
+                          emission_strength=1.1)
 mat_plaza = make_material("Landmark_Plaza", COLOR_SURFACE_RAISED, white_mix=0.0, roughness=0.75,
                            textured=True, motif="paving", variation=0.12, seed=5)
+# Cavity backdrop deliberately gets NO emission -- its entire job is to stay dark relative to the
+# now-glowing beacon core so the two read as figure-on-ground, not just two colors (see the
+# contrast recompute in the design note SS4, sampled from the actual render below, not asserted).
 mat_cavity = make_material("Landmark_Cavity", COLOR_TEXT_PRIMARY, white_mix=0.0, roughness=0.7)
 mat_cord = make_material("Bunting_Cord", COLOR_TEXT_PRIMARY, roughness=0.85)
+# Round-8 top fix: emission_strength=0.55 on every flag keeps a shadow-side flag from collapsing
+# below ~80% of its authored HSV value (art-lead findings #6/#13: #FFB37A measured at value 45%,
+# #FFD066 at 72%) regardless of which side of the ring the camera catches.
 mat_flags = [
-    make_material(f"Bunting_{i}", hexv, white_mix=0.0, roughness=0.65)
+    make_material(f"Bunting_{i}", hexv, white_mix=0.0, roughness=0.65, emission_strength=0.55)
     for i, hexv in enumerate(CATEGORY_HEXES)
 ]
 
@@ -581,7 +610,14 @@ def add_arch_cutters(axis):
     return [box, cyl]
 
 
-cutters = add_arch_cutters("Y") + add_arch_cutters("X")
+# Round-8 fix (art-lead round-3-of-resumption finding #3, -3): cutting BOTH axes made the belfry
+# 4-fold symmetric, so face-on azimuths 0/90/180/270 were four interchangeable silhouettes -- no
+# camera angle can add coverage a symmetric solid doesn't have. Dropped the X-axis tunnel: the
+# belfry now has exactly ONE through-arch (Y axis, matching the design note's own "one open-arch
+# belfry" language in SS1, not "arches on all 4 faces" -- that row is corrected in SS2/SS3 this
+# round). This makes az=0/180 (the X faces) genuinely different renders -- solid mass, no arch --
+# instead of a relabeled duplicate of az=90/270.
+cutters = add_arch_cutters("Y")
 
 for cutter in cutters:
     mod = belfry.modifiers.new(name=f"bool_{cutter.name}", type="BOOLEAN")
@@ -687,8 +723,10 @@ ring_r = 0.65             # clears BASE_CORNER_REACH (0.5657) by 0.084 and stays
                           # half-width (0.725) by 0.075 — checked below, not just asserted in prose
 FLAG_W, FLAG_H = 0.34, 0.28   # enlarged from 0.26x0.22 (round-6) for on-render legibility (art-lead
                                # finding #12: the old size measured ~15px wide in a 1600px render)
-FLAG_Z = 0.50             # cord height AT each post (zero sag point) — raised from 0.30 so the
-                          # flag bottom clears the steps slab with margin (see assertion below)
+# Round-8: raised 0.50 -> 0.56. Flags now attach at the cord's SAG midpoint (FLAG_Z - SAG), not at
+# post height, so the effective attach height dropped by SAG (0.07) when the mid-span fix landed --
+# raised FLAG_Z by more than that to keep (and grow) the steps clearance, asserted below.
+FLAG_Z = 0.56             # cord height AT each post (zero sag point)
 SAG = 0.07                # extra downward dip at the midpoint between two posts (scaled up with
                           # the larger ring/flags so the droop stays visually proportional)
 STEPS_TOP_Z = 0.15        # steps: center 0.075 + half-height 0.075
@@ -700,7 +738,11 @@ if not (BASE_CORNER_REACH < ring_r < 0.725):
         f"plaza base block's corner or overhang past the steps' outer edge. Fix ring_r or "
         f"BASE_XY_SCALE before trusting any render from this run."
     )
-FLAG_BOTTOM_Z = FLAG_Z - FLAG_H
+# Round-8: flags now attach at the cord's SAG midpoint (FLAG_Z - SAG), not at the post height
+# (FLAG_Z) -- see the mid-span offset fix above. Recomputed here so this assertion checks the
+# geometry that's actually built, not the pre-round-8 attach height.
+FLAG_ATTACH_Z = FLAG_Z - SAG
+FLAG_BOTTOM_Z = FLAG_ATTACH_Z - FLAG_H
 FLAG_MARGIN = FLAG_BOTTOM_Z - STEPS_TOP_Z
 if FLAG_MARGIN < 0.03:
     raise RuntimeError(
@@ -716,8 +758,17 @@ print(f"[diagnostic] flag bottom z={FLAG_BOTTOM_Z:.4f} clears steps top {STEPS_T
 
 def build_garland_cord(n_posts, radius, z_top, sag, segs_per_span=14):
     """A POLY curve, beveled into a round cord, sampled around the ring: 0 sag exactly at each
-    post (where a flag/pole attaches) and max `sag` at the midpoint between two adjacent posts —
-    the parabolic-droop reading a real garland has, vs. the old constant-height torus."""
+    post (where a pole attaches) and max `sag` at the midpoint between two adjacent posts — the
+    parabolic-droop reading a real garland has, vs. the old constant-height torus.
+
+    Round-8 fix (art-lead round-3-of-resumption finding #2, part of the -4 bunting deduction): the
+    old loop sampled `total_pts + 1` points (theta=0 AND theta=tau, the same world position as two
+    DIFFERENT spline points) on a non-cyclic spline. Blender still caps both open ends of a
+    non-cyclic beveled curve, so the coincident-but-unconnected start/end produced two overlapping
+    end-cap "spurs" at the same point instead of one continuous loop. Fixed by sampling exactly
+    `n_posts * segs_per_span` points (no duplicate) and setting `use_cyclic_u = True`, which closes
+    the loop with real geometry instead of two caps -- a genuinely continuous ring, checked by
+    vertex/edge count on the exported mesh (SS0c) rather than assumed from the flag."""
     span = math.tau / n_posts
     curve_data = bpy.data.curves.new("BuntingCordCurve", type="CURVE")
     curve_data.dimensions = "3D"
@@ -725,14 +776,15 @@ def build_garland_cord(n_posts, radius, z_top, sag, segs_per_span=14):
     curve_data.bevel_resolution = 3
     spline = curve_data.splines.new("POLY")
     total_pts = n_posts * segs_per_span
-    spline.points.add(total_pts)  # spline starts with 1 point already
-    for i in range(total_pts + 1):
+    spline.points.add(total_pts - 1)  # spline starts with 1 point already -> total_pts points
+    for i in range(total_pts):
         theta = (i / total_pts) * math.tau
         t_in_span = (theta % span) / span            # 0 at a post, 1 approaching the next post
         t_from_post = min(t_in_span, 1.0 - t_in_span)  # 0 at post, 0.5 at midpoint
         droop = sag * (1.0 - (1.0 - t_from_post * 2.0) ** 2)  # 0 at post -> sag at midpoint
         x, y = radius * math.cos(theta), radius * math.sin(theta)
         spline.points[i].co = (x, y, z_top - droop, 1.0)
+    spline.use_cyclic_u = True
     curve_obj = bpy.data.objects.new("Bunting_Garland", curve_data)
     bpy.context.collection.objects.link(curve_obj)
     bpy.context.view_layer.objects.active = curve_obj
@@ -785,10 +837,19 @@ def build_flag(i, mat, attach, tangent_hat):
     return flag
 
 
+# Round-8 fix (art-lead round-3-of-resumption finding #2, the other half of the -4 bunting
+# deduction): flags were anchored at the SAME angle as a post (`i / n_flags`), so every post ran
+# vertically straight through the flag it shared a screen position with, and because there is
+# exactly one flag per post, flag and post ALWAYS coincide in any view. Offset the flag anchor by
+# half a post-span (`HALF_SPAN`) so every flag hangs at the cord's SAG MIDPOINT between two posts
+# instead of at a post itself -- posts are always visually clear of flags now, by construction,
+# not by camera luck. The cord still passes along each flag's top edge (that IS how bunting
+# attaches to its string) but no vertical pole ever crosses a flag face.
+HALF_SPAN = math.pi / n_flags  # half of (tau / n_flags), the post-to-post angular span
 flag_group = []
 for i, mat in enumerate(mat_flags):
-    angle = (i / n_flags) * math.tau
-    attach = mathutils.Vector((ring_r * math.cos(angle), ring_r * math.sin(angle), FLAG_Z))
+    angle = (i / n_flags) * math.tau + HALF_SPAN
+    attach = mathutils.Vector((ring_r * math.cos(angle), ring_r * math.sin(angle), FLAG_ATTACH_Z))
     tangent_hat = mathutils.Vector((-math.sin(angle), math.cos(angle), 0))
     flag_group.append(build_flag(i, mat, attach, tangent_hat))
 
@@ -876,21 +937,31 @@ TOWER_MID_Z = 1.6
 # and a low eye-level view for the full-height silhouette. Filenames now describe what's actually
 # in the frame (round-5's "_three_quarter"/"_profile" names were flagged as inaccurate).
 # Round-7 addition (art-lead review, round 2 of this resumption, finding #3): 3 of the 4 round-6
-# renders were all az=90 -- the SAME face, varying only elevation. The tunnels run along world X
-# and Y (add_arch_cutters), so az=90 always frames the Y-arch and never shows the X-arch or the
-# model's back at all. Added `side_profile` (az=0, the OTHER tunnel axis -- a genuinely different
-# face, not a relabeled duplicate) and `back_three_quarter` (az=270, the face opposite the "front"
-# az=90 views). Also added `bunting_ring_detail`, aimed at FLAG_Z with a tight ortho_scale, as the
-# dedicated shot for "all 7 flags + both shapes visible" (finding #1/#11/#12) -- a high-ish
-# elevation so the tower's own mass doesn't self-occlude the far side of the ring (verified by
-# inspecting the actual render below, not assumed from the camera math).
+# renders were all az=90 -- the SAME face, varying only elevation. Added `side_profile` (az=0) and
+# `back_three_quarter` (az=270) plus the two `bunting_ring_detail` shots.
+#
+# Round-8 fix (art-lead round-3-of-resumption finding #3, -3): even after round 7's azimuth spread,
+# the belfry was cut on BOTH the X and Y axes, making the whole massing 4-fold symmetric -- az=90,
+# 0 and 270 were four interchangeable arch/silhouette readings BY CONSTRUCTION, no camera angle can
+# add real coverage of a symmetric solid. Fixed at the geometry, not the camera: SS3 now cuts only
+# the Y axis (one through-arch, matching "an open-arch belfry" singular, not "arches on all 4
+# faces"). That makes az=0/180 (the X faces) genuinely solid, arch-free silhouettes -- a real
+# difference, not a relabeled duplicate. Views re-picked so each one shows something distinct:
+#   - hero_elevated_arch: az=90 straight into the Y-arch (the signature element, dead-on).
+#   - side_profile: az=0, the SOLID X face -- no arch at all, proves the model isn't a hollow shell
+#     from every side (this is the view that actually differs most from the hero shot now).
+#   - back_three_quarter: az=225, a genuine corner view -- diagonal between the solid X face and
+#     the Y-arch mouth, reading the whole massing obliquely (impossible to confuse with either
+#     face-on shot; verified by inspecting the actual render, not assumed from the camera math).
+#   - plaza_plan_from_above / eye_level_approach: same az as round 7 but tighter ortho_scale (art-
+#     lead finding #4: both wasted over half the 1600x1600 canvas on empty grey margin).
 views = [
     # name,                   az_deg, elev_deg, ortho_scale, aim_z
     ("hero_elevated_arch",       90,    42,        4.2,   TOWER_MID_Z),
     ("side_profile",               0,    30,        4.4,   TOWER_MID_Z),
-    ("back_three_quarter",       270,    38,        4.4,   TOWER_MID_Z),
-    ("plaza_plan_from_above",     45,    72,        5.6,   1.1),
-    ("eye_level_approach",        90,    11,        6.4,   TOWER_MID_Z),
+    ("back_three_quarter",       225,    35,        4.2,   TOWER_MID_Z),
+    ("plaza_plan_from_above",     45,    72,        4.0,   1.1),
+    ("eye_level_approach",        90,    11,        4.9,   TOWER_MID_Z),
     ("belfry_closeup",            90,    35.264,    1.6,   belfry_z),
     ("bunting_ring_detail_a",   25.7,    50,        2.0,   0.38),
     ("bunting_ring_detail_b",  205.7,    50,        2.0,   0.38),
@@ -975,9 +1046,27 @@ print(f"Renders written to {RENDER_DIR}")
 # ---------------------------------------------------------------------------
 
 bpy.ops.object.select_all(action="DESELECT")
+mesh_objs = []
 for obj in bpy.data.objects:
     if obj.type == "MESH":
         obj.select_set(True)
+        mesh_objs.append(obj)
+
+# Round-8 addition (art-lead round-3-of-resumption finding #10, -2): the Unity handoff spec had no
+# vert/tri count, texture resolution, or shader mapping -- computed here from the ACTUAL built
+# meshes (bmesh triangulate on a temp copy, not a guessed polycount) and printed so the design note
+# quotes a real number instead of a round figure.
+total_verts, total_tris = 0, 0
+for obj in mesh_objs:
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    total_verts += len(bm.verts)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    total_tris += len(bm.faces)
+    bm.free()
+print(f"[diagnostic] export mesh totals: {len(mesh_objs)} objects, {total_verts} verts, "
+      f"{total_tris} triangles (post-triangulation), {len(bpy.data.materials)} materials, "
+      f"texture resolution {64}px (make_blotch_png/make_paving_png default 'size')")
 
 fbx_path = os.path.join(BASE_DIR, "landmark_beacon.fbx")
 bpy.ops.export_scene.fbx(
