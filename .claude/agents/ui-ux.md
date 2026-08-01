@@ -49,12 +49,11 @@ Work in English: design docs, notes, and your final report in English (PM handle
   accent piece is a direct, structural answer to that, not another shading fix. Photoreal PolyHaven
   textures won't match a flat/toon build — strip/replace materials to the project's flat palette rather
   than importing them as-is.
-- **Hyper3D (Rodin) and Sketchfab: still DISABLED — need an API key the PM does not have.** Both are
-  regular scene properties (`blendermcp_use_hyper3d`/`blendermcp_hyper3d_api_key`,
-  `blendermcp_use_sketchfab`/`blendermcp_sketchfab_api_key`) settable via `execute_blender_code` the
-  instant a real key exists — no other blocker. Sketchfab's key is free (account + token, no payment);
-  Hyper3D/Rodin may need a paid/credit account. Ask the PM before spending time on either; if the
-  director hasn't supplied a key, they're not available this task.
+- **Sketchfab: ENABLED 2026-08-02** (director supplied a free API key; set on the scene, confirmed live
+  and logged in). Real-world models, wider variety than PolyHaven, skews more "realistic" — same rule as
+  PolyHaven: strip photoreal materials, recolor to the flat-toon palette, don't import as-is.
+- **Hyper3D (Rodin): DISABLED by director decision** ("유료라서 사용하지 못할 것 같아" — paid, skipping
+  it), not a technical blocker. Don't spend time on it; PolyHaven + Sketchfab are the asset sources.
 - **Export for Unity**: `bpy.ops.export_scene.fbx(...)` or the glTF exporter, saved under
   `lifetown/Assets/Art/Blender/`. **Before the first `.blend`/`.fbx`/`.glb` commit**, confirm
   `lifetown/.gitattributes` covers the extension with `filter=lfs` (added 2026-08-01 for these three —
