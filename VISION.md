@@ -5,11 +5,15 @@
 > everything project-independent: the three gates, rubrics, boundaries, failure policy, standing rules.
 > When Life Town is the **active** project, the tick reads BOTH files (engine first, then this).
 >
-> **Status: ACTIVE — resumed 2026-07-19** (paused 2026-07-17 → 07-19 for touchRPG + engine work).
-> Where it stood at resume: 7 category buildings + village v2, gate-green 81/81.
-> Director's resume sequence (2026-07-19): **building polish (T009) → playable gameplay slice
-> (T010: tap building → timer → growth; wire Economy.Core T002 + Platform T003 + design system T004)
-> → APK build (T011)** → eventually Gate 3. Pause-era archive: `docs/paused-state/`.
+> **Status: PAUSED 2026-08-02** (director: *"이 프로젝트 중단하자"*, confirmed scope = the whole Life
+> Town project, not just the in-flight art task). T001-T011 done and accepted — a real playable
+> prototype exists (APK v0.0.9). T012 (art resource upgrade) is unfinished, paused mid-decision: the
+> director just decided the landmark should be flat 2D illustrated art (not a 3D Blender model — real
+> Fortune City screenshots showed its buildings are flat card/icon illustrations, not 3D-modeled), scope
+> = landmark only, keep the existing walkable 3D village scene as-is. **Not started yet.** Full detail
+> and resume steps: `docs/paused-state/PROGRESS-lifetown.md`. Backlog archived in
+> `docs/paused-state/backlog/`.
+> *(Prior pause, superseded: 2026-07-17 → resumed 2026-07-19 for touchRPG + engine work.)*
 
 ## The project
 
