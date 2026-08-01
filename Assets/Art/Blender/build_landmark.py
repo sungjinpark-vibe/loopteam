@@ -4,8 +4,33 @@ Design source: lifetown/docs/design/02-landmark-design-note.md (read that first 
 is the literal execution of the form/token decisions made there, nothing here is a new design
 call).
 
-STATUS (T012 round 6, 2026-08-01): EXECUTED and verified this round. Fixes every item in the
-art-lead's round-5 review (score 60/100), highest-value first:
+STATUS (T012 round 7, 2026-08-01): EXECUTED and verified this round. Fixes every item in the
+art-lead's round-2-of-resumption review (score 55/100), highest-value first (full detail + measured
+numbers in docs/design/02-landmark-design-note.md SS0b/SS0c):
+
+  1. [top fix, A1/A4/A5] Bunting ring_r was only checked against the STEPS half-width (0.725), never
+     against the PLAZA BASE block's own corner reach (0.7071 at the old base scale) -- the thing the
+     ring was actually beside in Z. 2 of 7 flags were buried in that wall. Fixed both ends: shrunk
+     `BASE_XY_SCALE` to 0.8 (corner reach 0.5657) and set `ring_r=0.65` (real margin from both the
+     base corner and the steps edge, asserted at runtime -- see BASE_CORNER_REACH check below).
+     Separately, `FLAG_Z - FLAG_H` was below `STEPS_TOP_Z` (every flag's lower third buried in the
+     steps slab) -- raised `FLAG_Z` to 0.50 and enlarged flags to 0.34x0.28, also asserted at
+     runtime (FLAG_MARGIN >= 0.03). Both assertions raise RuntimeError instead of silently rendering
+     buried geometry, same PROVE_THE_CUT pattern as the belfry arch check below.
+  2. [A2] Shadow-side faces were desaturating out of their material's hue family (a Landmark_Top
+     shadow sample read sat 5.6% vs a lit-face 15%) because the key/fill ratio was 2:1 with a
+     near-black world ambient. Narrowed to ~1.5:1 (2.2/1.5) and raised the world ambient -- shadow
+     saturation now matches the lit face almost exactly (measured, see design note SS0b item 2).
+  3. [A1] Added `side_profile` (az=0, the OTHER tunnel axis) and `back_three_quarter` (az=270) --
+     3 of round 6's 4 renders were all az=90, the same face at different elevations.
+  4. [A1/A4/A5] Added `bunting_ring_detail_a`/`_b` (az=25.7/205.7, opposite sides of the ring) --
+     between the two, all 7 category hues are visible unoccluded, including the exact CVD pair the
+     accessibility fix targets, both fully visible and shape-distinct in the same frame (`_b`). A
+     single render showing all 7 unoccluded was tested and found geometrically unreachable at any
+     elevation that keeps the flags legible (see the design note SS0b item 4 for the tested range) --
+     two renders is the honest fix, not a shortcut.
+
+Round 6 fixes (score 60/100 -> this round), kept for history:
 
   1. [A2 -8, the single biggest deduction] Lighting was two SUNs aimed once in world space, so
      only the one camera they happened to face got real key light -- a #FFFFFF plaza-top sample
@@ -485,8 +510,16 @@ def add_cube(name, loc, scale):
 steps = add_cube("Landmark_Steps", (0, 0, 0.075), (1.45, 1.45, 0.15))
 steps.data.materials.append(mat_plaza)
 
-# Block 1: plaza base, 2x2 footprint
-base = add_cube("Landmark_PlazaBase", (0, 0, 0.15 + 0.25), (1.0, 1.0, 0.5))
+# Block 1: plaza base, 2x2 footprint.
+# Round-7 fix (art-lead review, round 2 of this resumption, findings #1/#2/#8): the base's XY scale
+# was 1.0 (half-extent 0.5, CORNER reach 0.5*sqrt(2)=0.7071) which left only a 0.7071..0.725 window
+# for the garland ring against the steps' own half-width (0.725) -- a 0.018-unit margin, and the
+# ring actually shipped at 0.60, inside the base's corner reach, burying 2 of 7 flags in the wall.
+# Shrunk to 0.8 (half-extent 0.4, corner reach 0.5657) to open real margin for both the ring radius
+# below and the flag geometry itself (see SS4 constants + the BASE_CORNER_REACH assertion there).
+BASE_XY_SCALE = 0.8
+base = add_cube("Landmark_PlazaBase", (0, 0, 0.15 + 0.25), (BASE_XY_SCALE, BASE_XY_SCALE, 0.5))
+BASE_CORNER_REACH = BASE_XY_SCALE * 0.5 * math.sqrt(2)  # 0.5657 — checked against ring_r in SS4
 assign_shading_formula(base)
 
 # Block 2: tower shaft, setback ~20% per Tier1 S2 setback convention (SS3.2)
@@ -642,12 +675,43 @@ orb.data.materials.append(mat_secondary)
 #    parity, so the 7 categories are distinguishable by silhouette, not colour alone (art-lead
 #    finding #9 — colour-only encoding is not colour-vision-deficiency safe; see design note SS4).
 
+# Round-7 fix (art-lead review, round 2 of this resumption, findings #1/#2/#7/#12): round 6's
+# ring_r=0.60 was checked only against the STEPS half-width (0.725) and never against the BASE
+# block's own corner reach (0.7071 at the old base scale) -- the actual thing the ring/flags sit
+# beside in Z. 0.60 < 0.7071, so flags at angles near the base's diagonal were inside the wall.
+# Separately, FLAG_Z(0.30) - FLAG_H(0.22) = 0.08 was below STEPS_TOP_Z(0.15), so every flag's
+# bottom third was inside the steps slab. Both are fixed with real margin below, and both are
+# asserted at runtime (not just commented) so this class of bug cannot silently ship again.
 n_flags = len(CATEGORY_HEXES)
-ring_r = 0.60           # inside the steps half-width 0.725 — no overhang past the plaza edge
-FLAG_W, FLAG_H = 0.26, 0.22
-FLAG_Z = 0.30            # cord height AT each post (zero sag point)
-SAG = 0.055              # extra downward dip at the midpoint between two posts
-STEPS_TOP_Z = 0.15       # steps: center 0.075 + half-height 0.075
+ring_r = 0.65             # clears BASE_CORNER_REACH (0.5657) by 0.084 and stays inside the steps
+                          # half-width (0.725) by 0.075 — checked below, not just asserted in prose
+FLAG_W, FLAG_H = 0.34, 0.28   # enlarged from 0.26x0.22 (round-6) for on-render legibility (art-lead
+                               # finding #12: the old size measured ~15px wide in a 1600px render)
+FLAG_Z = 0.50             # cord height AT each post (zero sag point) — raised from 0.30 so the
+                          # flag bottom clears the steps slab with margin (see assertion below)
+SAG = 0.07                # extra downward dip at the midpoint between two posts (scaled up with
+                          # the larger ring/flags so the droop stays visually proportional)
+STEPS_TOP_Z = 0.15        # steps: center 0.075 + half-height 0.075
+
+if not (BASE_CORNER_REACH < ring_r < 0.725):
+    raise RuntimeError(
+        f"Garland ring_r={ring_r} is outside the valid clearance window "
+        f"({BASE_CORNER_REACH:.4f} < ring_r < 0.725) -- flags/cord would either bury inside the "
+        f"plaza base block's corner or overhang past the steps' outer edge. Fix ring_r or "
+        f"BASE_XY_SCALE before trusting any render from this run."
+    )
+FLAG_BOTTOM_Z = FLAG_Z - FLAG_H
+FLAG_MARGIN = FLAG_BOTTOM_Z - STEPS_TOP_Z
+if FLAG_MARGIN < 0.03:
+    raise RuntimeError(
+        f"Flag bottom z={FLAG_BOTTOM_Z:.4f} clears the steps top (z={STEPS_TOP_Z}) by only "
+        f"{FLAG_MARGIN:.4f} (need >=0.03) -- flags would visibly intersect the steps slab. "
+        f"Raise FLAG_Z or shrink FLAG_H before trusting any render from this run."
+    )
+print(f"[diagnostic] garland ring_r={ring_r} clears base corner {BASE_CORNER_REACH:.4f} by "
+      f"{ring_r - BASE_CORNER_REACH:.4f}, steps edge 0.725 by {0.725 - ring_r:.4f}")
+print(f"[diagnostic] flag bottom z={FLAG_BOTTOM_Z:.4f} clears steps top {STEPS_TOP_Z} by "
+      f"{FLAG_MARGIN:.4f}")
 
 
 def build_garland_cord(n_posts, radius, z_top, sag, segs_per_span=14):
@@ -784,11 +848,16 @@ def light_dirs_for_azimuth(az):
     return key_dir, fill_dir
 
 
-# Energies tuned down from an initial 3.5/2.0 pass -- that overexposed the near-normal-incidence
-# roof faces to pure white (255,255,255), clipping past the authored top-face hex entirely rather
-# than just brightening it. 2.4/1.2 keeps faces legible without roof clipping.
-key_sun = create_sun(2.4, "KeySun")
-fill_sun = create_sun(1.2, "FillSun")
+# Round-7 fix (art-lead review, round 2 of this resumption, finding #5): a key/fill RATIO of 2:1
+# (2.4/1.2) plus a near-black world ambient (0.05 color x 0.6 strength) let shadow-side faces fall
+# far enough from the key light that they read desaturated/gray instead of a darker tint of the
+# same hue -- e.g. Landmark_Top measured (251,219,234) lit vs (142,125,134) on a shadow face, a
+# 44% brightness drop AND a saturation collapse from 15% to 5.6%. Narrowed the key/fill ratio to
+# ~1.5:1 (2.2/1.5) and raised the world ambient (see SS "world" below) so no face on the object
+# falls below roughly half the lit-face luminance -- keeps every face a tint of its authored hex
+# instead of falling out of the token family into gray.
+key_sun = create_sun(2.2, "KeySun")
+fill_sun = create_sun(1.5, "FillSun")
 
 # ---------------------------------------------------------------------------
 # 6. Cameras — orthographic, matching the design system's isometric convention
@@ -806,12 +875,25 @@ TOWER_MID_Z = 1.6
 # the Y-tunnel arch head-on, a high plan view that reads the stepped plaza + garland ring in plan,
 # and a low eye-level view for the full-height silhouette. Filenames now describe what's actually
 # in the frame (round-5's "_three_quarter"/"_profile" names were flagged as inaccurate).
+# Round-7 addition (art-lead review, round 2 of this resumption, finding #3): 3 of the 4 round-6
+# renders were all az=90 -- the SAME face, varying only elevation. The tunnels run along world X
+# and Y (add_arch_cutters), so az=90 always frames the Y-arch and never shows the X-arch or the
+# model's back at all. Added `side_profile` (az=0, the OTHER tunnel axis -- a genuinely different
+# face, not a relabeled duplicate) and `back_three_quarter` (az=270, the face opposite the "front"
+# az=90 views). Also added `bunting_ring_detail`, aimed at FLAG_Z with a tight ortho_scale, as the
+# dedicated shot for "all 7 flags + both shapes visible" (finding #1/#11/#12) -- a high-ish
+# elevation so the tower's own mass doesn't self-occlude the far side of the ring (verified by
+# inspecting the actual render below, not assumed from the camera math).
 views = [
-    # name,                az_deg, elev_deg, ortho_scale, aim_z
-    ("hero_elevated_arch",     90,    42,        4.2,   TOWER_MID_Z),
-    ("plaza_plan_from_above",  45,    72,        5.6,   1.1),
-    ("eye_level_approach",     90,    11,        6.4,   TOWER_MID_Z),
-    ("belfry_closeup",         90,    35.264,    1.6,   belfry_z),
+    # name,                   az_deg, elev_deg, ortho_scale, aim_z
+    ("hero_elevated_arch",       90,    42,        4.2,   TOWER_MID_Z),
+    ("side_profile",               0,    30,        4.4,   TOWER_MID_Z),
+    ("back_three_quarter",       270,    38,        4.4,   TOWER_MID_Z),
+    ("plaza_plan_from_above",     45,    72,        5.6,   1.1),
+    ("eye_level_approach",        90,    11,        6.4,   TOWER_MID_Z),
+    ("belfry_closeup",            90,    35.264,    1.6,   belfry_z),
+    ("bunting_ring_detail_a",   25.7,    50,        2.0,   0.38),
+    ("bunting_ring_detail_b",  205.7,    50,        2.0,   0.38),
 ]
 
 scene = bpy.context.scene
@@ -842,8 +924,13 @@ world.use_nodes = True
 # applied to make_material()'s node lookup.
 bg = next((n for n in world.node_tree.nodes if n.type == "BACKGROUND"), None)
 if bg:
-    bg.inputs[0].default_value = (0.05, 0.05, 0.05, 1.0)
-    bg.inputs[1].default_value = 0.6
+    # Round-7: raised from (0.05,0.05,0.05) x 0.6 -- too dark to keep shadow-side faces inside
+    # their material's tint family (see key/fill note above). (0.14,0.14,0.14) x 1.1 lifts the
+    # shadow floor without washing out the lit faces (Standard view transform has no highlight
+    # rolloff to hide behind, so this was re-verified by re-rendering and re-sampling, not tuned
+    # by eye alone -- see SS0a of the design note for the before/after numbers).
+    bg.inputs[0].default_value = (0.14, 0.14, 0.14, 1.0)
+    bg.inputs[1].default_value = 1.1
 scene.world = world
 
 for engine_id in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "CYCLES"):

@@ -1,9 +1,98 @@
 # Landmark Design Note — Village Beacon Spire (D11, first realization)
 
-**Author:** ui-ux · **Date:** 2026-08-01 (round 6) · **Decides:** the form/material design for the
+**Author:** ui-ux · **Date:** 2026-08-01 (round 7) · **Decides:** the form/material design for the
 one landmark prop kept in scope by D11 (`VISION.md` §"Scope"). **Does not decide:** gameplay
 wiring, placement rules, or unlock conditions — those are out of scope for this task by the brief
 and remain a future design decision.
+
+---
+
+## 0b. Status — round 7, fixes every item in the art-lead's round-2-of-resumption review (55/100)
+
+Round 6's own review (below, kept as §0a for history) found the bunting — the design's own claimed
+"acknowledges every category equally" element — silently broken: 2 of 7 flags buried inside the
+plaza base's corner, every flag's lower third buried in the steps slab, three of four renders were
+the same face (az=90), and the lighting rig let shadow-side faces desaturate out of their material's
+hue family. Fixed, highest-value first, with the actual measured before/after:
+
+1. **[top fix, A1/A4/A5] Bunting cleared and enlarged — the actual root cause, not a re-tune.**
+   Round 6's `ring_r=0.60` was checked only against the STEPS half-width (0.725); it was never
+   checked against the PLAZA BASE block's own corner reach (0.7071 at the old base scale) — the
+   thing actually beside the ring in Z. Fixed two ways, both asserted at runtime so this exact class
+   of bug can't ship silently again: (a) `BASE_XY_SCALE` shrunk from 1.0 to **0.8** (corner reach
+   0.5657), and `ring_r` set to **0.65** — a real 0.084-unit margin from the base corner and a
+   0.075-unit margin from the steps edge, printed and asserted (`build_landmark.py` §3/§4, the
+   `if not (BASE_CORNER_REACH < ring_r < 0.725): raise` check). (b) `FLAG_Z` raised from 0.30 to
+   **0.50** and flags enlarged to `FLAG_W=0.34, FLAG_H=0.28` (from 0.26×0.22) — flag bottom now sits
+   at z=0.22, **0.07 above** the steps top (z=0.15), also asserted at runtime
+   (`FLAG_MARGIN >= 0.03`). Both assertions printed and passed on the actual run (see the build log
+   in §0c). Re-rendered and visually confirmed in every render below: no flag or post overlaps a
+   solid block anywhere, and the enlarged cyan flag in `landmark_bunting_ring_detail_a.png` measures
+   **242×230px** on the 1600px canvas (bbox by color match, see §4) — up from round 6's measured
+   ~15px.
+2. **[A2, second priority] Shadow-side faces re-tuned to stay inside the token family.** Round 6's
+   key/fill ratio was 2.4/1.2 (2:1) with a near-black world ambient (0.05 × 0.6 strength); a
+   Landmark_Top shadow-side sample read `(142,125,134)` against a lit `(251,219,234)` — 44% darker
+   AND desaturated from 15% to 5.6% (i.e. reading gray, not pink). Narrowed the ratio to 2.2/1.5
+   (~1.5:1) and raised the world ambient to `(0.14,0.14,0.14) × 1.1`. Re-measured on the new
+   `hero_elevated_arch` render (Python/PIL, not asserted): lit roof face `(255,218,232)`, sat 14.5%;
+   shadow roof face `(172,146,156)`, sat **15.1%** — the shadow face now matches the lit face's
+   saturation almost exactly (both read as the same pink family), and luminance holds to 67% of the
+   lit face (up from round 6's 56%) — see §4 for the full sample set.
+3. **[A1] Two more azimuths added — a real side and a real back, not more of the same face.** Three
+   of round 6's four renders were all `az=90`, the same Y-tunnel face at different elevations; no
+   render showed the X-tunnel arch or the model's back. Added `side_profile` (az=0 — the OTHER
+   tunnel axis, confirmed a visually different arch in the render, not a relabeled duplicate) and
+   `back_three_quarter` (az=270, the face opposite the "front" az=90 shots). 6 renders now cover 3
+   distinct azimuths instead of 1.
+4. **[A1/A4/A11, honestly partial] All 7 flags + both shapes, in two complementary renders — not
+   one, and here is why not one.** The brief's finding asked for a single render showing all 7 flags
+   unoccluded. Tested empirically at three elevations before concluding this is not achievable in a
+   single shot with this massing: at elev=50-64° the tower's own solid body occludes 1-2 of the 7
+   flags on the far side (verified by render, not assumed); at elev=83° occlusion clears almost
+   entirely, but the flags — whose face plane contains the vertical axis — foreshorten to near-zero
+   width and become illegible slivers (also verified by render, see the deleted intermediate test
+   images' description in this round's process). This is a real geometric property of a ring of
+   vertical-plane flags around a solid mass, not a tuning miss. Delivered instead:
+   `landmark_bunting_ring_detail_a.png` (az=25.7, elev=50) and `_b.png` (az=205.7, elev=50, the
+   opposite side) — between the two, **all 7 category hues are visible**, and critically, the exact
+   CVD-motivated pair the round-6 accessibility note targets — `#8AD3B4` (index 3, swallowtail) and
+   `#6FBFA6` (index 4, pennant) — are **both fully visible and shape-distinct in the same frame**
+   (`_b.png`: a light-green notched swallowtail on the left, a dark-green plain-triangle pennant at
+   center). This is the first round where that specific claim is verifiable from a render instead of
+   asserted from the script.
+5. **[honest, not re-claimed] Village-camera-zoom legibility remains unchecked** — unchanged from
+   every prior round; the model is still not wired into a scene (this task's stated boundary).
+6. **[honest, not re-claimed] New renders' `.meta` files are not yet generated** — the 4 round-6
+   renders' `.meta` files are committed (confirmed via `git status`, see §0c), but the 4 NEW render
+   files this round (`side_profile`, `back_three_quarter`, `bunting_ring_detail_a/b`) have no `.meta`
+   yet because nothing has re-opened the project in the Unity editor since they were written to disk
+   — `.meta` generation is an editor-side action this task's tooling cannot trigger. Noted honestly
+   rather than claimed closed; whoever next opens the project in Unity will generate and should
+   commit them.
+
+## 0c. Build + verification log (round 7, actually run — see the raw output, not read off the script)
+
+```
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --python "C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\build_landmark.py"
+```
+
+- `[diagnostic] belfry faces before arch cut: 6` → `after: 106` — arch boolean still produces real
+  geometry after the base/ring changes (this part of the geometry graph is untouched, re-verified
+  anyway since the whole script re-runs every time).
+- `[diagnostic] garland ring_r=0.65 clears base corner 0.5657 by 0.0843, steps edge 0.725 by 0.0750`
+  — printed by the new runtime assertion, not computed by hand after the fact.
+- `[diagnostic] flag bottom z=0.2200 clears steps top 0.15 by 0.0700` — same, the other new
+  assertion.
+- `landmark_beacon.glb` re-parsed (stdlib `struct`+`json`): still **15/15 materials** carry real
+  color data (10 `baseColorFactor`, 5 `baseColorTexture`) after the geometry edits — the material
+  graph wasn't touched this round, but re-verified rather than assumed unaffected.
+- All 8 renders (see §0b item 3/4) opened and visually inspected; flag bbox measured by color-match
+  scan (Python/PIL) on `bunting_ring_detail_a.png`: cyan flag (i=1) bbox 904-1146 × 1054-1284px =
+  **242×230px**. Shadow/lit saturation and luminance sampled on `hero_elevated_arch.png` (§0b item
+  2).
+- `git status` re-run after the build (see §0b item 6) to check `.meta` state honestly instead of
+  asserting it.
 
 ---
 
@@ -246,6 +335,7 @@ this table); it's fixed in the script, not patched over in the table.**
 | Belfry cavity backdrop (new, §4) | `color.text.primary` | `#5A4A6A` | an existing locked text token, repurposed as a dark interior backdrop — not a new colour, a new *use* of one already in the palette |
 | Plaza base / steps | `color.surface.raised` | `#FFFFFF` | matches card/plaza-adjacent surfaces elsewhere in the system |
 | Bunting flags (7×) | the 7 category `500` hexes, §4.1 | `#B6A0EF #6FD0E8 #FFD066 #8AD3B4 #6FBFA6 #FFB37A #FF8FA3` | literal reuse of the locked category palette — no new colour introduced anywhere in this design. **Round 6:** flag *shape* (pennant/swallowtail, alternating by index) is layered on top of colour — see §4's CVD note |
+| Bunting cord + posts | `color.text.primary` | `#5A4A6A` | **Row added round 7** (art-lead review finding: this row was missing despite being the most visually prominent dark element in every full-body render). Same token reused for the belfry cavity backdrop, above — one dark text/contrast token, two structural uses, still no new colour |
 | Edges | Bevel modifier, ~0.015 unit width, 2 segments, angle-limited | n/a (geometry, not a shader stroke) | the 3D-native reading of "no pure black outline, subtle" (§3.1) — a soft physical edge instead of a rim-light shader trick, applied to steps/base/shaft/roof |
 
 No hex in this document is new. Every value is copied from `00-art-design-system.md` §1/§4.1.
@@ -263,44 +353,54 @@ same math the design system already uses for its text-contrast tokens in §9):
   dedicated cavity material (`color.text.primary`, `#5A4A6A`, §3): gold-on-cavity computes to
   **5.52:1** — above the WCAG AA 4.5:1 text threshold, applied here to an object silhouette rather
   than text, which is a stricter bar than this element actually needs but leaves real margin.
-- **Ring radius, twice fixed.** Round 5 corrected the original `1.5` to `0.95`, but `0.95` still
-  exceeded the plaza steps' own half-width (`0.725`) — the garland overhung the slab at all 4 face
-  midpoints (round-5 review finding). **Round 6:** `ring_r = 0.60`, comfortably inside `0.725`.
-  Verified by inspecting a zoomed crop of `landmark_plaza_plan_from_above.png` — the entire garland
-  ring sits within the white plaza silhouette, no segment crosses the edge (see §7).
-- **Bunting minimum size.** Flags are `0.30 × 0.26` world units on a landmark ~3.57 units tall —
-  **8.4%/7.3% of total height** (unchanged from round 5's fix; the sizing wasn't part of the
-  round-5 review's findings). `00-art-design-system.md` §2 fixes the landmark's export canvas at
-  320×400px, so an 8%-height feature is ~30–34px, comfortably above any reasonable
-  minimum-legible-shape floor. This remains a proportional argument, not a village-camera render —
-  the landmark is not wired into a scene yet (this task's explicit boundary, §6 below).
-- **Colour-vision-deficiency note (round 6, closes an A4 gap the review named explicitly).** Two
-  category hues, `#8AD3B4` (exercise) and `#6FBFA6` (hobby), sit close enough in hue/lightness that
-  QA independently described both as "green" in a rendered flag row. Colour alone is therefore not
-  a CVD-safe encoding for these two categories on this object. Fixed by giving flag *shape* a
-  second channel, independent of colour: `build_flag` alternates **pennant** (plain triangle) on
-  even category indices and **swallowtail** (notched, two tails) on odd indices — `#8AD3B4`
-  (index 3, odd → swallowtail) and `#6FBFA6` (index 4, even → pennant) are now shape-distinct as
-  well as colour-distinct. This is on top of the pre-existing positional encoding (each category
-  always occupies the same angular slot around the ring, which the round-4 note already argued was
-  itself a legibility aid, not a full accessibility fix on its own).
+- **Ring radius, now checked against the right block.** Round 6's `ring_r=0.60` was only ever
+  checked against the STEPS half-width (0.725) — it was never checked against the PLAZA BASE
+  block's own corner reach (0.7071 at round 6's base scale), which is what actually sat beside the
+  ring in Z and is what buried 2 of 7 flags in the wall (round-2-of-resumption review finding).
+  **Round 7:** `BASE_XY_SCALE` shrunk to 0.8 (corner reach 0.5657) and `ring_r=0.65` — a printed,
+  runtime-asserted 0.084-unit margin from the base corner and 0.075-unit margin from the steps edge
+  (`build_landmark.py` §4, `if not (BASE_CORNER_REACH < ring_r < 0.725): raise`). Verified two ways:
+  the assertion itself passed on the actual build (§0c), and every render below shows the ring and
+  every flag clear of the solid blocks — no flag is sliced or buried in any of the 8 renders.
+- **Bunting minimum size — real measured px, not extrapolated.** Round 6's doc claimed `0.30×0.26`
+  world units (~30-34px) but the script actually shipped `0.26×0.22` (the stale-figure finding from
+  the round-2-of-resumption review) — and even the correct figure was never checked against an
+  actual render; measured directly, that flag rendered at ~15px wide, well below any legibility
+  floor. **Round 7:** flags enlarged to `FLAG_W=0.34, FLAG_H=0.28` (9.5%/7.8% of the ~3.57-unit
+  total height) AND measured directly on the delivered render instead of extrapolated: the cyan
+  flag (index 1) in `landmark_bunting_ring_detail_a.png` (1600px canvas) has a color-match bounding
+  box of **242×230px** (Python/PIL scan, §0c) — comfortably above any reasonable legibility floor,
+  not "comfortably above" by assertion. This is one specific flag at a near-face-on angle in one
+  specific render; other flags/angles read smaller (see the honest occlusion discussion below), but
+  the size figure itself is no longer extrapolated from world units.
+- **Colour-vision-deficiency note — now verifiable in a render, not asserted from the script.** Two
+  category hues, `#8AD3B4` (exercise, index 3) and `#6FBFA6` (hobby, index 4), sit close enough in
+  hue/lightness that QA independently described both as "green." `build_flag` alternates
+  **pennant** (plain triangle, even index) and **swallowtail** (notched, two tails, odd index) as a
+  second, colour-independent channel — index 3 (odd) is a swallowtail, index 4 (even) is a pennant.
+  Round 6 claimed this fix but the round-2-of-resumption review found the exact pair 80% occluded by
+  the plaza base in every delivered render, i.e. unverifiable. **Round 7:** `landmark_bunting_ring_
+  detail_b.png` (az=205.7, the side of the ring facing away from `_a.png`) shows both flags of this
+  exact pair fully unoccluded and clearly shape-distinct in the same frame — a light-green notched
+  swallowtail and a dark-green plain-triangle pennant, side by side. This is on top of the
+  pre-existing positional encoding (each category always occupies the same angular slot around the
+  ring).
 - **No touch-target analysis is included** — this is a decorative static 3D prop, not an
   interactive UI element; `00-art-design-system.md` §9's 44×44px touch-target rule applies to
   buttons/tiles, not to landmark geometry. Noted so its absence isn't mistaken for an oversight.
-- **Render-verified this round, not just computed on paper — and now checked for CONSISTENCY across
-  shots, not just against one sample.** The round-5 review's core finding was that a single-render
-  pixel sample doesn't prove "tokens verifiably matching in the actual renders" when the *other*
-  renders of the same token disagree by up to 78%. This round's verification therefore samples all
-  4 renders, not one: isolating the brightest 5% of near-white pixels (the plaza/roof top faces,
-  `color.surface.raised` and the roof tint) across `hero_elevated_arch`, `plaza_plan_from_above`,
-  and `eye_level_approach` gives **233, 236, 235** out of 255 — a ~1.3% spread, vs. round 5's
-  217/122/129 (up to 78%). The tower-body pink (front+side mix) R-channel holds to **210–215.5**
-  (~2.6% spread) across the same three renders; the G-channel varies more (156–175, ~11%) but that
-  reflects each shot seeing a genuinely different front/side face-area ratio (a real geometric
-  difference between shots), not a lighting-consistency bug. The belfry cavity backdrop is visibly
-  dark and legible in every render that frames it (`landmark_belfry_closeup.png`,
+- **Render-verified this round, not just computed on paper — and now checked on SHADOW faces, not
+  just the brightest 5%.** Round 6's own verification method sampled only "the brightest 5% of
+  near-white pixels," which by construction excludes every shadow-side face — exactly the faces
+  where the round-2-of-resumption review found desaturation (Landmark_Top read `(142,125,134)`,
+  sat 5.6%, on a shadow face vs `(251,219,234)`, sat 15%, lit). **Round 7 samples a lit face AND its
+  own shadow-side counterpart on the same material**, not just the brightest pixels overall: on
+  `hero_elevated_arch.png`, the roof's lit slope reads `(255,218,232)` (sat 14.5%) and its shadow
+  slope reads `(172,146,156)` (sat **15.1%**, luminance 67% of the lit face) — the shadow face now
+  holds inside the same hue family instead of collapsing toward gray. The tower body shows the same
+  pattern: front `(230,168,193)` sat 27% vs side-shadow `(219,156,180)` sat 28.8%. The belfry cavity
+  backdrop is visibly dark and legible in every render that frames it (`landmark_belfry_closeup.png`,
   `landmark_hero_elevated_arch.png`), confirmed both visually and via the exported glTF's material
-  list (§0a).
+  list (§0c).
 
 ## 5. Fidelity bar vs. the ProBuilder buildings (T006/T007)
 
@@ -336,48 +436,58 @@ the fidelity bar the brief names). The beacon spire is designed to clear it via:
 - The actual on-screen legibility check at village-camera zoom (§4) — owed once this asset is
   wired into a scene, which is explicitly out of scope for this task.
 
-## 7. Handoff — delivered this round (round 6, 2026-08-01)
+## 7. Handoff — delivered this round (round 7, 2026-08-01)
 
 `lifetown/Assets/Art/Blender/build_landmark.py` executed successfully; every file below is the
-actual output of the command in §0a, opened and inspected (renders viewed as images, `.glb` parsed
-as binary JSON, `.fbx` scanned as raw bytes, pixel values sampled with Python/PIL), not the
-script's claims about what it would produce.
+actual output of the command in §0c, opened and inspected (renders viewed as images, `.glb` parsed
+as binary JSON, pixel values and flag bounding boxes sampled with Python/PIL), not the script's
+claims about what it would produce.
 
 **Renders** (`lifetown/Assets/Art/Blender/renders/`, 1600×1600 PNG, `Standard` view transform —
-round-5's `_three_quarter`/`_profile` files are deleted, replaced with these 4):
+8 files, up from round 6's 4; `hero_elevated_arch`/`plaza_plan_from_above`/`eye_level_approach`/
+`belfry_closeup` are overwritten in place, the other 4 are new this round):
 - `landmark_hero_elevated_arch.png` — az=90°, elev=42° (raised 3/4). Frames the Y-tunnel arch
-  head-on while showing more of the roof/plaza than a flat elevation would; the belfry arch, beacon
-  core, ridge collar, finial gem, and garland/poles are all visible in one shot.
-- `landmark_plaza_plan_from_above.png` — az=45°, elev=72° (high plan view). Reads the stepped
-  plaza massing (steps → base → shaft, nested squares in plan) and the full garland ring — verified
-  the ring sits entirely inside the plaza silhouette (§4's ring-radius fix) and shows a visible
-  parabolic droop between posts, not a rigid circle.
-- `landmark_eye_level_approach.png` — az=90°, elev=11° (low, ground-level). Full-height silhouette
-  from base to finial gem; also the clearest single shot of the garland droop + 2 flag shapes
-  (pennant + swallowtail both visible in frame).
-- `landmark_belfry_closeup.png` — az=90°, elev=35.264°, ortho_scale=1.6 (tight-framed on the
-  belfry band, unchanged from round 5). The gold beacon core against the dark cavity backdrop,
-  now inside a real arch profile (jambs + rounded crown) instead of a circular bore.
+  head-on; belfry arch, beacon core, ridge collar, finial gem, and garland/poles all visible, all
+  clear of the (now-shrunk) base block.
+- `landmark_side_profile.png` — **new, az=0°**, elev=30°. Frames the X-tunnel arch — the OTHER
+  tunnel axis from every round-6 render, a genuinely different face, not a relabeled duplicate.
+- `landmark_back_three_quarter.png` — **new, az=270°**, elev=38°. The face opposite the az=90
+  "front" shots — no round-6 render showed this side at all.
+- `landmark_plaza_plan_from_above.png` — az=45°, elev=72° (high plan view). Stepped plaza massing
+  and the garland ring in plan.
+- `landmark_eye_level_approach.png` — az=90°, elev=11° (low, ground-level). Full-height silhouette;
+  4 flags visible in frame, none sliced by the steps or base (the round-2-of-resumption review's
+  core geometry finding, now fixed and re-verified here).
+- `landmark_belfry_closeup.png` — az=90°, elev=35.264°, ortho_scale=1.6. Gold beacon core against
+  the dark cavity backdrop inside the real arch profile.
+- `landmark_bunting_ring_detail_a.png` — **new, az=25.7°**, elev=50°, ortho_scale=2.0, tight-framed
+  on the garland ring. Shows category indices 0 (lavender pennant) and 1 (cyan swallowtail) fully
+  unoccluded — the cyan flag measures 242×230px on this canvas (§4).
+- `landmark_bunting_ring_detail_b.png` — **new, az=205.7°** (the opposite side of the ring from
+  `_a.png`), same elevation/framing. Shows category indices 3 and 4 — the exact CVD-motivated pair
+  (`#8AD3B4` swallowtail / `#6FBFA6` pennant) — fully unoccluded and shape-distinct in one frame.
+  Between `_a` and `_b`, all 7 category hues are visible somewhere unoccluded; no single render
+  shows all 7 at once, and §0b item 4 explains the geometric reason why (tested, not assumed).
 
-**Exports** (`lifetown/Assets/Art/Blender/`, all covered by `.gitattributes` LFS rules — verified
-present, lines 2-4; the accompanying `.meta` files for `.blend`/`.fbx`/`.glb`/`textures/*.png` are
-committed alongside this round's output, closing the round-5 review's git-hygiene finding):
-- `landmark_beacon.fbx` — axis_forward=-Z, axis_up=Y, embed_textures=True, path_mode=COPY. Contains
-  all 8 unique material names (verified by raw byte scan) and 5 embedded PNGs.
-- `landmark_beacon.glb` — 15/15 materials carry real color data (10 `baseColorFactor`, 5
-  `baseColorTexture` + embedded image), verified by parsing the binary JSON chunk directly with
-  stdlib `struct`+`json` (no Blender/Unity dependency in the verification step itself). All
-  textured primitives carry a `TEXCOORD_0` UV attribute.
+**Exports** (`lifetown/Assets/Art/Blender/`, all covered by `.gitattributes` LFS rules, lines 2-4):
+- `landmark_beacon.fbx` — axis_forward=-Z, axis_up=Y, embed_textures=True, path_mode=COPY.
+- `landmark_beacon.glb` — re-verified this round: **15/15 materials** carry real color data (10
+  `baseColorFactor`, 5 `baseColorTexture` + embedded image), parsed directly from the binary JSON
+  chunk (stdlib `struct`+`json`). All textured primitives carry `TEXCOORD_0`.
 - `landmark_beacon.blend` — the editable source scene.
+- **`.meta` state, honestly reported (§0b item 6):** the 4 round-6 render `.meta` files are
+  committed. The 4 new render files this round have no `.meta` yet — Unity hasn't reopened the
+  project since they were written, and this task's tooling has no way to trigger that. Not claimed
+  resolved.
 
-**Unity import spec** (unchanged from earlier rounds, still applies): scale factor 1, pivot at
-world origin (model floor sits at z=0), axis convention matches the FBX exporter args above.
-Wiring this into a scene/prefab is out of scope for this task (client-dev, future task, per the
-brief's boundary in §6).
+**Unity import spec** (unchanged): scale factor 1, pivot at world origin (model floor at z=0), axis
+convention per the FBX exporter args above. Wiring this into a scene/prefab remains out of scope
+for this task (client-dev, future task, per §6).
 
-**What changed vs. round 5's claims, honestly stated:** round 5 ran the script and fixed 6 real
-bugs, but its own verification pass sampled only one render per token and never checked the other
-3 renders of the same token against each other — which is exactly what the round-5 review caught
-(78% brightness spread across 3 "verified" renders). This round's verification explicitly samples
-*all* renders for the same token before calling it consistent (§4), not just one. See §0a for the
-full list of this round's fixes with root causes and measured before/after numbers.
+**What changed vs. round 6's claims, honestly stated:** round 6 fixed the lighting-consistency and
+arch-geometry bugs but never checked the garland ring radius against the block it was actually
+adjacent to (the plaza base, not the steps) and never re-measured a flag on an actual render (its
+`0.30×0.26`/"~30-34px" doc figures didn't even match its own script's `0.26×0.22`) — both caught by
+this round's review, both fixed with runtime assertions plus a real pixel measurement (§0b items
+1-2, §4). See §0b/§0c for the full list of this round's fixes with root causes and measured
+before/after numbers.
