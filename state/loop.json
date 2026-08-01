@@ -1,9 +1,9 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets. Keep this file SMALL: state values + short pointers only — narrative belongs in state/PROGRESS.md (cockpit) and state/journal.md (archive). Do not re-grow _state_reason/_paused_reason blobs here; a stale blob once carried a superseded channel rule (removed 2026-07-19).",
   "tick": 50,
-  "project": "Life Town (RESUMED 2026-07-19; contract lifetown/VISION.md) — touchRPG paused 2026-07-19",
-  "active_task": "T009 Work building polish → T010 gameplay slice → T011 APK (director sequence 2026-07-19)",
-  "last_tick_at": "2026-07-19 (in-session)",
+  "project": "none active — Life Town and touchRPG both paused 2026-08-02; see state/PROGRESS.md",
+  "active_task": null,
+  "last_tick_at": "2026-08-02 (in-session)",
   "consecutive_idle_ticks": 0,
   "paused": true,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself. Current state + resume pointers: state/PROGRESS.md.",
