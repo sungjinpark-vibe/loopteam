@@ -1,0 +1,288 @@
+C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\build_landmark.py:491: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  mat.use_nodes = True
+C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\build_landmark.py:491: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  mat.use_nodes = True
+C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\build_landmark.py:1426: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+00:02.656  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_hero.png'
+00:04.172  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_front_openings.png'
+00:05.735  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_side_bands.png'
+00:07.250  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_full_body.png'
+00:08.813  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_beacon_detail.png'
+00:10.594  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_bunting_all_flags.png'
+00:12.422  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_bunting_shape_pair.png'
+00:13.453  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_village_scale.png'
+BlenderMCP: cannot start server in background mode (blender -b) - commands would never execute
+BlenderMCP: run Blender with a GUI, or use a virtual display: xvfb-run -a blender
+BlenderMCP addon registered
+[diagnostic] structural palette vs source token S/V (round-20 fix, A2 top fix): wall_base S/V=0.480/0.980 vs color.primary S/V=0.380/1.000; roof_base S/V=0.320/0.760 vs color.secondary S/V=0.331/0.937
+[diagnostic] palette (round 14, 8 structural incl. 3 derived-shadow pairs + 7 bunting = 15 distinct pixel values -- see design note SS2 for why this is an honest count against the brief's 'base hues' cap, not an attempt to hide it):
+  wall_base: #FA82B1
+  wall_shadow: #8C3E5C
+  roof_base: #9584C2
+  roof_shadow: #362A57
+  gold_base: #F0D599
+  gold_shadow: #907C51
+  trim: #FCF0CF
+  void_ink: #533B6B
+  bunting_reading: #7A4CEF
+  bunting_study: #4AC9E8
+  bunting_work: #FFCA52
+  bunting_exercise: #50D39B
+  bunting_hobby: #1DBF8C
+  bunting_mind: #FF9C52
+  bunting_game: #FF5271
+[diagnostic] total distinct authored pixel colours: 15; base/dominant hues (excl. derived shadow bands): 12 (wall/roof/gold each contribute 1 base + 1 derived shadow)
+[diagnostic] category collision separations (RGB Euclidean):
+  roof_base vs bunting_reading: 76.7
+  gold_base vs bunting_work: 73.4
+  bunting_exercise vs bunting_hobby: 56.8 (floor=35.0, hue+value both LOCKED to token for both categories -- separation is saturation-only)
+  bunting_exercise vs bunting_hobby: 56.8
+  wall_base vs wall_shadow: 154.8 (same-hue pair)
+  roof_base vs roof_shadow: 169.0 (same-hue pair)
+  gold_base vs gold_shadow: 149.4 (same-hue pair)
+[diagnostic] top-face-lit check (Landmark_Plaza): topmost face material_index=0 (Wall_Base) -> OK (lit/base)
+[diagnostic] top-face-lit check (Landmark_Tower): topmost face material_index=0 (Wall_Base) -> OK (lit/base)
+FBX version: 7400
+[polyhaven] Landmark_BeaconUrn connected-component check: 1 shell(s) ([501] faces each)
+[polyhaven] Landmark_BeaconUrn degenerate-face check: 0/501 faces below 0.150% of the largest face's area (max_area=0.005670)
+[polyhaven] Landmark_BeaconUrn azimuth-based band split: 275/501 faces lit, 226/501 shadow (light_deg=45, half_width_deg=100) -- one contiguous seam by construction, not a per-face normal test
+[polyhaven] Landmark_BeaconUrn placed at (0.0, 0.0, 3.2159), scale=1.3234 (target_height=0.529, source_height=0.3997); simplified 10296 -> 237 (weld+dissolve) -> 501 polygons (final), 1 clean closed shell, 0 degenerate faces; world Z bbox=(3.2186, 3.7476)
+[diagnostic] real model bbox: base_z=0.0, top_z=3.7476, total_h=3.7476 -- every full-silhouette camera view below sizes itself from this measured height, not a hand-picked constant.
+[diagnostic] eave ledge support check: ledge half-width=0.668 vs rail half-width=0.648 vs flag outer half-extent=0.623 (ledge widest -> real lip past both the rail's ends AND every flag's own outer edge); ledge spans y=[0.540,0.664] from the tower wall to the rail
+[diagnostic] roofline containment check: rail half-width=0.648, ledge half-width=0.668 vs roof base-ring radius=0.721 (margin>=0.015)
+[diagnostic] garland span=[-0.540,0.540] at y=0.801, eave z=2.300, lowest flag-bottom z=2.020 (opening_top_max=1.910 -- garland clears every opening with margin)
+[diagnostic] bell/flag clearance check: bell_top_z=1.755, lowest_flag_bottom=2.010, margin=0.255 (required > 0.1)
+[diagnostic] hero full-silhouette frame check: model AABB margin=(1.045,0.248) at half-frame=2.661 -> OK (fits with margin)
+[diagnostic] snap_render_to_palette(landmark_toon_hero.png): 1948870/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_hero.png
+[diagnostic] front_openings full-silhouette frame check: model AABB margin=(1.501,0.540) at half-frame=2.661 -> OK (fits with margin)
+[diagnostic] snap_render_to_palette(landmark_toon_front_openings.png): 1950573/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_front_openings.png
+[diagnostic] side_bands full-silhouette frame check: model AABB margin=(1.020,0.282) at half-frame=2.661 -> OK (fits with margin)
+[diagnostic] snap_render_to_palette(landmark_toon_side_bands.png): 1948270/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_side_bands.png
+[diagnostic] full_body full-silhouette frame check: model AABB margin=(1.269,0.496) at half-frame=2.811 -> OK (fits with margin)
+[diagnostic] snap_render_to_palette(landmark_toon_full_body.png): 1949396/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_full_body.png
+[diagnostic] snap_render_to_palette(landmark_toon_beacon_detail.png): 1956796/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_beacon_detail.png
+[diagnostic] bunting_all_flags frame check: work local=(0.540,-0.171) margin=(0.410,0.779) -> OK
+[diagnostic] bunting_all_flags frame check: exercise local=(0.360,-0.235) margin=(0.590,0.715) -> OK
+[diagnostic] bunting_all_flags frame check: reading local=(0.180,-0.273) margin=(0.770,0.677) -> OK
+[diagnostic] bunting_all_flags frame check: study local=(-0.000,-0.286) margin=(0.950,0.664) -> OK
+[diagnostic] bunting_all_flags frame check: hobby local=(-0.180,-0.273) margin=(0.770,0.677) -> OK
+[diagnostic] bunting_all_flags frame check: mind local=(-0.360,-0.235) margin=(0.590,0.715) -> OK
+[diagnostic] bunting_all_flags frame check: game local=(-0.540,-0.171) margin=(0.410,0.779) -> OK
+[diagnostic] snap_render_to_palette(landmark_toon_bunting_all_flags.png): 1947051/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_bunting_all_flags.png
+[diagnostic] bunting_shape_pair frame check: mind local=(0.090,-0.161) margin=(0.335,0.264) -> OK
+[diagnostic] bunting_shape_pair frame check: game local=(-0.090,-0.097) margin=(0.335,0.328) -> OK
+[diagnostic] snap_render_to_palette(landmark_toon_bunting_shape_pair.png): 1953397/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_bunting_shape_pair.png
+[diagnostic] gameplay-scale render: real world bbox W=2.320 H=3.748 world units; at PPU=100 (00-art-design-system.md SS2) + 6% pad -> 246x397px vs documented Landmark canvas budget 320x400px @1x -> FITS
+[diagnostic] flag legibility at gameplay scale: each flag renders at ~14.5x16.0px (99.9px/world-unit) -> LEGIBLE (floor=12.0px)
+[diagnostic] snap_render_to_palette(landmark_toon_village_scale.png): 94664/97662 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_village_scale.png (gameplay-scale legibility test, grounded in 00-art-design-system.md SS2's PPU=100 + Landmark canvas budget)
+[diagnostic] locked-state palette: 15 materials, per-material HSV scale S=[0.26,0.68] V=[0.4,0.94] (own hue+S+V preserved):
+  Bunting_exercise: locked=#68D8A8
+  Bunting_game: locked=#F06D84
+  Bunting_hobby: locked=#4FCDA6
+  Bunting_mind: locked=#F0A56D
+  Bunting_reading: locked=#8C69E7
+  Bunting_study: locked=#67CBE3
+  Bunting_work: locked=#F0C86D
+  Gold_Base: locked=#E7CA88
+  Gold_Shadow: locked=#B49B64
+  Roof_Base: locked=#947DCF
+  Roof_Shadow: locked=#624E95
+  Trim: locked=#EED89E
+  Void_Ink: locked=#7C58A0
+  Wall_Base: locked=#ED80AA
+  Wall_Shadow: locked=#B25A7C
+[diagnostic] locked-state light-hierarchy check (each *_Shadow must stay darker than its own *_Base):
+  Wall_Base=#ED80AA (L=0.362) vs Wall_Shadow=#B25A7C (L=0.181) -> OK (shadow darker)
+  Roof_Base=#947DCF (L=0.255) vs Roof_Shadow=#624E95 (L=0.102) -> OK (shadow darker)
+  Gold_Base=#E7CA88 (L=0.612) vs Gold_Shadow=#B49B64 (L=0.341) -> OK (shadow darker)
+  Void_Ink=#7C58A0 (L=0.138) vs Wall_Base=#ED80AA (L=0.362) -> OK (void darker, reads as a cavity)
+[diagnostic] locked-state backdrop contrast check (floor=2.5:1 vs black):
+  Bunting_exercise: contrast vs black = 11.97:1 -> OK
+  Bunting_game: contrast vs black = 7.21:1 -> OK
+  Bunting_hobby: contrast vs black = 10.62:1 -> OK
+  Bunting_mind: contrast vs black = 10.29:1 -> OK
+  Bunting_reading: contrast vs black = 5.29:1 -> OK
+  Bunting_study: contrast vs black = 11.20:1 -> OK
+00:14.110  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_locked_state.png'
+00:15.625  render           | Saved: 'C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\renders\landmark_toon_locked_front.png'
+  Bunting_work: contrast vs black = 13.13:1 -> OK
+  Gold_Base: contrast vs black = 13.24:1 -> OK
+  Gold_Shadow: contrast vs black = 7.81:1 -> OK
+  Roof_Base: contrast vs black = 6.09:1 -> OK
+  Roof_Shadow: contrast vs black = 3.03:1 -> OK
+  Trim: contrast vs black = 14.95:1 -> OK
+  Void_Ink: contrast vs black = 3.76:1 -> OK
+  Wall_Base: contrast vs black = 8.25:1 -> OK
+  Wall_Shadow: contrast vs black = 4.62:1 -> OK
+[diagnostic] locked-state pairwise separation: worst pair = Gold_Base vs Trim at 27.0 RGB (of 105 pairs total, floor=20.0)
+[diagnostic] snap_render_to_palette(landmark_toon_locked_state.png): 1950396/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_locked_state.png (rank-ramp locked palette)
+[diagnostic] snap_render_to_palette(landmark_toon_locked_front.png): 1951365/1960000 px snapped to an exact authored hex (tol=14)
+[diagnostic] rendered landmark_toon_locked_front.png (locked state, front_openings framing -- directly tests wall-vs-flag separability, the review's exact untested failure case)
+[diagnostic] bunting occlusion check: garland Y=0.801 vs collar face Y=0.620, roof base-ring Y=0.721 (max=0.721) -> garland is IN FRONT (safe)
+[diagnostic] renamed 41 mesh datablocks to clean ASCII names (fixes the Korean-locale default-name leak into the exported asset, review finding 8)
+[diagnostic] 15 materials actually used by the exported landmark rebuilt as export-safe Principled (Emission Strength=0, Base Color=authored colour) for baseColorFactor correctness -- (16 total incl. the non-exported RefCube prop)
+[diagnostic] export mesh totals: 41 objects, 2329 verts, 4464 triangles, 15 materials, 0 textures (flat color only)
+[diagnostic] export bounding box: min=(-1.16, -1.16, 0.0) max=(1.16, 1.16, 3.7476) size(WxDxH)=2.32x2.32x3.7476 world units -- design-system footprint bracket is 2x2-3x3 grid cells (1 cell = 1 world unit, 00-art-design-system.md SS2)
+
+FBX export starting... 'C:\\Users\\user\\loop_engine\\lifetown\\Assets\\Art\\Blender\\landmark_beacon.fbx'
+export finished in 0.0290 sec.
+INFO Draco is available, use library at C:\Program Files\Blender Foundation\Blender 5.2\5.2\scripts\addons_core\io_scene_gltf2\bf_intern_draco_bridge.dll
+INFO MeshOptimizer is available, use library at C:\Program Files\Blender Foundation\Blender 5.2\5.2\scripts\addons_core\io_scene_gltf2\bf_intern_meshopt_bridge.dll
+03:32:55 | INFO: Starting glTF 2.0 export
+03:32:55 | INFO: Extracting primitive: Bunting_exercise_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_exercise_Outline_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_game_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_game_Outline_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_hobby_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_hobby_Outline_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_mind_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_mind_Outline_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_reading_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_reading_Outline_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_study_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_study_Outline_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_work_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Bunting_work_Outline_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Door_Frame_Crown_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Door_Frame_Jambs_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Door_Void_Crown_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Door_Void_Jambs_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_BeaconBacking_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_BeaconMedallion_Mesh
+03:32:55 | INFO: Primitives created: 2
+03:32:55 | INFO: Extracting primitive: Landmark_BeaconUrn_Mesh
+03:32:55 | INFO: Primitives created: 2
+03:32:55 | INFO: Extracting primitive: Landmark_Bell_Mesh
+03:32:55 | INFO: Primitives created: 2
+03:32:55 | INFO: Extracting primitive: Landmark_BellArm_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_Collar_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_Coping_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_EaveLedge_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_EaveRail_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_Plaza_Mesh
+03:32:55 | INFO: Primitives created: 3
+03:32:55 | INFO: Extracting primitive: Landmark_PlazaBelt_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_PlazaPilaster_L_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_PlazaPilaster_R_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_Plinth_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_Roof_Mesh
+03:32:55 | INFO: Primitives created: 2
+03:32:55 | INFO: Extracting primitive: Landmark_Spire_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Landmark_Tower_Mesh
+03:32:55 | INFO: Primitives created: 3
+03:32:55 | INFO: Extracting primitive: Window_Left_Frame_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Window_Left_Void_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Window_Plaza_Frame_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Window_Plaza_Void_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Window_Right_Frame_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Extracting primitive: Window_Right_Void_Mesh
+03:32:55 | INFO: Primitives created: 1
+03:32:55 | INFO: Finished glTF 2.0 export in 0.10090970993041992 s
+
+정보: 저장함: "landmark_beacon.blend"임
+Exported FBX: C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\landmark_beacon.fbx
+Exported glTF: C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\landmark_beacon.glb
+Saved blend: C:\Users\user\loop_engine\lifetown\Assets\Art\Blender\landmark_beacon.blend
+
+[diagnostic] === Unity _Color handoff table (Unlit/Color, both states) ===
+  Wall_Base          unlocked _Color=#FA82B1  locked _Color=#ED80AA
+  Wall_Shadow        unlocked _Color=#8C3E5C  locked _Color=#B25A7C
+  Roof_Base          unlocked _Color=#9584C2  locked _Color=#947DCF
+  Roof_Shadow        unlocked _Color=#362A57  locked _Color=#624E95
+  Gold_Base          unlocked _Color=#F0D599  locked _Color=#E7CA88
+  Gold_Shadow        unlocked _Color=#907C51  locked _Color=#B49B64
+  Trim               unlocked _Color=#FCF0CF  locked _Color=#EED89E
+  Void_Ink           unlocked _Color=#533B6B  locked _Color=#7C58A0
+  Bunting_reading    unlocked _Color=#7A4CEF  locked _Color=#8C69E7
+  Bunting_study      unlocked _Color=#4AC9E8  locked _Color=#67CBE3
+  Bunting_work       unlocked _Color=#FFCA52  locked _Color=#F0C86D
+  Bunting_exercise   unlocked _Color=#50D39B  locked _Color=#68D8A8
+  Bunting_hobby      unlocked _Color=#1DBF8C  locked _Color=#4FCDA6
+  Bunting_mind       unlocked _Color=#FF9C52  locked _Color=#F0A56D
+  Bunting_game       unlocked _Color=#FF5271  locked _Color=#F06D84
+
+[diagnostic] === FBX re-import verification (round-15 fix: correct sRGB decode + real assert) ===
+BlenderMCP server stopped
+BlenderMCP addon unregistered
+FBX version: 7400
+  Bunting_exercise: diffuse_color(linear)=(0.0806, 0.6514, 0.3299, 1.0) -> sRGB #50D39B vs authored #50D39B -> MATCH
+  Trim: diffuse_color(linear)=(0.9774, 0.8687, 0.624, 1.0) -> sRGB #FCF0CF vs authored #FCF0CF -> MATCH
+  Bunting_game: diffuse_color(linear)=(1.0, 0.0835, 0.1638, 1.0) -> sRGB #FF5271 vs authored #FF5271 -> MATCH
+  Bunting_hobby: diffuse_color(linear)=(0.012, 0.521, 0.2633, 1.0) -> sRGB #1DBF8C vs authored #1DBF8C -> MATCH
+  Bunting_mind: diffuse_color(linear)=(1.0, 0.332, 0.0835, 1.0) -> sRGB #FF9C52 vs authored #FF9C52 -> MATCH
+  Bunting_reading: diffuse_color(linear)=(0.1937, 0.0732, 0.8632, 1.0) -> sRGB #7A4CEF vs authored #7A4CEF -> MATCH
+  Bunting_study: diffuse_color(linear)=(0.0689, 0.5822, 0.807, 1.0) -> sRGB #4AC9E8 vs authored #4AC9E8 -> MATCH
+  Bunting_work: diffuse_color(linear)=(1.0, 0.5889, 0.0835, 1.0) -> sRGB #FFCA52 vs authored #FFCA52 -> MATCH
+  Void_Ink: diffuse_color(linear)=(0.0865, 0.0436, 0.1473, 1.0) -> sRGB #533B6B vs authored #533B6B -> MATCH
+  Gold_Base: diffuse_color(linear)=(0.8689, 0.6667, 0.3204, 1.0) -> sRGB #F0D599 vs authored #F0D599 -> MATCH
+  Gold_Shadow: diffuse_color(linear)=(0.2781, 0.2029, 0.0813, 1.0) -> sRGB #907C51 vs authored #907C51 -> MATCH
+  Wall_Base: diffuse_color(linear)=(0.9551, 0.223, 0.4393, 1.0) -> sRGB #FA82B1 vs authored #FA82B1 -> MATCH
+  Wall_Shadow: diffuse_color(linear)=(0.262, 0.0475, 0.1077, 1.0) -> sRGB #8C3E5C vs authored #8C3E5C -> MATCH
+  Roof_Base: diffuse_color(linear)=(0.3008, 0.2299, 0.5382, 1.0) -> sRGB #9584C2 vs authored #9584C2 -> MATCH
+  Roof_Shadow: diffuse_color(linear)=(0.0375, 0.023, 0.0958, 1.0) -> sRGB #362A57 vs authored #362A57 -> MATCH
+[diagnostic] 15 materials read back from the re-imported FBX; FBX diffuse_color round-trip: PASS (exact sRGB match, all materials)
+
+[diagnostic] === glTF (.glb) material verification: parsed directly from the file's own JSON chunk, not from the Blender scene ===
+  Bunting_exercise: baseColorFactor->sRGB #50D39B (metallic=0) vs authored #50D39B -> MATCH
+  Trim: baseColorFactor->sRGB #FCF0CF (metallic=0) vs authored #FCF0CF -> MATCH
+  Bunting_game: baseColorFactor->sRGB #FF5271 (metallic=0) vs authored #FF5271 -> MATCH
+  Bunting_hobby: baseColorFactor->sRGB #1DBF8C (metallic=0) vs authored #1DBF8C -> MATCH
+  Bunting_mind: baseColorFactor->sRGB #FF9C52 (metallic=0) vs authored #FF9C52 -> MATCH
+  Bunting_reading: baseColorFactor->sRGB #7A4CEF (metallic=0) vs authored #7A4CEF -> MATCH
+  Bunting_study: baseColorFactor->sRGB #4AC9E8 (metallic=0) vs authored #4AC9E8 -> MATCH
+  Bunting_work: baseColorFactor->sRGB #FFCA52 (metallic=0) vs authored #FFCA52 -> MATCH
+  Void_Ink: baseColorFactor->sRGB #533B6B (metallic=0) vs authored #533B6B -> MATCH
+  Gold_Base: baseColorFactor->sRGB #F0D599 (metallic=0) vs authored #F0D599 -> MATCH
+  Gold_Shadow: baseColorFactor->sRGB #907C51 (metallic=0) vs authored #907C51 -> MATCH
+  Wall_Base: baseColorFactor->sRGB #FA82B1 (metallic=0) vs authored #FA82B1 -> MATCH
+  Wall_Shadow: baseColorFactor->sRGB #8C3E5C (metallic=0) vs authored #8C3E5C -> MATCH
+  Roof_Base: baseColorFactor->sRGB #9584C2 (metallic=0) vs authored #9584C2 -> MATCH
+  Roof_Shadow: baseColorFactor->sRGB #362A57 (metallic=0) vs authored #362A57 -> MATCH
+[diagnostic] 15 materials read directly from the GLB's own JSON chunk; glTF baseColorFactor verification: PASS (exact sRGB match, all materials, metallic=0)
+Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)
+
+Blender quit

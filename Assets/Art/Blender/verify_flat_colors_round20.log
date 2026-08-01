@@ -1,0 +1,356 @@
+[verify] locked-state light-hierarchy check (independently recomputed):
+  locked_wall_base=#ED80AA (L=0.363) vs locked_wall_shadow=#B25A7C (L=0.182) -> OK
+  locked_roof_base=#947DCF (L=0.255) vs locked_roof_shadow=#614E95 (L=0.101) -> OK
+  locked_gold_base=#E8CA88 (L=0.611) vs locked_gold_shadow=#B49A64 (L=0.339) -> OK
+  locked_void_ink (L=0.138) vs locked_wall_base (L=0.363) -> OK
+[verify] locked-state backdrop contrast check (independently recomputed, floor=2.5:1 vs black):
+  locked_bunting_exercise: 11.96:1 -> OK
+  locked_bunting_game: 7.22:1 -> OK
+  locked_bunting_hobby: 10.62:1 -> OK
+  locked_bunting_mind: 10.29:1 -> OK
+  locked_bunting_reading: 5.29:1 -> OK
+  locked_bunting_study: 11.23:1 -> OK
+  locked_bunting_work: 13.15:1 -> OK
+  locked_gold_base: 13.22:1 -> OK
+  locked_gold_shadow: 7.77:1 -> OK
+  locked_roof_base: 6.10:1 -> OK
+  locked_roof_shadow: 3.03:1 -> OK
+  locked_trim: 15.04:1 -> OK
+  locked_void_ink: 3.76:1 -> OK
+  locked_wall_base: 8.25:1 -> OK
+  locked_wall_shadow: 4.63:1 -> OK
+
+[verify] contrast vs the ACTUAL village ground (00-art-design-system.md SS1: ['#EAFAFF', '#E6FBEF', '#DFF6E6']), unlocked palette, worst case per material:
+  wall_base            2.08:1 (worst ground stop #DFF6E6) -> OK
+  wall_shadow          6.24:1 (worst ground stop #DFF6E6) -> OK
+  roof_base            2.90:1 (worst ground stop #DFF6E6) -> OK
+  roof_shadow          11.36:1 (worst ground stop #DFF6E6) -> OK
+  gold_base            1.26:1 (worst ground stop #DFF6E6) -> OK
+  gold_shadow          3.56:1 (worst ground stop #DFF6E6) -> OK
+  trim                 1.00:1 (worst ground stop #DFF6E6) -> AT RISK (near-invisible vs ground)
+  void_ink             8.37:1 (worst ground stop #DFF6E6) -> OK
+  bunting_reading      4.49:1 (worst ground stop #DFF6E6) -> OK
+  bunting_study        1.71:1 (worst ground stop #DFF6E6) -> OK
+  bunting_work         1.34:1 (worst ground stop #DFF6E6) -> OK
+  bunting_exercise     1.66:1 (worst ground stop #DFF6E6) -> OK
+  bunting_hobby        2.08:1 (worst ground stop #DFF6E6) -> OK
+  bunting_mind         1.82:1 (worst ground stop #DFF6E6) -> OK
+  bunting_game         2.76:1 (worst ground stop #DFF6E6) -> OK
+  ref_cube             2.93:1 (worst ground stop #DFF6E6) -> OK
+[verify] contrast vs the ACTUAL village ground, LOCKED palette, worst case per material:
+  locked_wall_base     2.24:1 (worst ground stop #DFF6E6) -> OK
+  locked_wall_shadow   3.99:1 (worst ground stop #DFF6E6) -> OK
+  locked_roof_base     3.03:1 (worst ground stop #DFF6E6) -> OK
+  locked_roof_shadow   6.10:1 (worst ground stop #DFF6E6) -> OK
+  locked_gold_base     1.40:1 (worst ground stop #DFF6E6) -> OK
+  locked_gold_shadow   2.38:1 (worst ground stop #DFF6E6) -> OK
+  locked_trim          1.23:1 (worst ground stop #DFF6E6) -> OK
+  locked_void_ink      4.91:1 (worst ground stop #DFF6E6) -> OK
+  locked_bunting_reading 3.49:1 (worst ground stop #DFF6E6) -> OK
+  locked_bunting_study 1.64:1 (worst ground stop #DFF6E6) -> OK
+  locked_bunting_work  1.40:1 (worst ground stop #DFF6E6) -> OK
+  locked_bunting_exercise 1.54:1 (worst ground stop #DFF6E6) -> OK
+  locked_bunting_hobby 1.74:1 (worst ground stop #DFF6E6) -> OK
+  locked_bunting_mind  1.79:1 (worst ground stop #DFF6E6) -> OK
+  locked_bunting_game  2.56:1 (worst ground stop #DFF6E6) -> OK
+[verify] worst material vs the real ground overall: trim at 1.00:1 against #DFF6E6 (floor=1.15:1)
+NOTE (disclosed, not silently passed): trim is genuinely hard to separate from the ground colour by hue/value alone at that contrast ratio -- this prop relies on its heavy cream Trim outline/bevel edges (see build_landmark.py's OUTLINE_MARGIN/bevel conventions) for silhouette separation in that case, not this material's own contrast.
+
+[verify] night-legibility check (00-art-design-system.md SS5): bunting hues simulated at deep-night Light2D (#3E3350 @ intensity 0.45) vs the buildings-layer floor (0.5):
+  bunting_exercise vs bunting_hobby @ deep-night 0.45: dist=19.9 -> TOO CLOSE
+  bunting_exercise vs bunting_hobby @ buildings-floor 0.5: dist=22.1 -> OK
+  bunting_mind vs bunting_game @ deep-night 0.45: dist=25.4 -> OK
+  bunting_mind vs bunting_game @ buildings-floor 0.5: dist=28.2 -> OK
+[verify] design-system resolution path if TOO CLOSE at 0.45: apply the documented buildings-layer 0.5 floor (00-art-design-system.md SS5) -- REQUIRED for the pair(s) above, per the design system its own escape hatch
+[verify] locked-state pairwise separation (independently recomputed): worst pair = locked_bunting_exercise vs locked_bunting_hobby at 26.6 RGB (floor=20.0)
+
+=== landmark_toon_beacon_detail.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 2855
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    gold_base            px= 122863  bbox=(492, 287, 754, 1130)
+    gold_shadow          px=  87047  bbox=(491, 285, 907, 1129)
+    trim                 px=  41959  bbox=(623, 1123, 776, 1399)
+    locked_gold_base     px=    147  bbox=(494, 288, 754, 1121)
+    locked_gold_shadow   px=    198  bbox=(494, 288, 755, 1126)
+    locked_trim          px=      4  bbox=(665, 1126, 729, 1130)
+
+=== landmark_toon_bunting_all_flags.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 12463
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    wall_base            px=  57177  bbox=(361, 903, 1038, 1371)
+    wall_shadow          px=  12294  bbox=(296, 1355, 1103, 1399)
+    roof_base            px= 459340  bbox=(113, 175, 1278, 804)
+    roof_shadow          px=  83773  bbox=(713, 427, 1286, 804)
+    gold_base            px=  37820  bbox=(628, 0, 1399, 1231)
+    gold_shadow          px=   2647  bbox=(629, 0, 1399, 1239)
+    trim                 px= 409789  bbox=(0, 15, 1399, 1399)
+    void_ink             px= 155995  bbox=(116, 175, 1279, 1399)
+    bunting_reading      px=   6556  bbox=(780, 898, 885, 1014)
+    bunting_study        px=  11162  bbox=(647, 907, 752, 1024)
+    bunting_work         px=   6596  bbox=(1045, 823, 1150, 939)
+    bunting_exercise     px=  11434  bbox=(912, 870, 1017, 987)
+    bunting_hobby        px=  12508  bbox=(514, 898, 619, 1015)
+    bunting_mind         px=  11451  bbox=(382, 870, 487, 987)
+    bunting_game         px=   6577  bbox=(249, 823, 354, 939)
+    locked_wall_base     px=    304  bbox=(361, 1371, 1036, 1371)
+    locked_gold_base     px=     53  bbox=(630, 1, 1396, 1231)
+    locked_gold_shadow   px=     47  bbox=(632, 3, 1398, 1232)
+    locked_trim          px=     19  bbox=(628, 15, 1396, 1186)
+    locked_bunting_reading px=      9  bbox=(781, 908, 867, 975)
+    locked_bunting_study px=     54  bbox=(649, 907, 750, 1024)
+
+=== landmark_toon_bunting_shape_pair.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 6583
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    wall_base            px=  59945  bbox=(684, 1063, 1243, 1399)
+    roof_base            px= 882898  bbox=(128, 0, 1399, 820)
+    gold_base            px=   1516  bbox=(1281, 1150, 1320, 1223)
+    gold_shadow          px=   1097  bbox=(1281, 1206, 1399, 1327)
+    trim                 px= 344836  bbox=(342, 638, 1399, 1399)
+    void_ink             px=     24  bbox=(128, 3, 385, 617)
+    bunting_study        px=  19596  bbox=(1322, 1046, 1399, 1311)
+    bunting_hobby        px=  63546  bbox=(1026, 1024, 1263, 1290)
+    bunting_mind         px=  58099  bbox=(729, 960, 966, 1226)
+    bunting_game         px=  32936  bbox=(433, 854, 670, 1118)
+    locked_gold_base     px=      7  bbox=(1283, 1206, 1320, 1224)
+    locked_gold_shadow   px=      6  bbox=(1282, 1206, 1315, 1224)
+    locked_trim          px=      1  bbox=(1282, 1171, 1282, 1171)
+    locked_bunting_study px=      6  bbox=(1326, 1045, 1376, 1310)
+
+=== landmark_toon_front_openings.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 8987
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    wall_base            px=  80616  bbox=(487, 681, 912, 1185)
+    wall_shadow          px=   9742  bbox=(425, 846, 974, 1202)
+    roof_base            px=  55791  bbox=(491, 424, 905, 642)
+    roof_shadow          px=  10850  bbox=(705, 516, 909, 642)
+    gold_base            px=   9584  bbox=(665, 224, 949, 802)
+    gold_shadow          px=   1044  bbox=(665, 222, 946, 804)
+    trim                 px= 200384  bbox=(395, 365, 1004, 1255)
+    void_ink             px=  27853  bbox=(493, 426, 906, 1124)
+    bunting_reading      px=    777  bbox=(729, 677, 765, 716)
+    bunting_study        px=   1405  bbox=(681, 680, 718, 720)
+    bunting_work         px=    784  bbox=(823, 650, 860, 689)
+    bunting_exercise     px=   1384  bbox=(776, 666, 812, 707)
+    bunting_hobby        px=   1517  bbox=(634, 677, 670, 717)
+    bunting_mind         px=   1401  bbox=(587, 666, 623, 707)
+    bunting_game         px=    780  bbox=(539, 650, 576, 689)
+    locked_wall_base     px=    319  bbox=(488, 1186, 912, 1186)
+    locked_gold_base     px=     55  bbox=(665, 223, 949, 802)
+    locked_gold_shadow   px=     32  bbox=(665, 223, 942, 802)
+    locked_trim          px=      6  bbox=(678, 365, 880, 784)
+    locked_bunting_reading px=      5  bbox=(733, 681, 764, 702)
+    locked_bunting_study px=      3  bbox=(681, 719, 718, 721)
+    locked_bunting_exercise px=     20  bbox=(776, 666, 812, 666)
+
+=== landmark_toon_full_body.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 10356
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    wall_base            px=  60153  bbox=(407, 678, 766, 1193)
+    wall_shadow          px=  57516  bbox=(406, 630, 1038, 1215)
+    roof_base            px=  50849  bbox=(512, 446, 880, 661)
+    roof_shadow          px=  13393  bbox=(621, 506, 887, 663)
+    gold_base            px=   7776  bbox=(611, 263, 917, 828)
+    gold_shadow          px=   1693  bbox=(613, 262, 914, 831)
+    trim                 px= 200679  bbox=(319, 397, 1080, 1272)
+    void_ink             px=  22336  bbox=(511, 447, 880, 1114)
+    bunting_reading      px=    708  bbox=(639, 698, 672, 737)
+    bunting_study        px=   1211  bbox=(598, 694, 632, 736)
+    bunting_work         px=    721  bbox=(720, 687, 754, 727)
+    bunting_exercise     px=   1246  bbox=(679, 695, 713, 738)
+    bunting_hobby        px=   1354  bbox=(558, 683, 592, 726)
+    bunting_mind         px=   1255  bbox=(517, 667, 551, 710)
+    bunting_game         px=    720  bbox=(477, 644, 510, 685)
+    locked_wall_base     px=     55  bbox=(412, 830, 761, 1193)
+    locked_wall_shadow   px=     63  bbox=(409, 829, 764, 1194)
+    locked_gold_base     px=     53  bbox=(611, 263, 906, 828)
+    locked_gold_shadow   px=     32  bbox=(638, 264, 917, 829)
+    locked_trim          px=     11  bbox=(639, 396, 914, 806)
+    locked_bunting_reading px=     10  bbox=(640, 697, 671, 736)
+    locked_bunting_study px=      8  bbox=(599, 693, 630, 724)
+    locked_bunting_exercise px=     16  bbox=(679, 697, 714, 736)
+
+=== landmark_toon_hero.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 10903
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    wall_base            px=  37035  bbox=(352, 643, 650, 1224)
+    wall_shadow          px= 111404  bbox=(352, 669, 1073, 1264)
+    roof_base            px=  59816  bbox=(493, 435, 899, 650)
+    roof_shadow          px=  19369  bbox=(533, 475, 906, 686)
+    gold_base            px=   7397  bbox=(521, 259, 858, 883)
+    gold_shadow          px=   3131  bbox=(542, 259, 853, 885)
+    trim                 px= 238473  bbox=(279, 397, 1121, 1329)
+    void_ink             px=  15109  bbox=(438, 438, 900, 1110)
+    bunting_reading      px=    657  bbox=(541, 693, 566, 737)
+    bunting_study        px=   1015  bbox=(513, 678, 540, 729)
+    bunting_work         px=    667  bbox=(595, 705, 621, 749)
+    bunting_exercise     px=   1044  bbox=(568, 702, 594, 754)
+    bunting_hobby        px=   1110  bbox=(486, 656, 513, 708)
+    bunting_mind         px=   1062  bbox=(459, 629, 486, 681)
+    bunting_game         px=    665  bbox=(432, 595, 458, 640)
+    locked_wall_base     px=     51  bbox=(359, 794, 647, 1223)
+    locked_wall_shadow   px=     41  bbox=(352, 794, 649, 1225)
+    locked_gold_base     px=     58  bbox=(668, 259, 855, 883)
+    locked_gold_shadow   px=     52  bbox=(543, 264, 844, 883)
+    locked_trim          px=      3  bbox=(542, 397, 859, 868)
+    locked_bunting_reading px=      2  bbox=(542, 701, 543, 705)
+    locked_bunting_study px=     12  bbox=(517, 678, 539, 730)
+    locked_bunting_exercise px=      8  bbox=(571, 702, 595, 753)
+
+=== landmark_toon_locked_front.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 8509
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    roof_shadow          px=     41  bbox=(494, 427, 909, 608)
+    gold_base            px=      1  bbox=(838, 684, 838, 684)
+    gold_shadow          px=     66  bbox=(396, 222, 976, 1054)
+    void_ink             px=     18  bbox=(493, 426, 898, 606)
+    locked_wall_base     px=  80731  bbox=(487, 680, 912, 1186)
+    locked_wall_shadow   px=   9755  bbox=(425, 845, 974, 1202)
+    locked_roof_base     px=  55796  bbox=(491, 424, 905, 642)
+    locked_roof_shadow   px=  10886  bbox=(490, 425, 908, 642)
+    locked_gold_base     px=   9747  bbox=(624, 224, 949, 805)
+    locked_gold_shadow   px=   1083  bbox=(665, 222, 949, 805)
+    locked_trim          px= 200625  bbox=(395, 364, 1004, 1255)
+    locked_void_ink      px=  27922  bbox=(495, 429, 904, 1124)
+    locked_bunting_reading px=    783  bbox=(729, 677, 765, 717)
+    locked_bunting_study px=   1408  bbox=(681, 680, 718, 720)
+    locked_bunting_work  px=    833  bbox=(823, 649, 860, 689)
+    locked_bunting_exercise px=   1400  bbox=(776, 666, 812, 707)
+    locked_bunting_hobby px=   1517  bbox=(634, 677, 670, 717)
+    locked_bunting_mind  px=   1431  bbox=(587, 666, 623, 707)
+    locked_bunting_game  px=    787  bbox=(539, 650, 576, 689)
+
+=== landmark_toon_locked_state.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 9433
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    roof_shadow          px=     37  bbox=(493, 440, 906, 599)
+    gold_base            px=     10  bbox=(467, 629, 622, 734)
+    gold_shadow          px=    111  bbox=(288, 260, 1116, 1322)
+    void_ink             px=     13  bbox=(493, 438, 847, 540)
+    locked_wall_base     px=  37212  bbox=(351, 643, 650, 1224)
+    locked_wall_shadow   px= 111679  bbox=(352, 669, 1073, 1264)
+    locked_roof_base     px=  59833  bbox=(493, 435, 899, 650)
+    locked_roof_shadow   px=  19416  bbox=(493, 434, 906, 686)
+    locked_gold_base     px=   7540  bbox=(468, 259, 859, 886)
+    locked_gold_shadow   px=   3161  bbox=(542, 258, 857, 885)
+    locked_trim          px= 239188  bbox=(278, 396, 1121, 1329)
+    locked_void_ink      px=  15156  bbox=(438, 434, 893, 1110)
+    locked_bunting_reading px=    673  bbox=(541, 693, 566, 738)
+    locked_bunting_study px=   1039  bbox=(513, 678, 540, 730)
+    locked_bunting_work  px=    687  bbox=(595, 704, 621, 749)
+    locked_bunting_exercise px=   1051  bbox=(495, 658, 594, 754)
+    locked_bunting_hobby px=   1111  bbox=(486, 656, 513, 708)
+    locked_bunting_mind  px=   1064  bbox=(459, 629, 486, 681)
+    locked_bunting_game  px=    670  bbox=(432, 595, 458, 640)
+
+=== landmark_toon_side_bands.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 11518
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    wall_base            px=  49420  bbox=(354, 651, 682, 1225)
+    wall_shadow          px= 100773  bbox=(354, 651, 1078, 1257)
+    roof_base            px=  55921  bbox=(491, 436, 902, 651)
+    roof_shadow          px=  18879  bbox=(557, 469, 909, 672)
+    gold_base            px=   7724  bbox=(545, 244, 887, 863)
+    gold_shadow          px=   2734  bbox=(565, 244, 884, 865)
+    trim                 px= 233530  bbox=(272, 384, 1127, 1320)
+    void_ink             px=  19714  bbox=(464, 435, 877, 1122)
+    bunting_reading      px=    731  bbox=(569, 692, 599, 735)
+    bunting_study        px=   1187  bbox=(535, 681, 566, 730)
+    bunting_work         px=    745  bbox=(636, 693, 666, 737)
+    bunting_exercise     px=   1225  bbox=(602, 696, 633, 745)
+    bunting_hobby        px=   1285  bbox=(502, 664, 532, 714)
+    bunting_mind         px=   1229  bbox=(468, 641, 499, 690)
+    bunting_game         px=    741  bbox=(435, 611, 465, 655)
+    locked_wall_base     px=     47  bbox=(357, 816, 666, 1218)
+    locked_wall_shadow   px=     47  bbox=(358, 811, 677, 1219)
+    locked_gold_base     px=     61  bbox=(549, 244, 887, 863)
+    locked_gold_shadow   px=     31  bbox=(570, 248, 887, 864)
+    locked_trim          px=      3  bbox=(690, 384, 881, 828)
+    locked_bunting_reading px=     10  bbox=(570, 692, 596, 730)
+    locked_bunting_study px=      9  bbox=(541, 681, 560, 730)
+    locked_bunting_exercise px=      4  bbox=(620, 701, 632, 738)
+
+=== landmark_toon_village_scale.png (246x397) ===
+  off-palette pixels (raw, incl. AA): 2907
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    wall_base            px=  11411  bbox=(42, 191, 203, 382)
+    wall_shadow          px=   1117  bbox=(19, 255, 226, 388)
+    roof_base            px=   7958  bbox=(44, 94, 200, 176)
+    roof_shadow          px=   1513  bbox=(125, 130, 201, 176)
+    gold_base            px=   1319  bbox=(110, 18, 217, 236)
+    gold_shadow          px=    110  bbox=(109, 17, 211, 237)
+    trim                 px=  25408  bbox=(7, 71, 238, 396)
+    void_ink             px=   3910  bbox=(43, 99, 176, 359)
+    bunting_reading      px=     98  bbox=(134, 190, 147, 202)
+    bunting_study        px=    187  bbox=(116, 191, 129, 205)
+    bunting_work         px=     98  bbox=(170, 180, 182, 193)
+    bunting_exercise     px=    195  bbox=(152, 186, 165, 200)
+    bunting_hobby        px=    210  bbox=(98, 190, 111, 204)
+    bunting_mind         px=    196  bbox=(80, 186, 93, 200)
+    bunting_game         px=     95  bbox=(63, 180, 75, 192)
+    locked_wall_shadow   px=     53  bbox=(52, 255, 193, 383)
+    locked_gold_base     px=     13  bbox=(112, 20, 211, 236)
+    locked_gold_shadow   px=     13  bbox=(110, 18, 196, 237)
+    locked_trim          px=      6  bbox=(114, 198, 189, 232)
+    locked_bunting_reading px=      3  bbox=(138, 197, 144, 199)
+    locked_bunting_study px=      1  bbox=(127, 205, 127, 205)
+    locked_bunting_work  px=      1  bbox=(180, 187, 180, 187)
+    locked_bunting_game  px=      1  bbox=(66, 189, 66, 189)
+
+=== locked-state band-structure check ===
+Distinct locked-palette bands with >=200px each: 15 -> ['locked_bunting_exercise', 'locked_bunting_game', 'locked_bunting_hobby', 'locked_bunting_mind', 'locked_bunting_reading', 'locked_bunting_study', 'locked_bunting_work', 'locked_gold_base', 'locked_gold_shadow', 'locked_roof_base', 'locked_roof_shadow', 'locked_trim', 'locked_void_ink', 'locked_wall_base', 'locked_wall_shadow']
+PASS: locked state keeps real, distinct, sizable value bands.
+
+=== CVD simulation (bunting hues, simplified linear-RGB approximation) ===
+  protanopia: closest pair = bunting_mind vs bunting_game  dist=22.1
+  deuteranopia: closest pair = bunting_mind vs bunting_game  dist=17.2
+  (shape channel -- SHAPE_BY_CAT in build_landmark.py -- is the non-colour fallback for whichever pair sits closest; see the design note for the assigned shapes.)
+
+=== Summary ===
+Worst per-render interior off-palette pixel count (post-erosion): 0 (fail if >300)
+Bunting categories found in landmark_toon_bunting_all_flags.png: 7/7 -> ['bunting_exercise', 'bunting_game', 'bunting_hobby', 'bunting_mind', 'bunting_reading', 'bunting_study', 'bunting_work']
+
+=== locked-state vs unlocked image diff (landmark_toon_hero.png vs landmark_toon_locked_state.png) ===
+  pixels differing by >10 (sum of RGB abs diff): 508852 / 1960000 (26.0%)
+PASS -- locked state is a real, distinct render
+
+=== locked-state vs unlocked image diff (landmark_toon_front_openings.png vs landmark_toon_locked_front.png) ===
+  pixels differing by >10 (sum of RGB abs diff): 412626 / 1960000 (21.1%)
+PASS -- locked state is a real, distinct render
+
+=== landmark_toon_locked_front.png (1400x1400) ===
+  off-palette pixels (raw, incl. AA): 8509
+  off-palette pixels AFTER 5x5 erosion (real interior drift): 0  (worst dist 0.0, fail if >300px)
+    roof_shadow          px=     41  bbox=(494, 427, 909, 608)
+    gold_base            px=      1  bbox=(838, 684, 838, 684)
+    gold_shadow          px=     66  bbox=(396, 222, 976, 1054)
+    void_ink             px=     18  bbox=(493, 426, 898, 606)
+    locked_wall_base     px=  80731  bbox=(487, 680, 912, 1186)
+    locked_wall_shadow   px=   9755  bbox=(425, 845, 974, 1202)
+    locked_roof_base     px=  55796  bbox=(491, 424, 905, 642)
+    locked_roof_shadow   px=  10886  bbox=(490, 425, 908, 642)
+    locked_gold_base     px=   9747  bbox=(624, 224, 949, 805)
+    locked_gold_shadow   px=   1083  bbox=(665, 222, 949, 805)
+    locked_trim          px= 200625  bbox=(395, 364, 1004, 1255)
+    locked_void_ink      px=  27922  bbox=(495, 429, 904, 1124)
+    locked_bunting_reading px=    783  bbox=(729, 677, 765, 717)
+    locked_bunting_study px=   1408  bbox=(681, 680, 718, 720)
+    locked_bunting_work  px=    833  bbox=(823, 649, 860, 689)
+    locked_bunting_exercise px=   1400  bbox=(776, 666, 812, 707)
+    locked_bunting_hobby px=   1517  bbox=(634, 677, 670, 717)
+    locked_bunting_mind  px=   1431  bbox=(587, 666, 623, 707)
+    locked_bunting_game  px=    787  bbox=(539, 650, 576, 689)
+
+=== locked_front flag-vs-wall separability check ===
+Locked bunting flag bands visible in landmark_toon_locked_front.png: 7/7 -> ['locked_bunting_exercise', 'locked_bunting_game', 'locked_bunting_hobby', 'locked_bunting_mind', 'locked_bunting_reading', 'locked_bunting_study', 'locked_bunting_work']
+PASS: all 7 locked flags remain separable from the wall at the front-on framing.
+=== locked_front flag-vs-BACKGROUND separability check ===
+  locked_bunting_exercise: contrast vs black = 11.96:1 -> OK
+  locked_bunting_game: contrast vs black = 7.22:1 -> OK
+  locked_bunting_hobby: contrast vs black = 10.62:1 -> OK
+  locked_bunting_mind: contrast vs black = 10.29:1 -> OK
+  locked_bunting_reading: contrast vs black = 5.29:1 -> OK
+  locked_bunting_study: contrast vs black = 11.23:1 -> OK
+  locked_bunting_work: contrast vs black = 13.15:1 -> OK
+PASS: all 7 locked flags also stay separable from the black render backdrop.
+PASS

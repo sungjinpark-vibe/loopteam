@@ -1,0 +1,25 @@
+
+--- landmark_toon_bunting_all_flags.png (floor 60x40) ---
+bunting_reading      components=  1 largest_px=  6556 bbox=106x117 stray_frac=0.000
+bunting_study        components=  1 largest_px= 11162 bbox=106x118 stray_frac=0.000
+bunting_work         components=  1 largest_px=  6596 bbox=106x117 stray_frac=0.000
+bunting_exercise     components=  1 largest_px= 11434 bbox=106x118 stray_frac=0.000
+bunting_hobby        components=  1 largest_px= 12508 bbox=106x118 stray_frac=0.000
+bunting_mind         components=  1 largest_px= 11451 bbox=106x118 stray_frac=0.000
+bunting_game         components=  1 largest_px=  6577 bbox=106x117 stray_frac=0.000
+median bbox: 106x118
+PASS
+
+--- landmark_toon_village_scale.png (floor 12x11) ---
+bunting_reading      components=  1 largest_px=    98 bbox=14x13 stray_frac=0.000
+bunting_study        components=  1 largest_px=   187 bbox=14x15 stray_frac=0.000
+bunting_work         components=  1 largest_px=    98 bbox=13x14 stray_frac=0.000
+bunting_exercise     components=  1 largest_px=   195 bbox=14x15 stray_frac=0.000
+bunting_hobby        components=  1 largest_px=   210 bbox=14x15 stray_frac=0.000
+bunting_mind         components=  1 largest_px=   196 bbox=14x15 stray_frac=0.000
+bunting_game         components=  1 largest_px=    95 bbox=13x13 stray_frac=0.000
+median bbox: 14x15
+PASS
+
+=== overall ===
+PASS
