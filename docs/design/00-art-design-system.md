@@ -163,6 +163,14 @@ A player scanning the 8×8 grid identifies:
 
 No two categories can be confused for "further along" than another, because the block-count vocabulary is identical for all 7 — this is also the leisure-parity guarantee stated as a rendering rule, not just a copy rule (§4.2).
 
+### 3.5 3D world objects: form must carry the meaning (locked, director priority, reaffirmed 2026-08-01)
+
+§3.4 above is the **2D HUD tile** abstraction — hue alone is enough there because the tile sits next to a label. It does **not** apply to actual 3D world objects (the 7 category buildings, the landmark, any future prop). For those, **the physical form itself must make the category legible without reading a label** — this has been the director's most-repeated single piece of art feedback this project (2026-07-17: *"건물이 헬스장인지 잘모르겠어... 그 건물을 의미하는 오브젝트를 올려줘"*; reaffirmed 2026-08-01: *"건물의 특성 반영하는게 제일 중요해"*).
+
+- **Precedent already built this way**: the "form-expresses-meaning" archetype (gym = barbell/dumbbell silhouette, library = book-stack silhouette) and the Work building's wall-item props (laptop, mug) — see `docs/paused-state/PROGRESS-lifetown.md`.
+- **This overrides pure geometric/material polish when the two conflict.** A beautifully lit block that could be any building is a bigger failure than a rougher one that is unmistakably *the* building.
+- **Applies to T012's landmark too**: its whole point is to be recognizable as "achievement made visible," not a fourth generic tower — this is exactly what the art lead's round-4 review flagged (the belfry arch + beacon core, the landmark's own signifier, was invisible in every render). Any future building or prop is held to the same bar: name the one silhouette element a player would use to identify it at a glance, and make sure a render actually shows it.
+
 ---
 
 ## 4. Category system & leisure parity
