@@ -47,14 +47,17 @@
   | C3 | Unity structure — single-responsibility MonoBehaviours, data in ScriptableObjects | React/TS structure — component decomposition, hooks correctness, state colocation (no prop-drilling sprawl), idiomatic TDS usage |
   | C4 | Performance — Update abuse, GC allocation, draw calls | Performance — unnecessary re-renders, bundle bloat, blocking the main thread |
 
-  C1 (spec satisfied), C2 (correctness), C5 (no regression) apply unchanged. **This substitution is
-  proposed, not yet director-approved** — sent alongside the stack decision; do not run a build-mode
-  task against it until approval lands (mirrors how the stack question itself was handled).
+  C1 (spec satisfied), C2 (correctness), C5 (no regression) apply unchanged. **Approved by the
+  director 2026-08-02** (Discord, msg 1533234064742551795, item 4) — safe to score build-mode tasks
+  against this substitution.
 
 ## Change log
 - 2026-08-02 Created. Stack (React/TS/Vite/TDS via `create-ait-app`) approved by the director as an
   exception to the engine's Unity-only rule. T001 opened for `planner` (explore mode, MVP spec).
-- 2026-08-02 **T001 passed 90/100** (기획팀장, 2 rounds). Spec at `docs/spec/MVP-SPEC.md` — status
-  `awaiting-approval`, 16 open decisions for the director (D-1..D-16, §13 of the spec), including the
-  rubric substitution proposed above (D-9) and an art-style/brand-risk question (D-12) that must be
-  answered before any art order. Do not start T002 (scaffold/build) until the director responds.
+- 2026-08-02 **T001 passed 90/100** (기획팀장, 2 rounds). Spec at `docs/spec/MVP-SPEC.md`.
+- 2026-08-02 **Director answered 4 of 16 open decisions** (Discord): app name stays a temporary
+  placeholder ("우리동네 가계부", D-1); art style must stay clearly clear of plagiarism/trademark risk,
+  not near-identical to Fortune City (D-12); monetization deferred, not in MVP (D-7); React rubric
+  substitution approved (D-9, see above). The other 12 decisions were not addressed — proceeding on
+  the spec's own marked assumptions until told otherwise. T001 → `done`. T002 (scaffold + first
+  vertical slice) is next, blocked only on writing the Node/React mechanical gate first.
