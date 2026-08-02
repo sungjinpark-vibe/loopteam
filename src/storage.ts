@@ -9,6 +9,7 @@
  */
 import type { StoragePort } from "./platform/storage";
 import { storage as defaultStoragePort } from "./platform/storage";
+import { rebuildDerived } from "./selectors";
 import type { Building, BudgetSetting, LedgerEntry, TownState } from "./types";
 
 export const SCHEMA_VERSION = 1;
@@ -53,6 +54,32 @@ function emptyIndex(): StorageIndex {
   return { schemaVersion: SCHEMA_VERSION, entryMonths: [], buildingMonths: [] };
 }
 
+const ENTRIES_PREFIX = `${KEY_PREFIX}.entries.`;
+const BUILDINGS_PREFIX = `${KEY_PREFIX}.buildings.`;
+
+/**
+ * Rebuilds an index by scanning the raw key space instead of trusting the
+ * (unparseable) `ait.v1.index` blob — the corrupt-index recovery path (F10).
+ * Without this, `readIndex()` would boot to an empty index, and the very
+ * next `saveEntriesForMonth` would persist that empty index right back
+ * (`registerMonth`), permanently orphaning every entries/buildings chunk
+ * that survived the corruption — the raw keys would still hold the data,
+ * unreachable by anything in this module ever again.
+ */
+function rebuildIndexFromKeys(port: StoragePort): StorageIndex {
+  const entryMonths = new Set<string>();
+  const buildingMonths = new Set<string>();
+  for (const key of port.keys()) {
+    if (key.startsWith(ENTRIES_PREFIX)) entryMonths.add(key.slice(ENTRIES_PREFIX.length));
+    else if (key.startsWith(BUILDINGS_PREFIX)) buildingMonths.add(key.slice(BUILDINGS_PREFIX.length));
+  }
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    entryMonths: [...entryMonths].sort(),
+    buildingMonths: [...buildingMonths].sort(),
+  };
+}
+
 function readJson<T>(port: StoragePort, key: string): { value: T | null; corrupt: boolean } {
   const raw = port.get(key);
   if (raw === null) return { value: null, corrupt: false };
@@ -71,7 +98,16 @@ function writeJson(port: StoragePort, key: string, value: unknown): void {
 export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
   function readIndex(): { index: StorageIndex; corrupt: boolean } {
     const result = readJson<StorageIndex>(port, INDEX_KEY);
-    if (result.corrupt) return { index: emptyIndex(), corrupt: true };
+    if (result.corrupt) {
+      const rebuilt = rebuildIndexFromKeys(port);
+      // Self-heal immediately rather than waiting for the next registerMonth
+      // call: every caller (loadBoot, registerMonth, clearAll) shares this
+      // function, so persisting the fix here means the corruption is
+      // resolved after the first read that notices it, not left sitting in
+      // storage until something happens to trigger a write.
+      writeJson(port, INDEX_KEY, rebuilt);
+      return { index: rebuilt, corrupt: true };
+    }
     if (!result.value || result.value.schemaVersion !== SCHEMA_VERSION) {
       return { index: emptyIndex(), corrupt: false };
     }
@@ -95,7 +131,7 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       const corrupted: CorruptionNotice[] = [];
       const { index, corrupt: indexCorrupt } = readIndex();
       if (indexCorrupt) {
-        corrupted.push({ key: INDEX_KEY, reason: "unparseable index — booted to a clean index" });
+        corrupted.push({ key: INDEX_KEY, reason: "unparseable index — rebuilt from surviving chunk keys" });
       }
 
       const coreResult = readJson<CoreState>(port, CORE_KEY);
@@ -114,7 +150,22 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
         buildings.push(...(result.value ?? []));
       }
 
-      return { index, core: coreResult.corrupt ? null : coreResult.value, buildings, corrupted };
+      let core = coreResult.corrupt ? null : coreResult.value;
+      if (indexCorrupt && core) {
+        // The index (and therefore our idea of which entry chunks exist) was
+        // rebuilt from raw keys above — `core.town.cumulativeSavingsKrw` /
+        // `lastSettledPeriod` may now be stale relative to what actually
+        // survived, so recompute the two denormalized fields the same way
+        // an import (F12) would (spec §8.3 rebuildDerived).
+        const recoveredEntries: LedgerEntry[] = [];
+        for (const ym of index.entryMonths) {
+          const result = readJson<LedgerEntry[]>(port, entriesKey(ym));
+          if (!result.corrupt && result.value) recoveredEntries.push(...result.value);
+        }
+        core = { ...core, town: { ...core.town, ...rebuildDerived(recoveredEntries) } };
+      }
+
+      return { index, core, buildings, corrupted };
     },
 
     /** Lazily loaded — the current month at boot, others on demand (기록 navigation). */

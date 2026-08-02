@@ -33,6 +33,11 @@ let timeTravelDate: string | null = null;
 let timeTravelAnchorMs = 0;
 let timeTravelBaseMs = 0;
 
+// Listeners notified on every `setTimeTravelDate` call — what makes the
+// override `useSyncExternalStore`-compatible (React re-renders on change
+// instead of needing a remount/poll, spec §11.B "everything derives from it").
+const listeners = new Set<() => void>();
+
 export const browserClock: ClockPort = {
   today: () => timeTravelDate ?? toYmd(new Date()),
   now: () => (timeTravelDate ? timeTravelBaseMs + (Date.now() - timeTravelAnchorMs) : Date.now()),
@@ -50,9 +55,21 @@ export function setTimeTravelDate(dateOrNull: string | null): void {
     timeTravelAnchorMs = Date.now();
     timeTravelBaseMs = new Date(`${dateOrNull}T00:00:00`).getTime();
   }
+  for (const listener of listeners) listener();
 }
 
 /** Dev-only: read the current TimeTravel override, for the S7 inspector. */
 export function getTimeTravelDate(): string | null {
   return timeTravelDate;
+}
+
+/**
+ * Dev-only: subscribe to TimeTravel changes. Returns an unsubscribe function.
+ * Pairs with `getTimeTravelDate` as a `useSyncExternalStore(subscribeTimeTravel,
+ * getTimeTravelDate)` store — the S7 sheet (later task) needs this to
+ * re-render the app on date change instead of remounting or polling.
+ */
+export function subscribeTimeTravel(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }

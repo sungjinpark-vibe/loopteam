@@ -9,6 +9,7 @@ function makeFakePort(): StoragePort & { dump: () => Record<string, string> } {
     get: (key) => map.get(key) ?? null,
     set: (key, value) => void map.set(key, value),
     remove: (key) => void map.delete(key),
+    keys: () => [...map.keys()],
     dump: () => Object.fromEntries(map),
   };
 }
@@ -98,8 +99,69 @@ describe("chunked storage round-trip", () => {
 
     port.set("ait.v1.index", "not json at all");
     const bootAfterIndexCorruption = client.loadBoot();
-    expect(bootAfterIndexCorruption.index).toEqual({ schemaVersion: 1, entryMonths: [], buildingMonths: [] });
+    // Rebuilt from surviving raw keys, NOT reset to empty (that would orphan
+    // the 2026-08 chunks that are still sitting in storage — see the
+    // dedicated "corrupt index does not orphan" test below).
+    expect(bootAfterIndexCorruption.index).toEqual({
+      schemaVersion: 1,
+      entryMonths: ["2026-08"],
+      buildingMonths: ["2026-08"],
+    });
     expect(bootAfterIndexCorruption.corrupted.some((c) => c.key === "ait.v1.index")).toBe(true);
+    // The buildings chunk was ALSO corrupted earlier in this test — index
+    // recovery does not un-quarantine a chunk that is itself unparseable.
+    expect(bootAfterIndexCorruption.buildings).toEqual([]);
+    expect(bootAfterIndexCorruption.corrupted.some((c) => c.key === "ait.v1.buildings.2026-08")).toBe(true);
+  });
+
+  it("a corrupt index does not orphan chunks that survived it (F10) — recovers on the next save", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    const core = { town, budget, onboarded: true };
+
+    // A previously-saved month, from before the corruption.
+    const julyEntry: LedgerEntry = { ...entry, id: "e-july", occurredOn: "2026-07-15" };
+    const julyBuilding: Building = { ...building, id: "b-july", builtOn: "2026-07-15" };
+    client.saveEntriesForMonth("2026-07", [julyEntry], core);
+    client.saveBuildingsForMonth("2026-07", [julyBuilding]);
+
+    port.set("ait.v1.index", "{corrupt,,,");
+
+    // The very next save is exactly the sequence that used to persist an
+    // empty index and permanently orphan the July chunks above.
+    client.saveEntriesForMonth("2026-08", [entry], core);
+    client.saveBuildingsForMonth("2026-08", [building]);
+
+    const boot = client.loadBoot();
+    expect(boot.index.entryMonths).toEqual(["2026-07", "2026-08"]);
+    expect(boot.index.buildingMonths).toEqual(["2026-07", "2026-08"]);
+    // July's building is still reachable via loadBoot (eager, all months).
+    expect(boot.buildings.map((b) => b.id).sort()).toEqual(["b-july", "b1"]);
+
+    // July's entries are still reachable via lazy per-month load, not silently dropped.
+    const july = client.loadEntriesForMonth("2026-07");
+    expect(july.corrupt).toBe(false);
+    expect(july.entries).toEqual([julyEntry]);
+
+    // clearAll still reaches every chunk, including July's — nothing left behind.
+    client.clearAll();
+    expect(Object.keys(port.dump())).toEqual([]);
+  });
+
+  it("recomputes cumulativeSavingsKrw/lastSettledPeriod (rebuildDerived) when the index was corrupt", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    const savingEntry: LedgerEntry = { ...entry, id: "s1", type: "saving", amountKrw: 12_345, occurredOn: "2026-07-01" };
+    const staleCore = { town: { ...town, cumulativeSavingsKrw: 0, lastSettledPeriod: "2020-01" }, budget, onboarded: true };
+    client.saveEntriesForMonth("2026-07", [savingEntry], staleCore);
+
+    port.set("ait.v1.index", "{corrupt");
+    const boot = client.loadBoot();
+
+    expect(boot.core?.town.cumulativeSavingsKrw).toBe(12_345);
+    expect(boot.core?.town.lastSettledPeriod).toBe("2026-07");
+    // Every other core field is untouched — only the two denormalized fields are rebuilt.
+    expect(boot.core?.town.townName).toBe(staleCore.town.townName);
   });
 
   it("every method survives being destructured off the client (the normal React-hook consumption pattern)", () => {

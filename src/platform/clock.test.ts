@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { browserClock, getTimeTravelDate, setTimeTravelDate } from "./clock";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { browserClock, getTimeTravelDate, setTimeTravelDate, subscribeTimeTravel } from "./clock";
 
 describe("clock port TimeTravel", () => {
   afterEach(() => setTimeTravelDate(null));
@@ -45,5 +45,54 @@ describe("clock port TimeTravel", () => {
     for (let i = 1; i < readings.length; i++) {
       expect(readings[i]).toBeGreaterThanOrEqual(readings[i - 1]);
     }
+  });
+});
+
+// §11.B: a `useSyncExternalStore`-style store — a consumer must be able to
+// subscribe and re-render, not remount or poll, when the date changes.
+describe("subscribeTimeTravel", () => {
+  afterEach(() => setTimeTravelDate(null));
+
+  it("notifies a subscribed listener on every setTimeTravelDate call, including clearing", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeTimeTravel(listener);
+
+    setTimeTravelDate("2026-08-02");
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    setTimeTravelDate("2026-08-03");
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    setTimeTravelDate(null);
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    unsubscribe();
+  });
+
+  it("stops notifying once unsubscribed", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeTimeTravel(listener);
+    unsubscribe();
+
+    setTimeTravelDate("2026-08-02");
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("supports multiple independent subscribers", () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    const unsubA = subscribeTimeTravel(a);
+    const unsubB = subscribeTimeTravel(b);
+
+    setTimeTravelDate("2026-08-02");
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(1);
+
+    unsubA();
+    setTimeTravelDate("2026-08-03");
+    expect(a).toHaveBeenCalledTimes(1); // unsubscribed, no further calls
+    expect(b).toHaveBeenCalledTimes(2);
+
+    unsubB();
   });
 });

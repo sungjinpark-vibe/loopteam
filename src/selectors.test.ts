@@ -8,6 +8,7 @@ import {
   monthTotal,
   moodTier,
   plotFromIndex,
+  rebuildDerived,
   recentMemos,
   slotsRemainingToday,
   tier,
@@ -191,19 +192,49 @@ describe("canClaimNoSpend", () => {
   const town = { slotsUsedOn: "2026-08-02", slotsUsedToday: 2, noSpendDays: ["2026-08-01"] };
 
   it("is claimable with no expense today, slots free, and not already claimed", () => {
-    expect(canClaimNoSpend([], town, "2026-08-02", 5)).toBe(true);
+    expect(canClaimNoSpend([], town, "2026-08-02", 5, true)).toBe(true);
   });
   it("is false once any expense exists for today", () => {
     const entries: LedgerEntry[] = [makeEntry("expense", 1_000, "2026-08-02")];
-    expect(canClaimNoSpend(entries, town, "2026-08-02", 5)).toBe(false);
+    expect(canClaimNoSpend(entries, town, "2026-08-02", 5, true)).toBe(false);
   });
-  it("is false with no slots remaining", () => {
+  it("is false with no slots remaining, when noSpendDayCostsSlot is true (BALANCE.noSpendDayCostsSlot, D-15)", () => {
     const noSlots = { ...town, slotsUsedToday: 5 };
-    expect(canClaimNoSpend([], noSlots, "2026-08-02", 5)).toBe(false);
+    expect(canClaimNoSpend([], noSlots, "2026-08-02", 5, true)).toBe(false);
+  });
+  it("ignores the slot cap entirely when noSpendDayCostsSlot is false — the flag actually gates behavior", () => {
+    const noSlots = { ...town, slotsUsedToday: 5 };
+    expect(canClaimNoSpend([], noSlots, "2026-08-02", 5, false)).toBe(true);
   });
   it("is false if already claimed today", () => {
     const claimedToday = { ...town, noSpendDays: ["2026-08-02"] };
-    expect(canClaimNoSpend([], claimedToday, "2026-08-02", 5)).toBe(false);
+    expect(canClaimNoSpend([], claimedToday, "2026-08-02", 5, true)).toBe(false);
+  });
+});
+
+// ── rebuildDerived ──
+describe("rebuildDerived", () => {
+  it("returns zero savings and null period for no entries", () => {
+    expect(rebuildDerived([])).toEqual({ cumulativeSavingsKrw: 0, lastSettledPeriod: null });
+  });
+
+  it("sums only 'saving' entries into cumulativeSavingsKrw", () => {
+    const entries: LedgerEntry[] = [
+      makeEntry("saving", 50_000, "2026-06-01"),
+      makeEntry("expense", 10_000, "2026-06-02"),
+      makeEntry("saving", 30_000, "2026-07-01"),
+      makeEntry("income", 999_999, "2026-07-02"),
+    ];
+    expect(rebuildDerived(entries)).toEqual({ cumulativeSavingsKrw: 80_000, lastSettledPeriod: "2026-07" });
+  });
+
+  it("lastSettledPeriod is the latest period touched, regardless of entry order", () => {
+    const entries: LedgerEntry[] = [
+      makeEntry("expense", 1_000, "2026-08-15"),
+      makeEntry("expense", 1_000, "2026-05-01"),
+      makeEntry("expense", 1_000, "2026-12-31"),
+    ];
+    expect(rebuildDerived(entries).lastSettledPeriod).toBe("2026-12");
   });
 });
 

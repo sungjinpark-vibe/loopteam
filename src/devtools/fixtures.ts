@@ -3,15 +3,30 @@
  *
  * Seeded and deterministic: a fixed PRNG seed per fixture means two machines
  * building the same fixture produce byte-identical state, so a QA bug report
- * is reproducible from a fixture name alone (§11.A). Dev-only — never
- * imported outside `src/devtools/**`; Gate 1 asserts this module is absent
- * from a production bundle (§11).
+ * is reproducible from a fixture name alone (§11.A).
+ *
+ * Dev-only, enforced two ways (§11 "S7 is stripped from any non-dev build
+ * via import.meta.env.DEV"):
+ *  1. The `no-restricted-imports` rule in eslint.config.js bans any static
+ *     import of `src/devtools/**` from outside this folder — a future
+ *     consumer (the S7 sheet, later task) must reach this module through a
+ *     dynamic `import()` gated by `import.meta.env.DEV`, which Vite/Rollup
+ *     can then tree-shake out of a production build.
+ *  2. The runtime guard directly below throws immediately if this module is
+ *     ever evaluated with `import.meta.env.DEV` false — a static import that
+ *     slips past rule 1 (or a misconfigured gate) fails loudly at load time
+ *     instead of silently shipping the fixture module (and its dense
+ *     generator) into production.
  *
  * No `new Date()` here either: dates are built with plain calendar math so
  * fixture output never depends on the machine's real clock. Pair a fixture
  * with `setTimeTravelDate(fixture.today)` (`src/platform/clock.ts`, §11.B) so
  * the app derives against the date the fixture was designed for.
  */
+if (!import.meta.env.DEV) {
+  throw new Error("src/devtools/fixtures.ts must never load outside a dev build (MVP-SPEC §11)");
+}
+
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
 import { BALANCE } from "../balance.placeholder";

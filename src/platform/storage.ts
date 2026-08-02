@@ -10,6 +10,8 @@ export interface StoragePort {
   get(key: string): string | null;
   set(key: string, value: string): void;
   remove(key: string): void;
+  /** Every key currently stored. Used only by the corrupt-index recovery path (§8.4 / F10). */
+  keys(): string[];
 }
 
 // `localStorage` access can throw: QuotaExceededError (reachable — §8.4's own
@@ -42,6 +44,18 @@ export const browserStorage: StoragePort = {
       // best-effort — nothing to roll back to if this fails
     }
   },
+  keys() {
+    try {
+      const result: string[] = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key !== null) result.push(key);
+      }
+      return result;
+    } catch {
+      return []; // same "treat as absent" policy as get()
+    }
+  },
 };
 
 /**
@@ -64,6 +78,9 @@ export const tossStorage: StoragePort = {
     throw new Error("toss storage driver not implemented yet — see src/platform/storage.ts (spec D-8)");
   },
   remove() {
+    throw new Error("toss storage driver not implemented yet — see src/platform/storage.ts (spec D-8)");
+  },
+  keys() {
     throw new Error("toss storage driver not implemented yet — see src/platform/storage.ts (spec D-8)");
   },
 };

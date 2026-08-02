@@ -11,6 +11,7 @@ function makeFakePort(): StoragePort {
     get: (key) => map.get(key) ?? null,
     set: (key, value) => void map.set(key, value),
     remove: (key) => void map.delete(key),
+    keys: () => [...map.keys()],
   };
 }
 
@@ -127,5 +128,32 @@ describe("loadFixtureIntoStorage", () => {
     const { entries, corrupt } = client.loadEntriesForMonth(currentPeriod);
     expect(corrupt).toBe(true);
     expect(entries).toEqual([]); // quarantined, not thrown
+  });
+});
+
+// Spec §10.4 names a mid-range Android WebView as the performance floor for
+// every AC in the doc, and §8.4 sizes boot at "~400 KB / ~5,400 buildings",
+// exactly what `dense` reaches. This does not simulate real device hardware,
+// but it turns "boot cost against the dense fixture" from an unmeasured
+// claim into a number this suite actually records, and it regresses loudly
+// if `loadBoot()`'s cost grows superlinearly.
+describe("dense fixture boot cost (spec §10.4 / §8.4)", () => {
+  it("loadBoot() over ~5,400 buildings completes within a generous smoke bound", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    loadFixtureIntoStorage(FIXTURES.dense(), client, port);
+
+    const start = performance.now();
+    const boot = client.loadBoot();
+    const elapsedMs = performance.now() - start;
+
+    expect(boot.buildings.length).toBeGreaterThan(5_000);
+    // ponytail: loadBoot() JSON.parses every building chunk synchronously in
+    // one main-thread pass, no yielding/batching — fine on a dev machine, but
+    // this is exactly the cost §10.4 asks about on real hardware. Batch it
+    // (requestIdleCallback / chunked yielding) in T003 once there's a boot
+    // screen to show progress on, if a real-device measurement says this
+    // drops frames.
+    expect(elapsedMs).toBeLessThan(2_000);
   });
 });

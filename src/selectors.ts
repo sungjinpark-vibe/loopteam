@@ -43,6 +43,33 @@ function dayOfMonth(dateStr: string): number {
   return Number(dateStr.slice(8, 10));
 }
 
+// ── Recovery (§8.3): the only two fields ever rebuilt from entries ──
+
+/**
+ * Reconstructs `cumulativeSavingsKrw` and `lastSettledPeriod` — spec §8.3's
+ * "only denormalized fields" — from `entries` alone. Run by import (F12,
+ * later task) and by the corrupt-index recovery path in `src/storage.ts` so
+ * a bad chunk can never permanently lose these two numbers.
+ *
+ * `lastSettledPeriod` is approximated as the latest `YYYY-MM` touched by any
+ * entry — the best information recoverable from entries alone (per spec's
+ * own wording); it does not know about zero-entry settled months (F16), so a
+ * recovery may re-run settlement for those and mint an extra monument. That
+ * is a correctness gap only reachable via storage corruption, not normal use.
+ */
+export function rebuildDerived(
+  entries: readonly LedgerEntry[],
+): Pick<TownState, "cumulativeSavingsKrw" | "lastSettledPeriod"> {
+  let cumulativeSavingsKrw = 0;
+  let lastSettledPeriod: string | null = null;
+  for (const e of entries) {
+    if (e.type === "saving") cumulativeSavingsKrw += e.amountKrw;
+    const period = ymOf(e.occurredOn);
+    if (lastSettledPeriod === null || period > lastSettledPeriod) lastSettledPeriod = period;
+  }
+  return { cumulativeSavingsKrw, lastSettledPeriod };
+}
+
 // ── Town / building selectors ──
 
 export function buildingCount(buildings: readonly Building[]): number {
@@ -152,10 +179,15 @@ export function canClaimNoSpend(
   town: Pick<TownState, "slotsUsedOn" | "slotsUsedToday" | "noSpendDays">,
   today: string,
   dailyBuildSlots: number,
+  // BALANCE.noSpendDayCostsSlot (D-15, open director decision) — passed in
+  // rather than imported so this selector stays pure/testable, same as
+  // `dailyBuildSlots` above. When false, claiming a 무지출 데이 never checks
+  // the daily slot cap at all.
+  noSpendDayCostsSlot: boolean,
 ): boolean {
   const hasExpenseToday = entries.some((e) => e.type === "expense" && e.occurredOn === today);
   if (hasExpenseToday) return false;
-  if (slotsRemainingToday(town, today, dailyBuildSlots) <= 0) return false;
+  if (noSpendDayCostsSlot && slotsRemainingToday(town, today, dailyBuildSlots) <= 0) return false;
   if (town.noSpendDays.includes(today)) return false;
   return true;
 }

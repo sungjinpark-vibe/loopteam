@@ -14,6 +14,9 @@ function installThrowingLocalStorage(): void {
       removeItem: () => {
         throw new Error("SecurityError");
       },
+      get length(): number {
+        throw new Error("SecurityError");
+      },
     },
   };
 }
@@ -43,5 +46,35 @@ describe("browserStorage never propagates a throwing localStorage (F10: no white
     delete (globalThis as { window?: unknown }).window;
     expect(() => browserStorage.get("k")).not.toThrow();
     expect(browserStorage.get("k")).toBeNull();
+  });
+
+  it("keys() swallows the error and reports an empty list", () => {
+    installThrowingLocalStorage();
+    expect(() => browserStorage.keys()).not.toThrow();
+    expect(browserStorage.keys()).toEqual([]);
+  });
+});
+
+describe("browserStorage.keys() enumerates real localStorage", () => {
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  it("returns every stored key", () => {
+    const store = new Map<string, string>();
+    (globalThis as { window?: unknown }).window = {
+      localStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+        get length() {
+          return store.size;
+        },
+        key: (i: number) => [...store.keys()][i] ?? null,
+      },
+    };
+    browserStorage.set("a", "1");
+    browserStorage.set("b", "2");
+    expect(browserStorage.keys().sort()).toEqual(["a", "b"]);
   });
 });
