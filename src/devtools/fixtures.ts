@@ -27,6 +27,16 @@ if (!import.meta.env.DEV) {
   throw new Error("src/devtools/fixtures.ts must never load outside a dev build (MVP-SPEC §11)");
 }
 
+/**
+ * Distinctive marker string, present only in this module's compiled output.
+ * `npm run gate:extra` (`scripts/check-bundle.mjs`) greps the production
+ * bundle for this exact string and fails the gate if it finds it — the real,
+ * checked version of the "S7/fixtures stripped from any non-dev build"
+ * guarantee (MVP-SPEC §11), as opposed to it being true only by accident of
+ * nothing importing this module yet.
+ */
+export const DEVTOOLS_FIXTURES_BUNDLE_MARKER = "__AIT_DEVTOOLS_FIXTURES_MARKER__";
+
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
 import { BALANCE } from "../balance.placeholder";
@@ -641,6 +651,11 @@ export function loadFixtureIntoStorage(
     storageClient.saveBuildingsForMonth(monthKey, monthBuildings);
   }
   if (fixture.name === "corrupt") {
+    // Writes are debounced (src/storage.ts §10 F10) — flush first so the
+    // deliberate corruption below actually lands on top of real data on the
+    // raw port, instead of being shadowed by a pending (not-yet-flushed)
+    // write once the client reads it back.
+    storageClient.flush();
     rawPort.set(entriesStorageKey(fixture.today.slice(0, 7)), "{not valid json,,,");
   }
 }

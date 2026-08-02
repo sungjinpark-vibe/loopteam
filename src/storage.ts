@@ -6,11 +6,17 @@
  * single growing blob makes every entry save more expensive than the last
  * for the life of the ledger (§13 trade-off 4). Built on the raw `storage`
  * port (`src/platform/storage.ts`) — this file owns the key layout only.
+ *
+ * Writes are debounced ~300ms and coalesced per key before they reach the raw
+ * port (§10 F10: "Writes are debounced (~300ms) and per-chunk atomic") — see
+ * `createChunkedStorage`'s `bufferedPort`. Reads always check the pending
+ * (not-yet-flushed) write first, so a caller that reads its own write back
+ * immediately (the normal in-app case) never sees stale data.
  */
 import type { StoragePort } from "./platform/storage";
 import { storage as defaultStoragePort } from "./platform/storage";
 import { rebuildDerived } from "./selectors";
-import type { Building, BudgetSetting, LedgerEntry, TownState } from "./types";
+import type { Building, BudgetSetting, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -115,10 +121,106 @@ function writeJson(port: StoragePort, key: string, value: unknown): void {
   port.set(key, JSON.stringify(value));
 }
 
+/** Recovers claimed no-spend dates from surviving buildings — `source.kind === 'nospend'` carries the date (§7). */
+function recoverNoSpendDays(buildings: readonly Building[]): string[] {
+  const days = buildings
+    .filter((b): b is Building & { source: { kind: "nospend"; date: string } } => b.source.kind === "nospend")
+    .map((b) => b.source.date);
+  return [...new Set(days)].sort();
+}
+
+/**
+ * Recovers the queue of pending materials from surviving entries flagged
+ * `queued: true` (F14). `variantIndex` was rolled once at queue time and
+ * lives only on the original `QueuedMaterial`, never on the `LedgerEntry` —
+ * it cannot be recovered after the `core` chunk that held it is gone, so it
+ * is re-rolled to a fixed, valid default (0) rather than left undefined.
+ * That is an acceptable loss (the reward for one still-queued item may look
+ * different than before) against the alternative of dropping the queue slot
+ * entirely, which would silently shrink `materialQueueMax` accounting.
+ */
+function recoverQueue(entries: readonly LedgerEntry[]): QueuedMaterial[] {
+  return entries
+    .filter((e) => e.queued)
+    .map((e) => ({ entryId: e.id, categoryId: e.categoryId, variantIndex: 0, queuedOn: e.occurredOn }));
+}
+
+const nowMs = (): number => performance.now();
+
+/** Yields one macrotask so the browser can paint/handle input between batches (§10.4 main-thread budget). */
+function yieldToMainThread(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Reads every building chunk, yielding to the main thread every ~8ms of
+ * continuous parsing instead of doing all of it in one blocking pass — the
+ * dense fixture (~5,400 buildings across 36 month chunks, §11) is exactly
+ * the cost §10.4's <1s initial-paint AC is worried about.
+ */
+async function readBuildingChunksBatched(
+  bufferedPort: StoragePort,
+  buildingMonths: readonly string[],
+  corrupted: CorruptionNotice[],
+): Promise<Building[]> {
+  const TIME_BUDGET_MS = 8; // roughly half a 60fps frame — conservative, not tuned against real hardware
+  const buildings: Building[] = [];
+  let sliceStart = nowMs();
+  for (const ym of buildingMonths) {
+    const key = buildingsKey(ym);
+    const result = readJson<Building[]>(bufferedPort, key);
+    if (result.corrupt) {
+      corrupted.push({ key, reason: `unparseable building chunk for ${ym} — quarantined` });
+    } else {
+      buildings.push(...(result.value ?? []));
+    }
+    if (nowMs() - sliceStart > TIME_BUDGET_MS) {
+      await yieldToMainThread();
+      sliceStart = nowMs();
+    }
+  }
+  return buildings;
+}
+
+const DEBOUNCE_MS = 300;
+
 /** Builds a chunked-storage client over any `StoragePort` (defaults to the browser driver). */
 export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
+  // ── Debounced write buffer (§10 F10: "~300ms debounced, per-chunk atomic") ──
+  // Every `set` lands here first; the underlying `port.set` only fires once
+  // per key, ~300ms after the last write to that key, coalescing bursts (e.g.
+  // several `saveEntriesForMonth` calls in quick succession) into one real
+  // write. `get`/`keys` check this buffer first so a caller reading its own
+  // just-written data (the normal in-app path) never has to wait for the
+  // flush — only an external change to the raw port (or a genuinely fresh
+  // read before anything was ever written) falls through to `port` itself.
+  const pending = new Map<string, string>();
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flushPendingWrites(): void {
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    for (const [key, value] of pending) port.set(key, value);
+    pending.clear();
+  }
+
+  const bufferedPort: StoragePort = {
+    get: (key) => (pending.has(key) ? (pending.get(key) as string) : port.get(key)),
+    set: (key, value) => {
+      pending.set(key, value);
+      if (flushTimer === null) flushTimer = setTimeout(flushPendingWrites, DEBOUNCE_MS);
+    },
+    remove: (key) => {
+      pending.delete(key);
+      port.remove(key);
+    },
+    keys: () => [...new Set([...port.keys(), ...pending.keys()])],
+  };
+
   function readIndex(): { index: StorageIndex; corrupt: boolean } {
-    const result = readJson<StorageIndex>(port, INDEX_KEY);
+    const result = readJson<StorageIndex>(bufferedPort, INDEX_KEY);
     if (!result.value && !result.corrupt) {
       return { index: emptyIndex(), corrupt: false }; // no index yet — genuinely fresh install
     }
@@ -133,13 +235,13 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     // keys"; a real migration replaces this branch once SCHEMA_VERSION > 1
     // (§8.4: "schemaVersion lives in the index; migrations key off it").
     if (result.corrupt || result.value?.schemaVersion !== SCHEMA_VERSION) {
-      const rebuilt = rebuildIndexFromKeys(port);
+      const rebuilt = rebuildIndexFromKeys(bufferedPort);
       // Self-heal immediately rather than waiting for the next registerMonth
       // call: every caller (loadBoot, registerMonth, clearAll) shares this
       // function, so persisting the fix here means the corruption is
       // resolved after the first read that notices it, not left sitting in
       // storage until something happens to trigger a write.
-      writeJson(port, INDEX_KEY, rebuilt);
+      writeJson(bufferedPort, INDEX_KEY, rebuilt);
       return { index: rebuilt, corrupt: true };
     }
     return { index: result.value, corrupt: false };
@@ -149,16 +251,16 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     const { index } = readIndex();
     if (index[list].includes(ym)) return; // already registered — no extra write
     index[list] = [...index[list], ym].sort();
-    writeJson(port, INDEX_KEY, index);
+    writeJson(bufferedPort, INDEX_KEY, index);
   }
 
   function saveCore(core: CoreState): void {
-    writeJson(port, CORE_KEY, core);
+    writeJson(bufferedPort, CORE_KEY, core);
   }
 
   return {
     /** Boot read: index + core + every building chunk (§8.4). Entry chunks load lazily. */
-    loadBoot(): BootState {
+    async loadBoot(): Promise<BootState> {
       const corrupted: CorruptionNotice[] = [];
       const { index, corrupt: indexCorrupt } = readIndex();
       if (indexCorrupt) {
@@ -168,21 +270,12 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
         });
       }
 
-      const coreResult = readJson<CoreState>(port, CORE_KEY);
+      const coreResult = readJson<CoreState>(bufferedPort, CORE_KEY);
       if (coreResult.corrupt) {
         corrupted.push({ key: CORE_KEY, reason: "unparseable core — recovered from surviving entries/buildings" });
       }
 
-      const buildings: Building[] = [];
-      for (const ym of index.buildingMonths) {
-        const key = buildingsKey(ym);
-        const result = readJson<Building[]>(port, key);
-        if (result.corrupt) {
-          corrupted.push({ key, reason: `unparseable building chunk for ${ym} — quarantined` });
-          continue; // quarantine: skip this chunk, keep booting the rest
-        }
-        buildings.push(...(result.value ?? []));
-      }
+      const buildings = await readBuildingChunksBatched(bufferedPort, index.buildingMonths, corrupted);
 
       // A `core` that parsed fine is ALWAYS authoritative and is never
       // touched below, regardless of whether the index was also corrupt — an
@@ -201,7 +294,7 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
         const recoveredEntries: LedgerEntry[] = [];
         for (const ym of index.entryMonths) {
           const key = entriesKey(ym);
-          const result = readJson<LedgerEntry[]>(port, key);
+          const result = readJson<LedgerEntry[]>(bufferedPort, key);
           if (result.corrupt) {
             anyEntryChunkSkipped = true;
             corrupted.push({ key, reason: `unparseable entries chunk for ${ym} — skipped during core recovery` });
@@ -226,8 +319,20 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
         // above independent of the core loss) — reuse their plot indices so
         // a freshly-placed building never collides with one that survived.
         const nextPlotIndex = buildings.reduce((max, b) => Math.max(max, b.plotIndex + 1), 0);
+        // noSpendDays and queue were already fully recoverable from data this
+        // same function reads anyway (buildings above, recoveredEntries
+        // here) — dropping them to defaultTownState()'s `[]` would let a
+        // previously-claimed 무지출 데이 become re-claimable (F15's guard is
+        // `town.noSpendDays.includes(today)`) and would silently forget every
+        // still-queued material (F14).
         core = {
-          town: { ...defaultTownState(), ...rebuildDerived(recoveredEntries), nextPlotIndex },
+          town: {
+            ...defaultTownState(),
+            ...rebuildDerived(recoveredEntries),
+            nextPlotIndex,
+            noSpendDays: recoverNoSpendDays(buildings),
+            queue: recoverQueue(recoveredEntries),
+          },
           budget: { monthlyBudgetKrw: null, updatedAt: 0 },
           onboarded: true, // ledger data survives — do not re-run onboarding over it
         };
@@ -238,39 +343,57 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
 
     /** Lazily loaded — the current month at boot, others on demand (기록 navigation). */
     loadEntriesForMonth(ym: string): { entries: LedgerEntry[]; corrupt: boolean } {
-      const result = readJson<LedgerEntry[]>(port, entriesKey(ym));
+      const result = readJson<LedgerEntry[]>(bufferedPort, entriesKey(ym));
       if (result.corrupt) return { entries: [], corrupt: true };
       return { entries: result.value ?? [], corrupt: false };
     },
 
     loadBuildingsForMonth(ym: string): { buildings: Building[]; corrupt: boolean } {
-      const result = readJson<Building[]>(port, buildingsKey(ym));
+      const result = readJson<Building[]>(bufferedPort, buildingsKey(ym));
       if (result.corrupt) return { buildings: [], corrupt: true };
       return { buildings: result.value ?? [], corrupt: false };
     },
 
     saveCore,
 
-    /** Save one month's entries + core — exactly two `set` calls when the month is already known (F10 AC). */
+    /** Save one month's entries + core — exactly two chunk keys touched when the month is already known (F10 AC), debounced before reaching the raw port. */
     saveEntriesForMonth(ym: string, entries: LedgerEntry[], core: CoreState): void {
-      writeJson(port, entriesKey(ym), entries);
+      writeJson(bufferedPort, entriesKey(ym), entries);
       saveCore(core);
       registerMonth("entryMonths", ym);
     },
 
     /** Save one month's buildings. Written alongside `saveEntriesForMonth` whenever a build happens. */
     saveBuildingsForMonth(ym: string, buildings: Building[]): void {
-      writeJson(port, buildingsKey(ym), buildings);
+      writeJson(bufferedPort, buildingsKey(ym), buildings);
       registerMonth("buildingMonths", ym);
+    },
+
+    /**
+     * Forces any debounced writes to the raw port immediately — call before
+     * anything that reads/writes the raw port directly (a `beforeunload`
+     * handler; a dev tool that then deliberately corrupts a key to
+     * demonstrate F10 recovery), and before tearing down a page where a
+     * pending 300ms timer would otherwise never fire.
+     */
+    flush(): void {
+      flushPendingWrites();
     },
 
     /** Wipes every known key — used by 데이터 초기화 (S6) and by fixture loading (§11). */
     clearAll(): void {
       const { index } = readIndex();
-      port.remove(INDEX_KEY);
-      port.remove(CORE_KEY);
-      for (const ym of index.entryMonths) port.remove(entriesKey(ym));
-      for (const ym of index.buildingMonths) port.remove(buildingsKey(ym));
+      bufferedPort.remove(INDEX_KEY);
+      bufferedPort.remove(CORE_KEY);
+      for (const ym of index.entryMonths) bufferedPort.remove(entriesKey(ym));
+      for (const ym of index.buildingMonths) bufferedPort.remove(buildingsKey(ym));
+      // Drop anything still pending too — a flush after clearAll must never
+      // resurrect data that was just wiped.
+      if (flushTimer !== null) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      pending.clear();
     },
   };
 }

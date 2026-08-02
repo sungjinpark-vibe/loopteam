@@ -7,7 +7,7 @@
  * argument supplied by the caller from the clock port. That is what makes
  * every selector unit-testable with no React and fully time-travelable.
  */
-import { daysInMonth as daysInMonthOf, monthBefore, parseYm } from "./calendar";
+import { daysInMonth as daysInMonthOf, monthBefore, parseYm, shiftMonth, ymOnly } from "./calendar";
 import type { Building, CategoryId, EntryType, LedgerEntry, TownState } from "./types";
 
 // ── Layout constant (not a balance dial, spec §9 / §13 trade-off 9) ──
@@ -204,14 +204,10 @@ export function unsettledPeriods(lastSettledPeriod: string | null, today: string
   // current period so this never fires on day one.
   if (lastSettledPeriod === null) return [];
   const periods: string[] = [];
-  let [y, m] = lastSettledPeriod.split("-").map(Number);
+  let { y, m } = parseYm(lastSettledPeriod);
   for (;;) {
-    m += 1;
-    if (m > 12) {
-      m = 1;
-      y += 1;
-    }
-    const period = `${y}-${String(m).padStart(2, "0")}`;
+    ({ y, m } = shiftMonth(y, m, 1));
+    const period = ymOnly(y, m);
     if (period >= currentPeriod) break;
     periods.push(period);
   }

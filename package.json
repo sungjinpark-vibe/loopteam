@@ -9,7 +9,8 @@
     "deploy": "ait deploy",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gate:extra": "node scripts/check-bundle.mjs"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^2.10.8",
@@ -29,6 +30,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
+    "jsdom": "^30.0.1",
     "prettier": "^3.4.2",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.24.1",

@@ -94,19 +94,19 @@ describe("fixture shapes match their spec §11 role", () => {
 });
 
 describe("loadFixtureIntoStorage", () => {
-  it("round-trips a normal fixture through the chunked storage layer", () => {
+  it("round-trips a normal fixture through the chunked storage layer", async () => {
     const port = makeFakePort();
     const client = createChunkedStorage(port);
     const fixture = FIXTURES.oneMonth();
     loadFixtureIntoStorage(fixture, client, port);
 
-    const boot = client.loadBoot();
+    const boot = await client.loadBoot();
     expect(boot.core).toEqual({ town: fixture.town, budget: fixture.budget, onboarded: true });
     expect(boot.corrupted).toEqual([]);
     expect(boot.buildings.length).toBe(fixture.buildings.length);
   });
 
-  it("the corrupt fixture leaves its month's entries chunk unparseable, quarantined on load", () => {
+  it("the corrupt fixture leaves its month's entries chunk unparseable, quarantined on load", async () => {
     const port = makeFakePort();
     const client = createChunkedStorage(port);
     const fixture = FIXTURES.corrupt();
@@ -120,7 +120,7 @@ describe("loadFixtureIntoStorage", () => {
     loadFixtureIntoStorage(fixture, client, port);
 
     // Buildings/core/index are untouched — only the entries chunk was mangled (§10 F10 AC).
-    const boot = client.loadBoot();
+    const boot = await client.loadBoot();
     expect(boot.corrupted).toEqual([]);
     expect(boot.core).toEqual({ town: fixture.town, budget: fixture.budget, onboarded: true });
     expect(boot.buildings.length).toBe(fixture.buildings.length); // buildings chunk unaffected
@@ -138,22 +138,20 @@ describe("loadFixtureIntoStorage", () => {
 // claim into a number this suite actually records, and it regresses loudly
 // if `loadBoot()`'s cost grows superlinearly.
 describe("dense fixture boot cost (spec §10.4 / §8.4)", () => {
-  it("loadBoot() over ~5,400 buildings completes within a generous smoke bound", () => {
+  it("loadBoot() over ~5,400 buildings completes within a generous smoke bound", async () => {
     const port = makeFakePort();
     const client = createChunkedStorage(port);
     loadFixtureIntoStorage(FIXTURES.dense(), client, port);
 
     const start = performance.now();
-    const boot = client.loadBoot();
+    const boot = await client.loadBoot();
     const elapsedMs = performance.now() - start;
 
     expect(boot.buildings.length).toBeGreaterThan(5_000);
-    // Deliberate simplification: loadBoot() JSON.parses every building chunk
-    // synchronously in one main-thread pass, no yielding/batching — fine on a
-    // dev machine, but this is exactly the cost §10.4 asks about on real
-    // hardware. Batch it (requestIdleCallback / chunked yielding) in T003
-    // once there's a boot screen to show progress on, if a real-device
-    // measurement says this drops frames.
+    // loadBoot() now parses building chunks in time-boxed batches, yielding
+    // to the main thread (setTimeout(0)) between them (src/storage.ts) — this
+    // bound stays generous because a fake port has no I/O latency of its own,
+    // but it does confirm the batching doesn't introduce runaway overhead.
     expect(elapsedMs).toBeLessThan(2_000);
   });
 
@@ -162,29 +160,34 @@ describe("dense fixture boot cost (spec §10.4 / §8.4)", () => {
   // ratio against a much smaller fixture is hardware-independent and is what
   // actually catches loadBoot() degrading from linear to superlinear in
   // building count, which is the regression §10.4 cares about.
-  it("loadBoot() cost scales roughly linearly with building count, not superlinearly", () => {
+  it("loadBoot() cost scales roughly linearly with building count, not superlinearly", async () => {
     const smallPort = makeFakePort();
     const smallClient = createChunkedStorage(smallPort);
     loadFixtureIntoStorage(FIXTURES.oneMonth(), smallClient, smallPort);
-    const smallBoot = smallClient.loadBoot();
+    const smallBoot = await smallClient.loadBoot();
     const smallStart = performance.now();
-    for (let i = 0; i < 20; i++) smallClient.loadBoot();
+    for (let i = 0; i < 20; i++) await smallClient.loadBoot();
     const smallMsPerCall = (performance.now() - smallStart) / 20;
 
     const densePort = makeFakePort();
     const denseClient = createChunkedStorage(densePort);
     loadFixtureIntoStorage(FIXTURES.dense(), denseClient, densePort);
-    const denseBoot = denseClient.loadBoot();
+    const denseBoot = await denseClient.loadBoot();
     const denseStart = performance.now();
-    for (let i = 0; i < 20; i++) denseClient.loadBoot();
+    for (let i = 0; i < 20; i++) await denseClient.loadBoot();
     const denseMsPerCall = (performance.now() - denseStart) / 20;
 
     const buildingRatio = denseBoot.buildings.length / smallBoot.buildings.length;
     // Linear scaling means denseMsPerCall/smallMsPerCall tracks buildingRatio;
     // a generous multiplier on top of the linear expectation still fails hard
     // on a superlinear (e.g. quadratic) implementation, which would blow past
-    // it by orders of magnitude at this building-count ratio.
-    const maxExpectedMsPerCall = smallMsPerCall * buildingRatio * 5 + 5; // +5ms floor for timer noise
+    // it by orders of magnitude at this building-count ratio. The multiplier
+    // is looser than before the batching change: each yield (setTimeout(0))
+    // adds a small, roughly-constant scheduling cost on top of pure parse
+    // time, and the dense fixture crosses more 8ms time-slices than the
+    // small one, so its per-call overhead is expected to be non-zero even
+    // under perfectly linear parsing.
+    const maxExpectedMsPerCall = smallMsPerCall * buildingRatio * 5 + 20; // +20ms floor for timer/scheduling noise
     expect(denseMsPerCall).toBeLessThan(maxExpectedMsPerCall);
   });
 });
