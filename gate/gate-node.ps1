@@ -116,13 +116,50 @@ if (-not $installOk) {
 }
 
 # ── 2. Type-check (if the project has a tsconfig) ──
-if (Test-Path (Join-Path $AppDir "tsconfig.json")) {
-  $r = Invoke-Cmd "npx tsc --noEmit" $AppDir $TimeoutMinutes
-  if ($r.timedOut) {
-    Add-Check "typecheck" $false "TIMEOUT after $TimeoutMinutes min running 'npx tsc --noEmit'"
+# A root tsconfig.json with "files": [] and "references" (the standard Vite
+# scaffold shape: app + node build-tool configs split out) checks ZERO files
+# when run plain — `tsc --noEmit` at root then reports success trivially.
+# Found 2026-08-02 (T004, app_in_toss): the typecheck check had been a no-op
+# since T002 without ever failing loudly. Detect references and check each
+# referenced project explicitly instead of trusting the root config.
+$tsconfigPath = Join-Path $AppDir "tsconfig.json"
+if (Test-Path $tsconfigPath) {
+  $refPaths = @()
+  try {
+    $tsconfigRaw = (Get-Content $tsconfigPath -Raw) -replace '//[^\n]*', ''
+    $tsconfigObj = $tsconfigRaw | ConvertFrom-Json -ErrorAction Stop
+    if ($tsconfigObj.references) {
+      $refPaths = @($tsconfigObj.references | ForEach-Object { $_.path })
+    }
+  } catch {
+    # Malformed/JSONC tsconfig the simple parser can't handle - fall through
+    # to checking the root config directly rather than silently skipping.
+  }
+
+  if ($refPaths.Count -gt 0) {
+    $allTsOk = $true
+    $tsDetail = @()
+    foreach ($ref in $refPaths) {
+      $r = Invoke-Cmd "npx tsc --noEmit -p `"$ref`"" $AppDir $TimeoutMinutes
+      if ($r.timedOut) {
+        $allTsOk = $false
+        $tsDetail += "$ref -> TIMEOUT after $TimeoutMinutes min"
+      } elseif ($r.exitCode -ne 0) {
+        $allTsOk = $false
+        $tsDetail += "$ref -> exit=$($r.exitCode)$(Get-Excerpt $r.output)"
+      } else {
+        $tsDetail += "$ref -> exit=0"
+      }
+    }
+    Add-Check "typecheck" $allTsOk ("project references: " + ($tsDetail -join ' | '))
   } else {
-    $tsOk = ($r.exitCode -eq 0)
-    Add-Check "typecheck" $tsOk ("exit=$($r.exitCode)" + $(if (-not $tsOk) { Get-Excerpt $r.output } else { "" }))
+    $r = Invoke-Cmd "npx tsc --noEmit" $AppDir $TimeoutMinutes
+    if ($r.timedOut) {
+      Add-Check "typecheck" $false "TIMEOUT after $TimeoutMinutes min running 'npx tsc --noEmit'"
+    } else {
+      $tsOk = ($r.exitCode -eq 0)
+      Add-Check "typecheck" $tsOk ("exit=$($r.exitCode)" + $(if (-not $tsOk) { Get-Excerpt $r.output } else { "" }))
+    }
   }
 } else {
   Add-Check "typecheck" $true "no tsconfig.json found - skipped"
