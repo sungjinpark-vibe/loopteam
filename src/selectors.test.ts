@@ -100,6 +100,11 @@ describe("slotsRemainingToday", () => {
     const town = { slotsUsedOn: "2026-08-02", slotsUsedToday: 9 };
     expect(slotsRemainingToday(town, "2026-08-02", 5)).toBe(0);
   });
+  it("grants nothing when the date is TimeTravel'd backward (spec §5 F4 AC)", () => {
+    // slotsUsedOn is LATER than `today` (clock moved back) — must not reset.
+    const town = { slotsUsedOn: "2026-08-05", slotsUsedToday: 3 };
+    expect(slotsRemainingToday(town, "2026-08-02", 5)).toBe(2);
+  });
 });
 
 // ── monthTotal / budgetPace / moodTier — spec §5 F6's own worked example ──
@@ -124,6 +129,21 @@ describe("monthTotal, budgetPace, moodTier", () => {
 
   it("is null when there is no budget", () => {
     expect(budgetPace(entries, "2026-06", null, "2026-06-15")).toBeNull();
+  });
+
+  it("a fully-elapsed past month clamps elapsedFraction to 1.0, not a stale day-of-today ratio", () => {
+    // Regression: viewing June from August must compare against June's own
+    // 600,000 budget in full, not today's day-of-month divided by June's
+    // length. All 300,000 logged in June against a 600,000 budget -> 0.5.
+    expect(budgetPace(entries, "2026-06", 600_000, "2026-08-03")).toBeCloseTo(0.5);
+  });
+
+  it("the current month prorates by day-of-month as before", () => {
+    expect(budgetPace(entries, "2026-06", 600_000, "2026-06-15")).toBe(1.0);
+  });
+
+  it("a future month has nothing elapsed yet -> null", () => {
+    expect(budgetPace(entries, "2026-08", 600_000, "2026-06-15")).toBeNull();
   });
 
   it("moodTier buckets pace by the thresholds, and is -1 (neutral) with no budget", () => {

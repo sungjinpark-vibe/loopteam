@@ -63,7 +63,11 @@ export function slotsRemainingToday(
   today: string,
   dailyBuildSlots: number,
 ): number {
-  const used = town.slotsUsedOn === today ? town.slotsUsedToday : 0;
+  // Reset only when the stored date is strictly earlier than today (spec §5
+  // F4 AC) — travelling the clock backward must not hand out a fresh cap, so
+  // `slotsUsedOn > today` (backward travel) keeps the stored count as-is,
+  // same as `slotsUsedOn === today`.
+  const used = town.slotsUsedOn < today ? 0 : town.slotsUsedToday;
   return Math.max(0, dailyBuildSlots - used);
 }
 
@@ -78,8 +82,14 @@ export function monthTotal(entries: readonly LedgerEntry[], ym: string, type: En
 }
 
 /**
- * `monthExpenseTotal / (budget * elapsedFraction)`. Returns `null` when there
- * is no budget or the elapsed window hasn't started (guards `expectedSpend > 0`).
+ * `monthExpenseTotal / (budget * elapsedFraction)`. `elapsedFraction` is
+ * derived from how `ym` relates to `today`'s period (spec §5 F8: the pace
+ * bar must make sense on any of the 36 months reachable by ‹ › nav, not just
+ * the current one) — a month strictly before today's is fully elapsed
+ * (clamped to 1.0), a month strictly after has nothing elapsed yet (`null`,
+ * nothing to compare against), and the current month prorates by day.
+ * Returns `null` when there is no budget or the elapsed window hasn't
+ * started (guards `expectedSpend > 0`).
  */
 export function budgetPace(
   entries: readonly LedgerEntry[],
@@ -88,7 +98,15 @@ export function budgetPace(
   today: string,
 ): number | null {
   if (budgetKrw === null) return null;
-  const elapsedFraction = dayOfMonth(today) / daysInMonth(ym);
+  const currentPeriod = ymOf(today);
+  let elapsedFraction: number;
+  if (ym < currentPeriod) {
+    elapsedFraction = 1.0; // past month: fully elapsed
+  } else if (ym > currentPeriod) {
+    return null; // future month: nothing elapsed yet
+  } else {
+    elapsedFraction = dayOfMonth(today) / daysInMonth(ym);
+  }
   const expectedSpend = budgetKrw * elapsedFraction;
   if (expectedSpend <= 0) return null;
   return monthTotal(entries, ym, "expense") / expectedSpend;
@@ -172,9 +190,8 @@ export function unsettledPeriods(lastSettledPeriod: string | null, today: string
 export function recentMemos(entries: readonly LedgerEntry[], categoryId: CategoryId): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
-  const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
+  const sorted = entries.filter((e) => e.categoryId === categoryId).sort((a, b) => b.createdAt - a.createdAt);
   for (const e of sorted) {
-    if (e.categoryId !== categoryId) continue;
     const memo = e.memo?.trim();
     if (!memo || seen.has(memo)) continue;
     seen.add(memo);

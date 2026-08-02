@@ -30,7 +30,7 @@ export const browserStorage: StoragePort = {
     try {
       window.localStorage.setItem(key, value);
     } catch {
-      // ponytail: write silently dropped (quota/blocked storage) — in-memory
+      // NOTE: write silently dropped (quota/blocked storage) — in-memory
       // state for this session is still correct; add a user-visible warning
       // if this shows up in the wild.
     }
