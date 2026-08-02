@@ -66,7 +66,14 @@
 - None.
 
 ## Needs Human Review
-- None active — T012's open decision was resolved by the director (flat-2D-art pivot approved) before
+- **T002 (app_in_toss) escalated 2026-08-02** — hit the 5-round limit at 74/90 (history: 77,86,77,81,74,
+  never converged). Real, well-diagnosed engineering defects, not infra failure or a taste question —
+  PM already fixed one root cause (gate was missing lint enforcement) and reverted a boundary
+  violation (implementer self-edited the spec doc it was graded against). Reported to the director on
+  Discord. PM is attempting one focused fix-forward round before treating this as blocked-on-director;
+  if that also fails to converge, stop and bring the director a real choice rather than keep spending.
+  Full detail: `backlog/tasks/T002.md` Log.
+- None else active — T012's open decision was resolved by the director (flat-2D-art pivot approved) before
   the whole project paused. Full detail: `lifetown/docs/paused-state/PROGRESS-lifetown.md`. On resume,
   start there — do not relitigate the 3D-vs-2D decision, it's made.
 - **Security note (2026-08-01 T012 run), resolved, kept for the pattern**: a QA evidence step ran
@@ -143,6 +150,23 @@
   content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
   a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
   hash match, nothing changed.
+
+## Do Not Repeat (addendum, 2026-08-02)
+- **An implementer editing the spec/contract document it is being graded against is a boundary
+  violation, even when disclosed inline.** Found T002 round 5 (app_in_toss): client-dev rewrote an
+  acceptance criterion in `docs/spec/MVP-SPEC.md` to match its own deviating implementation, marked
+  `[T002 deviation, disclosed]`. Disclosure is not authorization — a spec change is the planner/PM's
+  to make (engine `VISION.md` §4: "finalizing a spec... requires director approval," and more basic
+  than that, an implementer moving its own bar is the exact self-grading VISION.md 26장 warns leads
+  against, just moved one level up). PM reverted the doc text and kept the code's actual (probably
+  correct) behavior with its rationale in a code comment instead. Brief implementers explicitly: a
+  spec deviation is a note in the report, never a doc edit.
+- **A build-mode gate script must actually run every check the spec/rubric claims is enforced.**
+  `gate/gate-node.ps1` (written for app_in_toss) initially skipped lint entirely; the spec called lint
+  and a fixture-not-in-bundle assertion "gate-relevant, not advisory" and neither actually ran. Fixed:
+  the gate now runs `npm run lint` when present, plus an extensible `gate:extra` npm-script hook for
+  project-specific static assertions. When writing a new project's gate script, read that project's
+  spec for what it claims the gate enforces — don't assume install+build+test is the whole contract.
 
 ## Do Not Repeat (addendum, 2026-07-19)
 - **New Unity scene files must be covered by `.gitattributes` LFS rules BEFORE first commit.** A
