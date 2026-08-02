@@ -5,16 +5,18 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ⏸ AWAITING APPROVAL — **app_in_toss** (created 2026-08-02). T001 (MVP spec) passed
-  90/100 and is written to `app_in_toss/docs/spec/MVP-SPEC.md`, but carries **16 open decisions**
-  (D-1..D-16) that are the director's call, reported on Discord. **Do not start T002 until the
-  director responds** — nothing else is `ready` in the backlog right now, so go idle rather than
-  inventing work. Stack = React/TS/Vite via `create-ait-app` (director-approved exception to the
-  Unity-only rule). A rubric adaptation (client-dev C3/C4) is proposed in `app_in_toss/VISION.md`
-  (also listed as D-9 inside the spec) — still pending approval. **Known gap**: `gate/gate.ps1` is
-  Unity-only; no Node/React gate script exists yet — must be written (and `quality-loop.js`
-  parameterized to accept it) before any T002+ build task. Life Town and touchRPG remain paused,
-  untouched. Discord ENABLED both ways (rule 8, current).
+- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (MVP spec) `done` — 90/100, spec at
+  `app_in_toss/docs/spec/MVP-SPEC.md`. Director answered 4 of 16 open decisions on Discord
+  (2026-08-02): app name stays a placeholder, art style must stay clearly clear of Fortune City
+  (trademark risk), monetization deferred, **React rubric substitution approved**. The other 12
+  decisions proceed on the spec's own marked assumptions. **Known gap, must fix before T002**:
+  `gate/gate.ps1` is Unity-only; no Node/React gate script exists yet — write one and parameterize
+  `quality-loop.js` (currently hardcodes the Unity gate's path at line 512) to accept it. Life Town
+  and touchRPG remain paused, untouched. Discord ENABLED both ways (rule 8, current). **Note**:
+  Discord replies are only auto-drained during an autonomous tick's scout step — while working
+  in-session, re-check `.discord/incoming.log` manually after sending anything that expects a reply,
+  don't assume silence means unanswered (confirmed 2026-08-02: a reply sat unread for a few minutes
+  during in-session work, listener itself was healthy).
 - **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
   1. **Skill/library research for all four parts** — done, results reported (see journal for the full
      lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,
@@ -32,13 +34,11 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **Wait for the director's answers on T001's 16 open decisions** (headline: app name D-1, art-style
-   proximity to Fortune City's Fourdesire look D-12 — brand/legal risk, must resolve before any art
-   order, monetization D-7, the React rubric substitution D-9). Reported on Discord 2026-08-02.
-2. **Before any T002+ (build mode) task**: write a Node/React mechanical gate script (npm install,
-   `tsc --noEmit`, `vite build`, tests if any) with the same JSON/exit-code contract as `gate/gate.ps1`,
-   and add a `gateScript` param to `quality-loop.js` (currently hardcodes the Unity gate's path at
-   quality-loop.js:512) so it can select the right one per project.
+1. **Write the Node/React mechanical gate** (npm install, `tsc --noEmit`, `vite build`, tests if any)
+   with the same JSON/exit-code contract as `gate/gate.ps1`, and add a `gateScript` param to
+   `quality-loop.js` so it can select the right one per project.
+2. **Open T002**: scaffold app_in_toss via `npx create-ait-app` and build the first vertical slice of
+   the core loop (ledger entry → building placed → daily slot cap), per the approved MVP spec.
 3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
@@ -78,10 +78,9 @@
   instance's outcome.
 
 ## Next Run Should
-1. **Check Discord for the director's answers on T001's open decisions** before doing anything else
-   on app_in_toss.
-2. Once T001 is approved, write the Node/React gate script (see ▶ Next above) before opening T002 —
-   or the first build-mode task will hang with no way to clear Gate 1.
+1. Write the Node/React gate script (see ▶ Next above) before opening T002 — or the first build-mode
+   task will hang with no way to clear Gate 1.
+2. Open and run T002 (scaffold + first vertical slice).
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
