@@ -5,10 +5,14 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (spec, 90/100) and T002 (foundational plumbing, 91/100
-  after one escalation + fix-forward round) both `done`. **T003 running** — first vertical slice
-  (town view + entry sheet, the loop's first demoable milestone). Uses `gate/gate-node.ps1` (npm
-  install → tsc --noEmit → npm run build → test → lint → gate:extra — same contract as `gate.ps1`).
+- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (spec, 90/100), T002 (foundational plumbing, 91/100
+  after one escalation), and **T003 (first demoable slice — town view + entry sheet, 92/100 after 5
+  rounds)** all `done`. The loop works end to end in a real browser: empty town → log an entry →
+  building appears → hard reload → persists. Screenshots being captured to send the director. Small
+  follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap), bundle-size
+  re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
+  Uses `gate/gate-node.ps1` (npm install → tsc --noEmit → npm run build → test → lint → gate:extra —
+  same contract as `gate.ps1`).
   `quality-loop.js` takes `args.gateScript` and `args.runHint` so non-Unity projects don't need the
   Unity-specific defaults. The `npx create-ait-app` non-interactive flags (`--inline --pm npm
   --template react-ts --tds --skills --ai claude`) work — the docs only showed the interactive form.
@@ -37,9 +41,9 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **T003 running** — on completion, report to the director (this is the first genuinely demoable
-   milestone — send a screenshot/short clip, per the visual-deliverable rule, not just a text summary).
-2. After T003: step 3 of the build order (F4 slots, F7 streak, F5 tier, F14 queue, F15 무지출 데이 —
+1. Send the director screenshots of T003 (in progress — being captured via a QA subagent since the
+   PM has no direct browser/screenshot tool).
+2. Open T004: step 3 of the build order (F4 slots, F7 streak, F5 tier, F14 queue, F15 무지출 데이 —
    the retention layer).
 3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
@@ -82,8 +86,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T003's result (running in background); this is the first visually demoable milestone —
-   send the director a screenshot, not just a score.
+1. Send the director the T003 screenshots once captured; then open T004.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
@@ -147,6 +150,15 @@
   content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
   a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
   hash match, nothing changed.
+
+## Do Not Repeat (addendum, 2026-08-02, cont'd)
+- **The PM has no direct browser/screenshot tool.** For a live web app (React/Vite, not an HTML
+  mockup — `render-html.ps1` doesn't apply), delegate screenshot capture to a `qa`-or-similar subagent
+  with Bash/PowerShell: start the dev server, drive it with Playwright (`npx playwright install
+  chromium --with-deps` if not already a devDependency), save PNGs to the scratchpad, report the
+  paths back. Quality-loop subagents' own screenshots (e.g. QA's Playwright shots during a round) are
+  NOT persisted anywhere the PM can reach afterward — they live only in that subagent's ephemeral
+  workspace. If a screenshot is needed for the director, capture it fresh in a separate step.
 
 ## Do Not Repeat (addendum, 2026-08-02)
 - **An implementer editing the spec/contract document it is being graded against is a boundary
