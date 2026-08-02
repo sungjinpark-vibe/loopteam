@@ -225,16 +225,23 @@ describe("rebuildDerived", () => {
       makeEntry("saving", 30_000, "2026-07-01"),
       makeEntry("income", 999_999, "2026-07-02"),
     ];
-    expect(rebuildDerived(entries)).toEqual({ cumulativeSavingsKrw: 80_000, lastSettledPeriod: "2026-07" });
+    // lastSettledPeriod = one month before the EARLIEST touched period
+    // (2026-06), not the latest — see the function's own doc comment for why.
+    expect(rebuildDerived(entries)).toEqual({ cumulativeSavingsKrw: 80_000, lastSettledPeriod: "2026-05" });
   });
 
-  it("lastSettledPeriod is the latest period touched, regardless of entry order", () => {
+  it("lastSettledPeriod is one month before the earliest period touched, regardless of entry order", () => {
     const entries: LedgerEntry[] = [
       makeEntry("expense", 1_000, "2026-08-15"),
       makeEntry("expense", 1_000, "2026-05-01"),
       makeEntry("expense", 1_000, "2026-12-31"),
     ];
-    expect(rebuildDerived(entries).lastSettledPeriod).toBe("2026-12");
+    expect(rebuildDerived(entries).lastSettledPeriod).toBe("2026-04");
+  });
+
+  it("never advances lastSettledPeriod past a month that still has entries (crosses a year boundary)", () => {
+    const entries: LedgerEntry[] = [makeEntry("expense", 1_000, "2026-01-15")];
+    expect(rebuildDerived(entries).lastSettledPeriod).toBe("2025-12");
   });
 });
 

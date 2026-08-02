@@ -7,6 +7,7 @@
  * argument supplied by the caller from the clock port. That is what makes
  * every selector unit-testable with no React and fully time-travelable.
  */
+import { daysInMonth as daysInMonthOf, monthBefore, parseYm } from "./calendar";
 import type { Building, CategoryId, EntryType, LedgerEntry, TownState } from "./types";
 
 // ── Layout constant (not a balance dial, spec §9 / §13 trade-off 9) ──
@@ -27,16 +28,11 @@ function ymOf(dateStr: string): string {
   return dateStr.slice(0, 7); // 'YYYY-MM-DD' -> 'YYYY-MM'
 }
 
-const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-function isLeapYear(y: number): boolean {
-  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-}
-
-// Pure calendar math — `new Date()` is banned outside src/platform/clock.ts (§10.2).
+// Pure calendar math (shared with storage.ts/devtools/fixtures.ts via ./calendar) —
+// `new Date()` is banned outside src/platform/clock.ts (§10.2).
 function daysInMonth(ym: string): number {
-  const [y, m] = ym.split("-").map(Number);
-  return m === 2 && isLeapYear(y) ? 29 : DAYS_PER_MONTH[m - 1];
+  const { y, m } = parseYm(ym);
+  return daysInMonthOf(y, m);
 }
 
 function dayOfMonth(dateStr: string): number {
@@ -48,25 +44,33 @@ function dayOfMonth(dateStr: string): number {
 /**
  * Reconstructs `cumulativeSavingsKrw` and `lastSettledPeriod` — spec §8.3's
  * "only denormalized fields" — from `entries` alone. Run by import (F12,
- * later task) and by the corrupt-index recovery path in `src/storage.ts` so
- * a bad chunk can never permanently lose these two numbers.
+ * later task) and by `src/storage.ts`'s corrupt-*core*-chunk recovery path
+ * (§8.3: "run ... by the corrupt-chunk recovery path") so a lost `core`
+ * chunk never permanently loses these two numbers. Only called when `core`
+ * itself is gone — a `core` that parsed fine is always authoritative and
+ * must never be overwritten by this function's output (storage.ts never
+ * calls this when `core` survived).
  *
- * `lastSettledPeriod` is approximated as the latest `YYYY-MM` touched by any
- * entry — the best information recoverable from entries alone (per spec's
- * own wording); it does not know about zero-entry settled months (F16), so a
- * recovery may re-run settlement for those and mint an extra monument. That
- * is a correctness gap only reachable via storage corruption, not normal use.
+ * `lastSettledPeriod` is set to one month *before* the earliest `YYYY-MM`
+ * touched by any entry, not the latest — the risk runs only one direction:
+ * setting it too late would advance past a month that still has entries and
+ * F16 would never mint that month's 기념비 again (permanent, since
+ * `unsettledPeriods` is exclusive of `lastSettledPeriod`). Setting it too
+ * early costs at most a re-run of F16 for already-settled zero-entry months,
+ * which is idempotent and merely mints an extra (harmless) monument — a
+ * correctness gap only reachable via storage corruption, not normal use.
  */
 export function rebuildDerived(
   entries: readonly LedgerEntry[],
 ): Pick<TownState, "cumulativeSavingsKrw" | "lastSettledPeriod"> {
   let cumulativeSavingsKrw = 0;
-  let lastSettledPeriod: string | null = null;
+  let earliestPeriod: string | null = null;
   for (const e of entries) {
     if (e.type === "saving") cumulativeSavingsKrw += e.amountKrw;
     const period = ymOf(e.occurredOn);
-    if (lastSettledPeriod === null || period > lastSettledPeriod) lastSettledPeriod = period;
+    if (earliestPeriod === null || period < earliestPeriod) earliestPeriod = period;
   }
+  const lastSettledPeriod = earliestPeriod === null ? null : monthBefore(earliestPeriod);
   return { cumulativeSavingsKrw, lastSettledPeriod };
 }
 

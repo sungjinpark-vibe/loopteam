@@ -30,6 +30,7 @@ if (!import.meta.env.DEV) {
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
 import { BALANCE } from "../balance.placeholder";
+import { daysInMonth, shiftMonth, ymOnly, ymd } from "../calendar";
 import { buildingsStorageKey, createChunkedStorage, entriesStorageKey } from "../storage";
 import type {
   Building,
@@ -53,27 +54,6 @@ function mulberry32(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-// ── Pure calendar math (no `Date`, no timezone) ──
-function isLeapYear(y: number): boolean {
-  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-}
-function daysInMonth(y: number, m: number): number {
-  return [31, isLeapYear(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
-}
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-function ymd(y: number, m: number, d: number): string {
-  return `${y}-${pad2(m)}-${pad2(d)}`;
-}
-function ymOnly(y: number, m: number): string {
-  return `${y}-${pad2(m)}`;
-}
-function shiftMonth(y: number, m: number, n: number): { y: number; m: number } {
-  const total = y * 12 + (m - 1) + n;
-  return { y: Math.floor(total / 12), m: (((total % 12) + 12) % 12) + 1 };
 }
 
 const EXPENSE_CATEGORIES: ExpenseCategoryId[] = [

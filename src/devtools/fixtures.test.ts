@@ -148,12 +148,43 @@ describe("dense fixture boot cost (spec §10.4 / §8.4)", () => {
     const elapsedMs = performance.now() - start;
 
     expect(boot.buildings.length).toBeGreaterThan(5_000);
-    // ponytail: loadBoot() JSON.parses every building chunk synchronously in
-    // one main-thread pass, no yielding/batching — fine on a dev machine, but
-    // this is exactly the cost §10.4 asks about on real hardware. Batch it
-    // (requestIdleCallback / chunked yielding) in T003 once there's a boot
-    // screen to show progress on, if a real-device measurement says this
-    // drops frames.
+    // Deliberate simplification: loadBoot() JSON.parses every building chunk
+    // synchronously in one main-thread pass, no yielding/batching — fine on a
+    // dev machine, but this is exactly the cost §10.4 asks about on real
+    // hardware. Batch it (requestIdleCallback / chunked yielding) in T003
+    // once there's a boot screen to show progress on, if a real-device
+    // measurement says this drops frames.
     expect(elapsedMs).toBeLessThan(2_000);
+  });
+
+  // Absolute wall-clock bounds are hardware-dependent and, per the finding
+  // above, too loose to mean anything (this suite's whole run is ~250ms). A
+  // ratio against a much smaller fixture is hardware-independent and is what
+  // actually catches loadBoot() degrading from linear to superlinear in
+  // building count, which is the regression §10.4 cares about.
+  it("loadBoot() cost scales roughly linearly with building count, not superlinearly", () => {
+    const smallPort = makeFakePort();
+    const smallClient = createChunkedStorage(smallPort);
+    loadFixtureIntoStorage(FIXTURES.oneMonth(), smallClient, smallPort);
+    const smallBoot = smallClient.loadBoot();
+    const smallStart = performance.now();
+    for (let i = 0; i < 20; i++) smallClient.loadBoot();
+    const smallMsPerCall = (performance.now() - smallStart) / 20;
+
+    const densePort = makeFakePort();
+    const denseClient = createChunkedStorage(densePort);
+    loadFixtureIntoStorage(FIXTURES.dense(), denseClient, densePort);
+    const denseBoot = denseClient.loadBoot();
+    const denseStart = performance.now();
+    for (let i = 0; i < 20; i++) denseClient.loadBoot();
+    const denseMsPerCall = (performance.now() - denseStart) / 20;
+
+    const buildingRatio = denseBoot.buildings.length / smallBoot.buildings.length;
+    // Linear scaling means denseMsPerCall/smallMsPerCall tracks buildingRatio;
+    // a generous multiplier on top of the linear expectation still fails hard
+    // on a superlinear (e.g. quadratic) implementation, which would blow past
+    // it by orders of magnitude at this building-count ratio.
+    const maxExpectedMsPerCall = smallMsPerCall * buildingRatio * 5 + 5; // +5ms floor for timer noise
+    expect(denseMsPerCall).toBeLessThan(maxExpectedMsPerCall);
   });
 });

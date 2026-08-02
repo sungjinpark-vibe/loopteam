@@ -80,6 +80,27 @@ function rebuildIndexFromKeys(port: StoragePort): StorageIndex {
   };
 }
 
+/** A `TownState` with nothing recoverable — used only when the `core` chunk itself is lost. */
+function defaultTownState(): TownState {
+  return {
+    townName: "우리 동네",
+    nextPlotIndex: 0,
+    streakDays: 0,
+    longestStreakDays: 0,
+    lastActOn: null,
+    // "" sorts before every real 'YYYY-MM-DD' string, so slotsRemainingToday
+    // (selectors.ts) always treats it as stale and resets to a fresh cap on
+    // the first read — no need for this module to know "today".
+    slotsUsedOn: "",
+    slotsUsedToday: 0,
+    highestTierSeen: 0,
+    queue: [],
+    noSpendDays: [],
+    cumulativeSavingsKrw: 0,
+    lastSettledPeriod: null,
+  };
+}
+
 function readJson<T>(port: StoragePort, key: string): { value: T | null; corrupt: boolean } {
   const raw = port.get(key);
   if (raw === null) return { value: null, corrupt: false };
@@ -98,7 +119,20 @@ function writeJson(port: StoragePort, key: string, value: unknown): void {
 export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
   function readIndex(): { index: StorageIndex; corrupt: boolean } {
     const result = readJson<StorageIndex>(port, INDEX_KEY);
-    if (result.corrupt) {
+    if (!result.value && !result.corrupt) {
+      return { index: emptyIndex(), corrupt: false }; // no index yet — genuinely fresh install
+    }
+    // Unparseable JSON and an unrecognized schemaVersion are both "we cannot
+    // trust this index blob" — treat identically. Silently substituting an
+    // empty index for either (as an earlier version of this function did for
+    // a schema mismatch) is the exact orphaning bug `rebuildIndexFromKeys`
+    // exists to prevent, just reached via the sibling branch: the very next
+    // registerMonth would persist that empty index over the real one and
+    // permanently strand every surviving entries/buildings chunk. There is
+    // only one schema version today, so "migrate" means "rebuild from raw
+    // keys"; a real migration replaces this branch once SCHEMA_VERSION > 1
+    // (§8.4: "schemaVersion lives in the index; migrations key off it").
+    if (result.corrupt || result.value?.schemaVersion !== SCHEMA_VERSION) {
       const rebuilt = rebuildIndexFromKeys(port);
       // Self-heal immediately rather than waiting for the next registerMonth
       // call: every caller (loadBoot, registerMonth, clearAll) shares this
@@ -107,9 +141,6 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       // storage until something happens to trigger a write.
       writeJson(port, INDEX_KEY, rebuilt);
       return { index: rebuilt, corrupt: true };
-    }
-    if (!result.value || result.value.schemaVersion !== SCHEMA_VERSION) {
-      return { index: emptyIndex(), corrupt: false };
     }
     return { index: result.value, corrupt: false };
   }
@@ -131,12 +162,15 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       const corrupted: CorruptionNotice[] = [];
       const { index, corrupt: indexCorrupt } = readIndex();
       if (indexCorrupt) {
-        corrupted.push({ key: INDEX_KEY, reason: "unparseable index — rebuilt from surviving chunk keys" });
+        corrupted.push({
+          key: INDEX_KEY,
+          reason: "index missing, unparseable, or unrecognized schema — rebuilt from surviving chunk keys",
+        });
       }
 
       const coreResult = readJson<CoreState>(port, CORE_KEY);
       if (coreResult.corrupt) {
-        corrupted.push({ key: CORE_KEY, reason: "unparseable core — booted to a clean state" });
+        corrupted.push({ key: CORE_KEY, reason: "unparseable core — recovered from surviving entries/buildings" });
       }
 
       const buildings: Building[] = [];
@@ -150,19 +184,53 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
         buildings.push(...(result.value ?? []));
       }
 
+      // A `core` that parsed fine is ALWAYS authoritative and is never
+      // touched below, regardless of whether the index was also corrupt — an
+      // index rebuild says nothing about `core.town`'s denormalized fields,
+      // and overwriting a surviving core with a guess reconstructed from
+      // (possibly incomplete) entries is strictly less informed than the
+      // value already in hand.
       let core = coreResult.corrupt ? null : coreResult.value;
-      if (indexCorrupt && core) {
-        // The index (and therefore our idea of which entry chunks exist) was
-        // rebuilt from raw keys above — `core.town.cumulativeSavingsKrw` /
-        // `lastSettledPeriod` may now be stale relative to what actually
-        // survived, so recompute the two denormalized fields the same way
-        // an import (F12) would (spec §8.3 rebuildDerived).
+
+      if (core === null && coreResult.corrupt) {
+        // The `core` chunk itself is gone — this is the "corrupt-chunk
+        // recovery path" spec §8.3 names: reconstruct what's recoverable
+        // from surviving entries (rebuildDerived) rather than booting to a
+        // state that has silently forgotten every 저축 and every 결산.
+        let anyEntryChunkSkipped = false;
         const recoveredEntries: LedgerEntry[] = [];
         for (const ym of index.entryMonths) {
-          const result = readJson<LedgerEntry[]>(port, entriesKey(ym));
-          if (!result.corrupt && result.value) recoveredEntries.push(...result.value);
+          const key = entriesKey(ym);
+          const result = readJson<LedgerEntry[]>(port, key);
+          if (result.corrupt) {
+            anyEntryChunkSkipped = true;
+            corrupted.push({ key, reason: `unparseable entries chunk for ${ym} — skipped during core recovery` });
+            continue;
+          }
+          recoveredEntries.push(...(result.value ?? []));
         }
-        core = { ...core, town: { ...core.town, ...rebuildDerived(recoveredEntries) } };
+        if (anyEntryChunkSkipped) {
+          // cumulativeSavingsKrw computed below is a sum over only the
+          // chunks that parsed — it can only ever be an undercount when a
+          // chunk was skipped, never an overcount, so it is safe to use as
+          // a floor. Flagged here so a future reconciliation (F12 import,
+          // or a manual fix) knows this number may be low, per spec §5
+          // F13's AC that the tower must never shrink from data that still
+          // exists — it just may not have been counted yet.
+          corrupted.push({
+            key: CORE_KEY,
+            reason: "cumulativeSavingsKrw may be understated — one or more entries chunks were also unreadable",
+          });
+        }
+        // Recovered buildings ARE fully known (buildings chunks were read
+        // above independent of the core loss) — reuse their plot indices so
+        // a freshly-placed building never collides with one that survived.
+        const nextPlotIndex = buildings.reduce((max, b) => Math.max(max, b.plotIndex + 1), 0);
+        core = {
+          town: { ...defaultTownState(), ...rebuildDerived(recoveredEntries), nextPlotIndex },
+          budget: { monthlyBudgetKrw: null, updatedAt: 0 },
+          onboarded: true, // ledger data survives — do not re-run onboarding over it
+        };
       }
 
       return { index, core, buildings, corrupted };
