@@ -1,75 +1,88 @@
-import { Asset, Button, Top } from "@toss/tds-mobile";
+import { useEffect, useState } from "react";
+import { Button, useToast } from "@toss/tds-mobile";
 import "./App.css";
+import { BALANCE } from "./balance.placeholder";
+import { EntrySheet } from "./components/EntrySheet";
+import { TownGrid } from "./components/TownGrid";
+import { TownHeader } from "./components/TownHeader";
+import type { EntryDraft } from "./entryActions";
+import { useTownStore } from "./useTownStore";
 
 /**
- * Scaffold landing content from create-ait-app, kept as-is until T003 adds
- * the real screens (Step 1 is plumbing only — no UI beyond what already
- * shipped from the scaffold).
- *
- * NOT `React.lazy`-split: `main.tsx`'s `TDSMobileAITProvider` itself
- * statically imports from `@toss/tds-mobile` and is required synchronously
- * at boot, so the ~1.1MB `@toss/tds-mobile` barrel is already on the boot
- * critical path before `App` even renders — splitting `App`'s own import of
- * the same package defers zero bytes while adding a Suspense boundary that
- * would render a blank frame. See vite.config.ts for the actual (SDK-level)
- * bundle-size note.
+ * S2 (우리 동네) + S4 (입력 시트) — MVP-SPEC build order step 2: "F1+F2+F3 = the
+ * loop closes here." Log an entry -> a building appears -> reload -> it's
+ * still there (storage round-trips via `useTownStore` / T002's `storage.ts`).
  */
 function App() {
+  const store = useTownStore();
+  const { corruptionNotice, dismissCorruptionNotice } = store;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { openToast } = useToast();
+
+  // F10: "a visible one-time notice, never a white screen" for recovered
+  // storage corruption. Fires once per boot (dismissed right after showing)
+  // — this is the only screen in this task that could surface it.
+  useEffect(() => {
+    if (corruptionNotice === null) return;
+    openToast(corruptionNotice);
+    dismissCorruptionNotice();
+  }, [corruptionNotice, dismissCorruptionNotice, openToast]);
+
+  if (store.loading) {
+    return <div className="town-loading">불러오는 중…</div>;
+  }
+
+  function handleSave(draft: EntryDraft) {
+    const result = store.addEntry(draft);
+    setSheetOpen(false);
+    // F14 (the materials queue) is out of this task's scope, but the entry
+    // still needs to say plainly it saved without a building — "saved,
+    // no building today" must never look like "nothing happened".
+    if (result.building === null) {
+      openToast("저장했어요. 오늘 건축 슬롯을 모두 써서 건물은 짓지 못했어요.");
+    }
+  }
+
   return (
-    <>
-      <Top
-        title={<Top.TitleParagraph size={22}>반가워요</Top.TitleParagraph>}
-        subtitleBottom={
-          <Top.SubtitleParagraph size={17}>
-            앱인토스 개발을 시작해 보세요.
-          </Top.SubtitleParagraph>
-        }
+    <div className="town-screen">
+      {BALANCE.BALANCE_UNSET && (
+        <div className="balance-banner" role="status">
+          밸런스 미승인 — 임시 수치
+        </div>
+      )}
+
+      <TownHeader
+        townName={store.townName}
+        buildingCount={store.buildingCount}
+        slotsRemaining={store.slotsRemaining}
+        dailyBuildSlots={store.dailyBuildSlots}
       />
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "16px",
-          padding: "24px",
-        }}
-      >
-        <Button
-          as="a"
-          variant="weak"
-          href="https://developers-apps-in-toss.toss.im"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          개발자센터
-        </Button>
-        <Button
-          as="a"
-          variant="weak"
-          href="https://techchat-apps-in-toss.toss.im"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          개발자 커뮤니티
-        </Button>
-      </div>
+      {store.buildingCount === 0 ? (
+        <div className="town-empty-state">
+          <p>첫 지출을 기록하면 첫 건물이 생겨요</p>
+          <div className="town-empty-arrow" aria-hidden="true">
+            ↘
+          </div>
+        </div>
+      ) : (
+        <TownGrid nextPlotIndex={store.nextPlotIndex} buildings={store.buildings} justBuiltId={store.justBuiltId} />
+      )}
 
-      <div
-        style={{
-          position: "fixed",
-          bottom: "24px",
-          left: "50%",
-          transform: "translateX(-50%)",
-        }}
+      <Button
+        as="button"
+        color="primary"
+        variant="fill"
+        size="xlarge"
+        aria-label="거래 입력"
+        className="town-fab"
+        onClick={() => setSheetOpen(true)}
       >
-        <Asset.Image
-          alt="apps in toss logo"
-          frameShape={{ width: 160 }}
-          backgroundColor="transparent"
-          src={`${import.meta.env.BASE_URL}appsintoss-logo.png`}
-        />
-      </div>
-    </>
+        +
+      </Button>
+
+      <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
+    </div>
   );
 }
 

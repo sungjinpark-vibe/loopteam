@@ -6,8 +6,233 @@
 
 @media (min-width: 481px) {
   #root {
-    background-color: #ffffff !important;
+    background-color: var(--town-white) !important;
     max-width: 480px;
     margin: 0 auto;
   }
+}
+
+/* ── §9 balance banner ── */
+
+.balance-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--town-white);
+  background: var(--town-grey800);
+}
+
+/* ── S2 town screen ── */
+
+.town-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: var(--town-grey600);
+}
+
+.town-screen {
+  position: relative;
+  min-height: 100vh;
+  padding-bottom: 96px;
+  background: linear-gradient(180deg, #eaf4ff 0%, var(--town-white) 220px);
+}
+
+.town-header {
+  padding: 20px 20px 12px;
+}
+
+.town-header-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--town-grey900);
+}
+
+.town-header-stats {
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--town-grey600);
+}
+
+.town-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 64px 24px;
+  color: var(--town-grey700);
+  text-align: center;
+}
+
+.town-empty-arrow {
+  position: fixed;
+  right: 56px;
+  bottom: 96px;
+  font-size: 28px;
+  color: var(--town-blue500);
+}
+
+/* `button.town-fab`, not `.town-fab`: TDS's own emotion styles for `Button`
+ * are injected into a runtime <style> tag that lands after this static
+ * sheet, so a same-specificity single-class selector loses the cascade tie
+ * and the button falls back to TDS's default (`position: relative`, pill
+ * width). The element+class selector outranks TDS's single class regardless
+ * of injection order. */
+button.town-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+/* ── town grid / building tiles (S3 F3) ── */
+
+.town-grid {
+  display: grid;
+  gap: 8px;
+  grid-auto-rows: 72px;
+  padding: 8px 16px 24px;
+}
+
+.town-tile {
+  width: 100%;
+  height: 100%;
+}
+
+.empty-lot {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed var(--town-grey300);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.building-tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.08);
+}
+
+.building-icon {
+  font-size: 24px;
+  line-height: 1;
+  padding-bottom: 8px;
+}
+
+.building-roof {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.building-roof-dome {
+  height: 14px;
+  border-radius: 0 0 999px 999px;
+}
+
+.building-roof-peak {
+  height: 0;
+  width: 0;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  border-left: 18px solid transparent;
+  border-right: 18px solid transparent;
+  border-top: 14px solid rgba(255, 255, 255, 0.55);
+  background: none;
+}
+
+.building-roof-flat {
+  height: 6px;
+  border-radius: 3px;
+}
+
+@keyframes building-rise {
+  from {
+    transform: translateY(16px) scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.building-tile-rise {
+  animation: building-rise 550ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ── S4 entry sheet ──
+ * The type row, category grid, date field, and dismiss confirm are all TDS
+ * primitives now (SegmentedControl, Chip/ChipItem, WheelDatePicker,
+ * ConfirmDialog) and carry their own styling — only the amount display below
+ * is bespoke, since TDS has no generic "big number readout" component. */
+
+.entry-sheet-title {
+  font-size: 17px;
+  font-weight: 700;
+  padding: 4px 0 8px;
+}
+
+.entry-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.entry-amount-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--town-grey900);
+}
+
+.entry-amount-suffix {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--town-grey600);
+}
+
+.entry-amount-hint {
+  margin-top: -8px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--town-grey600);
+}
+
+/* Wrapping icon grid, not a horizontal scroller — all categories for the
+ * selected type stay on screen at once (spec §5 F1 "icon grid"). */
+.category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

@@ -86,8 +86,13 @@ function rebuildIndexFromKeys(port: StoragePort): StorageIndex {
   };
 }
 
-/** A `TownState` with nothing recoverable — used only when the `core` chunk itself is lost. */
-function defaultTownState(): TownState {
+/**
+ * A `TownState` with nothing recoverable — used when the `core` chunk itself
+ * is lost, and reused as-is by callers of `loadBoot()` for a genuinely fresh
+ * install (`core === null`, nothing corrupt): both cases want the same
+ * "nothing exists yet" defaults, so this is exported rather than duplicated.
+ */
+export function defaultTownState(): TownState {
   return {
     townName: "우리 동네",
     nextPlotIndex: 0,

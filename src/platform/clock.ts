@@ -21,6 +21,22 @@ function toYmd(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * 'YYYY-MM-DD' -> local Date at midnight, for handing a date to a TDS
+ * date-picker component (`WheelDatePicker`) that requires a native `Date` —
+ * that's their API surface, not this app's; every other module still deals
+ * exclusively in 'YYYY-MM-DD' strings (§8.3). Exported from this file, not a
+ * component, because `new Date()` is banned everywhere else (§10.2 lint rule).
+ */
+export function ymdToDate(ymd: string): Date {
+  return new Date(`${ymd}T00:00:00`);
+}
+
+/** The inverse of `ymdToDate` — same "banned everywhere but here" reasoning. */
+export function dateToYmd(date: Date): string {
+  return toYmd(date);
+}
+
 // Dev-only TimeTravel override (§11.B) — set from the S7 devtools sheet.
 let timeTravelDate: string | null = null;
 // Anchor pair captured the moment travel starts: local midnight of the travel

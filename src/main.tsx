@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import config from "../granite.config.ts";
 import App from "./App.tsx";
 import "./index.css";
+import "./theme.ts";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
