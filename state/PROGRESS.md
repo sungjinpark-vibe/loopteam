@@ -5,18 +5,17 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (MVP spec) `done` — 90/100. T002 (scaffold +
-  foundational plumbing, client-dev/build) **running** via quality-loop, using the new
-  `gate/gate-node.ps1` (npm install → tsc --noEmit → npm run build → test if present — same
-  contract as `gate.ps1`, verified working 2026-08-02 against a real `create-ait-app` scaffold).
-  `quality-loop.js` now takes `args.gateScript` and `args.runHint` so non-Unity projects don't need
-  the Unity-specific defaults. The `npx create-ait-app` non-interactive flags (`--inline --pm npm
-  --template react-ts --tds --skills --ai claude`) were verified working too — the docs only showed
-  the interactive form. Director answered 4 of 16 T001 open decisions on Discord (2026-08-02): app
-  name stays a placeholder, art style must stay clearly clear of Fortune City (trademark risk),
-  monetization deferred, **React rubric substitution approved**. The other 12 decisions proceed on
-  the spec's own marked assumptions. Life Town and touchRPG remain paused, untouched. Discord
-  ENABLED both ways (rule 8, current). **Note**:
+- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (spec, 90/100) and T002 (foundational plumbing, 91/100
+  after one escalation + fix-forward round) both `done`. **T003 running** — first vertical slice
+  (town view + entry sheet, the loop's first demoable milestone). Uses `gate/gate-node.ps1` (npm
+  install → tsc --noEmit → npm run build → test → lint → gate:extra — same contract as `gate.ps1`).
+  `quality-loop.js` takes `args.gateScript` and `args.runHint` so non-Unity projects don't need the
+  Unity-specific defaults. The `npx create-ait-app` non-interactive flags (`--inline --pm npm
+  --template react-ts --tds --skills --ai claude`) work — the docs only showed the interactive form.
+  Director answered 4 of 16 T001 open decisions on Discord (2026-08-02): app name stays a placeholder,
+  art style must stay clearly clear of Fortune City (trademark risk), monetization deferred, **React
+  rubric substitution approved**. The other 12 decisions proceed on the spec's own marked assumptions.
+  Life Town and touchRPG remain paused, untouched. Discord ENABLED both ways (rule 8, current). **Note**:
   Discord replies are only auto-drained during an autonomous tick's scout step — while working
   in-session, re-check `.discord/incoming.log` manually after sending anything that expects a reply,
   don't assume silence means unanswered (confirmed 2026-08-02: a reply sat unread for a few minutes
@@ -38,9 +37,11 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **T002 running** — on completion, report score/result to the director, commit, then open T003
-   (first vertical slice: S2 town + S4 entry sheet, spec build-order step 2 — "the loop closes here").
-2. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
+1. **T003 running** — on completion, report to the director (this is the first genuinely demoable
+   milestone — send a screenshot/short clip, per the visual-deliverable rule, not just a text summary).
+2. After T003: step 3 of the build order (F4 slots, F7 streak, F5 tier, F14 queue, F15 무지출 데이 —
+   the retention layer).
+3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
 ## Open Items
@@ -66,14 +67,9 @@
 - None.
 
 ## Needs Human Review
-- **T002 (app_in_toss) escalated 2026-08-02** — hit the 5-round limit at 74/90 (history: 77,86,77,81,74,
-  never converged). Real, well-diagnosed engineering defects, not infra failure or a taste question —
-  PM already fixed one root cause (gate was missing lint enforcement) and reverted a boundary
-  violation (implementer self-edited the spec doc it was graded against). Reported to the director on
-  Discord. PM is attempting one focused fix-forward round before treating this as blocked-on-director;
-  if that also fails to converge, stop and bring the director a real choice rather than keep spending.
-  Full detail: `backlog/tasks/T002.md` Log.
-- None else active — T012's open decision was resolved by the director (flat-2D-art pivot approved) before
+- None active — T002's escalation (2026-08-02, 5-round limit at 74/90) was resolved by a focused
+  fix-forward round: 91/100 on the first try (commit 919a84a). Full detail: `backlog/tasks/T002.md`
+  Log. T012's open decision was resolved by the director (flat-2D-art pivot approved) before
   the whole project paused. Full detail: `lifetown/docs/paused-state/PROGRESS-lifetown.md`. On resume,
   start there — do not relitigate the 3D-vs-2D decision, it's made.
 - **Security note (2026-08-01 T012 run), resolved, kept for the pattern**: a QA evidence step ran
@@ -86,7 +82,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T002's result (running in background); report to the director; open T003 if it passed.
+1. Check on T003's result (running in background); this is the first visually demoable milestone —
+   send the director a screenshot, not just a score.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
