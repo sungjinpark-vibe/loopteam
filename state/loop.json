@@ -1,8 +1,8 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets. Keep this file SMALL: state values + short pointers only — narrative belongs in state/PROGRESS.md (cockpit) and state/journal.md (archive). Do not re-grow _state_reason/_paused_reason blobs here; a stale blob once carried a superseded channel rule (removed 2026-07-19).",
-  "tick": 56,
+  "tick": 57,
   "project": "app_in_toss",
-  "active_task": null,
+  "active_task": "T004",
   "last_tick_at": "2026-08-02 (in-session)",
   "consecutive_idle_ticks": 0,
   "paused": false,

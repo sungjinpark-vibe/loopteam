@@ -41,11 +41,9 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. Send the director screenshots of T003 (in progress — being captured via a QA subagent since the
-   PM has no direct browser/screenshot tool).
-2. Open T004: step 3 of the build order (F4 slots, F7 streak, F5 tier, F14 queue, F15 무지출 데이 —
-   the retention layer).
-3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
+1. **T004 running** (retention layer: F4 slots, F7 streak, F5 tier, F14 queue, F15 무지출 데이) —
+   director said 진행해줘 after seeing T003's screenshots. On completion, report to the director.
+2. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
 ## Open Items
@@ -86,7 +84,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Send the director the T003 screenshots once captured; then open T004.
+1. Check on T004's result (running in background); report to the director.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
