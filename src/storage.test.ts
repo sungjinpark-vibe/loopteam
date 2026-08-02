@@ -229,7 +229,7 @@ describe("chunked storage round-trip", () => {
     // from the entry; variantIndex is not (it lived only on the lost
     // QueuedMaterial) and is re-rolled to a fixed default.
     expect(boot.core?.town.queue).toEqual([
-      { entryId: "e-queued", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-07-11" },
+      { entryId: "e-queued", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-07-11", entryYm: "2026-07" },
     ]);
   });
 

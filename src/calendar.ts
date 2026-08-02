@@ -47,3 +47,13 @@ export function monthBefore(ym: string): string {
   const prev = shiftMonth(y, m, -1);
   return ymOnly(prev.y, prev.m);
 }
+
+/** 'YYYY-MM-DD' one calendar day before `dateStr` — F7's "was the previous act yesterday?" check. */
+export function dayBefore(dateStr: string): string {
+  const y = Number(dateStr.slice(0, 4));
+  const m = Number(dateStr.slice(5, 7));
+  const d = Number(dateStr.slice(8, 10));
+  if (d > 1) return ymd(y, m, d - 1);
+  const prev = shiftMonth(y, m, -1);
+  return ymd(prev.y, prev.m, daysInMonth(prev.y, prev.m));
+}

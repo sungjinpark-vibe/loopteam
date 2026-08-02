@@ -7,10 +7,10 @@
  * overturn for free, kept in one file so a rename never touches a component.
  */
 import { colors } from "@toss/tds-colors";
-import type { CategoryId, EntryType, ExpenseCategoryId, IncomeCategoryId } from "./types";
+import type { BuildingCategoryId, EntryType, ExpenseCategoryId, IncomeCategoryId } from "./types";
 
 export interface CategoryContent {
-  id: CategoryId;
+  id: BuildingCategoryId;
   label: string;
   icon: string; // single glyph — stands in for real art (spec §6.1 PlaceholderBuilding)
   color: string; // CSS colour, sourced from @toss/tds-colors tokens
@@ -36,7 +36,7 @@ const INCOME_CONTENT: Record<IncomeCategoryId, CategoryContent> = {
   other_income: { id: "other_income", label: "기타수입", icon: "💰", color: colors.teal500 },
 };
 
-export const CATEGORY_CONTENT: Record<CategoryId, CategoryContent> = {
+export const CATEGORY_CONTENT: Record<BuildingCategoryId, CategoryContent> = {
   ...EXPENSE_CONTENT,
   ...INCOME_CONTENT,
   // 저축 categories are out of this task's scope (F13, build order step 4) —
@@ -45,6 +45,10 @@ export const CATEGORY_CONTENT: Record<CategoryId, CategoryContent> = {
   goal: { id: "goal", label: "목표저축", icon: "🎯", color: colors.blue400 },
   invest: { id: "invest", label: "투자", icon: "📈", color: colors.purple400 },
   other_saving: { id: "other_saving", label: "기타저축", icon: "🪙", color: colors.grey400 },
+  // F15 무지출 데이 park tile — spec §6.1: "the rarest and most attractive
+  // asset in the set"; the placeholder just gets a distinct colour/icon so
+  // it reads as different from every spending/income category on sight.
+  park: { id: "park", label: "무지출 공원", icon: "🌳", color: colors.green600 },
 };
 
 export const CATEGORIES_BY_TYPE: Record<EntryType, CategoryContent[]> = {

@@ -7,7 +7,7 @@
  * argument supplied by the caller from the clock port. That is what makes
  * every selector unit-testable with no React and fully time-travelable.
  */
-import { daysInMonth as daysInMonthOf, monthBefore, parseYm, shiftMonth, ymOnly } from "./calendar";
+import { daysInMonth as daysInMonthOf, dayBefore, monthBefore, parseYm, shiftMonth, ymOnly } from "./calendar";
 import type { Building, CategoryId, EntryType, LedgerEntry, TownState } from "./types";
 
 // ── Layout constant (not a balance dial, spec §9 / §13 trade-off 9) ──
@@ -100,6 +100,22 @@ export function slotsRemainingToday(
   // same as `slotsUsedOn === today`.
   const used = town.slotsUsedOn < today ? 0 : town.slotsUsedToday;
   return Math.max(0, dailyBuildSlots - used);
+}
+
+/**
+ * F7 streak: advances `lastActOn`/`streakDays`/`longestStreakDays` for the
+ * day's first build-producing act (a new ledger entry that builds or queues,
+ * or a claimed 무지출 데이 — spec §5 F7). Idempotent within a day — a second
+ * act on the same day returns `town` completely unchanged ("two acts same
+ * day -> +1 total, not +2"). `longestStreakDays` never decreases.
+ */
+export function advanceStreak(
+  town: Pick<TownState, "lastActOn" | "streakDays" | "longestStreakDays">,
+  today: string,
+): Pick<TownState, "lastActOn" | "streakDays" | "longestStreakDays"> {
+  if (town.lastActOn === today) return town;
+  const streakDays = town.lastActOn === dayBefore(today) ? town.streakDays + 1 : 1;
+  return { lastActOn: today, streakDays, longestStreakDays: Math.max(town.longestStreakDays, streakDays) };
 }
 
 // ── Ledger selectors ──

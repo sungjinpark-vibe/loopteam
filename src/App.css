@@ -47,10 +47,26 @@
   padding: 20px 20px 12px;
 }
 
+.town-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .town-header-name {
   font-size: 20px;
   font-weight: 700;
   color: var(--town-grey900);
+}
+
+.town-header-tier-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--town-white);
+  background: var(--town-blue500);
 }
 
 .town-header-stats {
@@ -59,6 +75,18 @@
   gap: 8px;
   font-size: 14px;
   color: var(--town-grey600);
+}
+
+.town-header-queue-promise {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--town-blue500);
+}
+
+/* ── S2 무지출 데이 secondary action (F15) ── */
+
+.town-nospend-action {
+  margin: 4px 20px 12px;
 }
 
 .town-empty-state {

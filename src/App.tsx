@@ -3,30 +3,36 @@ import { Button, useToast } from "@toss/tds-mobile";
 import "./App.css";
 import { BALANCE } from "./balance.placeholder";
 import { EntrySheet } from "./components/EntrySheet";
+import { TierCelebration } from "./components/TierCelebration";
 import { TownGrid } from "./components/TownGrid";
 import { TownHeader } from "./components/TownHeader";
 import type { EntryDraft } from "./entryActions";
+import { tier as computeTier } from "./selectors";
 import { useTownStore } from "./useTownStore";
 
 /**
- * S2 (우리 동네) + S4 (입력 시트) — MVP-SPEC build order step 2: "F1+F2+F3 = the
- * loop closes here." Log an entry -> a building appears -> reload -> it's
- * still there (storage round-trips via `useTownStore` / T002's `storage.ts`).
+ * S2 (우리 동네) + S4 (입력 시트) — MVP-SPEC build order.
+ * Step 2 (T003) closed F1+F2+F3's loop. This task (step 3) adds the
+ * retention layer: F4 slot reset, F14 materials queue, F5 tier celebration,
+ * F7 streak, F15 무지출 데이.
  */
 function App() {
   const store = useTownStore();
-  const { corruptionNotice, dismissCorruptionNotice } = store;
+  const { notice, dismissNotice } = store;
   const [sheetOpen, setSheetOpen] = useState(false);
   const { openToast } = useToast();
 
-  // F10: "a visible one-time notice, never a white screen" for recovered
-  // storage corruption. Fires once per boot (dismissed right after showing)
-  // — this is the only screen in this task that could surface it.
+  // One-shot notices (F10 recovered corruption, F14 "return promise kept" on
+  // boot, F5 tier celebration) share one FIFO queue (useTownStore.ts's
+  // `Notice`) — every kind but "tier" surfaces here as a toast and is popped
+  // immediately; "tier" is rendered as the full-screen overlay below instead
+  // and pops itself via `TierCelebration`'s `onDismiss`.
   useEffect(() => {
-    if (corruptionNotice === null) return;
-    openToast(corruptionNotice);
-    dismissCorruptionNotice();
-  }, [corruptionNotice, dismissCorruptionNotice, openToast]);
+    if (notice === null || notice.kind === "tier") return;
+    const message = notice.kind === "corruption" ? notice.message : `밀렸던 건물 ${notice.count}채가 오늘 아침에 완성됐어요!`;
+    openToast(message);
+    dismissNotice();
+  }, [notice, dismissNotice, openToast]);
 
   if (store.loading) {
     return <div className="town-loading">불러오는 중…</div>;
@@ -35,13 +41,24 @@ function App() {
   function handleSave(draft: EntryDraft) {
     const result = store.addEntry(draft);
     setSheetOpen(false);
-    // F14 (the materials queue) is out of this task's scope, but the entry
-    // still needs to say plainly it saved without a building — "saved,
-    // no building today" must never look like "nothing happened".
-    if (result.building === null) {
-      openToast("저장했어요. 오늘 건축 슬롯을 모두 써서 건물은 짓지 못했어요.");
+    // F14: a save with zero slots either queues (return-promise toast) or,
+    // once the queue itself is full, overflows plainly — never a silent no-op.
+    if (result.queued) {
+      // `result.queueLength` is the queue's length AFTER this save (post-push) —
+      // `store.queueLength` would read the PRE-save value here, from the
+      // render closure captured before `addEntry`'s state commit re-renders.
+      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`);
+    } else if (result.queueOverflow) {
+      openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
     }
   }
+
+  function handleClaimNoSpend() {
+    const claimed = store.claimNoSpend();
+    if (claimed) openToast("오늘은 무지출! 공원이 생겼어요.");
+  }
+
+  const tier = computeTier(store.buildingCount, BALANCE.tierThresholds);
 
   return (
     <div className="town-screen">
@@ -56,7 +73,18 @@ function App() {
         buildingCount={store.buildingCount}
         slotsRemaining={store.slotsRemaining}
         dailyBuildSlots={store.dailyBuildSlots}
+        tier={tier}
+        streakDays={store.streakDays}
+        queueLength={store.queueLength}
       />
+
+      {store.canClaimNoSpend && (
+        <div className="town-nospend-action">
+          <Button as="button" color="primary" variant="weak" size="medium" display="block" onClick={handleClaimNoSpend}>
+            오늘 무지출!
+          </Button>
+        </div>
+      )}
 
       {store.buildingCount === 0 ? (
         <div className="town-empty-state">
@@ -82,6 +110,8 @@ function App() {
       </Button>
 
       <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
+
+      <TierCelebration tier={notice?.kind === "tier" ? notice.tier : null} onDismiss={dismissNotice} />
     </div>
   );
 }

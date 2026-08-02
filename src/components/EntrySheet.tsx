@@ -185,7 +185,11 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
                 as="button"
                 selected={c.id === categoryId}
                 left={<span aria-hidden="true">{c.icon}</span>}
-                onClick={() => setCategoryId(c.id)}
+                // `c.id` types as `BuildingCategoryId` only because `CategoryContent`
+                // also describes F15's park tile (content.placeholder.ts); `categories`
+                // here is always CATEGORIES_BY_TYPE[expense|income], which never
+                // contains "park" at runtime.
+                onClick={() => setCategoryId(c.id as CategoryId)}
               >
                 {c.label}
               </ChipItem>
@@ -196,6 +200,13 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
             title="날짜 선택"
             triggerLabel="날짜"
             value={ymdToDate(date)}
+            // TDS's WheelDatePicker only reads `value` for the trigger's
+            // displayed text — the wheel itself opens at `initialDate`
+            // (component default: `new Date()`, the REAL device date). Under
+            // TimeTravel that silently disagreed with `date`/`today`: opening
+            // the picker and tapping 적용 with no scroll rewrote the entry to
+            // the real machine date (round-2 finding C1, QA evidence).
+            initialDate={ymdToDate(date)}
             max={ymdToDate(today)}
             onChange={(d) => setDate(dateToYmd(d))}
           />

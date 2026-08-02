@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   TOWN_COLUMNS,
+  advanceStreak,
   budgetPace,
   buildingCount,
   canClaimNoSpend,
@@ -209,6 +210,34 @@ describe("canClaimNoSpend", () => {
   it("is false if already claimed today", () => {
     const claimedToday = { ...town, noSpendDays: ["2026-08-02"] };
     expect(canClaimNoSpend([], claimedToday, "2026-08-02", 5, true)).toBe(false);
+  });
+});
+
+// ── advanceStreak — F7 ──
+describe("advanceStreak", () => {
+  it("a second act the same day leaves town completely unchanged (+1 total, not +2)", () => {
+    const town = { lastActOn: "2026-08-02", streakDays: 3, longestStreakDays: 5 };
+    expect(advanceStreak(town, "2026-08-02")).toBe(town); // same reference — truly a no-op
+  });
+
+  it("increments when the previous act was exactly yesterday", () => {
+    const town = { lastActOn: "2026-08-01", streakDays: 3, longestStreakDays: 5 };
+    expect(advanceStreak(town, "2026-08-02")).toEqual({ lastActOn: "2026-08-02", streakDays: 4, longestStreakDays: 5 });
+  });
+
+  it("resets to 1 after skipping a day, but longestStreakDays is retained", () => {
+    const town = { lastActOn: "2026-07-30", streakDays: 10, longestStreakDays: 10 };
+    expect(advanceStreak(town, "2026-08-02")).toEqual({ lastActOn: "2026-08-02", streakDays: 1, longestStreakDays: 10 });
+  });
+
+  it("longestStreakDays advances when a new streak exceeds the old record", () => {
+    const town = { lastActOn: "2026-08-01", streakDays: 5, longestStreakDays: 5 };
+    expect(advanceStreak(town, "2026-08-02")).toEqual({ lastActOn: "2026-08-02", streakDays: 6, longestStreakDays: 6 });
+  });
+
+  it("first-ever act (lastActOn null) starts the streak at 1", () => {
+    const town = { lastActOn: null, streakDays: 0, longestStreakDays: 0 };
+    expect(advanceStreak(town, "2026-08-02")).toEqual({ lastActOn: "2026-08-02", streakDays: 1, longestStreakDays: 1 });
   });
 });
 

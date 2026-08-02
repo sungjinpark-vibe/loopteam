@@ -27,6 +27,21 @@ export type SavingCategoryId = "emergency" | "goal" | "invest" | "other_saving";
 
 export type CategoryId = ExpenseCategoryId | IncomeCategoryId | SavingCategoryId;
 
+// F15 무지출 데이 park tile — a visual-only pseudo-category, never chosen on a
+// LedgerEntry (a claimed no-spend day has no ledger entry, only a Building
+// with `source.kind === 'nospend'`). Task-level deviation from the spec's
+// "categoryId: null for nospend/monument" note (§8.1): giving the park tile
+// its own category id lets it render through PlaceholderBuilding's existing
+// category-colour/icon/roof interface with no second component. Monument
+// buildings (F16, out of scope here) still use `categoryId: null`.
+export type ParkCategoryId = "park";
+
+// Building-only widening — kept OUT of `CategoryId` (round-2 finding C3) so
+// `LedgerEntry`/`EntryDraft` stay honest to real categories at the type
+// level, not just by runtime convention (CATEGORIES_BY_TYPE never lists
+// "park"). Only `Building.categoryId` and PlaceholderBuilding accept this.
+export type BuildingCategoryId = CategoryId | ParkCategoryId;
+
 export interface LedgerEntry {
   id: string; // nanoid
   type: EntryType;
@@ -50,7 +65,7 @@ export type BuildingSource =
 export interface Building {
   id: string;
   source: BuildingSource;
-  categoryId: CategoryId | null; // null for nospend/monument
+  categoryId: BuildingCategoryId | null; // null for monument; 'park' only for nospend
   variantIndex: number; // category variant, park variant 0, or monument outcome bucket
   plotIndex: number; // monotonic; plot = plotFromIndex(plotIndex) — absolute, never reflows
   builtOn: string; // 'YYYY-MM-DD'
@@ -64,6 +79,12 @@ export interface QueuedMaterial {
   categoryId: CategoryId;
   variantIndex: number; // rolled at queue time so the reward is already determined
   queuedOn: string; // 'YYYY-MM-DD'; may never build on this same date
+  // 'YYYY-MM' of the ORIGINAL entry's `occurredOn` — the ledger chunk the
+  // drain must patch (buildingId/queued) once this material builds. Distinct
+  // from `queuedOn`'s month whenever the entry was backdated to a different
+  // month than the day it queued (round-2 finding C2 #2) — using
+  // `queuedOn`'s month there silently patches the wrong (or no) chunk.
+  entryYm: string;
 }
 
 /** Frozen at settlement; never recomputed (past months must not change retroactively). */

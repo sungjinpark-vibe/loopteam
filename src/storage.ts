@@ -147,13 +147,18 @@ function recoverNoSpendDays(buildings: readonly Building[]): string[] {
 function recoverQueue(entries: readonly LedgerEntry[]): QueuedMaterial[] {
   return entries
     .filter((e) => e.queued)
-    .map((e) => ({ entryId: e.id, categoryId: e.categoryId, variantIndex: 0, queuedOn: e.occurredOn }));
+    .map((e) => ({ entryId: e.id, categoryId: e.categoryId, variantIndex: 0, queuedOn: e.occurredOn, entryYm: e.occurredOn.slice(0, 7) }));
 }
 
 const nowMs = (): number => performance.now();
 
-/** Yields one macrotask so the browser can paint/handle input between batches (§10.4 main-thread budget). */
-function yieldToMainThread(): Promise<void> {
+/**
+ * Yields one macrotask so the browser can paint/handle input between
+ * batches (§10.4 main-thread budget). Exported so other main-thread-bounded
+ * work (e.g. `useTownStore.ts`'s F14 boot-time queue drain) can reuse the
+ * same yield primitive instead of re-implementing it.
+ */
+export function yieldToMainThread(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 

@@ -402,7 +402,7 @@ function capExceeded(): Fixture {
       );
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId }));
     } else {
-      queue.push({ entryId: id, categoryId, variantIndex, queuedOn: today });
+      queue.push({ entryId: id, categoryId, variantIndex, queuedOn: today, entryYm: today.slice(0, 7) });
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId: null, queued: true }));
     }
   }
@@ -452,7 +452,7 @@ function queueFull(): Fixture {
       );
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId }));
     } else if (queue.length < queueMax) {
-      queue.push({ entryId: id, categoryId, variantIndex, queuedOn: today });
+      queue.push({ entryId: id, categoryId, variantIndex, queuedOn: today, entryYm: today.slice(0, 7) });
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId: null, queued: true }));
     } else {
       // Overflow past materialQueueMax — still recorded in 기록, no material at all.

@@ -10,10 +10,10 @@
 import { memo } from "react";
 import { colors } from "@toss/tds-colors";
 import { CATEGORY_CONTENT } from "../content.placeholder";
-import type { CategoryId } from "../types";
+import type { BuildingCategoryId } from "../types";
 
 export interface BuildingVisualProps {
-  categoryId: CategoryId | null;
+  categoryId: BuildingCategoryId | null;
   variantIndex: number;
   /** Plays the rise-in animation once, for a building just created this session. */
   justBuilt?: boolean;

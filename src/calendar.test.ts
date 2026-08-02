@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysInMonth, isLeapYear, monthBefore, parseYm, shiftMonth, ymd, ymOnly } from "./calendar";
+import { dayBefore, daysInMonth, isLeapYear, monthBefore, parseYm, shiftMonth, ymd, ymOnly } from "./calendar";
 
 // ── isLeapYear / daysInMonth — the leap-year branch selectors.ts's budgetPace
 // depends on (a wrong February silently skews the pace bar / moodTier). ──
@@ -67,6 +67,22 @@ describe("monthBefore", () => {
   });
   it("wraps backward across a year boundary", () => {
     expect(monthBefore("2026-01")).toBe("2025-12");
+  });
+});
+
+describe("dayBefore", () => {
+  it("normal case within a month", () => {
+    expect(dayBefore("2026-08-02")).toBe("2026-08-01");
+  });
+  it("wraps backward across a month boundary", () => {
+    expect(dayBefore("2026-08-01")).toBe("2026-07-31");
+  });
+  it("wraps backward across a year boundary", () => {
+    expect(dayBefore("2026-01-01")).toBe("2025-12-31");
+  });
+  it("respects leap-year February length", () => {
+    expect(dayBefore("2024-03-01")).toBe("2024-02-29");
+    expect(dayBefore("2026-03-01")).toBe("2026-02-28");
   });
 });
 
