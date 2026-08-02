@@ -23,12 +23,19 @@ function toYmd(date: Date): string {
 
 // Dev-only TimeTravel override (§11.B) — set from the S7 devtools sheet.
 let timeTravelDate: string | null = null;
+// Anchor pair captured the moment travel starts: local midnight of the travel
+// date, plus the real Date.now() at that instant. now() during travel is
+// `travelMidnight + realElapsedSinceAnchor` — monotonic (Date.now() only
+// advances) and immune to timezone wraparound. The previous implementation
+// used `Date.now() % 86_400_000` (ms since UTC midnight), which is off by the
+// local UTC offset and resets to 0 whenever local time crosses UTC midnight —
+// in KST that's 09:00, which could make createdAt jump backwards mid-session.
+let timeTravelAnchorMs = 0;
+let timeTravelBaseMs = 0;
 
 export const browserClock: ClockPort = {
   today: () => timeTravelDate ?? toYmd(new Date()),
-  // When time-traveling, timestamps still advance within the overridden day
-  // so ordering (e.g. recentMemos) stays sane instead of freezing at noon.
-  now: () => (timeTravelDate ? new Date(`${timeTravelDate}T00:00:00`).getTime() + (Date.now() % 86_400_000) : Date.now()),
+  now: () => (timeTravelDate ? timeTravelBaseMs + (Date.now() - timeTravelAnchorMs) : Date.now()),
 };
 
 /** Toss driver — later column says "unchanged" (spec §10.2): device date is device date on either host. */
@@ -39,6 +46,10 @@ export const clock: ClockPort = browserClock;
 /** Dev-only: set/clear the date `clock.today()` returns. `null` restores the real device date. */
 export function setTimeTravelDate(dateOrNull: string | null): void {
   timeTravelDate = dateOrNull;
+  if (dateOrNull) {
+    timeTravelAnchorMs = Date.now();
+    timeTravelBaseMs = new Date(`${dateOrNull}T00:00:00`).getTime();
+  }
 }
 
 /** Dev-only: read the current TimeTravel override, for the S7 inspector. */

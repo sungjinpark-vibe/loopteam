@@ -102,6 +102,20 @@ describe("chunked storage round-trip", () => {
     expect(bootAfterIndexCorruption.corrupted.some((c) => c.key === "ait.v1.index")).toBe(true);
   });
 
+  it("every method survives being destructured off the client (the normal React-hook consumption pattern)", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    const core = { town, budget, onboarded: true };
+    const { saveEntriesForMonth, saveBuildingsForMonth, loadBoot } = client;
+
+    saveEntriesForMonth("2026-08", [entry], core);
+    saveBuildingsForMonth("2026-08", [building]);
+    const boot = loadBoot();
+
+    expect(boot.core).toEqual(core);
+    expect(boot.buildings).toEqual([building]);
+  });
+
   it("clearAll removes every known chunk plus core and index", () => {
     const port = makeFakePort();
     const client = createChunkedStorage(port);

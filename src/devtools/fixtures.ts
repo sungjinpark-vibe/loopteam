@@ -271,7 +271,11 @@ function oneMonth(): Fixture {
     seq,
     plotCursor,
   });
-  const today = "2026-08-01";
+  // `today` must fall inside the generated month (2026-07) — otherwise the
+  // current month has zero entries and monthTotal/budgetPace are both 0,
+  // defeating this fixture's job ("the normal case, the donut, the pace
+  // bar"). Last day of July: the whole month's data has "occurred" by then.
+  const today = "2026-07-31";
   const cumulativeSavingsKrw = entries.filter((e) => e.type === "saving").reduce((sum, e) => sum + e.amountKrw, 0);
   const town: TownState = {
     ...freshTown(today),

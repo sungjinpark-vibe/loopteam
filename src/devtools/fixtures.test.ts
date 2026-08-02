@@ -3,6 +3,7 @@ import { createChunkedStorage } from "../storage";
 import { BALANCE } from "../balance.placeholder";
 import { FIXTURES, loadFixtureIntoStorage } from "./fixtures";
 import type { StoragePort } from "../platform/storage";
+import { budgetPace, monthTotal } from "../selectors";
 
 function makeFakePort(): StoragePort {
   const map = new Map<string, string>();
@@ -34,6 +35,17 @@ describe("fixture shapes match their spec §11 role", () => {
     const f = FIXTURES.oneMonth();
     expect(f.entries.length).toBeCloseTo(90, -1);
     expect(f.budget.monthlyBudgetKrw).not.toBeNull();
+  });
+
+  it("oneMonth's `today` falls inside its own data — the donut and pace bar are non-empty", () => {
+    const f = FIXTURES.oneMonth();
+    const currentPeriod = f.today.slice(0, 7);
+    // Every generated entry must actually land in the period `today` belongs to.
+    expect(f.entries.every((e) => e.occurredOn.slice(0, 7) === currentPeriod)).toBe(true);
+    expect(monthTotal(f.entries, currentPeriod, "expense")).toBeGreaterThan(0);
+    const pace = budgetPace(f.entries, currentPeriod, f.budget.monthlyBudgetKrw, f.today);
+    expect(pace).not.toBeNull();
+    expect(pace as number).toBeGreaterThan(0);
   });
 
   it("dense has ~5,400 buildings, 36 monuments, and a full tower", () => {
@@ -97,14 +109,22 @@ describe("loadFixtureIntoStorage", () => {
     const port = makeFakePort();
     const client = createChunkedStorage(port);
     const fixture = FIXTURES.corrupt();
+    const currentPeriod = fixture.today.slice(0, 7);
+
+    // Precondition: the fixture actually has real entries in the period it's
+    // about to mangle — otherwise mangling that chunk proves nothing (it was
+    // never registered/written in the first place).
+    expect(fixture.entries.some((e) => e.occurredOn.slice(0, 7) === currentPeriod)).toBe(true);
+
     loadFixtureIntoStorage(fixture, client, port);
 
     // Buildings/core/index are untouched — only the entries chunk was mangled (§10 F10 AC).
     const boot = client.loadBoot();
     expect(boot.corrupted).toEqual([]);
     expect(boot.core).toEqual({ town: fixture.town, budget: fixture.budget, onboarded: true });
+    expect(boot.buildings.length).toBe(fixture.buildings.length); // buildings chunk unaffected
 
-    const { entries, corrupt } = client.loadEntriesForMonth(fixture.today.slice(0, 7));
+    const { entries, corrupt } = client.loadEntriesForMonth(currentPeriod);
     expect(corrupt).toBe(true);
     expect(entries).toEqual([]); // quarantined, not thrown
   });

@@ -48,8 +48,10 @@ export default tseslint.config(
   {
     // MVP-SPEC §10.2: `new Date()` / `Date.now()` are banned outside the clock
     // port — that's what makes the whole app time-travelable (§11 TimeTravel).
+    // clock.test.ts is exempt too: asserting the port's own behavior legitimately
+    // needs to build expected Date values independent of the port under test.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/platform/clock.ts"],
+    ignores: ["src/platform/clock.ts", "src/platform/clock.test.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",

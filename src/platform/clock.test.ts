@@ -27,4 +27,23 @@ describe("clock port TimeTravel", () => {
     expect(Number.isFinite(ms)).toBe(true);
     expect(ms).toBeGreaterThan(0);
   });
+
+  it("now() is anchored to local midnight of the travel date, not UTC time-of-day", () => {
+    setTimeTravelDate("2026-08-02");
+    const ms = browserClock.now();
+    const localMidnight = new Date("2026-08-02T00:00:00").getTime();
+    // Must land at/just after local midnight of the travel date (real elapsed
+    // time since travel started), never wrapped by a `Date.now() % 86_400_000`
+    // UTC-time-of-day calculation.
+    expect(ms).toBeGreaterThanOrEqual(localMidnight);
+    expect(ms).toBeLessThan(localMidnight + 60_000);
+  });
+
+  it("now() never moves backward while the travel date is held", () => {
+    setTimeTravelDate("2026-08-02");
+    const readings = [browserClock.now(), browserClock.now(), browserClock.now()];
+    for (let i = 1; i < readings.length; i++) {
+      expect(readings[i]).toBeGreaterThanOrEqual(readings[i - 1]);
+    }
+  });
 });

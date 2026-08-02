@@ -85,6 +85,10 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     writeJson(port, INDEX_KEY, index);
   }
 
+  function saveCore(core: CoreState): void {
+    writeJson(port, CORE_KEY, core);
+  }
+
   return {
     /** Boot read: index + core + every building chunk (§8.4). Entry chunks load lazily. */
     loadBoot(): BootState {
@@ -126,14 +130,12 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       return { buildings: result.value ?? [], corrupt: false };
     },
 
-    saveCore(core: CoreState): void {
-      writeJson(port, CORE_KEY, core);
-    },
+    saveCore,
 
     /** Save one month's entries + core — exactly two `set` calls when the month is already known (F10 AC). */
     saveEntriesForMonth(ym: string, entries: LedgerEntry[], core: CoreState): void {
       writeJson(port, entriesKey(ym), entries);
-      this.saveCore(core);
+      saveCore(core);
       registerMonth("entryMonths", ym);
     },
 

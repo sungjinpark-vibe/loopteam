@@ -12,10 +12,36 @@ export interface StoragePort {
   remove(key: string): void;
 }
 
+// `localStorage` access can throw: QuotaExceededError (reachable — §8.4's own
+// dense estimate is ~400KB of buildings), disabled/partitioned storage, or
+// private-mode restrictions in some browsers. F10 rules out a white screen
+// for a corrupt chunk; the same guarantee has to hold for a storage call that
+// throws outright, so every op is caught here — the one place all callers
+// route through — rather than in each caller.
 export const browserStorage: StoragePort = {
-  get: (key) => window.localStorage.getItem(key),
-  set: (key, value) => window.localStorage.setItem(key, value),
-  remove: (key) => window.localStorage.removeItem(key),
+  get(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null; // treated as "absent", same as a fresh install
+    }
+  },
+  set(key, value) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // ponytail: write silently dropped (quota/blocked storage) — in-memory
+      // state for this session is still correct; add a user-visible warning
+      // if this shows up in the wild.
+    }
+  },
+  remove(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // best-effort — nothing to roll back to if this fails
+    }
+  },
 };
 
 /**

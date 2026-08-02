@@ -1,17 +1,7 @@
 import { Asset, Button, Top } from "@toss/tds-mobile";
 import "./App.css";
-{
-  {
-    SAMPLE_IMPORTS;
-  }
-}
 
 function App() {
-  {
-    {
-      PAGE_STATE_AND_ROUTES;
-    }
-  }
   return (
     <>
       <Top
@@ -49,7 +39,6 @@ function App() {
         >
           개발자 커뮤니티
         </Button>
-        {{ SAMPLE_BUTTONS }}
       </div>
 
       <div
