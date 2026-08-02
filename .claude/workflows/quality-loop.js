@@ -443,7 +443,10 @@ ${revised.proposal}
 
 // ═══ BUILD MODE ══════════════════════════════════════════════════════════════
 const APP_DIR = a.appDir
-if (!APP_DIR) return { ok: false, mode: 'build', error: 'build mode requires args.appDir (the Unity project to gate)' }
+if (!APP_DIR) return { ok: false, mode: 'build', error: 'build mode requires args.appDir (the project to gate)' }
+// Defaults to the Unity gate — pass a.gateScript for non-Unity projects (e.g.
+// gate/gate-node.ps1 for React/TS apps). Same JSON/exit-code contract either way.
+const GATE_SCRIPT = a.gateScript ?? 'C:\\Users\\user\\loop_engine\\gate\\gate.ps1'
 
 function implementPrompt(round, feedback) {
   if (round === 1) {
@@ -509,7 +512,7 @@ while (round < MAX_ROUNDS) {
     `Run the mechanical gate. Do not fix anything. Do not run it twice.
 
 Command (run exactly this):
-  powershell -NoProfile -File "C:\\Users\\user\\loop_engine\\gate\\gate.ps1" -AppDir "${APP_DIR}" -JsonOut "C:\\Users\\user\\loop_engine\\state\\gate-result.json"
+  powershell -NoProfile -File "${GATE_SCRIPT}" -AppDir "${APP_DIR}" -JsonOut "C:\\Users\\user\\loop_engine\\state\\gate-result.json"
 
 Then read C:\\Users\\user\\loop_engine\\state\\gate-result.json and report its contents verbatim, plus
 the exit code. pass = (exit code was 0). Copy the detail strings as-is.`,
@@ -548,8 +551,7 @@ ${BRIEF}${CONTEXT}
 ${impl.howToVerify}
 
 ## Your job
-1. Run it. Unity is the stack — drive it via PlayMode/EditMode or a player build, whichever actually
-   exercises this flow. The mechanical gate already proved it compiles; prove it BEHAVES.
+1. Run it. ${a.runHint ?? 'Unity is the stack — drive it via PlayMode/EditMode or a player build, whichever actually exercises this flow.'} The mechanical gate already proved it builds; prove it BEHAVES.
 2. Drive the flow above, step by step.
 3. For each step record: what you did, and what ACTUALLY happened on screen.
 4. Capture screenshots of changed screens. Report absolute paths.
