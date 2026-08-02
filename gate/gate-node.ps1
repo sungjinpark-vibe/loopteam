@@ -161,6 +161,35 @@ if ($testScript) {
   Add-Check "test" $true "no test script found (WARNING: not a pass signal - the rubric may deduct for this)"
 }
 
+# ── 5. Lint (not skipped when present — a rubric may claim lint is enforced) ──
+if ($pkg.scripts -and $pkg.scripts.lint) {
+  $r = Invoke-Cmd "npm run lint" $AppDir $TimeoutMinutes
+  if ($r.timedOut) {
+    Add-Check "lint" $false "TIMEOUT after $TimeoutMinutes min running 'npm run lint'"
+  } else {
+    $lintOk = ($r.exitCode -eq 0)
+    Add-Check "lint" $lintOk ("exit=$($r.exitCode)" + $(if (-not $lintOk) { Get-Excerpt $r.output } else { "" }))
+  }
+} else {
+  Add-Check "lint" $true "no lint script found - skipped"
+}
+
+# ── 6. Project-defined extra checks (e.g. a fixture-not-in-production-bundle
+# assertion) — this script stays stack-generic; a project defines its own via
+# a "gate:extra" script in its own package.json, same pattern as EditMode
+# tests being project-specific for the Unity gate. ──
+if ($pkg.scripts -and $pkg.scripts.'gate:extra') {
+  $r = Invoke-Cmd "npm run gate:extra" $AppDir $TimeoutMinutes
+  if ($r.timedOut) {
+    Add-Check "gate:extra" $false "TIMEOUT after $TimeoutMinutes min running 'npm run gate:extra'"
+  } else {
+    $extraOk = ($r.exitCode -eq 0)
+    Add-Check "gate:extra" $extraOk ("exit=$($r.exitCode)" + $(if (-not $extraOk) { Get-Excerpt $r.output } else { "" }))
+  }
+} else {
+  Add-Check "gate:extra" $true "no 'gate:extra' script found - skipped"
+}
+
 # ── Verdict ──
 $allPass = @($script:checks | Where-Object { -not $_.pass }).Count -eq 0
 Write-Result $allPass
