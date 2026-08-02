@@ -5,14 +5,18 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (spec, 90/100), T002 (foundational plumbing, 91/100
-  after one escalation), and **T003 (first demoable slice — town view + entry sheet, 92/100 after 5
-  rounds)** all `done`. The loop works end to end in a real browser: empty town → log an entry →
-  building appears → hard reload → persists. Screenshots being captured to send the director. Small
-  follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap), bundle-size
-  re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
-  Uses `gate/gate-node.ps1` (npm install → tsc --noEmit → npm run build → test → lint → gate:extra —
-  same contract as `gate.ps1`).
+- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (spec, 90), T002 (plumbing, 91), T003 (first demoable
+  slice, 92), and **T004 (retention layer — slots/streak/tier/queue/no-spend day, 95/100 after 3
+  rounds)** all `done`. The MVP core loop + retention mechanics all work end to end in a real browser
+  (verified live via the TimeTravel dev tool). Small follow-ups logged, not blocking: a pre-existing
+  TDS dialog quirk (backdrop double-tap), bundle-size re-measurement once real routes exist — see
+  `backlog/tasks/T003.md` Log. **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through
+  T004** (root tsconfig.json's project-references shape made plain `tsc --noEmit` check zero files) —
+  found by T004's implementer, fixed 2026-08-03, re-verified against app_in_toss. Everything T002-T004
+  already shipped was independently confirmed clean via `tsc -p tsconfig.app.json` at the time, so
+  nothing shipped is retroactively suspect — only the gate's own signal was blind, now fixed.
+  Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
+  test → lint → gate:extra — same contract as `gate.ps1`).
   `quality-loop.js` takes `args.gateScript` and `args.runHint` so non-Unity projects don't need the
   Unity-specific defaults. The `npx create-ait-app` non-interactive flags (`--inline --pm npm
   --template react-ts --tds --skills --ai claude`) work — the docs only showed the interactive form.
@@ -41,9 +45,12 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **T004 running** (retention layer: F4 slots, F7 streak, F5 tier, F14 queue, F15 무지출 데이) —
-   director said 진행해줘 after seeing T003's screenshots. On completion, report to the director.
-2. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
+1. Report T004's result to the director (score + what it means in plain terms; a screenshot of the
+   tier celebration or streak counter would be a good visual, same pattern as T003).
+2. Open T005: build order step 4 (§12) — S3 기록/history + F9 edit/delete + F6 budget/mood + F13
+   저축탑 + S6 settings + F12 export/import. This is a bigger step than T002-T004; consider whether to
+   split it (e.g. 기록 view first, then edit/delete + budget/mood, then 저축탑/export separately).
+3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
 ## Open Items
@@ -84,7 +91,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T004's result (running in background); report to the director.
+1. Report T004 to the director, then open T005 (likely split — see ▶ Next above).
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
@@ -148,6 +155,16 @@
   content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
   a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
   hash match, nothing changed.
+
+## Do Not Repeat (addendum, 2026-08-03)
+- **A root `tsconfig.json` shaped as `{"files": [], "references": [...]}` (the standard Vite
+  project-references scaffold) makes a plain `npx tsc --noEmit` check ZERO files and report success
+  trivially — the errors it should catch simply never surface.** Found in `gate/gate-node.ps1`
+  (T004, app_in_toss): the typecheck check had silently been a no-op since T002. When writing or
+  reviewing any typecheck step (gate script, CI config, a subagent's self-verification instructions)
+  for a TS project, check whether the root tsconfig has `references` first — if so, check each
+  referenced project's tsconfig explicitly (`tsc --noEmit -p <path>` per reference), never the root
+  config alone.
 
 ## Do Not Repeat (addendum, 2026-08-02, cont'd)
 - **The PM has no direct browser/screenshot tool.** For a live web app (React/Vite, not an HTML
