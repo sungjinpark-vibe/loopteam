@@ -201,7 +201,7 @@ button.town-fab {
 .entry-sheet-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   padding-bottom: 8px;
 }
 
@@ -210,7 +210,7 @@ button.town-fab {
   align-items: baseline;
   justify-content: center;
   gap: 4px;
-  padding: 12px 0;
+  padding: 8px 0;
   font-size: 32px;
   font-weight: 700;
   color: var(--town-grey900);
@@ -229,10 +229,34 @@ button.town-fab {
   color: var(--town-grey600);
 }
 
-/* Wrapping icon grid, not a horizontal scroller — all categories for the
- * selected type stay on screen at once (spec §5 F1 "icon grid"). */
+/* Fixed 5-column icon grid, not a horizontal scroller and not a free-flowing
+ * wrap — all categories for the selected type stay on screen at once, at a
+ * predictable tile size (spec §5 F1 "icon grid"; round-5 fix, C1 finding).
+ * `> *` stretches each ChipItem to fill its column instead of the chip's own
+ * intrinsic (content-based) width. */
 .category-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
+}
+
+.category-grid > * {
+  width: 100%;
+  justify-content: center;
+}
+
+/* TDS's `NumberKeypad` defaults to a 64px row (256px for 4 rows) — with
+ * `!important` because the row height/font-size come from an emotion `css`
+ * prop baked into the library's own runtime stylesheet, which is injected
+ * after this static one and wins any same-specificity tie regardless of
+ * source order (same reasoning as `button.town-fab` above). Compacted so the
+ * amount readout + keypad + category grid + date + memo all fit the 390x844
+ * reference viewport at once (round-5 fix, C1 finding). */
+.entry-keypad {
+  font-size: 22px !important;
+}
+
+.entry-keypad td {
+  height: 40px !important;
+  line-height: 40px !important;
 }

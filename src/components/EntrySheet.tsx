@@ -9,16 +9,20 @@
  * sub-aspect, VISION.md): `SegmentedControl` for the type row, `NumberKeypad`
  * + a plain amount display for the amount (spec §6 S4 key elements: "numeric
  * keypad · amount display", not the OS keyboard), `WheelDatePicker` for the
- * date chip, `ChipItem` (in a wrapping grid, not TDS's `<Chip>` — that wraps
- * children in a horizontal scroller by design) for the category grid, and
- * `ConfirmDialog` for the touched-and-dismissing confirm (native
+ * date chip, `ChipItem` (in a fixed-column grid, not TDS's `<Chip>` — that
+ * wraps children in a horizontal scroller by design) for the category grid,
+ * and `ConfirmDialog` for the touched-and-dismissing confirm (native
  * `window.confirm` blocks the main thread while open, and an Android WebView
  * host with no JS-confirm handler registered can suppress it outright).
  *
- * Field order in the DOM mirrors F1's spec order (type -> amount -> category
- * -> date -> memo); `NumberKeypad` sits directly under the amount readout —
- * not after date/memo — so amount entry never needs the sheet scrolled at
- * the 390x844 reference viewport.
+ * Fits the 390x844 reference viewport with no scroll trade-off (round-5 fix,
+ * C1 finding): `maxHeight="92vh"` on `BottomSheet` (TDS's own default is
+ * 70vh, which left only ~473px for header+body+cta combined — not enough for
+ * every field at once regardless of internal compaction), plus a compact
+ * keypad (`.entry-keypad` in App.css overrides TDS's default 64px/row) and a
+ * real 5-column icon grid for categories (`.category-grid`, App.css) instead
+ * of a free-flowing wrap. Field order in the DOM mirrors F1's spec order
+ * (type -> amount -> category -> date -> memo).
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -34,6 +38,7 @@ import {
 import type { EntryDraft } from "../entryActions";
 import { CATEGORIES_BY_TYPE } from "../content.placeholder";
 import { commaizeAmount, krwReadingHint } from "../format";
+import { useBackGuard } from "../hooks/useBackGuard";
 import { dateToYmd, ymdToDate } from "../platform/clock";
 import type { CategoryId, EntryType } from "../types";
 
@@ -55,16 +60,34 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
   const [memo, setMemo] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Reset the form every time the sheet opens, and default the date to "today" at open time.
+  // Mirrors the latest render's `onClose`/`today` into a ref, written only
+  // from an effect (never during render — a render that's interrupted/
+  // discarded must never leave this ref pointing at state that never
+  // actually committed). Declared (and thus fired) before the open-reset
+  // effect below, so that effect always reads this render's `today`, not a
+  // stale one — see the ordering note on that effect.
+  const latestRef = useRef({ onClose, today });
+  useEffect(() => {
+    latestRef.current = { onClose, today };
+  });
+
+  // Reset the form on the open transition (false -> true) only — NOT keyed
+  // on `today`. `today` is recomputed from clock.today() on every store
+  // render, so keying this effect on it would silently wipe an in-progress
+  // form (type, amount, category, date, memo) on a midnight rollover, or on
+  // any TimeTravel change (S7, later) while the sheet is open — with no
+  // confirmation, unlike a mere backdrop tap in the same situation. The date
+  // field still defaults to "today", just read from `latestRef` (kept
+  // current by the effect above, which runs first) instead of from a dep.
   useEffect(() => {
     if (!open) return;
     setType("expense");
     setAmountDigits("");
     setCategoryId(null);
-    setDate(today);
+    setDate(latestRef.current.today);
     setMemo("");
     setConfirmOpen(false);
-  }, [open, today]);
+  }, [open]);
 
   const amountKrw = Number(amountDigits || "0");
   const canSave = amountKrw > 0 && categoryId !== null && date <= today;
@@ -72,15 +95,6 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
   // Anything different from the sheet's just-opened defaults counts as
   // "touched" — F1 AC: dismiss must confirm if any field was touched.
   const touched = type !== "expense" || amountDigits !== "" || categoryId !== null || date !== today || memo !== "";
-
-  // Mirrors the latest render's `touched`/`onClose` into a ref, written only
-  // from an effect (never during render — see useTownStore.ts's doc comment
-  // for why a mid-render ref write is unsafe under StrictMode) so the
-  // Android-back `popstate` listener below never acts on a stale closure.
-  const latestRef = useRef({ touched, onClose });
-  useEffect(() => {
-    latestRef.current = { touched, onClose };
-  });
 
   function pressDigit(digit: string) {
     setAmountDigits((prev) => {
@@ -105,8 +119,8 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
   }
 
   // F1 AC: "Sheet dismisses on save, on backdrop tap (confirm if touched),
-  // and on Android back." Both the backdrop tap and the back-guard's
-  // `popstate` handler below call this.
+  // and on Android back." Both the backdrop tap and `useBackGuard` below
+  // call this.
   function dismiss(currentlyTouched: boolean) {
     if (currentlyTouched) {
       setConfirmOpen(true);
@@ -120,40 +134,7 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
     latestRef.current.onClose();
   }
 
-  // ── Android back guard ──
-  // §10.4: the host app owns the top-level back gesture, so an unhandled
-  // hardware/gesture back pops the whole mini-app, not this sheet. Pushing
-  // one history entry while the sheet is open turns that gesture into a
-  // `popstate` this component can catch — the standard WebView-safe way to
-  // make an in-page modal consume one "back" locally, no native bridge
-  // required. If the form was touched, the guard is re-armed immediately so
-  // the confirm dialog's "keep editing" choice still has back-press
-  // protection.
-  const guardPushed = useRef(false);
-  useEffect(() => {
-    if (!open) return;
-    window.history.pushState({ entrySheet: true }, "");
-    guardPushed.current = true;
-
-    function onPopState() {
-      guardPushed.current = false; // the browser already popped it
-      const isTouched = latestRef.current.touched;
-      if (isTouched) {
-        window.history.pushState({ entrySheet: true }, "");
-        guardPushed.current = true;
-      }
-      dismiss(isTouched);
-    }
-
-    window.addEventListener("popstate", onPopState);
-    return () => {
-      window.removeEventListener("popstate", onPopState);
-      if (guardPushed.current) {
-        guardPushed.current = false;
-        window.history.back(); // closed some other way (save/backdrop/confirm) — consume the guard entry
-      }
-    };
-  }, [open]);
+  useBackGuard(open, touched, dismiss);
 
   return (
     <>
@@ -161,6 +142,7 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
         open={open}
         onDimmerClick={() => dismiss(touched)}
         hasTextField
+        maxHeight="92vh"
         header={<div className="entry-sheet-title">거래 입력</div>}
         cta={
           <Button as="button" display="block" size="xlarge" disabled={!canSave} onClick={handleSave}>
@@ -186,14 +168,16 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
           {/* Amount's own input control sits directly under its readout — spec
            * §6 S4 key elements list "numeric keypad · amount display" as one
            * pair, and F1's <=3-tap flow needs it on screen with no scroll at
-           * the 390x844 reference viewport. */}
-          <NumberKeypad onKeyClick={pressDigit} onBackspaceClick={pressBackspace} />
+           * the 390x844 reference viewport. `.entry-keypad` (App.css)
+           * compacts TDS's default 64px row height. */}
+          <NumberKeypad className="entry-keypad" onKeyClick={pressDigit} onBackspaceClick={pressBackspace} />
 
-          {/* "icon grid" (spec §5 F1 / MVP-SPEC.md:201), not a horizontally
-           * scrolling chip row — every category for the selected type must be
-           * on screen at once. `<Chip>` wraps its children in a horizontal
-           * scroller by design (TDS's filter-chip pattern), so the grid here
-           * is plain `ChipItem`s in a wrapping flex container instead. */}
+          {/* "icon grid" (spec §5 F1 / MVP-SPEC.md:201): a fixed 5-column grid
+           * (`.category-grid`, App.css), not a horizontally scrolling chip
+           * row or a free-flowing wrap — every category for the selected
+           * type is on screen at once, at a predictable tile size. `<Chip>`
+           * wraps its children in a horizontal scroller by design (TDS's
+           * filter-chip pattern), so plain `ChipItem`s are used instead. */}
           <div className="category-grid" role="group" aria-label="카테고리 선택">
             {categories.map((c) => (
               <ChipItem
