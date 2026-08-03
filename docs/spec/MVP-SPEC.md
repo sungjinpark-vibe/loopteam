@@ -2,8 +2,18 @@
 
 > Produced by `planner` (explore mode), scored 90/100 by 기획팀장 (pass mark 90).
 > Score history: 89 -> 90. Rounds: 2.
-> **Not yet approved by the director** — this is the deliverable to send for approval, not a
-> finalized spec (engine VISION.md §4: finalizing a spec requires director approval).
+> **Director-approved on the headline items (2026-08-02)**: app name (placeholder), art-style
+> distance from Fortune City, monetization deferred, React rubric substitution. The other 12 D-items
+> proceed on this doc's own marked assumptions unless overridden below.
+>
+> **SUPERSEDED IN PART by `ADDENDUM-01-savings-and-roads.md`** (director feedback, 2026-08-03;
+> addendum scored 89/100 after 6 revision rounds, accepted by the PM as implementation-ready per the
+> reviewing lead's explicit written verdict — see `backlog/tasks/T005.md` for the full round history).
+> The addendum replaces: **F13** (single 저축탑 → five street-front savings buildings), **F2/F3's**
+> grid geometry (road-based village layout), **S2's** empty-state and screen elements, and **§7
+> invariant 3** (amount now drives the savings block, not one tower — full amendment list in the
+> addendum's §2.8a). Read the addendum before implementing anything F2/F3/F13/S2-related; this
+> document's text in those sections is historical, not current.
 >
 > Winning angle: MVP-first, revised. The spine is unchanged: one ledger entry produces one visible building within a second, hard-capped per day, with town SIZE earned by the habit and town OUTCOME shown separately so the app never rewards spending more. What changed in this revision is that I stopped defending the FC-4/FC-5 cut on cost grounds and instead named the five *functions* Fortune City's loop performs, then discharged the one I had actually dropped — "something is waiting for you when you come back" — with three cheap mechanics (a capped materials queue that auto-builds on the next open, a 무지출 데이 action, and an idempotent monthly settlement monument) instead of a citizen/coin/City-Hall simulation. Everything added is individually cuttable and lands after the loop already closes at build step 2.
 
