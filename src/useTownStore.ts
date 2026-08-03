@@ -88,7 +88,10 @@ function summarizeCorruption(count: number): string {
 export type Notice =
   | { kind: "corruption"; message: string }
   | { kind: "drained"; count: number }
-  | { kind: "tier"; tier: number };
+  | { kind: "tier"; tier: number }
+  // ADDENDUM-01 §3.6 — "마을에 도로가 새로 놓였어요" one-time toast, fired when
+  // `loadBoot()` detects a pre-existing town's index predates LAYOUT_VERSION.
+  | { kind: "relayout" };
 
 /**
  * Load-modify-save on one month's buildings chunk — the same three-line
@@ -251,6 +254,7 @@ export function useTownStore() {
       if (boot.corrupted.length > 0) bootNotices.push({ kind: "corruption", message: summarizeCorruption(boot.corrupted.length) });
       if (drained.drainedCount > 0) bootNotices.push({ kind: "drained", count: drained.drainedCount });
       if (drained.celebrateTier !== null) bootNotices.push({ kind: "tier", tier: drained.celebrateTier });
+      if (boot.relayout) bootNotices.push({ kind: "relayout" }); // ADDENDUM-01 §3.6
       pushNotices(...bootNotices);
     });
     return () => {

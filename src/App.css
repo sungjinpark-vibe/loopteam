@@ -100,6 +100,15 @@
   text-align: center;
 }
 
+/* ADDENDUM-01 §2.4/§3.5 (break B13): the town grid now always renders — the
+ * 저축 블록 is a row of it, and it must exist on a fresh install — so the
+ * empty-state copy is a compact banner ABOVE the grid, not a replacement for
+ * it, keeping the entrance cross street and the savings block above the fold
+ * on the 390x844 reference viewport. */
+.town-empty-state--with-grid {
+  padding: 16px 24px;
+}
+
 .town-empty-arrow {
   position: fixed;
   right: 56px;
@@ -128,18 +137,28 @@ button.town-fab {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
-/* ── town grid / building tiles (S3 F3) ── */
+/* ── town grid / building tiles / road layout (S3 F3, ADDENDUM-01 §3.4/§3.5)
+ *
+ * Rule R-3 (no coordinates in the stylesheet, ADDENDUM-01 §3.5): every grid
+ * coordinate, every road pixel size, and every box metric the townLayout.ts
+ * arithmetic uses arrives here as an inline style or a CSS custom property
+ * set from those constants — with NO CSS fallback value. Do NOT add
+ * grid-column, grid-row, grid-template-columns/rows, or a px literal for any
+ * metric townLayout.ts also computes with, to any rule below — and do NOT
+ * add a fallback to a var() below (a fallback is a second source of truth
+ * that silently wins if the custom property is ever unset). */
 
 .town-grid {
+  --town-asphalt: #b9bec6; /* pure paint — no coordinate, stays here */
   display: grid;
-  gap: 8px;
-  grid-auto-rows: 72px;
-  padding: 8px 16px 24px;
+  gap: var(--town-gap); /* was 8px, now GRID_GAP_PX from townLayout.ts */
+  grid-auto-rows: auto; /* was 72px — road rows are shorter, the savings row is taller */
+  padding: 8px var(--town-grid-pad-x) 24px; /* the middle 16 is GRID_PADDING_X_PX. No fallback. */
 }
 
 .town-tile {
   width: 100%;
-  height: 100%;
+  height: var(--town-tile-h);
 }
 
 .empty-lot {
@@ -148,6 +167,133 @@ button.town-fab {
   border: 1px dashed var(--town-grey300);
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.02);
+}
+
+/* §3.7 checklist item 2: unbuilt lots are countryside, not construction
+ * site — a pure (row, col) decoration (rule R-2), never stored. */
+.empty-lot--v1,
+.empty-lot--v2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.empty-lot--v1 {
+  background: rgba(76, 175, 80, 0.1); /* 잔디 + 나무 두 그루 */
+}
+.empty-lot--v1::after {
+  content: "🌳";
+}
+.empty-lot--v2 {
+  background: rgba(255, 193, 7, 0.1); /* 텃밭 */
+}
+.empty-lot--v2::after {
+  content: "🌱";
+}
+
+/* §3.7 checklist item 1: buildings (and savings lots) face the street —
+ * pure CSS on the wrapper; PlaceholderBuilding.tsx is not modified. */
+.town-tile--left .building-roof {
+  left: 62%;
+}
+.town-tile--right .building-roof {
+  left: 38%;
+}
+
+/* Main street — one continuous ribbon down the whole rendered town.
+ * grid-column is set inline from ROAD_COLUMN, and grid-row inline as
+ * `1 / span gridRowCount(...)` — NOT `1 / -1`, which spans a single row
+ * here because `.town-grid` declares no `grid-template-rows` (§3.4).
+ *
+ * No `z-index` here on purpose (round-1 finding C1): TownGrid.tsx emits the
+ * cross streets right after the main street in DOM order, so with no forced
+ * stacking context they already paint on top at every intersection — that is
+ * what makes the crosswalk (`.town-cross-street::after`) visible. A
+ * `z-index` on this element creates a new stacking context that would win
+ * regardless of DOM order and paint the centre line straight over it. */
+.town-main-street {
+  position: relative; /* the ::before centre line positions against THIS, not .town-screen */
+  margin: calc(var(--town-gap) * -1) 0; /* close the row gaps: one continuous ribbon */
+  background: var(--town-asphalt);
+}
+.town-main-street::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: 0 auto;
+  width: 2px;
+  background: repeating-linear-gradient(180deg, #fff 0 10px, transparent 10px 22px);
+}
+
+/* Cross streets — grid-column: 1 / -1 and grid-row are set inline (R-3). */
+.town-cross-street {
+  height: var(--town-road-h);
+  position: relative; /* the ::after crosswalk positions against THIS, not .town-screen */
+  margin: 0 calc(var(--town-gap) * -1); /* close the column gaps */
+  background: var(--town-asphalt);
+}
+.town-cross-street::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--town-road-w); /* was a hardcoded 22px — R-3 */
+  left: calc(50% - var(--town-road-w) / 2); /* was calc(50% - 11px) — R-3 */
+  background: repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 7px);
+}
+
+/* §3.7 checklist item 3: street furniture, zero data (rule R-2) — a 가로등 on
+ * every second block's street-front tile, a 버스 정류장 on every second cross
+ * street. `town-tile--streetlight` / `town-cross-street--busstop` are added
+ * from `decorVariant(...)` in TownGrid.tsx; nothing here is stored. */
+.town-tile--streetlight {
+  position: relative;
+}
+.town-tile--streetlight::after {
+  content: "💡";
+  position: absolute;
+  top: 2px;
+  font-size: 14px;
+  line-height: 1;
+}
+.town-tile--streetlight.town-tile--left::after {
+  right: -6px;
+}
+.town-tile--streetlight.town-tile--right::after {
+  left: -6px;
+}
+
+.town-cross-street--busstop::before {
+  content: "🚏";
+  position: absolute;
+  top: 0;
+  left: 6px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* 저축 블록 (ADDENDUM-01 §2.4a/§3.5). Each .savings-plot is a DIRECT grid item
+ * of .town-grid, placed and sized inline. This task renders them as empty
+ * lots + one signpost only — the 저축 블록 task fills them with structures
+ * (signboard/label/pips) inside `.savings-structure*`; those selectors are
+ * intentionally not styled yet (no such node exists until that task). */
+.savings-plot {
+  display: grid;
+  row-gap: var(--district-row-gap);
+  align-content: end;
+}
+.savings-plot--empty {
+  border: 1px dashed var(--town-grey300);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.02);
+}
+.savings-signpost {
+  align-self: end;
+  height: var(--town-tile-h);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-size: 22px;
 }
 
 .building-tile {

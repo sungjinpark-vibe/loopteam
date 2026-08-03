@@ -14,3 +14,25 @@ createRoot(document.getElementById("root")!).render(
     </TDSMobileAITProvider>
   </StrictMode>,
 );
+
+// Dev-only console hook so `qa`/the director can actually drive a fixture
+// (e.g. `dense`, ADDENDUM-01 §3.8's 5,400-plot AC) instead of hand-seeding a
+// town. The dynamic import is required by eslint.config.js's devtools rule
+// (MVP-SPEC §11) and lets Rollup tree-shake this whole branch out of a
+// production build (`import.meta.env.DEV` is statically replaced with
+// `false` there). This is the console-only stand-in for the S7 "load
+// fixture" sheet, which is a separate, later UI task (`fixtures.ts`'s own
+// header comment) — call from devtools or a Playwright `page.evaluate`:
+// `window.__aitLoadFixture("dense")`, then reload.
+if (import.meta.env.DEV) {
+  void Promise.all([import("./devtools/fixtures"), import("./storage")]).then(
+    ([{ FIXTURES, loadFixtureIntoStorage }, { createChunkedStorage }]) => {
+      (window as unknown as { __aitLoadFixture: (name: keyof typeof FIXTURES) => void }).__aitLoadFixture = (name) => {
+        const client = createChunkedStorage();
+        loadFixtureIntoStorage(FIXTURES[name](), client);
+        client.flush(); // writes are debounced ~300ms (storage.ts) — flush before the reload below, or it wipes them
+        window.location.reload();
+      };
+    },
+  );
+}

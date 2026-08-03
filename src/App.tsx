@@ -29,7 +29,14 @@ function App() {
   // and pops itself via `TierCelebration`'s `onDismiss`.
   useEffect(() => {
     if (notice === null || notice.kind === "tier") return;
-    const message = notice.kind === "corruption" ? notice.message : `밀렸던 건물 ${notice.count}채가 오늘 아침에 완성됐어요!`;
+    // ADDENDUM-01 §3.6 (break B8): a binary ternary silently rendered
+    // `undefined` for any third notice kind — `relayout` is that third kind.
+    const message =
+      notice.kind === "corruption"
+        ? notice.message
+        : notice.kind === "drained"
+          ? `밀렸던 건물 ${notice.count}채가 오늘 아침에 완성됐어요!`
+          : "마을에 도로가 새로 놓였어요. 건물 위치가 조금 바뀌었어요."; // relayout — copy is D-26
     openToast(message);
     dismissNotice();
   }, [notice, dismissNotice, openToast]);
@@ -86,16 +93,25 @@ function App() {
         </div>
       )}
 
-      {store.buildingCount === 0 ? (
-        <div className="town-empty-state">
+      {/* ADDENDUM-01 §2.4 (break B13) — the town grid now always renders: the
+          저축 블록 is a row of it, and it must exist on a fresh install. The
+          empty-state copy is a banner ABOVE the grid, not an alternative to
+          it, and keeps F3's AC (message + ↘ arrow at 0 buildings). */}
+      {store.buildingCount === 0 && (
+        <div className="town-empty-state town-empty-state--with-grid">
           <p>첫 지출을 기록하면 첫 건물이 생겨요</p>
           <div className="town-empty-arrow" aria-hidden="true">
             ↘
           </div>
         </div>
-      ) : (
-        <TownGrid nextPlotIndex={store.nextPlotIndex} buildings={store.buildings} justBuiltId={store.justBuiltId} />
       )}
+
+      <TownGrid
+        nextPlotIndex={store.nextPlotIndex}
+        buildings={store.buildings}
+        justBuiltId={store.justBuiltId}
+        ladder={BALANCE.savingsTowerSegments}
+      />
 
       <Button
         as="button"

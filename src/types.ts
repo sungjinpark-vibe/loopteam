@@ -23,7 +23,13 @@ export type ExpenseCategoryId =
 
 export type IncomeCategoryId = "salary" | "sidejob" | "bonus" | "other_income";
 
-export type SavingCategoryId = "emergency" | "goal" | "invest" | "other_saving";
+// ADDENDUM-01 §2.2/§4.1: `deposit`/`stock` added (the two structures the
+// director named — 예적금/주식 투자, ADDENDUM-01 §0). `invest` is NOT retired
+// here: retiring it (and introducing `LegacySavingCategoryId`) is the 저축
+// 블록 task's own compile break (B3/B5, ADDENDUM-01 §5.2/§6) — this task only
+// needs the road task's `savingsBuckets.ts` to type-check, which needs
+// `deposit`/`stock` to exist, nothing more.
+export type SavingCategoryId = "deposit" | "stock" | "emergency" | "goal" | "invest" | "other_saving";
 
 export type CategoryId = ExpenseCategoryId | IncomeCategoryId | SavingCategoryId;
 

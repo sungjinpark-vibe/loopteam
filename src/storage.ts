@@ -16,6 +16,7 @@
 import type { StoragePort } from "./platform/storage";
 import { storage as defaultStoragePort } from "./platform/storage";
 import { rebuildDerived } from "./selectors";
+import { LAYOUT_VERSION } from "./townLayout";
 import type { Building, BudgetSetting, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
 export const SCHEMA_VERSION = 1;
@@ -32,6 +33,10 @@ export const buildingsStorageKey = buildingsKey;
 
 export interface StorageIndex {
   schemaVersion: number;
+  // ADDENDUM-01 §3.6 (rule R-1): optional — an index written before the road
+  // layout shipped has none, which is exactly how `loadBoot()` recognizes a
+  // pre-existing town and fires the one-time `relayout` notice.
+  layoutVersion?: number;
   entryMonths: string[]; // sorted 'YYYY-MM'
   buildingMonths: string[]; // sorted 'YYYY-MM'
 }
@@ -54,10 +59,22 @@ export interface BootState {
   buildings: Building[];
   /** Quarantined/reset keys, for F10's "visible one-time notice, never a white screen". */
   corrupted: CorruptionNotice[];
+  /**
+   * ADDENDUM-01 §3.6 (rule R-1): true exactly once, on the first boot after
+   * this ships, for a town that already had buildings before the road
+   * layout existed — every building just moved on screen. A genuinely fresh
+   * install never sees this (see `emptyIndex()`'s own comment).
+   */
+  relayout: boolean;
 }
 
+/**
+ * A genuinely fresh install stamps the CURRENT layout version immediately —
+ * it has never rendered any layout, old or new, so there is nothing to
+ * "relayout" and nothing to notify about (ADDENDUM-01 §3.6).
+ */
 function emptyIndex(): StorageIndex {
-  return { schemaVersion: SCHEMA_VERSION, entryMonths: [], buildingMonths: [] };
+  return { schemaVersion: SCHEMA_VERSION, layoutVersion: LAYOUT_VERSION, entryMonths: [], buildingMonths: [] };
 }
 
 const ENTRIES_PREFIX = `${KEY_PREFIX}.entries.`;
@@ -348,7 +365,21 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
         };
       }
 
-      return { index, core, buildings, corrupted };
+      // ADDENDUM-01 §3.6 (rule R-1): an index written before the road layout
+      // shipped has no `layoutVersion` (reads as 0). Both the notice AND the
+      // index rewrite are gated on "buildings actually exist" — a town with
+      // zero buildings has never rendered any layout, old or new, so there is
+      // nothing to relayout and stamping it here (rather than waiting for the
+      // first real relayout) would be a claim about a move that never
+      // happened. `emptyIndex()` already stamps the current version for a
+      // genuinely fresh install, so this branch only ever fires for a town
+      // that predates this change.
+      const layoutMismatch = (index.layoutVersion ?? 0) !== LAYOUT_VERSION;
+      const relayout = layoutMismatch && buildings.length > 0;
+      const finalIndex = relayout ? { ...index, layoutVersion: LAYOUT_VERSION } : index;
+      if (relayout) writeJson(bufferedPort, INDEX_KEY, finalIndex);
+
+      return { index: finalIndex, core, buildings, corrupted, relayout };
     },
 
     /** Lazily loaded — the current month at boot, others on demand (기록 navigation). */

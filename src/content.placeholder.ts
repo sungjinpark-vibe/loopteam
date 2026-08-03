@@ -41,6 +41,12 @@ export const CATEGORY_CONTENT: Record<BuildingCategoryId, CategoryContent> = {
   ...INCOME_CONTENT,
   // 저축 categories are out of this task's scope (F13, build order step 4) —
   // typed here only so `CATEGORY_CONTENT` stays total over `CategoryId`.
+  // `deposit`/`stock` rows required by ADDENDUM-01 §4.1's widened
+  // `SavingCategoryId` (the road task needs it for `savingsBuckets.ts`) — the
+  // 저축 블록 task overwrites label/icon/color with the real 예적금/주식 투자
+  // identity (ADDENDUM-01 §2.3); this is a placeholder, not final content.
+  deposit: { id: "deposit", label: "예적금", icon: "🏦", color: colors.teal400 },
+  stock: { id: "stock", label: "주식 투자", icon: "📈", color: colors.purple400 },
   emergency: { id: "emergency", label: "비상금", icon: "🏦", color: colors.teal400 },
   goal: { id: "goal", label: "목표저축", icon: "🎯", color: colors.blue400 },
   invest: { id: "invest", label: "투자", icon: "📈", color: colors.purple400 },

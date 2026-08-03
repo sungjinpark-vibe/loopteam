@@ -8,7 +8,7 @@
  * every selector unit-testable with no React and fully time-travelable.
  */
 import { daysInMonth as daysInMonthOf, dayBefore, monthBefore, parseYm, shiftMonth, ymOnly } from "./calendar";
-import type { Building, CategoryId, EntryType, LedgerEntry, TownState } from "./types";
+import type { Building, CategoryId, EntryType, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
 // ── Layout constant (not a balance dial, spec §9 / §13 trade-off 9) ──
 
@@ -247,4 +247,22 @@ export function recentMemos(entries: readonly LedgerEntry[], categoryId: Categor
     if (result.length >= 6) break;
   }
   return result;
+}
+
+// ── ADDENDUM-01 §2.5/§4.2 — APPEND ONLY, nothing above this line is opened ──
+
+/**
+ * Which ladder a savings structure uses: its own override if one exists,
+ * else the shared default. Injected rather than imported — same discipline
+ * `towerSegments`/`canClaimNoSpend` already use — so this file's header rule
+ * ("imports only ./calendar and ./types") holds. Every level read in the app
+ * goes through this function; there is no second place that decides which
+ * ladder a structure uses.
+ */
+export function ladderFor(
+  id: SavingCategoryId,
+  defaultLadder: readonly number[],
+  overrides: Partial<Record<SavingCategoryId, readonly number[]>>,
+): readonly number[] {
+  return overrides[id] ?? defaultLadder;
 }
