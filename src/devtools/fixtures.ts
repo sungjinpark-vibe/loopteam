@@ -45,6 +45,7 @@ import { buildingsStorageKey, createChunkedStorage, entriesStorageKey } from "..
 import type {
   Building,
   BudgetSetting,
+  BuildingCategoryId,
   CategoryId,
   EntryType,
   ExpenseCategoryId,
@@ -111,7 +112,7 @@ function makeEntry(args: {
 function makeBuilding(args: {
   id: string;
   source: Building["source"];
-  categoryId: CategoryId | null;
+  categoryId: BuildingCategoryId | null;
   variantIndex: number;
   plotIndex: number;
   builtOn: string;
@@ -276,6 +277,22 @@ function oneMonth(): Fixture {
     seq,
     plotCursor,
   });
+  // A couple of claimed 무지출 데이 (F15) in the same month, so this "normal
+  // case" fixture shows the full building palette — expense/income houses
+  // AND the rare park tile — side by side, not just spending/income categories.
+  const noSpendDays = ["2026-07-08", "2026-07-22"];
+  const parkBuildings = noSpendDays.map((date) =>
+    makeBuilding({
+      id: seq.nextId("b"),
+      source: { kind: "nospend", date },
+      categoryId: "park",
+      variantIndex: 0,
+      plotIndex: plotCursor.next++,
+      builtOn: date,
+      createdAt: seq.nextMs(),
+    }),
+  );
+  const allBuildings = [...buildings, ...parkBuildings];
   // `today` must fall inside the generated month (2026-07) — otherwise the
   // current month has zero entries and monthTotal/budgetPace are both 0,
   // defeating this fixture's job ("the normal case, the donut, the pace
@@ -290,13 +307,14 @@ function oneMonth(): Fixture {
     lastActOn: "2026-07-31",
     cumulativeSavingsKrw,
     lastSettledPeriod: "2026-07",
+    noSpendDays,
   };
   return {
     name: "oneMonth",
-    description: "One month, ~90 entries, budget set — the normal case, the donut, the pace bar.",
+    description: "One month, ~90 entries, budget set — the normal case, the donut, the pace bar, plus a couple of park tiles.",
     today,
     entries,
-    buildings,
+    buildings: allBuildings,
     town,
     budget: freshBudget(600_000, seq.nextMs()),
   };
@@ -533,7 +551,7 @@ function noSpendStreak(): Fixture {
     makeBuilding({
       id: seq.nextId("b"),
       source: { kind: "nospend", date },
-      categoryId: null,
+      categoryId: "park", // matches noSpendActions.ts's real claim building (F15) — was `null` here, never rendering as a park tile
       variantIndex: 0,
       plotIndex: plotCursor.next++,
       builtOn: date,

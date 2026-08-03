@@ -25,8 +25,13 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt }: Buildi
   const content = categoryId ? CATEGORY_CONTENT[categoryId] : null;
   const color = content?.color ?? colors.grey400;
   const icon = content?.icon ?? "🏛️";
+  // The park tile (F15) always gets a rounded tree-canopy silhouette instead
+  // of a pitched roof — it's the app's rarest reward and spec §6.1 requires
+  // it to read as different from every spending/income category on sight, not
+  // just as a house in a different colour. Every other category cycles
+  // through the three house roofs by variantIndex, same as before.
   // variantIndex is always >= 0 (every producer is `Math.floor(random() * n)`) — plain modulo is enough.
-  const roof = ROOF_SHAPES[variantIndex % ROOF_SHAPES.length];
+  const roof = categoryId === "park" ? "canopy" : ROOF_SHAPES[variantIndex % ROOF_SHAPES.length];
 
   return (
     <div
