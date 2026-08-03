@@ -50,10 +50,17 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. Report T006 to the director with a screenshot (village + roads is the visual payoff of this
-   whole detour — worth showing well).
-2. Open T007 = the savings buildings themselves (ADDENDUM-01 §2), on top of T006's `SavingsRow.tsx`
-   seam and the cells it already renders as empty lots.
+1. **T007 running** — buildings need to visually read as houses (director feedback 2026-08-04,
+   confirms T006's own honestly-reported QA gap: flat colored chips, roof shape not reading).
+   CSS-only placeholder improvement.
+2. **New director request (2026-08-04, needs a design pass like T005)**: player-controlled building
+   placement — first build lands at a random valid plot, then the player can long-press a building
+   to move it elsewhere. This reverses the PM's D-31 engineering default (automatic placement) from
+   ADDENDUM-01 and needs its own addendum/design task before implementation — it changes the
+   plot-allocation model (currently monotonic-append-only, `nextPlotIndex` never reused) into
+   something with a "move" operation. Not yet started; plan as the next planner task after T007.
+3. T008 (or later number) = the savings buildings themselves (ADDENDUM-01 §2) — independent of the
+   placement/move feature (savings cells are structurally separate), can slot in whenever.
 3. Then build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6 settings
    + F12 export/import).
 4. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
@@ -97,7 +104,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Send the director T006's screenshots, then open T007.
+1. Check on T007's result; then plan the player-placement/move-building design task (see ▶ Next #2).
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch

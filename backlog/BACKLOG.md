@@ -30,6 +30,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T004 | app_in_toss retention layer — slots, streak, tier, queue, no-spend day | done | client-dev | build | 1 |
 | T005 | app_in_toss spec addendum — savings buildings + road layout | done | planner | explore | 1 |
 | T006 | app_in_toss road-based village layout (ADDENDUM-01 §3) | done | client-dev | build | 1 |
+| T007 | app_in_toss — buildings need to read as houses, not squares | in-progress | client-dev | build | 1 |
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._
