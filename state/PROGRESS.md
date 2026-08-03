@@ -57,11 +57,9 @@
    canopy is low-contrast and reads more like a lid than a tree, (b) both streetlights at an
    intersection cluster together rather than sitting one per side. See `backlog/tasks/T007.md` Log
    for the full round history (67→69→75→89, then a fix-forward that regressed to 77).
-2. **Player-controlled building placement** (director request 2026-08-04, needs a design pass like
-   T005): first build lands at a random valid plot, then the player can long-press a building to
-   move it. Reverses the PM's D-31 engineering default from ADDENDUM-01 — changes the plot-allocation
-   model (currently monotonic-append-only, `nextPlotIndex` never reused) into something with a "move"
-   operation. Not yet started; this is the next planner task.
+2. **T008 running** — player-controlled building placement design (random-then-movable). Briefed
+   tighter than T005 to avoid its scope-growth cost (explicit "keep this to 1-2 rounds" note in the
+   task).
 3. T00x = the savings buildings themselves (ADDENDUM-01 §2) — independent of the placement/move
    feature (savings cells are structurally separate), can slot in whenever.
 3. Then build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6 settings
