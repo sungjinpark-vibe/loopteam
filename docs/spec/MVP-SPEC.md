@@ -15,6 +15,17 @@
 > addendum's §2.8a). Read the addendum before implementing anything F2/F3/F13/S2-related; this
 > document's text in those sections is historical, not current.
 >
+> **FURTHER SUPERSEDED by `ADDENDUM-02-placement-and-move.md`** (director feedback, 2026-08-04;
+> scored 92/100 after 2 rounds — see `backlog/tasks/T008.md`). Building placement is no longer
+> automatic: buildings land at a **random** open plot, and the player can **long-press to move any
+> building** to any other open plot, free and unlimited. This further amends **F2** (placement +
+> "nothing ever reflows" AC — replacement wording in the addendum), and supersedes **ADDENDUM-01
+> §7 D-31** (which had shipped automatic placement as a PM default). Read ADDENDUM-02 before
+> implementing anything placement/movement-related; ADDENDUM-01's road/frontage/savings-block design
+> is otherwise unaffected — ADDENDUM-02 was written to preserve it exactly (provable one-step-ahead
+> free-lot guarantee, §3.2). 7 open decisions (D-33..D-39) await the director; each ships a stated
+> default in the addendum.
+>
 > Winning angle: MVP-first, revised. The spine is unchanged: one ledger entry produces one visible building within a second, hard-capped per day, with town SIZE earned by the habit and town OUTCOME shown separately so the app never rewards spending more. What changed in this revision is that I stopped defending the FC-4/FC-5 cut on cost grounds and instead named the five *functions* Fortune City's loop performs, then discharged the one I had actually dropped — "something is waiting for you when you come back" — with three cheap mechanics (a capped materials queue that auto-builds on the next open, a 무지출 데이 action, and an idempotent monthly settlement monument) instead of a citizen/coin/City-Hall simulation. Everything added is individually cuttable and lands after the loop already closes at build step 2.
 
 ---
