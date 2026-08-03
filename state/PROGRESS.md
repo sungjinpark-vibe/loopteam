@@ -10,7 +10,10 @@
   road layout, director-requested 2026-08-03) also `done`, accepted at 89/100** (below the 90 bar —
   PM judgment call after 6 lead-verified rounds; full justification in `backlog/tasks/T005.md` Log).
   Addendum at `app_in_toss/docs/spec/ADDENDUM-01-savings-and-roads.md`; `MVP-SPEC.md` carries a
-  pointer, not a full merge. **Not yet implemented** — T006 is the build task.
+  pointer, not a full merge. **T006 (road layout, ADDENDUM-01 §3) `done` — 96/100.** The village
+  actually renders: main street, cross streets, street furniture, savings-block empty cells, verified
+  live including the dense 5,400-building fixture. T007 (the savings buildings themselves,
+  ADDENDUM-01 §2) is next.
   Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
   bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
   **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
@@ -47,9 +50,10 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **T006 running** — road-based village layout (ADDENDUM-01 §3 only; savings buildings themselves
-   are T007, once T006 lands). Director approved proceeding after T005's report.
-2. After T006: T007 = the savings buildings themselves (ADDENDUM-01 §2).
+1. Report T006 to the director with a screenshot (village + roads is the visual payoff of this
+   whole detour — worth showing well).
+2. Open T007 = the savings buildings themselves (ADDENDUM-01 §2), on top of T006's `SavingsRow.tsx`
+   seam and the cells it already renders as empty lots.
 3. Then build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6 settings
    + F12 export/import).
 4. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
@@ -93,8 +97,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T006's result; report to the director with a screenshot (a village with roads is a
-   strong visual moment, same pattern as T003/T004).
+1. Send the director T006's screenshots, then open T007.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
