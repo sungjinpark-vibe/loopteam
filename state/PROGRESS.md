@@ -45,11 +45,14 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. Report T004's result to the director (score + what it means in plain terms; a screenshot of the
-   tier celebration or streak counter would be a good visual, same pattern as T003).
-2. Open T005: build order step 4 (§12) — S3 기록/history + F9 edit/delete + F6 budget/mood + F13
-   저축탑 + S6 settings + F12 export/import. This is a bigger step than T002-T004; consider whether to
-   split it (e.g. 기록 view first, then edit/delete + budget/mood, then 저축탑/export separately).
+1. **T005 running** — director sent new feedback via Discord (2026-08-03, caught late — see Do Not
+   Repeat, same in-session inbox-drain gap as before): wants distinct buildings per savings sub-type
+   (예적금/주식 투자, not just one generic 저축탑) and a road-based village layout instead of the plain
+   grid. Routed through planner as a spec addendum (not a direct implementation) since it changes
+   F13's design and F3's layout — `backlog/tasks/T005.md`.
+2. After T005 lands and is approved: implement it, then continue build order step 4 (S3 기록/history +
+   F9 edit/delete + F6 budget/mood + S6 settings + F12 export/import — F13 저축탑 itself is being
+   redesigned by T005, so step 4 as originally scoped needs re-checking against T005's outcome).
 3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
@@ -91,7 +94,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Report T004 to the director, then open T005 (likely split — see ▶ Next above).
+1. Check on T005's result; if it passes, get director approval on the addendum before implementing.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
