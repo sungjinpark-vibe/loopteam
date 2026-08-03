@@ -6,15 +6,17 @@
 
 ## Current State
 - **Status**: ▶ ACTIVE — **app_in_toss**. T001 (spec, 90), T002 (plumbing, 91), T003 (first demoable
-  slice, 92), and **T004 (retention layer — slots/streak/tier/queue/no-spend day, 95/100 after 3
-  rounds)** all `done`. The MVP core loop + retention mechanics all work end to end in a real browser
-  (verified live via the TimeTravel dev tool). Small follow-ups logged, not blocking: a pre-existing
-  TDS dialog quirk (backdrop double-tap), bundle-size re-measurement once real routes exist — see
-  `backlog/tasks/T003.md` Log. **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through
-  T004** (root tsconfig.json's project-references shape made plain `tsc --noEmit` check zero files) —
-  found by T004's implementer, fixed 2026-08-03, re-verified against app_in_toss. Everything T002-T004
-  already shipped was independently confirmed clean via `tsc -p tsconfig.app.json` at the time, so
-  nothing shipped is retroactively suspect — only the gate's own signal was blind, now fixed.
+  slice, 92), T004 (retention layer, 95) all `done`. **T005 (spec addendum — savings buildings +
+  road layout, director-requested 2026-08-03) also `done`, accepted at 89/100** (below the 90 bar —
+  PM judgment call after 6 lead-verified rounds; full justification in `backlog/tasks/T005.md` Log).
+  Addendum at `app_in_toss/docs/spec/ADDENDUM-01-savings-and-roads.md`; `MVP-SPEC.md` carries a
+  pointer, not a full merge. **Not yet implemented** — T006 is the build task.
+  Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
+  bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
+  **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
+  project-references shape made plain `tsc --noEmit` check zero files) — found by T004's implementer,
+  fixed 2026-08-03. Everything T002-T004 already shipped was independently confirmed clean via
+  `tsc -p tsconfig.app.json` at the time, so nothing shipped is retroactively suspect.
   Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
   test → lint → gate:extra — same contract as `gate.ps1`).
   `quality-loop.js` takes `args.gateScript` and `args.runHint` so non-Unity projects don't need the
@@ -45,14 +47,13 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **T005 running** — director sent new feedback via Discord (2026-08-03, caught late — see Do Not
-   Repeat, same in-session inbox-drain gap as before): wants distinct buildings per savings sub-type
-   (예적금/주식 투자, not just one generic 저축탑) and a road-based village layout instead of the plain
-   grid. Routed through planner as a spec addendum (not a direct implementation) since it changes
-   F13's design and F3's layout — `backlog/tasks/T005.md`.
-2. After T005 lands and is approved: implement it, then continue build order step 4 (S3 기록/history +
-   F9 edit/delete + F6 budget/mood + S6 settings + F12 export/import — F13 저축탑 itself is being
-   redesigned by T005, so step 4 as originally scoped needs re-checking against T005's outcome).
+1. **Open T006**: implement ADDENDUM-01 (savings buildings on-street + road layout) against
+   `app_in_toss/src`. Suggest splitting into the addendum's own two build-order rows (road layout
+   first — independently demoable — then 저축 블록) rather than one big task, mirroring how T002-T004
+   were kept to a manageable size. Check with the director before spending another large chunk of
+   budget, given T005 alone cost ~1.5M+ subagent tokens across 6 rounds.
+2. After T006: build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6
+   settings + F12 export/import — F13 itself is now covered by T005/T006).
 3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
@@ -94,7 +95,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T005's result; if it passes, get director approval on the addendum before implementing.
+1. Report T005 to the director (done, accepted at 89/100 with justification); check whether to
+   proceed straight to T006 or pause, given the token cost of T005.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
@@ -158,6 +160,30 @@
   content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
   a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
   hash match, nothing changed.
+
+## Do Not Repeat (addendum, 2026-08-03, cont'd — T005)
+- **Folding grafts into an already-passing explore-mode winner can REGRESS the score**, not just
+  polish it. T005's addendum passed 90/100 round 1; PM asked for a losing proposal's idea to be
+  folded in (reasonable, per the tick skill's own "fold in grafts" instruction), and the result
+  dropped to 68/100 — the graft was good but the fold-in pass left other parts incomplete. If you ask
+  for grafts to be folded into an already-passing document, **always re-verify with the lead
+  afterward** — do not assume "started from a passing doc" + "the graft was reportedly good" implies
+  the result still passes.
+- **For UI/layout-heavy design work, a prose spec has a real ceiling on how "implementation-ready" it
+  can get, and rounds past that ceiling show sharply diminishing returns.** T005 took 6 rounds
+  (90→68→74→76→86→89) to get within 1 point of the bar, at a cost of ~1.5M+ subagent tokens for one
+  addendum — CSS Grid subtleties (e.g. `gridRow: "1 / -1"` silently collapsing to one row with no
+  explicit `grid-template-rows`) are the kind of defect that's genuinely hard to catch in pure prose
+  review and would likely have been caught faster and cheaper by an actual browser-driven QA step
+  during implementation. When a design document is repeatedly found to have implementation-level
+  defects (not judgment-call gaps) after 3+ rounds, consider accepting it below the bar with a PM
+  note (as done here) and letting the real build + QA gate do the rest, rather than chasing textual
+  perfection.
+- **When an explore-mode document is accepted below its formal pass mark, say so explicitly and in
+  writing** — do not silently treat it as equivalent to a normal pass. T005's task log states the
+  exact score (89/100), the full round history, and the PM's specific reasoning. This is a judgment
+  call the PM is allowed to make (VISION.md gives the PM authority over "how, who, and when it is
+  done"), but it must never look like a pass that happened to land under 90.
 
 ## Do Not Repeat (addendum, 2026-08-03)
 - **A root `tsconfig.json` shaped as `{"files": [], "references": [...]}` (the standard Vite
