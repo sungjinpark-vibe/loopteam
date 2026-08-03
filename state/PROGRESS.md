@@ -57,9 +57,10 @@
    canopy is low-contrast and reads more like a lid than a tree, (b) both streetlights at an
    intersection cluster together rather than sitting one per side. See `backlog/tasks/T007.md` Log
    for the full round history (67→69→75→89, then a fix-forward that regressed to 77).
-2. **T008 running** — player-controlled building placement design (random-then-movable). Briefed
-   tighter than T005 to avoid its scope-growth cost (explicit "keep this to 1-2 rounds" note in the
-   task).
+2. **T008 done — 92/100 in 2 rounds** (much tighter than ADDENDUM-01's 6-round history — the
+   scope-discipline note worked). Addendum at `app_in_toss/docs/spec/ADDENDUM-02-placement-and-move.md`.
+   7 open decisions (D-33..D-39) reported to the director, each with a shipped default. **Not yet
+   implemented** — next task is the build.
 3. T00x = the savings buildings themselves (ADDENDUM-01 §2) — independent of the placement/move
    feature (savings cells are structurally separate), can slot in whenever.
 3. Then build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6 settings
@@ -105,8 +106,9 @@
   instance's outcome.
 
 ## Next Run Should
-1. Send T007's screenshots + the two open polish items to the director; then start designing the
-   player-placement/move-building feature (see ▶ Next #2).
+1. Report T008 to the director (7 decisions, each with a default); open the implementation task once
+   there's a green light (or proceed on the shipped defaults, mirroring how T001's spec approval
+   worked — approve headline items, proceed on marked assumptions otherwise).
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
