@@ -161,6 +161,11 @@ button.town-fab {
   height: var(--town-tile-h);
 }
 
+/* Deliberately NOT given a roof silhouette (T012 acceptance criteria asked
+ * to check this): an empty lot is an unbuilt plot, not a building — adding a
+ * house shape here would contradict "unbuilt lots are countryside, not
+ * construction site" right below. Same call for `.savings-plot--empty`
+ * further down this file. */
 .empty-lot {
   width: 100%;
   height: 100%;
@@ -191,14 +196,11 @@ button.town-fab {
   content: "🌱";
 }
 
-/* §3.7 checklist item 1: buildings (and savings lots) face the street —
- * pure CSS on the wrapper; PlaceholderBuilding.tsx is not modified. */
-.town-tile--left .building-roof {
-  left: 62%;
-}
-.town-tile--right .building-roof {
-  left: 38%;
-}
+/* §3.7 checklist item 1: buildings (and savings lots) face the street — pure
+ * CSS on the wrapper; PlaceholderBuilding.tsx is not modified. The actual
+ * shift amount lives next to `.building-roof` below (round-3 finding C5: one
+ * geometry, one place — this used to be 160 lines away from the rule it
+ * modifies). */
 
 /* Main street — one continuous ribbon down the whole rendered town.
  * grid-column is set inline from ROAD_COLUMN, and grid-row inline as
@@ -256,11 +258,16 @@ button.town-fab {
   font-size: 14px;
   line-height: 1;
 }
+/* A full `--town-gap` out (round-3 finding C2: was a hardcoded -6px that
+ * happened to equal the gap; now expressed as the same token so it stays
+ * provably farther out than `.building-roof`'s worst-case bleed of half a
+ * gap — see the comment on `.building-roof` above — and the bulb can never
+ * land on top of the roof again). */
 .town-tile--streetlight.town-tile--left::after {
-  right: -6px;
+  right: calc(var(--town-gap) * -1);
 }
 .town-tile--streetlight.town-tile--right::after {
-  left: -6px;
+  left: calc(var(--town-gap) * -1);
 }
 
 .town-cross-street--busstop::before {
@@ -300,11 +307,21 @@ button.town-fab {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 12px;
+  /* SQUARE top, rounded bottom (round-3 finding C1): a rounded top corner
+   * needs the roof to overhang it to stay covered, which is exactly the
+   * "shoulder of body colour peeking past the roof" bug the lead flagged.
+   * A flat top has no corner to leak past, so ANY roof width >= 100% fully
+   * covers it — independent of the eave size below. The roof (below) still
+   * overhangs this edge (`.building-roof`'s `top`) so the pair reads as "a
+   * roof sitting on a body", not "a rectangle with a decal" (round-1 C1).
+   *
+   * No `overflow: hidden` here — same round-1 reasoning: it would clip the
+   * roof back down to the body's own rectangle, undoing the point of having
+   * a roof at all. */
+  border-radius: 0 0 12px 12px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  overflow: hidden;
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -312,37 +329,85 @@ button.town-fab {
   font-size: 24px;
   line-height: 1;
   padding-bottom: 8px;
+  position: relative; /* stacks above .building-roof, which shares this z-order */
+  z-index: 1;
 }
 
+/* Roof silhouette — ONE opaque solid colour (round-2 C1: an alpha colour
+ * composites differently against the page background above the tile vs. the
+ * category colour below it, visibly splitting the roof in two). `grey900`
+ * (round-3 C3: was a raw hex, now the same token binding every other dark
+ * colour in this file goes through — theme.ts) has no backdrop to composite
+ * against, so it reads as one colour everywhere.
+ *
+ * Geometry (round-3 top fix, C2/C5): both the vertical overhang and the
+ * horizontal eave are HALF of `--town-gap` — not the full gap they used to
+ * be — expressed as `calc(var(--town-gap) / 2)` so they move together if the
+ * grid gap ever changes, and so neither one can consume the entire gap on
+ * its own:
+ *   - `top`: half the gap above the body, leaving the other half as visible
+ *     air before the tile in the row above — round-3 C2 found the old full
+ *     `-6px` touching it directly.
+ *   - `width`: 100% of the body plus half the gap, split evenly by the
+ *     centering transform below (a quarter-gap eave per side before the
+ *     frontage shift). The frontage shift immediately below adds at most
+ *     another quarter-gap toward the street side, so the worst-case bleed
+ *     past the tile's own edge is still only half of `--town-gap`, on ONE
+ *     side — always leaving the other half of the gap clear between two
+ *     neighbouring roofs (round-3 C2: they used to touch, a continuous dark
+ *     band across two tiles), and always short of the streetlight bulb
+ *     drawn a full `--town-gap` out (round-3 C2, `.town-tile--streetlight`
+ *     below). The body's SQUARE top corners (`.building-tile` above) mean
+ *     this eave no longer needs to be large enough to cover a rounded
+ *     corner — it is purely a visual overhang now, so it is free to shrink.
+ *
+ * All three variants share this width/position (via `clip-path` on the same
+ * box, not overrides), so there is exactly one geometry to reason about. */
 .building-roof {
   position: absolute;
-  top: 0;
+  top: calc(var(--town-gap) / -2);
   left: 50%;
   transform: translateX(-50%);
-  width: 60%;
-  background: rgba(255, 255, 255, 0.55);
+  width: calc(100% + var(--town-gap) / 2);
+  background: var(--town-grey900);
 }
 
+/* Frontage shift (§3.7 checklist item 1: buildings face the street) — kept
+ * beside `.building-roof` itself, not in the road-layout section far above
+ * (round-3 finding C5), since it is part of the same eave/overhang budget
+ * documented there. Quarter-gap, not the eave's own half-gap, so the total
+ * worst-case bleed (eave + shift) stays capped at half of `--town-gap`. */
+.town-tile--left .building-roof {
+  left: calc(50% + var(--town-gap) / 4);
+}
+.town-tile--right .building-roof {
+  left: calc(50% - var(--town-gap) / 4);
+}
+
+/* All three roof shapes are `clip-path` polygons that taper toward the top
+ * (round-3 finding C1): a plain rounded pill ("dome") or a slab with square
+ * shoulders ("flat") does not read as a roof at real tile size (~50px) — it
+ * reads as a lid or a cap on a box, which was the director's literal
+ * complaint restated. Tapering every variant guarantees every tile shows a
+ * genuine pitched silhouette; only the taper amount and height vary. */
 .building-roof-dome {
-  height: 14px;
-  border-radius: 0 0 999px 999px;
+  /* Hip-style roof: short flat ridge, steep sides. */
+  height: 18px;
+  clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
 }
 
+/* Classic gable roof: a solid triangle spanning the full roof band. */
 .building-roof-peak {
-  height: 0;
-  width: 0;
-  left: 0;
-  right: 0;
-  margin: 0 auto;
-  border-left: 18px solid transparent;
-  border-right: 18px solid transparent;
-  border-top: 14px solid rgba(255, 255, 255, 0.55);
-  background: none;
+  height: 18px;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
 }
 
+/* Shallow/wide pitched roof — the "modern flat" variant, but still a roof:
+ * a lower, wider taper than the other two so it reads distinctly without
+ * going back to a flat-topped slab. */
 .building-roof-flat {
-  height: 6px;
-  border-radius: 3px;
+  height: 13px;
+  clip-path: polygon(35% 0%, 65% 0%, 100% 100%, 0% 100%);
 }
 
 @keyframes building-rise {
