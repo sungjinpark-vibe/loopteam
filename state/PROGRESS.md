@@ -47,14 +47,12 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **Open T006**: implement ADDENDUM-01 (savings buildings on-street + road layout) against
-   `app_in_toss/src`. Suggest splitting into the addendum's own two build-order rows (road layout
-   first — independently demoable — then 저축 블록) rather than one big task, mirroring how T002-T004
-   were kept to a manageable size. Check with the director before spending another large chunk of
-   budget, given T005 alone cost ~1.5M+ subagent tokens across 6 rounds.
-2. After T006: build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6
-   settings + F12 export/import — F13 itself is now covered by T005/T006).
-3. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
+1. **T006 running** — road-based village layout (ADDENDUM-01 §3 only; savings buildings themselves
+   are T007, once T006 lands). Director approved proceeding after T005's report.
+2. After T006: T007 = the savings buildings themselves (ADDENDUM-01 §2).
+3. Then build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6 settings
+   + F12 export/import).
+4. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
    2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
 
 ## Open Items
@@ -95,8 +93,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Report T005 to the director (done, accepted at 89/100 with justification); check whether to
-   proceed straight to T006 or pause, given the token cost of T005.
+1. Check on T006's result; report to the director with a screenshot (a village with roads is a
+   strong visual moment, same pattern as T003/T004).
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
