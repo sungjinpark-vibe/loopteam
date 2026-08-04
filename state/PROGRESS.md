@@ -109,7 +109,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Report T009 to the director; open T010 (long-press move + UI, part b).
+1. Check on T010's result (long-press move UI, part b); report to the director with a screenshot/clip
+   of the move interaction if possible.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
