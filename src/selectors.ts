@@ -8,6 +8,7 @@
  * every selector unit-testable with no React and fully time-travelable.
  */
 import { daysInMonth as daysInMonthOf, dayBefore, monthBefore, parseYm, shiftMonth, ymOnly } from "./calendar";
+import { savingsOf } from "./types";
 import type { Building, CategoryId, EntryType, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
 // ── Layout constant (not a balance dial, spec §9 / §13 trade-off 9) ──
@@ -304,8 +305,8 @@ export function grownStructures(
   for (const key of Object.keys(after.savingsByCategoryKrw ?? {})) {
     const id = key as SavingCategoryId;
     const ladder = ladderOf(id);
-    const was = towerSegments(before.savingsByCategoryKrw?.[id] ?? 0, ladder);
-    const now = towerSegments(after.savingsByCategoryKrw?.[id] ?? 0, ladder);
+    const was = towerSegments(savingsOf(before, id), ladder);
+    const now = towerSegments(savingsOf(after, id), ladder);
     if (now > was) grown.push(id);
   }
   return grown;

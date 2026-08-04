@@ -376,9 +376,32 @@ button.town-fab {
   color: var(--town-grey600);
 }
 .savings-structure-label {
-  font-size: 11px;
+  /* Round-7 finding: at the previous 11px, `min-width: 0` (below) shrinks
+   * this grid item to the plot's real ~38.3px width at 320px, and — unlike
+   * `.savings-structure-board`, which sets `word-break: keep-all` — this
+   * rule had no break-mode override, so the default `word-break: normal`
+   * let a label with no space ("기타저축", "목표저축") wrap BETWEEN Hangul
+   * syllables (CJK is break-anywhere by default) to fit. The row it sits in
+   * is a fixed `LABEL_ROW_PX` (16px, townLayout.ts) grid track, not an
+   * auto-sizing one, so the wrapped second line painted straight over
+   * `.savings-structure-pips` in the row below — confirmed in a real
+   * browser via the wrapped text node's own line rects (a check on this
+   * `<div>`'s single block box, which stays fixed at the 16px row height
+   * regardless of its content, misses this entirely: the box never grows,
+   * only the text painted inside it overflows). 9px (measured, real
+   * browser, 320px, the narrowest supported width) is the largest size at
+   * which every current label's full text still fits on that one line with
+   * no wrap. `overflow`/`white-space`/`text-overflow` are defence in depth
+   * for any wider label or font metrics this measurement didn't cover: an
+   * ellipsis into the fixed row instead of a second line bleeding into the
+   * pips. */
+  font-size: 9px;
   text-align: center;
   color: var(--town-grey700);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .savings-structure-pips {
   display: flex;
@@ -447,16 +470,15 @@ button.town-fab {
   0%, 100% { transform: translateX(0); }
   50% { transform: translateX(1px); }
 }
-@keyframes savings-idle-bay-creak {
-  0%, 100% { transform: skewX(0deg); }
-  50% { transform: skewX(0.5deg); }
-}
 .savings-idle--seal-glint { animation: savings-idle-seal-glint 2400ms ease-in-out infinite; }
 .savings-idle--ticker-blink { animation: savings-idle-ticker-blink 1400ms ease-in-out infinite; }
 .savings-idle--dial-tick { animation: savings-idle-dial-tick 1800ms ease-in-out infinite; }
 .savings-idle--scaffold-sway { animation: savings-idle-scaffold-sway 3000ms ease-in-out infinite; }
-.savings-idle--bay-creak { animation: savings-idle-bay-creak 2600ms ease-in-out infinite; }
-/* `idleAnim: "none"` (other_saving) intentionally has no class/rule — §2.3. */
+/* `idleAnim: "none"` (other_saving) intentionally has no class/rule — §2.3.
+ * `bay-creak` is a legal `IdleAnim` member (content.placeholder.ts) with no
+ * current `SAVINGS_STRUCTURE` entry using it — no rule here either, so a
+ * future structure that does adopt it fails loudly (no animation, not a
+ * silently-wrong one) until this file is updated to match. */
 
 @keyframes savings-rise-seal-stamp {
   from { transform: scale(1.3); opacity: 0; }
@@ -505,8 +527,7 @@ button.town-fab {
   .savings-idle--seal-glint,
   .savings-idle--ticker-blink,
   .savings-idle--dial-tick,
-  .savings-idle--scaffold-sway,
-  .savings-idle--bay-creak {
+  .savings-idle--scaffold-sway {
     animation: none;
   }
 }
@@ -647,12 +668,21 @@ button.town-fab {
  * `.entry-keypad` below: the library's emotion stylesheet is injected after
  * this static one and wins any same-specificity tie regardless of source
  * order. Font-size/padding are trimmed too so a 4-5 char label + icon still
- * reads clearly at the smaller chip size instead of wrapping. */
+ * reads clearly at the smaller chip size instead of wrapping.
+ *
+ * Round-7 finding: 11px still left the icon+label content ~5px wider than
+ * the 52px-visible ChipItem box at 320px (the 5-column track is narrowest
+ * there), and ChipItem clips its own overflow (`overflow-x: hidden`, TDS's
+ * own rule, not ours) rather than wrapping — so "주식 투자"/"기타저축"/
+ * "목표저축" lost their last glyph. 9.5px (measured, real browser, 320px)
+ * clears every current label with margin to spare; 320px is the narrowest
+ * viewport this app supports (`MIN_VIEWPORT_PX`, townLayout.ts) so nothing
+ * narrower needs checking. */
 .category-grid > * [data-tds-mobile-component="ChipItem"] {
   min-width: 0 !important;
   padding-left: 4px !important;
   padding-right: 4px !important;
-  font-size: 11px !important;
+  font-size: 9.5px !important;
 }
 
 /* TDS's `NumberKeypad` defaults to a 64px row (256px for 4 rows) — with

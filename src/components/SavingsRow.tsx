@@ -34,6 +34,7 @@ import {
   savingsPlotTemplateRows,
   structureLevelHeightPx,
 } from "../townLayout";
+import { savingsOf } from "../types";
 import type { SavingCategoryId } from "../types";
 
 export interface SavingsRowProps {
@@ -80,7 +81,7 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
     const content = SAVINGS_STRUCTURE[id];
     const category = CATEGORY_CONTENT[id];
     const ownLadder = ladderFor(id, ladder, ladderOverrides);
-    const level = towerSegments(savingsByCategoryKrw?.[id] ?? 0, ownLadder);
+    const level = towerSegments(savingsOf({ savingsByCategoryKrw }, id), ownLadder);
     const isEmpty = level === 0;
     const isRising = justGrew?.id === id;
     // §2.6 step 2 / round-1 finding C1 #3: the one-shot rise plays the
