@@ -91,6 +91,18 @@ Today one number does two jobs. It is split (in meaning, not in storage):
 
 ### 3.2 `openPlotCount` — one pool, two guarantees, zero new constants
 
+> **Corrected 2026-08-04, after T009 (part a) implementation.** The `requiredLots` code block
+> originally here — `Math.max(plotsOpened, highest-occupied-index + 1)` — was wrong: it folds every
+> occupied index into the pool unconditionally, so one random draw landing near the top of the
+> currently-open block (an ordinary, non-corrupt outcome, not misuse) drags the pool's size to that
+> draw's position instead of to the number of buildings actually built. That breaks §3.4's growth
+> table, §6.1's F2 AC, and AC-P4 under ordinary random gameplay — confirmed by T009's implementer via
+> a 3,000-trial adversarial probe, and independently re-verified by 클라이언트팀장 during scoring. It
+> also made `reconcilePlacement` (§3.6) see a false "mismatch" and fire a boot-time write on every
+> valid, freshly-randomly-placed town — exactly the case §3.6 point 2 promises zero writes for. The
+> corrected version below is what actually shipped (`src/placement.ts`, commit 7043dc7) and is now
+> the authoritative text.
+
 Verified against `townLayout.ts:190-206`: `TOWN_COLUMNS = 6`, `BLOCK_ROWS = 2`, so `renderedTileCount(n) = blockCount(n) * 12` and **`renderedTileCount(n)` is the smallest multiple of 12 that is ≥ `max(n, 1)`.**
 
 ```ts
@@ -98,11 +110,34 @@ Verified against `townLayout.ts:190-206`: `TOWN_COLUMNS = 6`, `BLOCK_ROWS = 2`, 
 import { renderedTileCount } from "./townLayout";
 import type { Building } from "./types";
 
-/** Lots the town must at minimum account for: its growth frontier, or the highest occupied lot, whichever is further. */
+/**
+ * The lot count the growth pool must cover, for a given growth frontier
+ * (`plotsOpened`, i.e. `nextPlotIndex`) and the town's CURRENT occupancy.
+ *
+ * The bump past `plotsOpened` fires ONLY when the frontier-only pool would
+ * actually be unsafe for this occupancy: an index it cannot render (DE-2/G1),
+ * or so many occupied lots that none would be left free (G2). Both branches
+ * are proven safe for ANY (plotsOpened, taken) pair, including
+ * adversarial/corrupt ones — see `poolSize`'s doc for the two-line proof.
+ *
+ * Under the real `pickPlot`/`allocatePlots` pipeline this never fires: every
+ * live draw is already bounded by the SAME frontier-only pool it is about to
+ * enlarge (`plotsOpened` only ever grows by exactly `+ 1` per placed
+ * building — §3.5), so by induction `taken.size <= plotsOpened` and every
+ * occupied index is already `< renderedTileCount(plotsOpened + 1)` before
+ * this function is asked. It exists to protect the one case that genuinely
+ * needs it: a `plotIndex` that did NOT come from this pipeline — an F12
+ * import, hand-edited storage, or a corrupt-recovery survivor
+ * `reconcilePlacement` chose not to re-seat because it was a valid, unique,
+ * non-negative integer (just an implausibly large one).
+ */
 export function requiredLots(plotsOpened: number, taken: ReadonlySet<number>): number {
+  const frontier = Math.max(plotsOpened, 0);
+  const framedPool = renderedTileCount(frontier + 1);
   let highest = 0;
   for (const i of taken) if (Number.isInteger(i) && i >= 0) highest = Math.max(highest, i + 1);
-  return Math.max(plotsOpened, highest);
+  if (highest > framedPool || taken.size >= framedPool) return Math.max(highest, taken.size);
+  return frontier;
 }
 
 /**
