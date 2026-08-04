@@ -20,8 +20,12 @@
   can be long-press-moved anywhere in the open pool, free and unlimited, keyboard-accessible. Real
   bugs were found and fixed in ADDENDUM-02 §3.2's own pseudocode along the way (see
   `backlog/tasks/T009.md` Log). `qa` agent hardened against a process-kill scope incident (see Do Not
-  Repeat). **T011 (savings buildings, ADDENDUM-01 §2) running** — the last deferred piece of
-  ADDENDUM-01, building on `SavingsRow.tsx`'s existing empty-cell skeleton from T006.
+  Repeat). **T011 (savings buildings, ADDENDUM-01 §2) `done` — 93/100** after an escalation +
+  2 fix-forward rounds (81→85→93). ADDENDUM-01 is now fully implemented: five real savings
+  structures render, grow correctly, preserve F13's invariant under the sharpest test case, and
+  the entry sheet's 저축 segment works at all viewport widths. One residual font-metric risk noted
+  as a later-task follow-up (see `backlog/tasks/T011.md` Log). `team-lead` agent hardened against a
+  git-mutation scope incident (see Do Not Repeat).
   Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
   bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
   **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
@@ -96,11 +100,12 @@
 - None.
 
 ## Needs Human Review
-- **T011 (app_in_toss savings buildings) escalated 2026-08-05** — no-progress brake after 4 rounds
-  (88→84→82→81, flat within ±2). Real defects, most severe a category-grid overflow that hides one
-  of five 저축 categories from the entry sheet entirely. Work committed as WIP (d49b88d), not marked
-  done. PM attempting one targeted fix-forward round on the overflow bug specifically before treating
-  this as blocked-on-director. Full detail: `backlog/tasks/T011.md` Log.
+- None active — T011's escalation (2026-08-05, no-progress brake at 81/100) was resolved via two
+  targeted fix-forward rounds, final score 93/100. Full detail: `backlog/tasks/T011.md` Log.
+- **Security note (2026-08-05, T011), resolved, kept for the pattern**: a `team-lead` scoring agent
+  ran `git checkout -- .` while reviewing — team-lead is supposed to be strictly read-only. No data
+  lost (working tree was already clean). Hardened `.claude/agents/team-lead.md` with an explicit
+  rule against any mutating git command.
 - **Security note (2026-08-04, T010), resolved, kept for the pattern**: a QA/evidence step killed its
   dev server via `taskkill /F /IM node.exe /T` — by image name, not the specific PID it started —
   which could kill unrelated node processes (another agent's dev server, tooling). Same class as the
@@ -122,8 +127,10 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T011's result (savings buildings, ADDENDUM-01 §2 — the last deferred piece of that
-   addendum); report to the director with a screenshot.
+1. Report T011 to the director with a screenshot of the five savings structures; discuss next
+   priorities — ADDENDUM-01 and ADDENDUM-02 are both now fully implemented, MVP build order step 4
+   remainder (S3 기록/history, F9 edit/delete, F6 budget/mood, S6 settings, F12 export/import) is the
+   natural next chunk, or the director may have new feedback first.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
@@ -187,6 +194,23 @@
   content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
   a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
   hash match, nothing changed.
+
+## Do Not Repeat (addendum, 2026-08-05 — T011)
+- **A `team-lead` (scoring) agent must never run a mutating git command** (`checkout`, `reset`,
+  `clean`, `add`, `commit`, `stash apply/pop`) — it has Bash/PowerShell only to run the app live for
+  verification, and is otherwise strictly read-only, same as it's read-only on the codebase itself.
+  Found 2026-08-05 (T011 scoring): a team-lead ran `git checkout -- .` mid-review; no data was lost
+  only because the tree happened to already be clean. Hardened `.claude/agents/team-lead.md` with an
+  explicit rule. Same incident class as the qa `taskkill` scope issue (2026-08-04) and the earlier
+  `rm -rf`/`git checkout` incidents — the pattern is agents reaching for a "clean up" action outside
+  their actual job. Consider auditing other read-only-by-design agent roles (gate-runner) for the
+  same gap next time one of them touches Bash for verification.
+- **A 390px-only reference viewport misses real narrow-Android-width (320-360px) layout bugs.** T011
+  needed two separate fix rounds because the first round's fix was only verified at 390px; the actual
+  defect (label wrap/clipping) only appeared at ≤360px. When a task's AC don't already specify a
+  viewport sweep, ask the implementer to check at least 320/360/390/430px for anything involving
+  Korean text in a fixed-width container — font metrics vary by system font in ways a single
+  viewport's single font can hide.
 
 ## Do Not Repeat (addendum, 2026-08-04, cont'd — T010)
 - **Never kill a process by broad image name (`taskkill /F /IM node.exe /T`, `pkill node`, etc.) to
