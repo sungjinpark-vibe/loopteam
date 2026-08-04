@@ -15,8 +15,11 @@
   live including the dense 5,400-building fixture. **T007 (building roof visual) was reverted by the
   director** after seeing it — back to T006's flat-colored-square buildings, see ▶ Next below.
   **T008 (spec addendum — player-controlled placement, random-then-movable) `done`, 92/100, approved
-  by the director** ("좋아") — not yet implemented, next task. The savings buildings themselves
-  (ADDENDUM-01 §2) are still unbuilt, independent of placement, can slot in whenever.
+  by the director** ("좋아"). **T009 (random placement, part a) `done` — 91/100 after 4 rounds.**
+  Buildings now land at a random open lot (not sequential); a real bug was found and fixed in
+  ADDENDUM-02 §3.2's own pseudocode along the way (see `backlog/tasks/T009.md` Log). T010 (long-press
+  move + UI, part b) is next. The savings buildings themselves (ADDENDUM-01 §2) are still unbuilt,
+  independent of placement, can slot in whenever.
   Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
   bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
   **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
@@ -106,8 +109,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T009's result (random placement, part a); report to the director; open T010 (long-press
-   move + UI, part b) once T009 lands.
+1. Report T009 to the director; open T010 (long-press move + UI, part b).
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
