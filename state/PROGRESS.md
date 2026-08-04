@@ -20,8 +20,8 @@
   can be long-press-moved anywhere in the open pool, free and unlimited, keyboard-accessible. Real
   bugs were found and fixed in ADDENDUM-02 §3.2's own pseudocode along the way (see
   `backlog/tasks/T009.md` Log). `qa` agent hardened against a process-kill scope incident (see Do Not
-  Repeat). The savings buildings themselves (ADDENDUM-01 §2) are still unbuilt, independent of
-  placement, can slot in whenever — likely the next natural task.
+  Repeat). **T011 (savings buildings, ADDENDUM-01 §2) running** — the last deferred piece of
+  ADDENDUM-01, building on `SavingsRow.tsx`'s existing empty-cell skeleton from T006.
   Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
   bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
   **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
@@ -117,8 +117,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Report T010 to the director with a screenshot/clip of the move interaction, then decide the next
-   task with him — likely the savings buildings (ADDENDUM-01 §2) since placement/move is now done.
+1. Check on T011's result (savings buildings, ADDENDUM-01 §2 — the last deferred piece of that
+   addendum); report to the director with a screenshot.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
