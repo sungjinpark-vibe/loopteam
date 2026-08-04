@@ -117,6 +117,13 @@ export interface TownState {
   noSpendDays: string[]; // claimed dates
   cumulativeSavingsKrw: number; // denormalized for tower height; rebuildable from entries
   lastSettledPeriod: string | null; // idempotency key for F16
+  // ADDENDUM-02 §4.5 (D-36): optional, no migration — an old core reads
+  // `undefined` -> falsy -> hint eligible. Set in memory on the first
+  // successful move (or an explicit dismiss) and folded into whatever
+  // `saveCore` the app performs next for any OTHER reason; never written by
+  // itself, so a move still writes exactly one storage key (AC-M10) and the
+  // hint costs zero extra writes (AC-H1).
+  moveHintSeen?: boolean;
 }
 
 export interface BudgetSetting {

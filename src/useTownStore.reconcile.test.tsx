@@ -72,6 +72,15 @@ function freshTownFixture(nextPlotIndex: number) {
     noSpendDays: [],
     cumulativeSavingsKrw: 0,
     lastSettledPeriod: null,
+    // ADDENDUM-02 §4.5 — this file is about the RECONCILER's own "no
+    // player-facing notice" contract (§3.6 point 6), not the move-hint. A
+    // fixture town with >= 2 buildings and `moveHintSeen` unset would
+    // otherwise ALSO get a (correct, separately-tested — see
+    // `useTownStore.move.test.tsx`) `{ kind: "moveHint" }` notice queued at
+    // boot, which is real, spec-required behaviour but unrelated to what
+    // this file tests. Marking it already-seen here keeps this file scoped
+    // to the reconciler.
+    moveHintSeen: true,
   };
 }
 

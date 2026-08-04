@@ -156,7 +156,16 @@ describe("AC-R4 — the real useTownStore boot over the dense fixture, on the re
     const fixture = FIXTURES.dense();
     setTimeTravelDate(fixture.today);
     const loaderClient = createChunkedStorage();
-    loadFixtureIntoStorage({ ...fixture, buildings: withOneDuplicate(fixture.buildings) }, loaderClient);
+    loadFixtureIntoStorage(
+      // ADDENDUM-02 §4.5 — this test is about the reconciler's OWN "silent
+      // repair" contract (§3.6 point 6), not the move-hint; the dense fixture
+      // has thousands of buildings and an unset `moveHintSeen`, which would
+      // otherwise ALSO (correctly — see `useTownStore.move.test.tsx`) queue
+      // `{ kind: "moveHint" }` at this same boot. Marking it already-seen
+      // keeps this file scoped to reconciliation.
+      { ...fixture, buildings: withOneDuplicate(fixture.buildings), town: { ...fixture.town, moveHintSeen: true } },
+      loaderClient,
+    );
     loaderClient.flush();
 
     const trackSpy = vi.spyOn(analytics, "track");

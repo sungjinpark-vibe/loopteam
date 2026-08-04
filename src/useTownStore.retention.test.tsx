@@ -102,7 +102,15 @@ describe("F4 daily slot reset + F14 queue drain, across a real reload", () => {
     setTimeTravelDate(DAY1);
     await remount();
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 3); // unchanged, not reset to 5
-    expect(latest?.notice).toBeNull(); // nothing pending — must not fire on every reopen
+    // F4's own concern — nothing DRAIN-related fires on a reopen with an
+    // empty queue — still holds. ADDENDUM-02 §4.5 is a separate, correct,
+    // orthogonal boot-time check: this town now has 8 buildings and
+    // `moveHintSeen` was never set (never dismissed nor moved in this test),
+    // so THIS reopen is exactly the boot where the hint is expected to
+    // appear — round-2 finding C1 #1's fix (`useTownStore.move.test.tsx`
+    // covers the hint's own ACs in isolation; this assertion only needs to
+    // not regress into treating a real hint as a bug).
+    expect(latest?.notice).toEqual({ kind: "moveHint" });
   });
 });
 
@@ -164,6 +172,15 @@ describe("F5 tier celebration", () => {
       act(() => {
         latest!.addEntry(expenseDraft(dateStr, `t${i}`));
       });
+      // ADDENDUM-02 §4.5 — orthogonal to this test's F5 concern: each of
+      // THESE remounts is also a boot with buildingCount >= 2 and
+      // `moveHintSeen` unset, so it correctly (re-)queues the move hint
+      // (round-2 finding C1 #1's fix) whenever the notice queue happens to be
+      // empty at that boot. Clearing it out of the way here keeps THIS test
+      // scoped to tier notices — `useTownStore.move.test.tsx` covers the
+      // hint's own ACs (including that it does NOT re-queue once actually
+      // persisted as seen).
+      if (latest?.notice?.kind === "moveHint") act(() => latest!.dismissNotice());
       day++;
     }
     expect(latest?.buildingCount).toBe(thresholds[1]);
@@ -174,6 +191,7 @@ describe("F5 tier celebration", () => {
 
     // Reopening (no new building) must not re-fire it.
     await remount();
+    if (latest?.notice?.kind === "moveHint") act(() => latest!.dismissNotice()); // see above — orthogonal to F5
     expect(latest?.notice).toBeNull();
   });
 });

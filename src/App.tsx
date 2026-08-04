@@ -7,8 +7,36 @@ import { TierCelebration } from "./components/TierCelebration";
 import { TownGrid } from "./components/TownGrid";
 import { TownHeader } from "./components/TownHeader";
 import type { EntryDraft } from "./entryActions";
+import { useMoveMode } from "./hooks/useMoveMode";
 import { tier as computeTier } from "./selectors";
-import { useTownStore } from "./useTownStore";
+import { useTownStore, type Notice } from "./useTownStore";
+
+/**
+ * One toast line per non-"tier" `Notice` kind ("tier" renders as the
+ * full-screen celebration overlay instead, handled separately in the
+ * component below). A `switch` with an exhaustive `never` default — not the
+ * ternary chain this replaces — so TypeScript itself refuses to compile if a
+ * future `Notice` kind is added here without an explicit case (ADDENDUM-01
+ * §3.6 break B8: a binary ternary once silently rendered `undefined` for a
+ * third notice kind; round-2 finding C3 re-opened that exact hazard by
+ * adding "moveHint" as a fourth implicit `else` instead of its own case).
+ */
+function noticeToastMessage(notice: Exclude<Notice, { kind: "tier" }>): string {
+  switch (notice.kind) {
+    case "corruption":
+      return notice.message;
+    case "drained":
+      return `밀렸던 건물 ${notice.count}채가 오늘 아침에 완성됐어요!`;
+    case "relayout":
+      return "마을에 도로가 새로 놓였어요. 건물 위치가 조금 바뀌었어요."; // copy is D-26
+    case "moveHint":
+      return "건물을 길게 누르면 옮길 수 있어요"; // placeholder copy (D-36)
+    default: {
+      const exhaustive: never = notice;
+      throw new Error(`unhandled notice kind: ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
 
 /**
  * S2 (우리 동네) + S4 (입력 시트) — MVP-SPEC build order.
@@ -21,23 +49,17 @@ function App() {
   const { notice, dismissNotice } = store;
   const [sheetOpen, setSheetOpen] = useState(false);
   const { openToast } = useToast();
+  const move = useMoveMode(store.buildings, store.moveBuilding);
 
   // One-shot notices (F10 recovered corruption, F14 "return promise kept" on
-  // boot, F5 tier celebration) share one FIFO queue (useTownStore.ts's
-  // `Notice`) — every kind but "tier" surfaces here as a toast and is popped
-  // immediately; "tier" is rendered as the full-screen overlay below instead
-  // and pops itself via `TierCelebration`'s `onDismiss`.
+  // boot, F5 tier celebration, ADDENDUM-02 §4.5 move hint) share one FIFO
+  // queue (useTownStore.ts's `Notice`) — every kind but "tier" surfaces here
+  // as a toast and is popped immediately; "tier" is rendered as the
+  // full-screen overlay below instead and pops itself via
+  // `TierCelebration`'s `onDismiss`.
   useEffect(() => {
     if (notice === null || notice.kind === "tier") return;
-    // ADDENDUM-01 §3.6 (break B8): a binary ternary silently rendered
-    // `undefined` for any third notice kind — `relayout` is that third kind.
-    const message =
-      notice.kind === "corruption"
-        ? notice.message
-        : notice.kind === "drained"
-          ? `밀렸던 건물 ${notice.count}채가 오늘 아침에 완성됐어요!`
-          : "마을에 도로가 새로 놓였어요. 건물 위치가 조금 바뀌었어요."; // relayout — copy is D-26
-    openToast(message);
+    openToast(noticeToastMessage(notice));
     dismissNotice();
   }, [notice, dismissNotice, openToast]);
 
@@ -111,19 +133,53 @@ function App() {
         buildings={store.buildings}
         justBuiltId={store.justBuiltId}
         ladder={BALANCE.savingsTowerSegments}
+        movingId={move.movingId}
+        cursorIndex={move.cursorIndex}
+        onPlotLongPress={move.onPlotLongPress}
+        onPlotTap={move.onPlotTap}
+        onCursorMove={move.onCursorMove}
+        onCancel={move.cancel}
       />
 
-      <Button
-        as="button"
-        color="primary"
-        variant="fill"
-        size="xlarge"
-        aria-label="거래 입력"
-        className="town-fab"
-        onClick={() => setSheetOpen(true)}
-      >
-        +
-      </Button>
+      {/* ADDENDUM-02 §4.3/§4.4 — rendered OUTSIDE `.town-grid` (a sibling,
+          not a grid child) so ADDENDUM-01 §2.4a's direct-children guard on
+          the grid (AC-M7) is untouched. */}
+      {move.movingId !== null ? (
+        <div className="town-move-bar" role="status">
+          <span>{move.rejectMessage ?? "옮길 자리를 골라주세요"}</span>
+          <Button as="button" color="primary" variant="weak" size="small" onClick={move.cancel}>
+            취소
+          </Button>
+        </div>
+      ) : (
+        move.justMoved !== null && (
+          <div className="town-move-bar" role="status">
+            <span>{move.undoFailedMessage ?? "건물을 옮겼어요"}</span>
+            <Button as="button" color="primary" variant="weak" size="small" onClick={move.undo}>
+              되돌리기
+            </Button>
+            <Button as="button" color="primary" variant="fill" size="small" onClick={move.dismissJustMoved}>
+              완료
+            </Button>
+          </div>
+        )
+      )}
+
+      {/* The FAB hides in move mode — one `useBackGuard` history entry per
+          open in-page modal at a time (§4.3 "Enter" row). */}
+      {move.movingId === null && (
+        <Button
+          as="button"
+          color="primary"
+          variant="fill"
+          size="xlarge"
+          aria-label="거래 입력"
+          className="town-fab"
+          onClick={() => setSheetOpen(true)}
+        >
+          +
+        </Button>
+      )}
 
       <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
 

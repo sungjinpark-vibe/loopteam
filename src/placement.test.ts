@@ -12,6 +12,7 @@ import { seededRandom } from "./platform/random";
 import {
   allocatePlots,
   freePlots,
+  moveBuilding,
   occupiedPlots,
   openPlotCount,
   pickPlot,
@@ -19,7 +20,7 @@ import {
   poolSize,
   reconcilePlacement,
 } from "./placement";
-import { renderedTileCount } from "./townLayout";
+import { cellFromIndex, isRoadCell, renderedTileCount } from "./townLayout";
 import type { Building } from "./types";
 
 function building(id: string, plotIndex: number, createdAt = 0, builtOn = "2026-08-01"): Building {
@@ -274,6 +275,119 @@ describe("AC-R2 — a valid pre-change town needs no repair", () => {
       expect(result.repaired).toBe(0);
       expect(result.buildings).toBe(buildings); // reference-identical — the caller can skip the write entirely
       expect(result.plotsOpened).toBe(N);
+    }
+  });
+});
+
+// ── ADDENDUM-02 §4.1/§8.3 — moveBuilding (AC-M1..AC-M4, AC-M11) ──
+
+describe("AC-M1 — a move to a free in-town lot", () => {
+  it("returns ok: true, an array differing ONLY in that building's plotIndex, and echoes from/to", () => {
+    const a = building("a", 0);
+    const b = building("b", 1);
+    const buildings = [a, b];
+    const result = moveBuilding(12, buildings, "a", 5);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.from).toBe(0);
+    expect(result.to).toBe(5);
+    expect(result.buildings.find((x) => x.id === "a")?.plotIndex).toBe(5);
+    expect(result.buildings.find((x) => x.id === "b")).toBe(b); // untouched, same reference
+    expect(buildings[0].plotIndex).toBe(0); // input never mutated
+  });
+});
+
+describe("AC-M2 — rejection cases, exact reasons, inputs never mutated", () => {
+  it("occupied -> 'occupied'", () => {
+    const buildings = [building("a", 0), building("b", 1)];
+    const result = moveBuilding(12, buildings, "a", 1);
+    expect(result).toEqual({ ok: false, reason: "occupied" });
+    expect(buildings[0].plotIndex).toBe(0);
+  });
+
+  it("to === from -> 'same-plot'", () => {
+    const buildings = [building("a", 0)];
+    const result = moveBuilding(12, buildings, "a", 0);
+    expect(result).toEqual({ ok: false, reason: "same-plot" });
+  });
+
+  it("to < 0 -> 'out-of-town'", () => {
+    const buildings = [building("a", 0)];
+    expect(moveBuilding(12, buildings, "a", -1)).toEqual({ ok: false, reason: "out-of-town" });
+  });
+
+  it("to >= openPlotCount -> 'out-of-town'", () => {
+    const buildings = [building("a", 0)];
+    const pool = openPlotCount(1, buildings);
+    expect(moveBuilding(1, buildings, "a", pool)).toEqual({ ok: false, reason: "out-of-town" });
+  });
+
+  it("non-integer to -> 'out-of-town'", () => {
+    const buildings = [building("a", 0)];
+    expect(moveBuilding(12, buildings, "a", 1.5)).toEqual({ ok: false, reason: "out-of-town" });
+    expect(moveBuilding(12, buildings, "a", NaN)).toEqual({ ok: false, reason: "out-of-town" });
+  });
+
+  it("unknown id -> 'not-found'", () => {
+    const buildings = [building("a", 0)];
+    expect(moveBuilding(12, buildings, "ghost", 5)).toEqual({ ok: false, reason: "not-found" });
+  });
+
+  it("D-37 — cannot move past the open pool even into an index that LOOKS plausible", () => {
+    const buildings = [building("a", 0)];
+    const pool = openPlotCount(1, buildings);
+    // one past the pool boundary — still rejected, not silently clamped
+    expect(moveBuilding(1, buildings, "a", pool + 5)).toEqual({ ok: false, reason: "out-of-town" });
+  });
+});
+
+describe("AC-M3 — every OTHER field survives a move untouched", () => {
+  it("id/source/categoryId/variantIndex/builtOn/createdAt are identical (toEqual minus plotIndex)", () => {
+    const original: Building = {
+      id: "a",
+      source: { kind: "nospend", date: "2026-08-01" },
+      categoryId: "park",
+      variantIndex: 2,
+      plotIndex: 0,
+      builtOn: "2026-08-01",
+      createdAt: 12345,
+    };
+    const result = moveBuilding(12, [original], "a", 7);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    const moved = result.buildings[0];
+    expect(moved).toEqual({ ...original, plotIndex: 7 });
+  });
+});
+
+describe("AC-M4 — moveBuilding touches nothing but the buildings array (no TownState involvement)", () => {
+  it("the function signature takes/returns no TownState field at all — a caller cannot pass one in", () => {
+    // moveBuilding's own signature (plotsOpened: number, buildings, id, to) has
+    // no TownState parameter, so slotsUsedToday/streakDays/nextPlotIndex/queue/etc
+    // are structurally unreachable — this is the AC's own contract, exercised
+    // end-to-end (against a real TownState) in useTownStore's move action.
+    const buildings = [building("a", 0)];
+    const result = moveBuilding(12, buildings, "a", 5);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(Object.keys(result)).toEqual(["ok", "buildings", "from", "to"]);
+  });
+});
+
+describe("AC-M11 — the frontage invariant re-asserted over the DESTINATION space, at three town sizes", () => {
+  function roadNeighborCount(row: number, col: number): number {
+    return [isRoadCell(row - 1, col), isRoadCell(row + 1, col), isRoadCell(row, col - 1), isRoadCell(row, col + 1)].filter(
+      Boolean,
+    ).length;
+  }
+
+  it("every index in the open pool at 12 / 24 / 600 has an orthogonal road neighbor", () => {
+    for (const plotsOpened of [12, 24, 600]) {
+      const pool = openPlotCount(plotsOpened, []);
+      for (let i = 0; i < pool; i++) {
+        const { row, col } = cellFromIndex(i);
+        expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(1);
+      }
     }
   });
 });

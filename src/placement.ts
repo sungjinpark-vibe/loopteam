@@ -154,6 +154,57 @@ export function allocatePlots(
   return out;
 }
 
+// ── §4 — move via long-press (ADDENDUM-02 §4.1) ──
+
+export type MoveRejection = "not-found" | "same-plot" | "out-of-town" | "occupied";
+
+export type MoveResult =
+  | { ok: true; buildings: Building[]; from: number; to: number }
+  | { ok: false; reason: MoveRejection };
+
+/**
+ * The ONLY mutator of `Building.plotIndex` outside placement-time (rule R-4).
+ * Pure: returns a new array with exactly one building's `plotIndex` replaced.
+ * Never throws, never mutates an input, and touches NOTHING else on the
+ * building — not `id`, `source`, `categoryId`, `variantIndex`, `builtOn` or
+ * `createdAt` (AC-M3).
+ *
+ * Checked in order (V1-V4, §4.1):
+ *   V1 the building must exist                      -> "not-found"
+ *   V2 `to === building.plotIndex`                   -> "same-plot" (UI treats this as cancel, not an error)
+ *   V3 `to` must be a non-negative integer inside the CURRENT open pool
+ *      (`openPlotCount` over the pre-move occupancy) -> "out-of-town" (D-37:
+ *      a building may only move among lots the town has already grown into)
+ *   V4 no other LIVE building may already hold `to`  -> "occupied" (D-34:
+ *      rejected, not swapped)
+ *
+ * V5 (frontage) and V6 (savings cells unreachable) need no runtime check —
+ * both are structural over the destination space (every plot index maps
+ * through `cellFromIndex` to a cell with road frontage, and no plot index
+ * ever aliases a savings cell). V7 (every building kind is movable, D-35) is
+ * satisfied by this function taking no `categoryId`/`source` branch at all.
+ */
+export function moveBuilding(
+  plotsOpened: number,
+  buildings: readonly Building[],
+  buildingId: string,
+  toPlotIndex: number,
+): MoveResult {
+  const index = buildings.findIndex((b) => b.id === buildingId);
+  if (index === -1) return { ok: false, reason: "not-found" };
+
+  const building = buildings[index];
+  if (toPlotIndex === building.plotIndex) return { ok: false, reason: "same-plot" };
+  if (!Number.isInteger(toPlotIndex) || toPlotIndex < 0 || toPlotIndex >= openPlotCount(plotsOpened, buildings)) {
+    return { ok: false, reason: "out-of-town" };
+  }
+  if (buildings.some((b) => b.plotIndex === toPlotIndex)) return { ok: false, reason: "occupied" };
+
+  const next = buildings.slice() as Building[];
+  next[index] = { ...building, plotIndex: toPlotIndex };
+  return { ok: true, buildings: next, from: building.plotIndex, to: toPlotIndex };
+}
+
 export interface ReconcileResult {
   /** Same order and same object identities as the input, except repaired entries. Identical reference when repaired === 0. */
   buildings: Building[];

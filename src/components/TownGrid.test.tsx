@@ -7,8 +7,10 @@
  * lean) is `qa`'s job in a real browser — jsdom has `css: false` and no
  * layout engine (ADDENDUM-01 §2.9).
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { BALANCE } from "../balance.placeholder";
+import { LONG_PRESS_MS, LONG_PRESS_TOLERANCE_PX } from "../hooks/useTileGestures";
 import { openPlotCount } from "../placement";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
@@ -30,7 +32,7 @@ import {
   savingsCellFor,
 } from "../townLayout";
 import type { Building } from "../types";
-import { TownGrid } from "./TownGrid";
+import { TownGrid, type TownGridProps } from "./TownGrid";
 
 let mounted: MountedComponent | null = null;
 
@@ -49,9 +51,27 @@ const cafeBuilding: Building = {
   createdAt: 1,
 };
 
-function mountGrid(nextPlotIndex: number, buildings: readonly Building[] = []): HTMLElement {
+type MoveProps = Pick<TownGridProps, "movingId" | "cursorIndex" | "onPlotLongPress" | "onPlotTap" | "onCursorMove" | "onCancel">;
+
+const NOOP_MOVE_PROPS: MoveProps = {
+  movingId: null,
+  cursorIndex: null,
+  onPlotLongPress: () => false,
+  onPlotTap: () => {},
+  onCursorMove: () => {},
+  onCancel: () => {},
+};
+
+function mountGrid(nextPlotIndex: number, buildings: readonly Building[] = [], moveProps: Partial<MoveProps> = {}): HTMLElement {
   mounted = mountComponent(
-    <TownGrid nextPlotIndex={nextPlotIndex} buildings={buildings} justBuiltId={null} ladder={BALANCE.savingsTowerSegments} />,
+    <TownGrid
+      nextPlotIndex={nextPlotIndex}
+      buildings={buildings}
+      justBuiltId={null}
+      ladder={BALANCE.savingsTowerSegments}
+      {...NOOP_MOVE_PROPS}
+      {...moveProps}
+    />,
   );
   return mounted.container;
 }
@@ -224,5 +244,300 @@ describe("TownGrid — ADDENDUM-02 §3.2/§8.3 AC-P9: random placement's on-scre
     expect(tiles.length).toBe(openPlotCount(nextPlotIndex, buildings));
     expect(tiles.length).toBeGreaterThan(renderedTileCount(nextPlotIndex));
     expect(container.querySelector('[data-plot-index="14"]')).not.toBeNull();
+  });
+});
+
+describe("TownGrid — ADDENDUM-02 §4.4 move-mode DOM contract (AC-M5/AC-M6/AC-M7)", () => {
+  const secondBuilding: Building = { ...cafeBuilding, id: "b2", plotIndex: 1 };
+
+  it("AC-M5 — movingId set marks exactly one tile .town-tile--moving, with aria-selected='true'", () => {
+    const container = mountGrid(2, [cafeBuilding, secondBuilding], { movingId: cafeBuilding.id });
+    const moving = container.querySelectorAll(".town-tile--moving");
+    expect(moving.length).toBe(1);
+    expect((moving[0] as HTMLElement).dataset.plotIndex).toBe(String(cafeBuilding.plotIndex));
+    expect(moving[0].getAttribute("aria-selected")).toBe("true");
+    // the other building tile is untouched
+    const other = container.querySelector(`[data-plot-index="${secondBuilding.plotIndex}"]`) as HTMLElement;
+    expect(other.classList.contains("town-tile--moving")).toBe(false);
+  });
+
+  it("AC-M6 — droppable count === free-lot count (>= 1), no droppable tile holds a building, none on the road/savings row", () => {
+    const nextPlotIndex = 2;
+    const buildings = [cafeBuilding, secondBuilding];
+    const container = mountGrid(nextPlotIndex, buildings, { movingId: cafeBuilding.id });
+    const droppable = [...container.querySelectorAll(".town-tile--droppable")] as HTMLElement[];
+    const pool = openPlotCount(nextPlotIndex, buildings);
+
+    expect(droppable.length).toBe(pool - buildings.length);
+    expect(droppable.length).toBeGreaterThanOrEqual(1); // G2 (§3.2) — always at least one free lot
+    for (const tile of droppable) {
+      expect(tile.querySelector(".building-tile")).toBeNull(); // no droppable tile holds a building
+      expect(tile.style.gridColumn).not.toBe(String(ROAD_COLUMN + 1)); // never the road column
+      expect(tile.getAttribute("role")).toBe("button");
+    }
+  });
+
+  it("AC-M7 — .town-grid's direct-children count is unchanged by move mode (the bar lives outside the grid, in App.tsx)", () => {
+    const container = mountGrid(0, [], { movingId: "not-in-buildings" });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const expected = renderedTileCount(0) + 1 + crossStreetRowCount(0) + SAVING_CATEGORY_IDS.length + 1;
+    expect(grid.children.length).toBe(expected);
+  });
+});
+
+describe("TownGrid — ADDENDUM-02 §4.3/§8.3 long-press gesture (AC-M8/AC-M9)", () => {
+  function pointerDown(tile: HTMLElement, x = 0, y = 0) {
+    tile.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: x, clientY: y }));
+  }
+  function pointerMove(tile: HTMLElement, x: number, y: number) {
+    tile.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, clientX: x, clientY: y }));
+  }
+  function pointerUp(tile: HTMLElement) {
+    tile.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+  }
+
+  it("AC-M8 — a stationary LONG_PRESS_MS pointerdown fires onPlotLongPress exactly once, through the single delegated listener", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const container = mountGrid(1, [cafeBuilding], { onPlotLongPress });
+      const tile = container.querySelector('[data-plot-index="0"]') as HTMLElement;
+
+      pointerDown(tile);
+      vi.advanceTimersByTime(LONG_PRESS_MS - 1);
+      expect(onPlotLongPress).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
+      expect(onPlotLongPress).toHaveBeenCalledWith(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("AC-M8 — a pointermove past the tolerance cancels it (fires zero times)", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const container = mountGrid(1, [cafeBuilding], { onPlotLongPress });
+      const tile = container.querySelector('[data-plot-index="0"]') as HTMLElement;
+
+      pointerDown(tile);
+      pointerMove(tile, LONG_PRESS_TOLERANCE_PX + 5, 0);
+      vi.advanceTimersByTime(LONG_PRESS_MS + 50);
+      expect(onPlotLongPress).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("AC-M8 — a pointerup at 300ms cancels it (fires zero times even after the full 500ms elapses)", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const container = mountGrid(1, [cafeBuilding], { onPlotLongPress });
+      const tile = container.querySelector('[data-plot-index="0"]') as HTMLElement;
+
+      pointerDown(tile);
+      vi.advanceTimersByTime(300);
+      pointerUp(tile);
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("AC-M9 — the click immediately following a long-press that GRABBED a building does not reach onPlotTap (B22)", () => {
+    vi.useFakeTimers();
+    try {
+      // `true` — the long-press actually did something (grabbed a building),
+      // same as `useMoveMode.onPlotLongPress` returns on a real building.
+      const onPlotLongPress = vi.fn(() => true);
+      const onPlotTap = vi.fn();
+      const container = mountGrid(1, [cafeBuilding], { onPlotLongPress, onPlotTap });
+      const tile = container.querySelector('[data-plot-index="0"]') as HTMLElement;
+
+      pointerDown(tile);
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
+      tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(onPlotTap).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Round-2 finding C2 #1 — the regression this exists to close: a >=500ms
+  // press held on an EMPTY (droppable) lot is exactly move mode's commit
+  // gesture, not just a faster tap. `onLongPress` there is a documented
+  // no-op and returns `false`, so the tail `click` must NOT be swallowed —
+  // it must still reach `onPlotTap`, or the commit is silently lost.
+  it("AC-M9 regression — a 500ms+ press on an empty/droppable lot still reaches onPlotTap (the long-press itself grabbed nothing)", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn(() => false); // empty lot — useMoveMode's own no-op contract
+      const onPlotTap = vi.fn();
+      const container = mountGrid(2, [cafeBuilding], { movingId: cafeBuilding.id, onPlotLongPress, onPlotTap });
+      const tile = container.querySelector('[data-plot-index="1"]') as HTMLElement; // the empty, droppable lot
+
+      pointerDown(tile);
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
+      tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(onPlotTap).toHaveBeenCalledTimes(1);
+      expect(onPlotTap).toHaveBeenCalledWith(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an ordinary tap (no long-press fired) DOES reach onPlotTap", () => {
+    const onPlotTap = vi.fn();
+    const container = mountGrid(1, [cafeBuilding], { onPlotTap });
+    const tile = container.querySelector('[data-plot-index="0"]') as HTMLElement;
+
+    pointerDown(tile);
+    pointerUp(tile);
+    tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onPlotTap).toHaveBeenCalledWith(0);
+  });
+});
+
+describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", () => {
+  it("AC-K1 — the whole grid is exactly one tab stop at every town size; no tile ever carries a tabindex", () => {
+    for (const n of [0, 12, 600]) {
+      const container = mountGrid(n);
+      const grid = container.querySelector(".town-grid") as HTMLElement;
+      expect(grid.getAttribute("tabindex")).toBe("0");
+      expect(container.querySelectorAll(".town-tile[tabindex]").length).toBe(0);
+      mounted?.unmount();
+      mounted = null;
+    }
+  });
+
+  it("AC-K2 — the first arrow key sets the cursor (starts null, pointer users never pay for it)", () => {
+    const onCursorMove = vi.fn();
+    const container = mountGrid(1, [cafeBuilding], { onCursorMove });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(onCursorMove).toHaveBeenCalledWith(0);
+  });
+
+  it("AC-K2 — a subsequent arrow key moves the cursor by one adjacent lot in index space", () => {
+    const onCursorMove = vi.fn();
+    const container = mountGrid(24, [], { cursorIndex: 5, onCursorMove });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(onCursorMove).toHaveBeenCalledWith(6);
+  });
+
+  it("AC-K2 — ArrowLeft moves the cursor back by one adjacent lot", () => {
+    const onCursorMove = vi.fn();
+    const container = mountGrid(24, [], { cursorIndex: 6, onCursorMove });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(onCursorMove).toHaveBeenCalledWith(5);
+  });
+
+  it("AC-K2 — ArrowLeft at the first lot (index 0) does not move the cursor", () => {
+    const onCursorMove = vi.fn();
+    const container = mountGrid(24, [], { cursorIndex: 0, onCursorMove });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(onCursorMove).not.toHaveBeenCalled();
+  });
+
+  // ArrowUp/ArrowDown go through a distinct code path from ArrowLeft/Right —
+  // the serpentine inverse `plotFromIndex` -> `indexFromPlot` in
+  // `useTileGestures.ts`'s `stepCursor` — round-2 finding C1 #4: only
+  // ArrowRight was ever driven, leaving this the most error-prone,
+  // completely unguarded part of the cursor. Index 5 sits at the END of row
+  // 0 (a left-to-right row); row 1 runs right-to-left, so row 1's own index 0
+  // is the lot directly BELOW index 5 on screen — that is `6`, not `11`.
+  it("AC-K2 — ArrowDown crosses a serpentine row reversal correctly (index 5 -> 6)", () => {
+    const onCursorMove = vi.fn();
+    const container = mountGrid(24, [], { cursorIndex: 5, onCursorMove });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(onCursorMove).toHaveBeenCalledWith(6);
+  });
+
+  it("AC-K2 — ArrowUp crosses the same serpentine reversal in reverse (index 6 -> 5)", () => {
+    const onCursorMove = vi.fn();
+    const container = mountGrid(24, [], { cursorIndex: 6, onCursorMove });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    expect(onCursorMove).toHaveBeenCalledWith(5);
+  });
+
+  it("AC-K2 — ArrowUp at the top row does not move the cursor", () => {
+    const onCursorMove = vi.fn();
+    const container = mountGrid(24, [], { cursorIndex: 2, onCursorMove }); // row 0
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    expect(onCursorMove).not.toHaveBeenCalled();
+  });
+
+  it("AC-K2 — ArrowDown at the bottom row (past the last tile) does not move the cursor", () => {
+    const onCursorMove = vi.fn();
+    // mountGrid(24, []) rounds up to a 36-tile (3-block) pool — rows 0..5,
+    // 6 columns each; index 33 sits in the LAST row (row 5), so ArrowDown's
+    // `stepCursor(6, col)` computes an index >= tileCount and returns null.
+    const container = mountGrid(24, [], { cursorIndex: 33, onCursorMove });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(onCursorMove).not.toHaveBeenCalled();
+  });
+
+  it("§4.4 DOM contract — .town-tile--cursor tracks cursorIndex across a re-render, applied imperatively (not via the tiles memo — round-2 finding C4 #7)", () => {
+    mounted = mountComponent(
+      <TownGrid nextPlotIndex={2} buildings={[cafeBuilding]} justBuiltId={null} ladder={BALANCE.savingsTowerSegments} {...NOOP_MOVE_PROPS} cursorIndex={0} />,
+    );
+    let cursored = mounted.container.querySelectorAll(".town-tile--cursor");
+    expect(cursored.length).toBe(1);
+    expect((cursored[0] as HTMLElement).dataset.plotIndex).toBe("0");
+
+    act(() => {
+      mounted!.root.render(
+        <TownGrid nextPlotIndex={2} buildings={[cafeBuilding]} justBuiltId={null} ladder={BALANCE.savingsTowerSegments} {...NOOP_MOVE_PROPS} cursorIndex={1} />,
+      );
+    });
+    cursored = mounted.container.querySelectorAll(".town-tile--cursor");
+    expect(cursored.length).toBe(1); // moved, not duplicated
+    expect((cursored[0] as HTMLElement).dataset.plotIndex).toBe("1");
+  });
+
+  it("AC-K2 — Enter on a building (cursor sitting on it) enters move mode via onPlotLongPress", () => {
+    const onPlotLongPress = vi.fn();
+    const container = mountGrid(1, [cafeBuilding], { cursorIndex: 0, onPlotLongPress });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(onPlotLongPress).toHaveBeenCalledWith(0);
+  });
+
+  it("AC-K2 — Enter on a free lot while in move mode commits via onPlotTap", () => {
+    const onPlotTap = vi.fn();
+    const container = mountGrid(2, [cafeBuilding], { movingId: cafeBuilding.id, cursorIndex: 1, onPlotTap });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(onPlotTap).toHaveBeenCalledWith(1);
+  });
+
+  it("AC-K2 — Escape cancels move mode via a dedicated onCancel prop (not routed through onPlotTap — round-2 finding C3 #5)", () => {
+    const onPlotTap = vi.fn();
+    const onCancel = vi.fn();
+    const container = mountGrid(2, [cafeBuilding], { movingId: cafeBuilding.id, onPlotTap, onCancel });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onPlotTap).not.toHaveBeenCalled();
+  });
+
+  it("Escape outside move mode still calls onCancel (harmless — useMoveMode's cancel is idempotent)", () => {
+    const onCancel = vi.fn();
+    const container = mountGrid(1, [cafeBuilding], { onCancel });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    grid.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

@@ -29,7 +29,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { applyNewEntry, type EntryDraft } from "./entryActions";
 import { claimNoSpendDay } from "./noSpendActions";
 import { drainQueue } from "./queueActions";
-import { allocatePlots, pickPlot, reconcilePlacement } from "./placement";
+import { allocatePlots, moveBuilding as movePlacement, pickPlot, reconcilePlacement, type MoveResult } from "./placement";
 import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
 import { clock } from "./platform/clock";
@@ -96,7 +96,11 @@ export type Notice =
   | { kind: "tier"; tier: number }
   // ADDENDUM-01 §3.6 — "마을에 도로가 새로 놓였어요" one-time toast, fired when
   // `loadBoot()` detects a pre-existing town's index predates LAYOUT_VERSION.
-  | { kind: "relayout" };
+  | { kind: "relayout" }
+  // ADDENDUM-02 §4.5 (D-36, MUST) — the long-press-to-move discoverability
+  // hint. Queued at most once per session (see `hintQueuedRef` below); the
+  // copy is a placeholder the director may edit.
+  | { kind: "moveHint" };
 
 /**
  * Load-modify-save on one month's buildings chunk — the same three-line
@@ -210,10 +214,47 @@ export function useTownStore() {
   // comment above. `notice` is always the head; dismissing pops it.
   const [noticeQueue, setNoticeQueue] = useState<Notice[]>([]);
   const notice = noticeQueue[0] ?? null;
-  const dismissNotice = useCallback(() => setNoticeQueue((q) => q.slice(1)), []);
+  const dismissNotice = useCallback(() => {
+    // ADDENDUM-02 §4.5 — "dismissed forever ... by an explicit dismiss": the
+    // moveHint is one-shot across SESSIONS, not just within one, so dismissing
+    // it must flip `moveHintSeen` in memory right here (not only on a
+    // successful move) so it rides whatever `saveCore` happens next for any
+    // other reason (round-2 finding C1 #2 — this was previously the ONLY gap:
+    // a player who saw the toast and never moved anything got it re-queued
+    // every session, forever).
+    if (notice?.kind === "moveHint" && stateRef.current && !stateRef.current.town.moveHintSeen) {
+      const next: LoadedState = { ...stateRef.current, town: { ...stateRef.current.town, moveHintSeen: true } };
+      stateRef.current = next;
+      setState(next);
+    }
+    setNoticeQueue((q) => q.slice(1));
+  }, [notice]);
   const pushNotices = useCallback((...toAdd: Notice[]) => {
     if (toAdd.length === 0) return;
     setNoticeQueue((q) => [...q, ...toAdd]);
+  }, []);
+
+  // ADDENDUM-02 §4.5 — queues the move-discoverability hint AT MOST ONCE per
+  // component lifetime (AC-H1's "appears exactly once"). The PERSISTENT gate
+  // is `town.moveHintSeen` (survives reload); this ref only stops the SAME
+  // session from re-queuing it on every subsequent render once the
+  // condition is already true.
+  //
+  // Deliberately skips queuing (leaving the ref untouched, so a LATER call
+  // still gets a chance) whenever the notice queue is already non-empty:
+  // every other Notice kind here is a one-off event a single action can
+  // legitimately fire (F5 tier, F14 drained, ...), and this hint must never
+  // stack behind/ahead of one of those in the same FIFO — the queue (and
+  // `App.tsx`'s toast/overlay rendering) was built assuming one visible
+  // notice at a time.
+  const hintQueuedRef = useRef(false);
+  const maybeQueueMoveHint = useCallback((town: TownState, buildingCount: number) => {
+    if (hintQueuedRef.current || town.moveHintSeen || buildingCount < 2) return;
+    setNoticeQueue((q) => {
+      if (q.length > 0) return q;
+      hintQueuedRef.current = true;
+      return [...q, { kind: "moveHint" }];
+    });
   }, []);
 
   // Mirrors `state` for `addEntry`/`claimNoSpend` to read synchronously,
@@ -291,11 +332,21 @@ export function useTownStore() {
       if (drained.celebrateTier !== null) bootNotices.push({ kind: "tier", tier: drained.celebrateTier });
       if (boot.relayout) bootNotices.push({ kind: "relayout" }); // ADDENDUM-01 §3.6
       pushNotices(...bootNotices);
+      // ADDENDUM-02 §4.5 is a STATE condition ("once the town has >= 2
+      // buildings and the hint has not been seen, the town screen shows a
+      // one-shot hint"), not a build-action event — so it must also be
+      // evaluated right here, once, at the end of boot. Every town that
+      // exists today has `moveHintSeen` unset; without this call none of them
+      // would ever be told the gesture exists until their NEXT build-producing
+      // action (round-2 finding C1 #1). `maybeQueueMoveHint`'s own queue-order
+      // guard (skip if the notice queue is already non-empty) means this
+      // never races the boot notices just pushed above.
+      maybeQueueMoveHint(drained.town, countBuildings(drained.buildings));
     });
     return () => {
       cancelled = true;
     };
-  }, [pushNotices]);
+  }, [pushNotices, maybeQueueMoveHint]);
 
   // storage.ts's own doc comment on `flush()` — unchanged from T003, PLUS
   // (ADDENDUM-02 round-3 finding C2): flush on the effect's own cleanup too,
@@ -397,6 +448,7 @@ export function useTownStore() {
     setState(next);
     if (result.building) setJustBuiltId(result.building.id);
     if (result.celebrateTier !== null) pushNotices({ kind: "tier", tier: result.celebrateTier });
+    maybeQueueMoveHint(result.town, countBuildings(buildings));
 
     return {
       building: result.building,
@@ -404,7 +456,7 @@ export function useTownStore() {
       queueOverflow: result.queueOverflow,
       queueLength: result.town.queue.length,
     };
-  }, [pushNotices]);
+  }, [pushNotices, maybeQueueMoveHint]);
 
   /** F15: claim [오늘 무지출!]. Returns false when the domain function rejected the claim (already claimed, an expense exists today, or no slots). */
   const claimNoSpend = useCallback((): boolean => {
@@ -442,8 +494,55 @@ export function useTownStore() {
     setState(next);
     setJustBuiltId(result.building.id);
     if (result.celebrateTier !== null) pushNotices({ kind: "tier", tier: result.celebrateTier });
+    maybeQueueMoveHint(result.town, countBuildings(next.buildings));
     return true;
-  }, [pushNotices]);
+  }, [pushNotices, maybeQueueMoveHint]);
+
+  /**
+   * ADDENDUM-02 §4.2/§4.5 — the ONLY store action that mutates a building's
+   * `plotIndex` after placement-time. Persists exactly one storage key: the
+   * MOVED building's own month chunk, rebuilt from memory (never
+   * read-modify-write — same reasoning `mutateBuildingsForMonth` explains).
+   * `core` (and therefore `nextPlotIndex`) is never written here — a move is
+   * not a build-producing act (no slot, no streak, no tier, no queue). The
+   * discoverability hint's `moveHintSeen` flag is folded into the in-memory
+   * `town` on the FIRST successful move (D-36) and rides whatever `saveCore`
+   * happens next for any other reason — it is NOT written here, which is
+   * what keeps this "exactly one key" (AC-M10/AC-H1).
+   *
+   * Flushed to the raw port IMMEDIATELY (not left on the normal ~300ms
+   * debounce every other write uses) — a move is a single, deliberate,
+   * infrequent tap, not a burst of rapid saves the debounce exists to
+   * coalesce, and AC-M10 ("force-quit -> reopen: the building is on its new
+   * lot") names exactly the failure mode a debounce window creates: a kill
+   * inside those ~300ms would otherwise lose the move with nothing left to
+   * flush it (round-2 finding C2 #2). Flushing also empties whatever OTHER
+   * writes were still pending, which only ever moves their write earlier,
+   * never adds one — the AC-M10 test still observes exactly one raw
+   * `setItem` call for a move that runs with nothing else pending, matching
+   * the "exactly one key" guarantee this fixes for the case that matters.
+   */
+  const moveBuilding = useCallback((id: string, to: number): MoveResult => {
+    const prev = stateRef.current;
+    if (prev === null) return { ok: false, reason: "not-found" };
+
+    const result = movePlacement(prev.town.nextPlotIndex, prev.buildings, id, to);
+    if (!result.ok) return result;
+
+    const moved = result.buildings.find((b) => b.id === id)!;
+    const ym = moved.builtOn.slice(0, 7);
+    storageRef.current.saveBuildingsForMonth(
+      ym,
+      result.buildings.filter((b) => b.builtOn.slice(0, 7) === ym),
+    );
+    storageRef.current.flush();
+
+    const town = prev.town.moveHintSeen ? prev.town : { ...prev.town, moveHintSeen: true };
+    const next: LoadedState = { ...prev, town, buildings: result.buildings };
+    stateRef.current = next;
+    setState(next);
+    return result;
+  }, []);
 
   const today = clock.today();
   return {
@@ -466,5 +565,6 @@ export function useTownStore() {
     dismissNotice,
     addEntry,
     claimNoSpend,
+    moveBuilding,
   };
 }

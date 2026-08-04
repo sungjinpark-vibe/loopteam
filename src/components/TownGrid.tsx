@@ -16,7 +16,8 @@
  * re-render for unrelated reasons (e.g. the entry sheet opening/closing)
  * must not rebuild every tile.
  */
-import { memo, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useTileGestures } from "../hooks/useTileGestures";
 import { openPlotCount } from "../placement";
 import {
   DISTRICT_ROW_GAP_PX,
@@ -50,10 +51,50 @@ export interface TownGridProps {
   justBuiltId: string | null;
   /** The shared default ladder — sizes the savings block's shared row height (BALANCE.savingsTowerSegments, D-13). */
   ladder: readonly number[];
+  // ADDENDUM-02 §4.3/§7.1 (B19) — the grid owns the delegated gesture
+  // surface, so it owns these too. Required (not optional): a forgetful call
+  // site is a compile error, not a dead feature.
+  /** The building currently being moved, or null outside move mode. */
+  movingId: string | null;
+  /** Roving keyboard cursor (`aria-activedescendant`) — null until the first arrow key. */
+  cursorIndex: number | null;
+  /**
+   * A building tile was long-pressed (or Enter'd while not in move mode).
+   * Returns whether it actually grabbed a building — see
+   * `useTileGestures`'s `onLongPress` contract (round-2 finding C2 #1).
+   */
+  onPlotLongPress: (plotIndex: number) => boolean;
+  /** A tile was tapped (or Enter'd while in move mode) — the caller decides what it means. */
+  onPlotTap: (plotIndex: number) => void;
+  /** An arrow key moved the roving cursor to this (already-clamped) index. */
+  onCursorMove: (nextIndex: number) => void;
+  /**
+   * [취소] / Escape / Android back — cancels move mode outright. A dedicated
+   * prop rather than reusing `onPlotTap` at the moving building's own plot:
+   * "tap the moving tile again" and "press Escape" are two different user
+   * intents that happened to produce the same result; coupling them meant any
+   * future change to the tap-the-moving-tile semantics would silently
+   * redefine what Escape does too (round-2 finding C3 #5). `useMoveMode`'s
+   * `cancel` is idempotent, so wiring it unconditionally here is safe even
+   * outside move mode.
+   */
+  onCancel: () => void;
 }
 
-function TownGridImpl({ nextPlotIndex, buildings, justBuiltId, ladder }: TownGridProps) {
+function TownGridImpl({
+  nextPlotIndex,
+  buildings,
+  justBuiltId,
+  ladder,
+  movingId,
+  cursorIndex,
+  onPlotLongPress,
+  onPlotTap,
+  onCursorMove,
+  onCancel,
+}: TownGridProps) {
   const newestTileRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
 
   const byPlotIndex = useMemo(() => {
     const map = new Map<number, Building>();
@@ -83,14 +124,36 @@ function TownGridImpl({ nextPlotIndex, buildings, justBuiltId, ladder }: TownGri
       // every second block's street-front tile, keyed off decorVariant(row,
       // col) alone (rule R-2). Never stored.
       const hasStreetlight = isStreetFrontCol(col) && isBlockFirstRow(row) && decorVariant(blockIndexOf(row), 0, 2) === 0;
+
+      // ADDENDUM-02 §4.3/§4.4 — move mode state, primitives only (movingId)
+      // so this memo's dep list stays cheap even on the dense fixture (§4.3's
+      // memoisation note). `cursorIndex` is deliberately NOT a dep here (see
+      // the cursor-highlight effect below): a dense town's arrow-key press
+      // would otherwise rebuild every one of ~5,400 tiles to move a 2-tile
+      // outline (round-2 finding C4 #7) — the cursor class is instead applied
+      // imperatively to the two affected DOM nodes.
+      const isMoving = building !== undefined && building.id === movingId;
+      const isDroppable = movingId !== null && building === undefined; // every free lot is droppable (G2 guarantees >= 1)
+      const stateClasses = (isMoving ? " town-tile--moving" : "") + (isDroppable ? " town-tile--droppable" : "");
+
+      // §4.4 DOM contract: role="button" + aria-label on building tiles
+      // always, and on an empty tile only while droppable — never on inert
+      // ground.
+      const a11yProps = building
+        ? { role: "button" as const, "aria-label": "건물, 길게 눌러 옮기기", "aria-selected": isMoving ? ("true" as const) : undefined }
+        : isDroppable
+          ? { role: "button" as const, "aria-label": "빈 터, 여기로 옮기기" }
+          : {};
+
       result.push(
         <div
           key={i}
           id={`plot-${i}`}
           data-plot-index={i}
           ref={isNewest ? newestTileRef : undefined}
-          className={`town-tile town-tile--${side}${hasStreetlight ? " town-tile--streetlight" : ""}`}
+          className={`town-tile town-tile--${side}${hasStreetlight ? " town-tile--streetlight" : ""}${stateClasses}`}
           style={{ gridColumn: col + 1, gridRow: row + 1 }}
+          {...a11yProps}
         >
           {building ? (
             <PlaceholderBuilding categoryId={building.categoryId} variantIndex={building.variantIndex} justBuilt={isNewest} />
@@ -101,7 +164,46 @@ function TownGridImpl({ nextPlotIndex, buildings, justBuiltId, ladder }: TownGri
       );
     }
     return result;
-  }, [tileCount, byPlotIndex, justBuiltId]);
+  }, [tileCount, byPlotIndex, justBuiltId, movingId]);
+
+  // Cursor highlight applied imperatively, NOT baked into the `tiles` memo
+  // above (see its comment): a repeated arrow-key press only needs to move a
+  // class between (at most) two existing DOM nodes, not rebuild ~5,400 React
+  // elements. Re-runs whenever `tiles` itself changes too, so a fresh render
+  // (movingId flip, a new building, etc.) re-applies the highlight to
+  // whatever node now lives at `cursorIndex`.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const current = grid.querySelector<HTMLElement>(".town-tile--cursor");
+    if (current && Number(current.dataset.plotIndex) !== cursorIndex) current.classList.remove("town-tile--cursor");
+    if (cursorIndex !== null) grid.querySelector<HTMLElement>(`#plot-${cursorIndex}`)?.classList.add("town-tile--cursor");
+  }, [cursorIndex, tiles]);
+
+  // Enter/Space on the roving cursor is the keyboard equivalent of a
+  // long-press (outside move mode, on a building) or a tap (in move mode, on
+  // whatever the cursor sits on) — dispatched through the SAME two callback
+  // props a pointer gesture uses, so `App`'s move-mode semantics have exactly
+  // one entry point each (§4.3 "Enter/Space on a building enters move mode;
+  // in move mode it commits to the cursor lot").
+  const handleActivate = useCallback(
+    (plotIndex: number) => {
+      if (movingId !== null) {
+        onPlotTap(plotIndex);
+        return;
+      }
+      if (byPlotIndex.has(plotIndex)) onPlotLongPress(plotIndex);
+    },
+    [movingId, byPlotIndex, onPlotTap, onPlotLongPress],
+  );
+
+  useTileGestures(gridRef, tileCount, cursorIndex, {
+    onLongPress: onPlotLongPress,
+    onTap: onPlotTap,
+    onCursorMove,
+    onActivate: handleActivate,
+    onEscape: onCancel,
+  });
 
   const crossStreets = useMemo(() => {
     const rows = [];
@@ -119,7 +221,16 @@ function TownGridImpl({ nextPlotIndex, buildings, justBuiltId, ladder }: TownGri
 
   return (
     <div
-      className="town-grid"
+      ref={gridRef}
+      className={`town-grid${movingId !== null ? " town-grid--moving" : ""}`}
+      // ADDENDUM-02 §4.3 — one tab stop for the whole town, at any size: no
+      // tile ever gets its own `tabIndex` (AC-K1). `aria-activedescendant`
+      // is the roving-cursor pattern that lets a single-tab-stop container
+      // still announce which lot is "focused".
+      tabIndex={0}
+      role="group"
+      aria-label="마을 지도"
+      aria-activedescendant={cursorIndex === null ? undefined : `plot-${cursorIndex}`}
       style={
         {
           gridTemplateColumns: GRID_TEMPLATE_COLUMNS,

@@ -154,11 +154,61 @@ button.town-fab {
   gap: var(--town-gap); /* was 8px, now GRID_GAP_PX from townLayout.ts */
   grid-auto-rows: auto; /* was 72px — road rows are shorter, the savings row is taller */
   padding: 8px var(--town-grid-pad-x) 24px; /* the middle 16 is GRID_PADDING_X_PX. No fallback. */
+  /* ADDENDUM-02 §4.3 (break B23): a long-press must not fight the town's
+   * vertical scroll — `pan-y` keeps vertical touch-scroll native while
+   * still letting the gesture hook see the pointer events it needs. */
+  touch-action: pan-y;
+  outline: none; /* the roving `.town-tile--cursor` ring is the focus indicator, not the browser default outline on the container */
 }
 
 .town-tile {
   width: 100%;
   height: var(--town-tile-h);
+  position: relative;
+  /* ADDENDUM-02 §4.3 (break B23): a 500ms press must not pop the WebView's
+   * text-selection/callout menu. */
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ADDENDUM-02 §4.3/§4.4 — move mode state classes. */
+.town-tile--moving {
+  outline: 2px solid var(--town-blue500);
+  outline-offset: -2px;
+  transform: translateY(-2px);
+  z-index: 1;
+}
+
+.town-tile--droppable {
+  outline: 2px dashed var(--town-blue500);
+  outline-offset: -2px;
+  background: rgba(49, 130, 246, 0.12);
+  border-radius: 12px;
+}
+
+.town-tile--cursor {
+  outline: 2px solid var(--town-grey900);
+  outline-offset: -2px;
+}
+
+/* ADDENDUM-02 §4.3 "Bar" — a fixed bottom bar, rendered in App.tsx OUTSIDE
+ * `.town-grid` (AC-M7's direct-children guard). Sits above `.town-fab`. */
+.town-move-bar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 24px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--town-grey900);
+  color: var(--town-white);
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
 .empty-lot {
@@ -245,10 +295,9 @@ button.town-fab {
 /* §3.7 checklist item 3: street furniture, zero data (rule R-2) — a 가로등 on
  * every second block's street-front tile, a 버스 정류장 on every second cross
  * street. `town-tile--streetlight` / `town-cross-street--busstop` are added
- * from `decorVariant(...)` in TownGrid.tsx; nothing here is stored. */
-.town-tile--streetlight {
-  position: relative;
-}
+ * from `decorVariant(...)` in TownGrid.tsx; nothing here is stored.
+ * (`.town-tile` itself now carries `position: relative` — ADDENDUM-02 §4.4's
+ * move-mode state classes need it too — so this selector no longer repeats it.) */
 .town-tile--streetlight::after {
   content: "💡";
   position: absolute;
