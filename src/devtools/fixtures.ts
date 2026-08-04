@@ -42,6 +42,8 @@ import type { StoragePort } from "../platform/storage";
 import { seededRandom } from "../platform/random";
 import { BALANCE } from "../balance.placeholder";
 import { daysInMonth, shiftMonth, ymOnly, ymd } from "../calendar";
+import { savingsByCategory } from "../selectors";
+import { SAVING_CATEGORY_IDS, savingsBucketOf } from "../savingsBuckets";
 import { buildingsStorageKey, createChunkedStorage, entriesStorageKey } from "../storage";
 import type {
   Building,
@@ -75,7 +77,12 @@ const EXPENSE_CATEGORIES: ExpenseCategoryId[] = [
   "etc",
 ];
 const INCOME_CATEGORIES: IncomeCategoryId[] = ["salary", "sidejob", "bonus", "other_income"];
-const SAVING_CATEGORIES: SavingCategoryId[] = ["emergency", "goal", "invest", "other_saving"];
+// ADDENDUM-01 §4.6 f1 — `invest` retired from `SavingCategoryId`; `deposit`/
+// `stock` take its place. A compile break (B3), not a migration: fixtures
+// are code. `SAVING_CATEGORY_IDS` (savingsBuckets.ts) is the canonical list;
+// this local array only exists so `generateMonth`'s `categoryPool` typing
+// stays a plain mutable array like its expense/income siblings.
+const SAVING_CATEGORIES: SavingCategoryId[] = [...SAVING_CATEGORY_IDS];
 
 const BASE_MS = 1_700_000_000_000; // fixed anchor epoch — arbitrary, only needs to be constant
 
@@ -130,6 +137,7 @@ function freshTown(today: string): TownState {
     queue: [],
     noSpendDays: [],
     cumulativeSavingsKrw: 0,
+    savingsByCategoryKrw: {}, // ADDENDUM-01 §4.6 f2 — covers `empty`/`budgetBlown`/`noSpendStreak`/every fixture that spreads this
     lastSettledPeriod: today.slice(0, 7), // onboarding seeds this to "now" — no retroactive settlement
   };
 }
@@ -231,6 +239,20 @@ function generateMonth(opts: {
   return { entries, buildings, monthExpenseKrw, monthIncomeKrw, monthSavingKrw };
 }
 
+/**
+ * ADDENDUM-01 §4.6 f4/f6 — the shared two-line derivation `oneMonth`/`unsettled`
+ * both need: per-category buckets from entries, then their sum as the total.
+ * Same arithmetic the real corrupt-core recovery path (storage.ts) runs.
+ */
+function deriveSavings(entries: readonly LedgerEntry[]): {
+  savingsByCategoryKrw: Partial<Record<SavingCategoryId, number>>;
+  cumulativeSavingsKrw: number;
+} {
+  const savingsByCategoryKrw = savingsByCategory(entries, savingsBucketOf);
+  const cumulativeSavingsKrw = Object.values(savingsByCategoryKrw).reduce((a, b) => a + (b ?? 0), 0);
+  return { savingsByCategoryKrw, cumulativeSavingsKrw };
+}
+
 export interface Fixture {
   name: string;
   description: string;
@@ -277,7 +299,26 @@ function oneMonth(): Fixture {
   // defeating this fixture's job ("the normal case, the donut, the pace
   // bar"). Last day of July: the whole month's data has "occurred" by then.
   const today = "2026-07-31";
-  const cumulativeSavingsKrw = entries.filter((e) => e.type === "saving").reduce((sum, e) => sum + e.amountKrw, 0);
+  // ADDENDUM-01 §4.4/§4.5, round-2 finding C2 #5 — a real legacy `invest`
+  // entry, so `savingsBucketOf`'s alias (invest -> stock) is exercised on a
+  // real loaded fixture, in a real browser — not only under vitest. Cast
+  // because `CategoryId` no longer includes the retired id (types.ts); this
+  // is exactly what a pre-migration stored entry looks like.
+  entries.push(
+    makeEntry({
+      id: seq.nextId("e"),
+      type: "saving",
+      amountKrw: 150_000,
+      categoryId: "invest" as unknown as CategoryId,
+      occurredOn: "2026-07-10",
+      createdAt: seq.nextMs(),
+      buildingId: null,
+    }),
+  );
+  // ADDENDUM-01 §4.6 f4 — derived the same way the real corrupt-core recovery
+  // path does (storage.ts), so a mixed state (some structures at level 1-2,
+  // some at 0) comes for free instead of only a total.
+  const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(entries);
   const town: TownState = {
     ...freshTown(today),
     nextPlotIndex: plotCursor.next,
@@ -285,6 +326,7 @@ function oneMonth(): Fixture {
     longestStreakDays: 12,
     lastActOn: "2026-07-31",
     cumulativeSavingsKrw,
+    savingsByCategoryKrw,
     lastSettledPeriod: "2026-07",
   };
   return {
@@ -309,7 +351,6 @@ function dense(): Fixture {
 
   let entries: LedgerEntry[] = [];
   let buildings: Building[] = [];
-  let cumulativeSavingsKrw = 0;
   let lastPeriod = "";
 
   for (let i = 0; i < MONTHS; i++) {
@@ -318,7 +359,6 @@ function dense(): Fixture {
     const result = generateMonth({ year: y, month: m, targetEntries, dailyCap: BALANCE.dailyBuildSlots, rng, seq, plotCursor });
     entries = entries.concat(result.entries);
     buildings = buildings.concat(result.buildings);
-    cumulativeSavingsKrw += result.monthSavingKrw;
     lastPeriod = ymOnly(y, m);
 
     // One monument per month (F16) — no slot, no daily cap.
@@ -346,9 +386,17 @@ function dense(): Fixture {
     );
   }
 
-  // Force a full tower regardless of what was actually saved above (this fixture's job is
-  // to prove rendering at max height, not to model a plausible savings curve).
-  cumulativeSavingsKrw = Math.max(cumulativeSavingsKrw, BALANCE.savingsTowerSegments[BALANCE.savingsTowerSegments.length - 1]);
+  // ADDENDUM-01 §4.6 f5 — the fixture's job is to prove rendering at MAX
+  // HEIGHT, not to model a plausible savings curve; but forcing only the
+  // single old `cumulativeSavingsKrw` total would boot a maxed-out 기록 total
+  // next to five empty level-0 lots (the contradiction rev. 6 deletes). Top
+  // every bucket up to the last ladder threshold instead, so the entrance
+  // block itself renders at max height too.
+  const TOP = BALANCE.savingsTowerSegments[BALANCE.savingsTowerSegments.length - 1];
+  const organic = savingsByCategory(entries, savingsBucketOf);
+  const savingsByCategoryKrw: Partial<Record<SavingCategoryId, number>> = {};
+  for (const id of SAVING_CATEGORIES) savingsByCategoryKrw[id] = Math.max(organic[id] ?? 0, TOP);
+  const cumulativeSavingsKrw = Object.values(savingsByCategoryKrw).reduce((a, b) => a + (b ?? 0), 0);
 
   const lastMonth = shiftMonth(START.y, START.m, MONTHS - 1);
   const today = ymd(lastMonth.y, lastMonth.m, daysInMonth(lastMonth.y, lastMonth.m));
@@ -359,6 +407,7 @@ function dense(): Fixture {
     longestStreakDays: 180,
     lastActOn: today,
     cumulativeSavingsKrw,
+    savingsByCategoryKrw,
     lastSettledPeriod: lastPeriod,
   };
 
@@ -573,12 +622,18 @@ function unsettled(): Fixture {
     buildings = buildings.concat(result.buildings);
   }
 
+  // ADDENDUM-01 §4.6 f6 — pre-existing inconsistency fixed alongside f4: this
+  // fixture spread `freshTown` and never set `cumulativeSavingsKrw`, although
+  // `generateMonth` gave it real saving entries across three months.
+  const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(entries);
   const town: TownState = {
     ...freshTown(today),
     nextPlotIndex: plotCursor.next,
     streakDays: 0,
     longestStreakDays: 6,
     lastActOn: "2026-07-20",
+    cumulativeSavingsKrw,
+    savingsByCategoryKrw,
     lastSettledPeriod: "2026-04", // 3 unsettled periods: 05, 06, 07
   };
   return {

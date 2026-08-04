@@ -24,12 +24,16 @@ export type ExpenseCategoryId =
 export type IncomeCategoryId = "salary" | "sidejob" | "bonus" | "other_income";
 
 // ADDENDUM-01 §2.2/§4.1: `deposit`/`stock` added (the two structures the
-// director named — 예적금/주식 투자, ADDENDUM-01 §0). `invest` is NOT retired
-// here: retiring it (and introducing `LegacySavingCategoryId`) is the 저축
-// 블록 task's own compile break (B3/B5, ADDENDUM-01 §5.2/§6) — this task only
-// needs the road task's `savingsBuckets.ts` to type-check, which needs
-// `deposit`/`stock` to exist, nothing more.
-export type SavingCategoryId = "deposit" | "stock" | "emergency" | "goal" | "invest" | "other_saving";
+// director named — 예적금/주식 투자, ADDENDUM-01 §0); `invest` retired (this
+// task, B3/B5, §5.2/§6) in favour of the readable-only `LegacySavingCategoryId`
+// below — old `invest` data keeps working via `savingsBucketOf`'s alias
+// (§4.5), it just can no longer be freshly chosen in the picker.
+export type SavingCategoryId = "deposit" | "stock" | "emergency" | "goal" | "other_saving";
+
+// NEW — readable-only legacy id, never offered in the picker (§4.4). Kept OUT
+// of `CategoryId`/`SavingCategoryId` deliberately, same reasoning `ParkCategoryId`
+// already documents below: a legacy id is a *readable* id, not a creatable one.
+export type LegacySavingCategoryId = "invest";
 
 export type CategoryId = ExpenseCategoryId | IncomeCategoryId | SavingCategoryId;
 
@@ -115,7 +119,11 @@ export interface TownState {
   highestTierSeen: number; // tier-up fires exactly once per threshold
   queue: QueuedMaterial[]; // FIFO, length <= materialQueueMax
   noSpendDays: string[]; // claimed dates
-  cumulativeSavingsKrw: number; // denormalized for tower height; rebuildable from entries
+  cumulativeSavingsKrw: number; // denormalized total; rebuildable from entries — still powers 기록
+  // ADDENDUM-01 §4.1: per-structure levels for the 저축 블록 (§2). OPTIONAL —
+  // a `TownState` written before this change has none; every reader goes
+  // through `savingsOf` below rather than open-coding `?? {}` / `?? 0`.
+  savingsByCategoryKrw?: Partial<Record<SavingCategoryId, number>>;
   lastSettledPeriod: string | null; // idempotency key for F16
   // ADDENDUM-02 §4.5 (D-36): optional, no migration — an old core reads
   // `undefined` -> falsy -> hint eligible. Set in memory on the first
@@ -124,6 +132,11 @@ export interface TownState {
   // itself, so a move still writes exactly one storage key (AC-M10) and the
   // hint costs zero extra writes (AC-H1).
   moveHintSeen?: boolean;
+}
+
+/** Read discipline for `savingsByCategoryKrw` — so `?? 0` is never open-coded at a call site (ADDENDUM-01 §4.1). */
+export function savingsOf(town: Pick<TownState, "savingsByCategoryKrw">, id: SavingCategoryId): number {
+  return town.savingsByCategoryKrw?.[id] ?? 0;
 }
 
 export interface BudgetSetting {

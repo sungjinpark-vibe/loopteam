@@ -1,9 +1,12 @@
 /**
  * S4 입력 시트 (spec §6 S4 / §5 F1) — logs one ledger entry in <=3 taps.
  *
- * Scope for this task: 지출/수입 only (저축 shown disabled, F13 is a later
- * task). Saving hands the draft to the caller, which applies F1+F2 via
- * `entryActions.ts` — this component owns form state only.
+ * 저축 segment (ADDENDUM-01 §2.7 MUST, `EntrySheet.tsx:157`) is enabled —
+ * `CATEGORIES_BY_TYPE.saving` now lists the five 저축 sub-types
+ * (content.placeholder.ts), so the existing category grid renders them with
+ * no other change. Saving hands the draft to the caller, which applies
+ * F1/F2/F13 via `entryActions.ts` — this component owns form state only and
+ * has no idea 저축 never builds a plot.
  *
  * Built on TDS primitives end to end (idiomatic-TDS is an explicit rubric
  * sub-aspect, VISION.md): `SegmentedControl` for the type row, `NumberKeypad`
@@ -154,9 +157,7 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
           <SegmentedControl value={type} onChange={selectType} aria-label="거래 유형">
             <SegmentedControl.Item value="expense">지출</SegmentedControl.Item>
             <SegmentedControl.Item value="income">수입</SegmentedControl.Item>
-            <SegmentedControl.Item value="saving" disabled title="저축은 곧 지원돼요 (F13)">
-              저축
-            </SegmentedControl.Item>
+            <SegmentedControl.Item value="saving">저축</SegmentedControl.Item>
           </SegmentedControl>
 
           <div className="entry-amount-display">
@@ -185,10 +186,11 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
                 as="button"
                 selected={c.id === categoryId}
                 left={<span aria-hidden="true">{c.icon}</span>}
-                // `c.id` types as `BuildingCategoryId` only because `CategoryContent`
-                // also describes F15's park tile (content.placeholder.ts); `categories`
-                // here is always CATEGORIES_BY_TYPE[expense|income], which never
-                // contains "park" at runtime.
+                // `c.id` types as `ContentCategoryId` only because `CategoryContent`
+                // also describes F15's park tile and the read-only legacy `invest`
+                // row (content.placeholder.ts, ADDENDUM-01 §4.4); `categories` here
+                // is always CATEGORIES_BY_TYPE[expense|income|saving], which never
+                // contains "park" or "invest" at runtime.
                 onClick={() => setCategoryId(c.id as CategoryId)}
               >
                 {c.label}

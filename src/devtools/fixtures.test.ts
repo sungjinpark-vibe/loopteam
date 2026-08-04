@@ -38,6 +38,17 @@ describe("fixture shapes match their spec §11 role", () => {
     expect(f.budget.monthlyBudgetKrw).not.toBeNull();
   });
 
+  // Round-2 finding C2 #5 — the legacy `invest` alias's read side must be
+  // exercised on real, loaded fixture data (what QA/a browser actually
+  // observes), not only under an isolated `savingsBucketOf` unit test.
+  it("oneMonth carries a real legacy `invest` entry, and it lands in the `stock` bucket via the alias", () => {
+    const f = FIXTURES.oneMonth();
+    const legacy = f.entries.filter((e) => (e.categoryId as string) === "invest");
+    expect(legacy.length).toBeGreaterThan(0);
+    const legacyTotal = legacy.reduce((sum, e) => sum + e.amountKrw, 0);
+    expect(f.town.savingsByCategoryKrw?.stock ?? 0).toBeGreaterThanOrEqual(legacyTotal);
+  });
+
   it("oneMonth's `today` falls inside its own data — the donut and pace bar are non-empty", () => {
     const f = FIXTURES.oneMonth();
     const currentPeriod = f.today.slice(0, 7);

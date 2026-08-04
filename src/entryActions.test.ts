@@ -93,7 +93,7 @@ describe("applyNewEntry — F2/F4 build", () => {
     expect(result.queuedMaterial).not.toBeNull();
   });
 
-  it("saving entries never build, queue, or consume a slot (F13)", () => {
+  it("saving entries never build, queue, or consume a slot (F13) — AC-F13-1/-2", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(
       callArgs({
@@ -106,7 +106,80 @@ describe("applyNewEntry — F2/F4 build", () => {
     );
     expect(result.building).toBeNull();
     expect(result.queuedMaterial).toBeNull();
-    expect(result.town).toBe(town); // untouched
+    expect(result.queueOverflow).toBe(false);
+    expect(result.celebrateTier).toBeNull();
+    expect(result.entry.buildingId).toBeNull();
+    // ADDENDUM-01 §5.2 break B2 — the branch necessarily returns a NEW town
+    // object once it accumulates `savingsByCategoryKrw` (`toBe(town)` no
+    // longer holds); AC-F13-1 is the stronger replacement: every OTHER field
+    // stays byte-identical to its pre-save value.
+    expect(result.town).not.toBe(town);
+    expect(result.town).toEqual({
+      ...town,
+      cumulativeSavingsKrw: 50_000,
+      savingsByCategoryKrw: { goal: 50_000 },
+    });
+  });
+
+  it("buckets by savingsBucketOf(categoryId) — one bucket moves per save, the other four are byte-identical (AC-F13-5)", () => {
+    const town = freshTown({ savingsByCategoryKrw: { goal: 10_000, emergency: 5_000 } });
+    const result = applyNewEntry(
+      callArgs({
+        town,
+        draft: { type: "saving", amountKrw: 20_000, categoryId: "deposit", occurredOn: "2026-08-02" },
+        entryId: "e5b",
+        buildingId: "b5b",
+      }),
+    );
+    expect(result.town.savingsByCategoryKrw).toEqual({ goal: 10_000, emergency: 5_000, deposit: 20_000 });
+    expect(result.town.cumulativeSavingsKrw).toBe(town.cumulativeSavingsKrw + 20_000);
+  });
+
+  it("legacy `invest` still accumulates via the alias (ADDENDUM-01 §4.5/D-24)", () => {
+    const town = freshTown();
+    const result = applyNewEntry(
+      callArgs({
+        town,
+        // `categoryId` is typed `CategoryId` (no longer includes "invest"), but
+        // stored/legacy data can still carry the string — `savingsBucketOf` is
+        // total over `string`, not just the live union.
+        draft: { type: "saving", amountKrw: 7_000, categoryId: "invest" as unknown as EntryDraft["categoryId"], occurredOn: "2026-08-02" },
+        entryId: "e5c",
+        buildingId: "b5c",
+      }),
+    );
+    expect(result.town.savingsByCategoryKrw).toEqual({ stock: 7_000 });
+  });
+
+  // ADDENDUM-01 §2.1/AC-F13-3 — the sharpest regression test for F13's
+  // invariant: a 저축 entry must still save, still grow its structure, even
+  // when a 지출 entry in the exact same state would be refused/queued/overflowed.
+  it("AC-F13-3: a 저축 entry still saves and never overflows, even with zero slots AND a full queue", () => {
+    const fullQueue = Array.from({ length: 10 }, (_, i) => ({
+      entryId: `q${i}`,
+      categoryId: "cafe" as const,
+      variantIndex: 0,
+      queuedOn: "2026-08-02",
+      entryYm: "2026-08",
+    }));
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, queue: fullQueue });
+    expect(fullQueue.length).toBe(10); // materialQueueMax used below
+
+    const result = applyNewEntry(
+      callArgs({
+        town,
+        draft: { type: "saving", amountKrw: 100_000, categoryId: "deposit", occurredOn: "2026-08-02" },
+        entryId: "e7",
+        buildingId: "b7",
+        dailyBuildSlots: 5,
+        materialQueueMax: 10,
+      }),
+    );
+    expect(result.building).toBeNull();
+    expect(result.queuedMaterial).toBeNull();
+    expect(result.queueOverflow).toBe(false); // never the "대기열도 가득 찼어요" branch
+    expect(result.town.queue).toBe(town.queue); // queue itself is untouched by a 저축 save
+    expect(result.town.savingsByCategoryKrw).toEqual({ deposit: 100_000 });
   });
 });
 

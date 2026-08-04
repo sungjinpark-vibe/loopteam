@@ -11,6 +11,7 @@
  * dedicated user action, so it has to run as part of this same save.
  */
 import { advanceStreak, slotsRemainingToday, tier } from "./selectors";
+import { savingsBucketOf } from "./savingsBuckets";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
 export interface EntryDraft {
@@ -107,13 +108,25 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
   };
 
   if (draft.type === "saving") {
-    // 저축 never builds/queues/consumes a slot and is never a streak act (F13, out of this task's scope).
+    // 저축 never builds/queues/consumes a slot and is never a streak act (F13).
+    // `draft.type === "saving"` narrows NOTHING about `draft.categoryId` —
+    // EntryDraft's two fields are independent, not a discriminated union.
+    // `savingsBucketOf` is total over string and RETURNS SavingCategoryId;
+    // that return type is the narrowing, and it also absorbs legacy `invest`
+    // (ADDENDUM-01 §4.5/§4.5a).
+    const bucket = savingsBucketOf(draft.categoryId);
+    const buckets = town.savingsByCategoryKrw ?? {};
+    const newTown: TownState = {
+      ...town,
+      cumulativeSavingsKrw: town.cumulativeSavingsKrw + draft.amountKrw,
+      savingsByCategoryKrw: { ...buckets, [bucket]: (buckets[bucket] ?? 0) + draft.amountKrw },
+    };
     return {
       entry: { ...baseEntry, buildingId: null, queued: false },
       building: null,
       queuedMaterial: null,
       queueOverflow: false,
-      town,
+      town: newTown,
       revokedNoSpend,
       celebrateTier: null,
     };

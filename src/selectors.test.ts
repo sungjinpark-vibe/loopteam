@@ -6,17 +6,21 @@ import {
   buildingCount,
   canClaimNoSpend,
   categoryTotals,
+  grownStructures,
+  ladderFor,
   monthTotal,
   moodTier,
   plotFromIndex,
   rebuildDerived,
   recentMemos,
+  savingsByCategory,
   slotsRemainingToday,
   tier,
   towerSegments,
   unsettledPeriods,
 } from "./selectors";
-import type { Building, LedgerEntry } from "./types";
+import { savingsBucketOf } from "./savingsBuckets";
+import type { Building, LedgerEntry, TownState } from "./types";
 
 // ── plotFromIndex — spec §5 F2 AC: i = 0..23, serpentine adjacency ──
 describe("plotFromIndex", () => {
@@ -359,3 +363,86 @@ function makeEntryWithMemo(categoryId: LedgerEntry["categoryId"], memo: string, 
     queued: false,
   };
 }
+
+// ── ADDENDUM-01 §2.5/§4.2/§2.6a — APPEND ONLY (ladderFor/savingsByCategory/grownStructures) ──
+
+describe("ladderFor", () => {
+  const DEFAULT = [1, 2, 3];
+  it("returns the default ladder (reference-equal) for every id when overrides is {}", () => {
+    for (const id of ["deposit", "stock", "emergency", "goal", "other_saving"] as const) {
+      expect(ladderFor(id, DEFAULT, {})).toBe(DEFAULT);
+    }
+  });
+  it("returns the override for the overridden id, and the default for every other", () => {
+    const OTHER = [5, 10];
+    const overrides = { stock: OTHER };
+    expect(ladderFor("stock", DEFAULT, overrides)).toBe(OTHER);
+    expect(ladderFor("deposit", DEFAULT, overrides)).toBe(DEFAULT);
+    expect(ladderFor("emergency", DEFAULT, overrides)).toBe(DEFAULT);
+  });
+});
+
+describe("savingsByCategory", () => {
+  it("sums only type==='saving' entries, buckets legacy invest via bucketOf, ignores expense/income", () => {
+    const entries: LedgerEntry[] = [
+      makeEntry("saving", 10_000, "2026-08-01", "deposit"),
+      makeEntry("saving", 5_000, "2026-08-02", "deposit"),
+      makeEntry("saving", 7_000, "2026-08-03", "invest" as unknown as LedgerEntry["categoryId"]), // legacy — aliases to stock
+      makeEntry("expense", 999, "2026-08-01", "food"),
+      makeEntry("income", 999, "2026-08-01", "salary"),
+    ];
+    const totals = savingsByCategory(entries, savingsBucketOf);
+    expect(totals).toEqual({ deposit: 15_000, stock: 7_000 });
+  });
+
+  it("matches rebuildDerived's total (AC-F13-4's cross-check)", () => {
+    const entries: LedgerEntry[] = [
+      makeEntry("saving", 10_000, "2026-08-01", "goal"),
+      makeEntry("saving", 30_000, "2026-08-02", "emergency"),
+    ];
+    const byCategory = savingsByCategory(entries, savingsBucketOf);
+    const sum = Object.values(byCategory).reduce((a, b) => a + (b ?? 0), 0);
+    expect(sum).toBe(rebuildDerived(entries).cumulativeSavingsKrw);
+  });
+});
+
+describe("grownStructures", () => {
+  const ladderOf = () => [100_000, 300_000];
+
+  it("returns the id that crossed a threshold, [] when it did not cross, [] when nothing moved", () => {
+    const before: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { deposit: 50_000 } };
+    const crossed: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { deposit: 150_000 } };
+    const notCrossed: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { deposit: 90_000 } };
+    expect(grownStructures(before, crossed, ladderOf)).toEqual(["deposit"]);
+    expect(grownStructures(before, notCrossed, ladderOf)).toEqual([]);
+    expect(grownStructures(before, before, ladderOf)).toEqual([]);
+  });
+
+  it("handles an id absent from `before` entirely", () => {
+    const before: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: {} };
+    const after: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { stock: 100_000 } };
+    expect(grownStructures(before, after, ladderOf)).toEqual(["stock"]);
+  });
+
+  it("returns at most one id for a normal single-bucket save", () => {
+    const before: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { deposit: 50_000, stock: 50_000 } };
+    const after: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { deposit: 150_000, stock: 50_000 } };
+    const grown = grownStructures(before, after, ladderOf);
+    expect(grown).toEqual(["deposit"]);
+  });
+
+  // Round-4 finding C2 #5 — the exact case that produced a doubled toast
+  // live (one save crossing MULTIPLE rungs at once) had zero coverage.
+  // `grownStructures` counts a level via `towerSegments` (thresholds
+  // crossed), not "did it cross exactly one", so one save jumping several
+  // rungs on the SAME structure must still return that id exactly ONCE —
+  // never once per rung crossed.
+  it("a single save crossing MULTIPLE thresholds on the same structure still returns that id exactly once, not once per rung", () => {
+    const multiRungLadder = () => [100_000, 300_000, 600_000, 1_000_000];
+    const before: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { deposit: 0 } };
+    const after: Pick<TownState, "savingsByCategoryKrw"> = { savingsByCategoryKrw: { deposit: 999_999 } }; // crosses 3 of 4 rungs (0 -> level 3)
+    const grown = grownStructures(before, after, multiRungLadder);
+    expect(grown).toEqual(["deposit"]);
+    expect(grown.length).toBe(1);
+  });
+});

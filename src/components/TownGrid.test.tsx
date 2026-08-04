@@ -62,15 +62,25 @@ const NOOP_MOVE_PROPS: MoveProps = {
   onCancel: () => {},
 };
 
-function mountGrid(nextPlotIndex: number, buildings: readonly Building[] = [], moveProps: Partial<MoveProps> = {}): HTMLElement {
+function mountGrid(
+  nextPlotIndex: number,
+  buildings: readonly Building[] = [],
+  moveProps: Partial<MoveProps> = {},
+  savingsProps: Partial<Pick<TownGridProps, "savingsByCategoryKrw" | "ladder" | "ladderOverrides" | "justGrew">> = {},
+): HTMLElement {
   mounted = mountComponent(
     <TownGrid
       nextPlotIndex={nextPlotIndex}
       buildings={buildings}
       justBuiltId={null}
+      savingsByCategoryKrw={undefined}
       ladder={BALANCE.savingsTowerSegments}
+      ladderOverrides={{}}
+      justGrew={null}
+      onRiseSettled={() => {}}
       {...NOOP_MOVE_PROPS}
       {...moveProps}
+      {...savingsProps}
     />,
   );
   return mounted.container;
@@ -168,6 +178,18 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
       expect(cell.col).toBeGreaterThan(lastCol);
       lastCol = cell.col;
     }
+  });
+
+  it("ADDENDUM-01 §2.4a/§2.5: savingsByCategoryKrw drives real (non-empty) structures, and all five plots still share one reserved height", () => {
+    const container = mountGrid(0, [], {}, { savingsByCategoryKrw: { deposit: 5_000_000 } });
+    const plots = [...container.querySelectorAll(".savings-plot")] as HTMLElement[];
+    const heights = new Set(plots.map((p) => p.style.height));
+    expect(heights.size).toBe(1); // shared-longest rule — one height across all five, even mid-growth
+    const deposit = plots.find((p) => p.dataset.structureId === "deposit")!;
+    expect(deposit.classList.contains("savings-plot--empty")).toBe(false);
+    expect(deposit.querySelectorAll(".savings-pip--on").length).toBeGreaterThan(0);
+    const stock = plots.find((p) => p.dataset.structureId === "stock")!;
+    expect(stock.classList.contains("savings-plot--empty")).toBe(true); // untouched bucket stays empty
   });
 
   it("exactly one signpost, at freeSavingsCells()'s cell, never on the road", () => {
@@ -491,7 +513,18 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("§4.4 DOM contract — .town-tile--cursor tracks cursorIndex across a re-render, applied imperatively (not via the tiles memo — round-2 finding C4 #7)", () => {
     mounted = mountComponent(
-      <TownGrid nextPlotIndex={2} buildings={[cafeBuilding]} justBuiltId={null} ladder={BALANCE.savingsTowerSegments} {...NOOP_MOVE_PROPS} cursorIndex={0} />,
+      <TownGrid
+        nextPlotIndex={2}
+        buildings={[cafeBuilding]}
+        justBuiltId={null}
+        savingsByCategoryKrw={undefined}
+        ladder={BALANCE.savingsTowerSegments}
+        ladderOverrides={{}}
+        justGrew={null}
+        onRiseSettled={() => {}}
+        {...NOOP_MOVE_PROPS}
+        cursorIndex={0}
+      />,
     );
     let cursored = mounted.container.querySelectorAll(".town-tile--cursor");
     expect(cursored.length).toBe(1);
@@ -499,7 +532,18 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
     act(() => {
       mounted!.root.render(
-        <TownGrid nextPlotIndex={2} buildings={[cafeBuilding]} justBuiltId={null} ladder={BALANCE.savingsTowerSegments} {...NOOP_MOVE_PROPS} cursorIndex={1} />,
+        <TownGrid
+          nextPlotIndex={2}
+          buildings={[cafeBuilding]}
+          justBuiltId={null}
+          savingsByCategoryKrw={undefined}
+          ladder={BALANCE.savingsTowerSegments}
+          ladderOverrides={{}}
+          justGrew={null}
+          onRiseSettled={() => {}}
+          {...NOOP_MOVE_PROPS}
+          cursorIndex={1}
+        />,
       );
     });
     cursored = mounted.container.querySelectorAll(".town-tile--cursor");

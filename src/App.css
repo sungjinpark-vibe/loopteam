@@ -322,19 +322,79 @@ button.town-fab {
 }
 
 /* 저축 블록 (ADDENDUM-01 §2.4a/§3.5). Each .savings-plot is a DIRECT grid item
- * of .town-grid, placed and sized inline. This task renders them as empty
- * lots + one signpost only — the 저축 블록 task fills them with structures
- * (signboard/label/pips) inside `.savings-structure*`; those selectors are
- * intentionally not styled yet (no such node exists until that task). */
+ * of .town-grid, placed and sized inline. `align-self`/`flex-wrap` are
+ * alignment/flow keywords, not coordinates and not metrics, so R-3 does not
+ * reach them. Do NOT add height, width, grid-column, grid-row,
+ * grid-template-rows or grid-template-columns to any rule in this block. */
 .savings-plot {
   display: grid;
   row-gap: var(--district-row-gap);
   align-content: end;
+  /* Round-1 finding C1 #2: without this, a CSS Grid item's default
+   * `min-width: auto` lets its min-content size (an unbreakable Korean
+   * signboard token like "증권거래소" has no space to wrap at) force the
+   * whole track wider than the column actually is — "grid blowout" — which
+   * is what pushed the signboard past the lot and onto the road. */
+  min-width: 0;
 }
 .savings-plot--empty {
   border: 1px dashed var(--town-grey300);
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.02);
+}
+.savings-structure {
+  align-self: end;
+  position: relative;
+  min-width: 0; /* same grid-blowout guard as .savings-plot, one level down */
+}
+.savings-structure-board,
+.savings-structure-hint {
+  /* Round-1 finding C1 #2: contain text to the lot's own width instead of
+   * spilling onto the road — `overflow-wrap: anywhere` breaks a run with no
+   * natural wrap point (an unbreakable Korean token) as a last resort, while
+   * `word-break: keep-all` still prefers wrapping at word boundaries when one
+   * exists, so a two-word signboard like "예적금 은행" wraps there first.
+   *
+   * Round-2 finding C1 #4: narrower than the structure's own box (not 100%)
+   * and centred — a board flush with the box's edges reads as the shape
+   * itself rather than a sign ON it, and the vault's dome
+   * (`border-radius: 50% 50% 6px 6px`) curves its top corners in far enough
+   * that a full-width board pokes out past the silhouette. 78% clears every
+   * capShape's curve at the plot's narrowest (50px) width. */
+  width: 78%;
+  margin: 0 auto;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.savings-structure-board {
+  font-size: 10px;
+  text-align: center;
+}
+.savings-structure-hint {
+  font-size: 10px;
+  text-align: center;
+  color: var(--town-grey600);
+}
+.savings-structure-label {
+  font-size: 11px;
+  text-align: center;
+  color: var(--town-grey700);
+}
+.savings-structure-pips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: start;
+  gap: var(--pip-row-gap) var(--pip-gap);
+}
+.savings-pip {
+  width: var(--pip-size);
+  height: var(--pip-size);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+}
+.savings-pip--on {
+  background: var(--town-blue500);
 }
 .savings-signpost {
   align-self: end;
@@ -343,6 +403,112 @@ button.town-fab {
   align-items: flex-end;
   justify-content: center;
   font-size: 22px;
+}
+
+/* One shape per StructureKind (§2.3) — placeholder paint so the five
+ * structures read as distinct even before real art (D-22). */
+.savings-plot--bank .savings-structure { background: var(--town-teal400); border-radius: 4px 4px 0 0; }
+.savings-plot--exchange .savings-structure { background: var(--town-purple400); border-radius: 2px; }
+.savings-plot--vault .savings-structure { background: var(--town-blue400); border-radius: 50% 50% 6px 6px; }
+.savings-plot--house .savings-structure { background: var(--town-orange400); border-radius: 3px 3px 0 0; }
+.savings-plot--warehouse .savings-structure { background: var(--town-grey400); border-radius: 3px; }
+.savings-plot--empty .savings-structure { background: transparent; }
+
+/* One roofline per CapShape (§2.3) — a distinct top edge per structure, the
+ * same "one cap sprite per member" discipline PlaceholderBuilding's
+ * ROOF_SHAPES already uses. Placeholder geometry, not final art. */
+.savings-plot--cap-gable .savings-structure::before { content: ""; position: absolute; top: -6px; left: 15%; right: 15%; height: 8px; background: inherit; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
+.savings-plot--cap-spire .savings-structure::before { content: ""; position: absolute; top: -10px; left: 40%; right: 40%; height: 10px; background: inherit; }
+.savings-plot--cap-dome .savings-structure::before { content: ""; position: absolute; top: -6px; left: 20%; right: 20%; height: 8px; background: inherit; border-radius: 50% 50% 0 0; }
+.savings-plot--cap-pitched .savings-structure::before { content: ""; position: absolute; top: -5px; left: 10%; right: 10%; height: 6px; background: inherit; clip-path: polygon(0 100%, 20% 0, 80% 0, 100% 100%); }
+.savings-plot--cap-sawtooth .savings-structure::before { content: ""; position: absolute; top: -5px; left: 5%; right: 5%; height: 5px; background: inherit; clip-path: polygon(0 100%, 25% 0, 50% 100%, 75% 0, 100% 100%); }
+.savings-plot--empty .savings-structure::before { content: none; }
+
+/* Round-1 finding C1 #3: `idleAnim`/`riseAnim` (content.placeholder.ts §2.3)
+ * now reach the DOM — one keyframe per member instead of every structure
+ * sharing a single generic rise. Placeholder motion, not final art (D-22). */
+@keyframes savings-idle-seal-glint {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.25); }
+}
+@keyframes savings-idle-ticker-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes savings-idle-dial-tick {
+  /* Small on purpose: this rotates the whole (up to 128px tall) structure
+   * box, and at a max-ladder level the box already fills its entire
+   * reserved row width — a few degrees here is plenty of visible "tick"
+   * without the rotated bounding box bleeding into the next lot. */
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(2deg); }
+}
+@keyframes savings-idle-scaffold-sway {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(1px); }
+}
+@keyframes savings-idle-bay-creak {
+  0%, 100% { transform: skewX(0deg); }
+  50% { transform: skewX(0.5deg); }
+}
+.savings-idle--seal-glint { animation: savings-idle-seal-glint 2400ms ease-in-out infinite; }
+.savings-idle--ticker-blink { animation: savings-idle-ticker-blink 1400ms ease-in-out infinite; }
+.savings-idle--dial-tick { animation: savings-idle-dial-tick 1800ms ease-in-out infinite; }
+.savings-idle--scaffold-sway { animation: savings-idle-scaffold-sway 3000ms ease-in-out infinite; }
+.savings-idle--bay-creak { animation: savings-idle-bay-creak 2600ms ease-in-out infinite; }
+/* `idleAnim: "none"` (other_saving) intentionally has no class/rule — §2.3. */
+
+@keyframes savings-rise-seal-stamp {
+  from { transform: scale(1.3); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes savings-rise-candle-add {
+  from { transform: translateY(14px) scaleY(0.4); opacity: 0; }
+  to { transform: translateY(0) scaleY(1); opacity: 1; }
+}
+@keyframes savings-rise-bolt-add {
+  from { transform: rotate(-8deg) translateY(8px); opacity: 0; }
+  to { transform: rotate(0) translateY(0); opacity: 1; }
+}
+@keyframes savings-rise-scaffold-drop {
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes savings-rise-bay-open {
+  from { transform: scaleX(0.6); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+.savings-rise--seal-stamp { animation: savings-rise-seal-stamp 550ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.savings-rise--candle-add { animation: savings-rise-candle-add 550ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.savings-rise--bolt-add { animation: savings-rise-bolt-add 550ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.savings-rise--scaffold-drop { animation: savings-rise-scaffold-drop 550ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.savings-rise--bay-open { animation: savings-rise-bay-open 550ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* §2.6 "터 닦기 -> 건물": the level 0 -> 1 rise (the only one reachable from an
+ * empty lot) gets a longer, more deliberate beat than every later level-up.
+ * Declared AFTER the five rules above and setting only `animation-duration`
+ * (not the full shorthand) so it composes with whichever of the five is also
+ * present, instead of silently overwriting its animation-name/timing. */
+.savings-rise--first { animation-duration: 900ms; }
+
+/* Round-2 finding C4: the four idle loops above run forever, on every
+ * mount, with no pause. `prefers-reduced-motion` is the native platform
+ * escape hatch — no JS, no dependency — for the subset of that cost that CSS
+ * alone can address (a user who has told the OS they don't want ambient
+ * motion never pays the compositor cost, and level-0 lots are additionally
+ * excluded at the class level — SavingsRow.tsx's `isEmpty` guard — so this
+ * only ever reaches a real, on-screen structure).
+ * ponytail: still ticks off-screen for a motion-OK user with 4 real
+ * structures mounted — an IntersectionObserver pause is the upgrade if that
+ * cost is ever measured and matters; not needed for 4 fixed-position DOM
+ * nodes on a screen this size. */
+@media (prefers-reduced-motion: reduce) {
+  .savings-idle--seal-glint,
+  .savings-idle--ticker-blink,
+  .savings-idle--dial-tick,
+  .savings-idle--scaffold-sway,
+  .savings-idle--bay-creak {
+    animation: none;
+  }
 }
 
 .building-tile {

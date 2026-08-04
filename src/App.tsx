@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, useToast } from "@toss/tds-mobile";
 import "./App.css";
 import { BALANCE } from "./balance.placeholder";
+import { levelUpToastFor } from "./content.placeholder";
 import { EntrySheet } from "./components/EntrySheet";
 import { TierCelebration } from "./components/TierCelebration";
 import { TownGrid } from "./components/TownGrid";
@@ -31,6 +32,8 @@ function noticeToastMessage(notice: Exclude<Notice, { kind: "tier" }>): string {
       return "마을에 도로가 새로 놓였어요. 건물 위치가 조금 바뀌었어요."; // copy is D-26
     case "moveHint":
       return "건물을 길게 누르면 옮길 수 있어요"; // placeholder copy (D-36)
+    case "savings":
+      return levelUpToastFor(notice.id); // ADDENDUM-01 §2.6a — never an amount
     default: {
       const exhaustive: never = notice;
       throw new Error(`unhandled notice kind: ${JSON.stringify(exhaustive)}`);
@@ -57,8 +60,25 @@ function App() {
   // as a toast and is popped immediately; "tier" is rendered as the
   // full-screen overlay below instead and pops itself via
   // `TierCelebration`'s `onDismiss`.
+  //
+  // Round-4 finding C2 #4 — a multi-threshold 저축 save (one save crossing
+  // 2+ ladder rungs on the same structure) showed the level-up toast TWICE.
+  // `useTownStore`'s own enqueue is proven single (`grownStructures` returns
+  // at most one id per structure regardless of how many rungs it crossed —
+  // selectors.ts's own doc comment — and `useTownStore.savings.test.tsx`
+  // asserts exactly one "savings" notice reaches the queue for such a save),
+  // so the duplicate has to come from this effect running twice for the
+  // SAME `notice` object — `openToast`/`dismissNotice` are not guaranteed
+  // stable references (an unrelated re-render while the queue's head hasn't
+  // advanced yet can still re-run this effect). `shownNoticeRef` makes the
+  // effect body idempotent per notice OBJECT regardless of why it re-ran,
+  // which is the one place every notice is shown, so it is guarded here
+  // once rather than at every future call site that might reorder these deps.
+  const shownNoticeRef = useRef<Notice | null>(null);
   useEffect(() => {
     if (notice === null || notice.kind === "tier") return;
+    if (shownNoticeRef.current === notice) return;
+    shownNoticeRef.current = notice;
     openToast(noticeToastMessage(notice));
     dismissNotice();
   }, [notice, dismissNotice, openToast]);
@@ -132,7 +152,11 @@ function App() {
         nextPlotIndex={store.nextPlotIndex}
         buildings={store.buildings}
         justBuiltId={store.justBuiltId}
+        savingsByCategoryKrw={store.savingsByCategoryKrw}
         ladder={BALANCE.savingsTowerSegments}
+        ladderOverrides={BALANCE.savingsStructureSegments}
+        justGrew={store.justGrew}
+        onRiseSettled={store.clearJustGrew}
         movingId={move.movingId}
         cursorIndex={move.cursorIndex}
         onPlotLongPress={move.onPlotLongPress}

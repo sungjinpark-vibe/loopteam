@@ -14,6 +14,8 @@
  *  3. The director's approved values land as a separate `balance.approved.ts`
  *     that sets the flag false. Placeholders are never edited in place.
  */
+import type { SavingCategoryId } from "./types";
+
 export const BALANCE = {
   BALANCE_UNSET: true, // flipped to false ONLY by the director's approved values file
 
@@ -23,9 +25,13 @@ export const BALANCE = {
   moodPaceThresholds: [0.9, 1.1], // arbitrary, yields 3 buckets — D-4
   variantsPerCategory: 3, // art-budget figure, matches §6.1 order — D-5
   savingsTowerSegments: [
-    // arbitrary cumulative KRW thresholds, 8 segments — D-13
+    // arbitrary cumulative KRW thresholds, 8 segments — D-13. Now the DEFAULT
+    // ladder for every 저축 블록 structure (ADDENDUM-01 §2.5), not a single tower.
     100_000, 300_000, 600_000, 1_000_000, 2_000_000, 4_000_000, 7_000_000, 10_000_000,
   ],
+  // ADDENDUM-01 §4.3/D-13a — per-structure ladder overrides. Empty means
+  // "every structure uses the default above". No new numeric values.
+  savingsStructureSegments: {} as Partial<Record<SavingCategoryId, readonly number[]>>,
   noSpendDayCostsSlot: true, // design rule, confirm — D-15
 } as const;
 

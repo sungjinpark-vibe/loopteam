@@ -1,22 +1,29 @@
 /**
  * 저축 블록 (savings block) — the fixed-cell row at the town's head.
- * ADDENDUM-01 §3.4 item 4 / §2.4a: `SavingsRow` is its own component, not
- * inlined into `TownGrid`, so the 저축 블록 task (real structures — signboard,
- * label, pips) has one seam to extend instead of growing `TownGrid` further
- * (round-1 lead finding C3).
- *
- * THIS TASK renders the block's five cells as empty lots + one signpost —
- * `SavingsRow`'s next-task job is to swap `.savings-plot--empty` for the real
- * `.savings-structure*` subtree (§2.4a); the props below (`ladder` only) are
- * deliberately the subset this task needs. The full contract (adds
- * `ladderOverrides`, `savingsByCategoryKrw`, `justGrew`) lands with that task
- * (§3.4's `TownGridProps` list, break B14) — not here, since none of that
- * data exists on `TownState` yet (ADDENDUM-01 §4.6).
+ * ADDENDUM-01 §2.4a / §2.3 / §2.5: five real savings structures (one per
+ * `SAVING_CATEGORY_IDS`) + one 안내판 signpost, each sized from the shared
+ * ladder length (§2.5's shared-longest rule) but leveled from its OWN
+ * cumulative amount and its OWN ladder (`ladderFor`).
  *
  * §2.4a's trap: this MUST return a `<>…</>` fragment of direct grid items,
  * never a wrapping element — a wrapper collapses every lot into one cell.
+ *
+ * Does NOT raise its own toast (§2.3/§2.6a forbid a `@toss/tds-mobile`
+ * import here — it would drag the TDS runtime into `TownGrid.test.tsx`).
+ * `useTownStore` owns the level-up toast through the existing Notice FIFO;
+ * this component only owns the one-shot rise animation and its auto-scroll,
+ * keyed on `justGrew.seq` (the same `scrollIntoView` mechanism `TownGrid`'s
+ * `justBuiltId` effect already uses).
+ *
+ * Round-4 finding C1 #2: `justGrew` is a one-shot event, not sticky state —
+ * once the rise animation's native `animationend` fires, `onRiseSettled`
+ * (owned by `useTownStore`, mirrors `dismissNotice`'s shape) resets it to
+ * `null` so the structure falls back to its `idleAnim` loop instead of
+ * staying in `.savings-plot--rise` forever.
  */
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
+import { CATEGORY_CONTENT, SAVINGS_STRUCTURE } from "../content.placeholder";
+import { ladderFor, towerSegments } from "../selectors";
 import {
   SAVINGS_ROW_ORDER,
   districtLadderLength,
@@ -25,57 +32,137 @@ import {
   savingsCellFor,
   savingsPlotHeightPx,
   savingsPlotTemplateRows,
+  structureLevelHeightPx,
 } from "../townLayout";
+import type { SavingCategoryId } from "../types";
 
 export interface SavingsRowProps {
+  /** Per-structure cumulative KRW — undefined/absent id both read as 0 (level 0, empty lot). */
+  savingsByCategoryKrw: Partial<Record<SavingCategoryId, number>> | undefined;
   /** The shared default ladder — sizes the savings block's shared row height (BALANCE.savingsTowerSegments, D-13). */
   ladder: readonly number[];
+  /** Per-structure ladder overrides (BALANCE.savingsStructureSegments, D-13a). Ships `{}`. */
+  ladderOverrides: Partial<Record<SavingCategoryId, readonly number[]>>;
+  /** The structure that just gained a level, and a per-event sequence number (§2.6a). */
+  justGrew: { id: SavingCategoryId; seq: number } | null;
+  /** Called when the one-shot rise animation ends (native `animationend`) — clears `justGrew` back to `null` (round-4 finding C1 #2). Required, not optional: a forgetful call site would leave a structure stuck in `.savings-plot--rise` forever. */
+  onRiseSettled: () => void;
 }
 
-function SavingsRowImpl({ ladder }: SavingsRowProps) {
+function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGrew, onRiseSettled }: SavingsRowProps) {
   // §2.5's shared-longest rule: all five savings lots share one reserved
-  // height, sized to the longest ladder any structure resolves to. No
-  // per-structure overrides are wired yet (this task ships empty lots), so
-  // `overrides` is always `{}` — the next task's job is to thread it through.
-  const ladderLength = useMemo(() => districtLadderLength(ladder, {}), [ladder]);
+  // height, sized to the longest ladder any structure resolves to.
+  const ladderLength = useMemo(() => districtLadderLength(ladder, ladderOverrides), [ladder, ladderOverrides]);
   const plotHeight = savingsPlotHeightPx(ladderLength);
   const plotRowTemplate = savingsPlotTemplateRows(ladderLength);
 
-  const plots = useMemo(
-    () =>
-      SAVINGS_ROW_ORDER.map((id) => {
-        const { row, col } = savingsCellFor(id);
-        const side = roadSideOf(col);
-        return (
-          <div
-            key={id}
-            className={`savings-plot savings-plot--empty town-tile--${side}`}
-            data-structure-id={id}
-            aria-hidden="true"
-            style={{
-              gridColumn: col + 1,
-              gridRow: row + 1,
-              height: `${plotHeight}px`,
-              gridTemplateRows: plotRowTemplate,
-            }}
-          />
-        );
-      }),
-    [plotHeight, plotRowTemplate],
-  );
+  const risingRef = useRef<HTMLDivElement | null>(null);
+  // §2.6 step 1: auto-scroll to the structure that just rose, keyed on `seq`
+  // (not the bare id) so crossing the SAME structure's threshold twice in one
+  // session still re-triggers — same mechanism TownGrid's justBuiltId effect uses.
+  useEffect(() => {
+    if (justGrew === null) return;
+    risingRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // The lint rule wants the whole `justGrew` object in the deps array, but
+    // this effect is deliberately keyed on `justGrew.seq` alone (§2.6a): the
+    // same structure crossing a threshold twice in one session produces two
+    // DIFFERENT `justGrew` objects sharing the same `id`, and only `seq`
+    // distinguishes them, so an object-identity dependency is exactly as
+    // correct as `seq` here — but a plain `justGrew` dep would also fire this
+    // effect on unrelated re-renders that happen to reconstruct an
+    // equivalent-looking object with no real level-up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justGrew?.seq]);
+
+  const plots = SAVINGS_ROW_ORDER.map((id) => {
+    const { row, col } = savingsCellFor(id);
+    const side = roadSideOf(col);
+    const content = SAVINGS_STRUCTURE[id];
+    const category = CATEGORY_CONTENT[id];
+    const ownLadder = ladderFor(id, ladder, ladderOverrides);
+    const level = towerSegments(savingsByCategoryKrw?.[id] ?? 0, ownLadder);
+    const isEmpty = level === 0;
+    const isRising = justGrew?.id === id;
+    // §2.6 step 2 / round-1 finding C1 #3: the one-shot rise plays the
+    // structure's OWN `riseAnim` (never the generic keyframe every kind used
+    // to share), and level 0 -> 1 specifically — the only level a structure
+    // can rise INTO from empty — gets the longer "터 닦기 -> 건물" beat via the
+    // `--first` duration modifier (App.css), not a second animation name.
+    //
+    // Round-2 finding C1 #2: `isEmpty` gates the idle loop too — a level-0
+    // lot has no structure standing on it, only its signboard + `emptyHint`
+    // text (rendered below), and those must never carry an infinite idle
+    // animation (e.g. `.savings-idle--ticker-blink` fading the 증권거래소
+    // lot's "아직 비어있어요" hint to 0.55 opacity forever on a fresh install).
+    const structureClassName =
+      "savings-structure" +
+      (isRising
+        ? ` savings-rise--${content.riseAnim}${level === 1 ? " savings-rise--first" : ""}`
+        : isEmpty || content.idleAnim === "none"
+          ? ""
+          : ` savings-idle--${content.idleAnim}`);
+
+    return (
+      <div
+        key={id}
+        className={
+          `savings-plot savings-plot--${content.kind} savings-plot--cap-${content.capShape}` +
+          `${isEmpty ? " savings-plot--empty" : ""}${isRising ? " savings-plot--rise" : ""} town-tile--${side}`
+        }
+        data-structure-id={id}
+        style={{
+          gridColumn: col + 1,
+          gridRow: row + 1,
+          height: `${plotHeight}px`,
+          gridTemplateRows: plotRowTemplate,
+        }}
+      >
+        {/* Round-2 finding C1 #3 (AC-F13-7 / §2.4a's DOM contract): inline
+         * `height`, exactly `structureLevelHeightPx(level)` — not
+         * `minHeight`. A level-0 lot's board+hint can still need more room
+         * than the level-0 floor (32px). `align-self: end` (App.css) bottom-
+         * anchors this div in its OWN reserved grid row (sized to the full
+         * ladder, `structureHeightPx(ladderLength)` — always >= any single
+         * level's floor).
+         *
+         * Round-4 finding C1 #1/#6: `align-self` only positions the BOX —
+         * it does nothing to the overflow DIRECTION of content that doesn't
+         * fit inside it, and plain block-flow content overflows a
+         * height-constrained box DOWNWARD regardless of where the box sits,
+         * which is exactly what painted the emptyHint over the label row.
+         * `display: flex; flexDirection: column; justifyContent: flex-end`
+         * is the actual (code, not prose) fix: a flex container that's
+         * shorter than its content keeps its LAST child flush with the
+         * container's end edge and lets the overflow bleed off the START
+         * edge instead — i.e. upward, into the already-reserved room above
+         * this box in its grid row, never down into `.savings-structure-label`. */}
+        <div
+          className={structureClassName}
+          ref={isRising ? risingRef : undefined}
+          onAnimationEnd={isRising ? onRiseSettled : undefined}
+          style={{ height: `${structureLevelHeightPx(level)}px`, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
+        >
+          <div className="savings-structure-board">{content.signboard}</div>
+          {isEmpty && <div className="savings-structure-hint">{content.emptyHint}</div>}
+        </div>
+        <div className="savings-structure-label">{category.label}</div>
+        <div className="savings-structure-pips">
+          {ownLadder.map((_, i) => (
+            <span key={i} className={i < level ? "savings-pip savings-pip--on" : "savings-pip"} />
+          ))}
+        </div>
+      </div>
+    );
+  });
 
   // The 마을 안내판 (village signpost) — the first free savings-row cell in
   // column-rank order. Decoration only (rule R-2): no data, never persisted,
   // so it never needs to change once mounted.
-  const signposts = useMemo(
-    () =>
-      freeSavingsCells().map(({ row, col }) => (
-        <div key={`${row},${col}`} className="savings-signpost" style={{ gridColumn: col + 1, gridRow: row + 1 }} aria-hidden="true">
-          🪧
-        </div>
-      )),
-    [],
-  );
+  const signposts = freeSavingsCells().map(({ row, col }) => (
+    <div key={`${row},${col}`} className="savings-signpost" style={{ gridColumn: col + 1, gridRow: row + 1 }} aria-hidden="true">
+      🪧
+    </div>
+  ));
 
   return (
     <>

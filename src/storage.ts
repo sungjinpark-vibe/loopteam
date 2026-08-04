@@ -15,7 +15,8 @@
  */
 import type { StoragePort } from "./platform/storage";
 import { storage as defaultStoragePort } from "./platform/storage";
-import { rebuildDerived } from "./selectors";
+import { rebuildDerived, savingsByCategory } from "./selectors";
+import { savingsBucketOf } from "./savingsBuckets";
 import { LAYOUT_VERSION } from "./townLayout";
 import type { Building, BudgetSetting, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
@@ -125,6 +126,7 @@ export function defaultTownState(): TownState {
     queue: [],
     noSpendDays: [],
     cumulativeSavingsKrw: 0,
+    savingsByCategoryKrw: {}, // ADDENDUM-01 §4.1 — explicit `{}`, not "absent", for a fresh town
     lastSettledPeriod: null,
   };
 }
@@ -356,6 +358,7 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
           town: {
             ...defaultTownState(),
             ...rebuildDerived(recoveredEntries),
+            savingsByCategoryKrw: savingsByCategory(recoveredEntries, savingsBucketOf), // ADDENDUM-01 §4.2
             nextPlotIndex,
             noSpendDays: recoverNoSpendDays(buildings),
             queue: recoverQueue(recoveredEntries),

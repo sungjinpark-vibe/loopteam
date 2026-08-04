@@ -35,9 +35,15 @@ import { analytics } from "./platform/analytics";
 import { clock } from "./platform/clock";
 import { random } from "./platform/random";
 import { BALANCE } from "./balance.placeholder";
-import { buildingCount as countBuildings, canClaimNoSpend as selectCanClaimNoSpend, slotsRemainingToday } from "./selectors";
+import {
+  buildingCount as countBuildings,
+  canClaimNoSpend as selectCanClaimNoSpend,
+  grownStructures,
+  ladderFor,
+  slotsRemainingToday,
+} from "./selectors";
 import { createChunkedStorage, defaultTownState, yieldToMainThread, type CoreState } from "./storage";
-import type { Building, BudgetSetting, LedgerEntry, TownState } from "./types";
+import type { Building, BudgetSetting, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
   town: TownState;
@@ -100,7 +106,10 @@ export type Notice =
   // ADDENDUM-02 §4.5 (D-36, MUST) — the long-press-to-move discoverability
   // hint. Queued at most once per session (see `hintQueuedRef` below); the
   // copy is a placeholder the director may edit.
-  | { kind: "moveHint" };
+  | { kind: "moveHint" }
+  // ADDENDUM-01 §2.6a — a savings structure just crossed a ladder threshold.
+  // `App.tsx` renders it as a toast via `levelUpToastFor(id)`.
+  | { kind: "savings"; id: SavingCategoryId };
 
 /**
  * Load-modify-save on one month's buildings chunk — the same three-line
@@ -209,6 +218,25 @@ export function useTownStore() {
   const storageRef = useRef(createChunkedStorage());
   const [state, setState] = useState<LoadedState | null>(null);
   const [justBuiltId, setJustBuiltId] = useState<string | null>(null);
+  // ADDENDUM-01 §2.6a — the savings structure that just crossed a ladder
+  // threshold, plus a per-event sequence number. `justBuiltId` gets away with
+  // being a bare id because building ids are unique per build; a bare
+  // `SavingCategoryId` would not — saving into the same structure twice in a
+  // row and crossing a threshold both times would set the same value, React
+  // would see no change, and the second rise animation would never play.
+  //
+  // UNLIKE `justBuiltId`, this IS cleared back to `null` — round-4 finding
+  // C1 #2: a savings structure's rise is a one-shot animation (§2.6), not a
+  // permanent state, and `justBuiltId` staying set forever is fine because
+  // it only ever highlights the single most-recent tile, whereas leaving
+  // `justGrew` set forever pins the most-recently-grown structure in
+  // `.savings-plot--rise` for the rest of the session and it never returns
+  // to its `idleAnim` loop. `clearJustGrew` below is called by
+  // `SavingsRow`'s `onRiseSettled` once the rise animation's native
+  // `animationend` fires.
+  const [justGrew, setJustGrew] = useState<{ id: SavingCategoryId; seq: number } | null>(null);
+  const clearJustGrew = useCallback(() => setJustGrew(null), []);
+  const growSeqRef = useRef(0);
   // One FIFO queue for every one-shot notice (F10 corruption, F14 "return
   // promise kept" on boot, F5 tier celebration) — see the `Notice` doc
   // comment above. `notice` is always the head; dismissing pops it.
@@ -448,6 +476,16 @@ export function useTownStore() {
     setState(next);
     if (result.building) setJustBuiltId(result.building.id);
     if (result.celebrateTier !== null) pushNotices({ kind: "tier", tier: result.celebrateTier });
+    // ADDENDUM-01 §2.6a — detect a savings level-up by comparing the town
+    // BEFORE/AFTER this save (both already in hand: `prev.town`/`result.town`).
+    // By construction `grownStructures` returns at most one id for a normal
+    // save (one entry has one categoryId).
+    const grown = grownStructures(prev.town, result.town, (id) =>
+      ladderFor(id, BALANCE.savingsTowerSegments, BALANCE.savingsStructureSegments));
+    if (grown.length > 0) {
+      setJustGrew({ id: grown[0], seq: growSeqRef.current++ });
+      pushNotices(...grown.map((id): Notice => ({ kind: "savings", id })));
+    }
     maybeQueueMoveHint(result.town, countBuildings(buildings));
 
     return {
@@ -561,6 +599,9 @@ export function useTownStore() {
       : false,
     today,
     justBuiltId,
+    savingsByCategoryKrw: state?.town.savingsByCategoryKrw,
+    justGrew,
+    clearJustGrew,
     notice,
     dismissNotice,
     addEntry,

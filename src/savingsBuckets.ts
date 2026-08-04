@@ -30,12 +30,13 @@ export const SAVING_CATEGORY_IDS = [
 ] as const satisfies readonly SavingCategoryId[];
 
 /**
- * The narrow literal union of `SAVING_CATEGORY_IDS`'s five members — NOT the
- * same type as `SavingCategoryId` (which still has 6, `invest` included until
- * the 저축 블록 task retires it). `townLayout.ts`'s `savingsCellFor` takes this
- * type, not `SavingCategoryId`, so passing a legacy/unknown id (e.g.
- * `"invest"`) is a compile error at the call site instead of a silent
- * out-of-range lookup (round-1 lead finding C2).
+ * The narrow literal union of `SAVING_CATEGORY_IDS`'s five members — the same
+ * five as `SavingCategoryId` (types.ts), which no longer includes `invest`:
+ * that id retired to the separate `LegacySavingCategoryId` (types.ts) once
+ * the 저축 블록 task wired `savingsBucketOf` below. `townLayout.ts`'s
+ * `savingsCellFor` takes this type rather than a bare `string`, so passing a
+ * legacy/unknown id (e.g. `"invest"`) is a compile error at the call site
+ * instead of a silent out-of-range lookup (round-1 lead finding C2).
  */
 export type SavingCategoryCellId = (typeof SAVING_CATEGORY_IDS)[number];
 

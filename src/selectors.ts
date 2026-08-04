@@ -266,3 +266,47 @@ export function ladderFor(
 ): readonly number[] {
   return overrides[id] ?? defaultLadder;
 }
+
+/**
+ * Rebuilds the per-category aggregate from entries (import / corrupt-core
+ * recovery) — the same denormalization `rebuildDerived` does for the total,
+ * split by bucket. `bucketOf` is injected rather than imported (same
+ * discipline as `ladderFor`/`towerSegments`/`canClaimNoSpend`) so this file's
+ * header rule ("imports only ./calendar and ./types") holds.
+ */
+export function savingsByCategory(
+  entries: readonly LedgerEntry[],
+  bucketOf: (categoryId: string) => SavingCategoryId,
+): Partial<Record<SavingCategoryId, number>> {
+  const totals: Partial<Record<SavingCategoryId, number>> = {};
+  for (const e of entries) {
+    if (e.type !== "saving") continue;
+    const id = bucketOf(e.categoryId);
+    totals[id] = (totals[id] ?? 0) + e.amountKrw;
+  }
+  return totals;
+}
+
+/**
+ * Which structures crossed a ladder threshold between two savings snapshots
+ * — the level-up detector (§2.6a). Iterates the keys of AFTER only: a level
+ * can rise for an id absent from `before`, never for one absent from
+ * `after`, so no id list is needed here. Returns at most one id for a normal
+ * save (one entry has one categoryId) but an array anyway, so import/
+ * corrupt-recovery paths (which can move several buckets at once) reuse it.
+ */
+export function grownStructures(
+  before: Pick<TownState, "savingsByCategoryKrw">,
+  after: Pick<TownState, "savingsByCategoryKrw">,
+  ladderOf: (id: SavingCategoryId) => readonly number[],
+): SavingCategoryId[] {
+  const grown: SavingCategoryId[] = [];
+  for (const key of Object.keys(after.savingsByCategoryKrw ?? {})) {
+    const id = key as SavingCategoryId;
+    const ladder = ladderOf(id);
+    const was = towerSegments(before.savingsByCategoryKrw?.[id] ?? 0, ladder);
+    const now = towerSegments(after.savingsByCategoryKrw?.[id] ?? 0, ladder);
+    if (now > was) grown.push(id);
+  }
+  return grown;
+}

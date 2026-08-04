@@ -40,7 +40,7 @@ import {
   isStreetFrontCol,
   roadSideOf,
 } from "../townLayout";
-import type { Building } from "../types";
+import type { Building, SavingCategoryId } from "../types";
 import { EmptyLot } from "./EmptyLot";
 import { PlaceholderBuilding } from "./PlaceholderBuilding";
 import { SavingsRow } from "./SavingsRow";
@@ -49,8 +49,16 @@ export interface TownGridProps {
   nextPlotIndex: number;
   buildings: readonly Building[];
   justBuiltId: string | null;
+  /** Per-structure cumulative KRW — drives each savings structure's level (ADDENDUM-01 §2.4/break B14). */
+  savingsByCategoryKrw: Partial<Record<SavingCategoryId, number>> | undefined;
   /** The shared default ladder — sizes the savings block's shared row height (BALANCE.savingsTowerSegments, D-13). */
   ladder: readonly number[];
+  /** Per-structure overrides — BALANCE.savingsStructureSegments (D-13a). Ships `{}`. */
+  ladderOverrides: Partial<Record<SavingCategoryId, readonly number[]>>;
+  /** The structure that just gained a level, and a per-event sequence number (§2.6a). */
+  justGrew: { id: SavingCategoryId; seq: number } | null;
+  /** The rise animation ended — clears `justGrew` (round-4 finding C1 #2, threaded straight through to `SavingsRow`). */
+  onRiseSettled: () => void;
   // ADDENDUM-02 §4.3/§7.1 (B19) — the grid owns the delegated gesture
   // surface, so it owns these too. Required (not optional): a forgetful call
   // site is a compile error, not a dead feature.
@@ -85,7 +93,11 @@ function TownGridImpl({
   nextPlotIndex,
   buildings,
   justBuiltId,
+  savingsByCategoryKrw,
   ladder,
+  ladderOverrides,
+  justGrew,
+  onRiseSettled,
   movingId,
   cursorIndex,
   onPlotLongPress,
@@ -259,7 +271,13 @@ function TownGridImpl({
           />
         );
       })}
-      <SavingsRow ladder={ladder} />
+      <SavingsRow
+        ladder={ladder}
+        ladderOverrides={ladderOverrides}
+        savingsByCategoryKrw={savingsByCategoryKrw}
+        justGrew={justGrew}
+        onRiseSettled={onRiseSettled}
+      />
       {tiles}
     </div>
   );
