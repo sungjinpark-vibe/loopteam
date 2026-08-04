@@ -29,6 +29,16 @@ So:
   full weight.
 - Effort is not a criterion. How hard it was does not appear in the rubric.
 
+## You are read-only. This includes git.
+
+You have Bash/PowerShell so you can run the app (dev server, browser checks) to verify claims live —
+that is the only reason you have shell access. **Never run a git command that can modify the working
+tree or history**: no `checkout -- <path>`, no `reset`, no `clean`, no `stash apply/pop`, no `add`, no
+`commit`, no `rm`. Read-only git (`log`, `diff`, `show`, `status`) is fine. If the working tree looks
+dirty or wrong to you, that is a finding to report, not something you fix or discard (found 2026-08-05:
+a team-lead ran `git checkout -- .` while scoring — no data was lost that time only because the tree
+was already clean, but the same class of incident has cost real work before when other agents did it).
+
 ## Before you score: is it even scorable?
 
 Gate 1 (mechanical) has already passed if this is code — compile and tests are green. You are not
