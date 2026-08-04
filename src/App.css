@@ -631,7 +631,28 @@ button.town-fab {
 
 .category-grid > * {
   width: 100%;
+  min-width: 0; /* same grid-blowout guard as .savings-plot: without it a
+   * chip's min-content width (e.g. "기타저축") forces its track past 1fr and
+   * the whole sheet body scrolls sideways to reach it (round-6 fix, C1). */
   justify-content: center;
+}
+
+/* TDS's ChipItem sets its own `min-width: var(--chip-min-width)` (64px) as
+ * an inline style variable on ITS OWN element (round-6 fix, C1) — an
+ * ancestor's `min-width: 0` (above) only stops the *button wrapper* from
+ * forcing the grid track wider, it can't reach a descendant's own inline
+ * floor. At the 320px reference width a 5-column track is ~54px, under the
+ * 64px floor, so the chip still overflowed its column and the sheet
+ * scrolled sideways to show it. `!important` for the same reason as
+ * `.entry-keypad` below: the library's emotion stylesheet is injected after
+ * this static one and wins any same-specificity tie regardless of source
+ * order. Font-size/padding are trimmed too so a 4-5 char label + icon still
+ * reads clearly at the smaller chip size instead of wrapping. */
+.category-grid > * [data-tds-mobile-component="ChipItem"] {
+  min-width: 0 !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  font-size: 11px !important;
 }
 
 /* TDS's `NumberKeypad` defaults to a 64px row (256px for 4 rows) — with
