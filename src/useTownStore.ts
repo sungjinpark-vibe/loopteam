@@ -1,8 +1,10 @@
 /**
  * S2/S4 state — boots from chunked storage (T002), applies F1+F2 on save,
- * and now (this task, build order step 3) wires the retention layer: F4
- * daily slot reset, F14 queue drain, F5 tier celebration, F7 streak, and F15
- * 무지출 데이 claim/revoke.
+ * wires the retention layer (F4 daily slot reset, F14 queue drain, F5 tier
+ * celebration, F7 streak, F15 무지출 데이 claim/revoke), and now (ADDENDUM-02
+ * §3) places every new building on a random free lot instead of a sequential
+ * cursor, and self-heals the town's occupancy at boot before anything else
+ * touches `plotIndex` (§3.6).
  *
  * Single responsibility: owns the town/buildings/entries state and the
  * mutations this task's UI needs (`addEntry`, `claimNoSpend`). All the actual
@@ -27,8 +29,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { applyNewEntry, type EntryDraft } from "./entryActions";
 import { claimNoSpendDay } from "./noSpendActions";
 import { drainQueue } from "./queueActions";
+import { allocatePlots, pickPlot, reconcilePlacement } from "./placement";
 import { makeId } from "./id";
+import { analytics } from "./platform/analytics";
 import { clock } from "./platform/clock";
+import { random } from "./platform/random";
 import { BALANCE } from "./balance.placeholder";
 import { buildingCount as countBuildings, canClaimNoSpend as selectCanClaimNoSpend, slotsRemainingToday } from "./selectors";
 import { createChunkedStorage, defaultTownState, yieldToMainThread, type CoreState } from "./storage";
@@ -146,6 +151,9 @@ async function drainQueueAndPersist(
     // that happens to be unique by luck of `Math.random()`.
     (i) => makeId("b", now + i),
     now,
+    // ADDENDUM-02 §3.3/§3.5 (B18): N distinct random lots for this drain,
+    // drawn once so no two drained buildings can collide.
+    (count) => allocatePlots(town.nextPlotIndex, buildings, count, random.next),
   );
   if (result.drained.length === 0) {
     return { town: result.town, buildings: [...buildings], celebrateTier: null, drainedCount: 0 };
@@ -229,12 +237,39 @@ export function useTownStore() {
       const today = clock.today();
       const storageClient = storageRef.current;
 
+      // ADDENDUM-02 §3.6 — self-healing reconcile, BEFORE anything else
+      // (the drain below allocates lots and must see sane occupancy). Zero
+      // storage writes for the 100%-of-real-towns case where nothing is
+      // wrong (repaired === 0 and plotsOpened already matches nextPlotIndex).
+      const reconciled = reconcilePlacement(core.town.nextPlotIndex, boot.buildings);
+      const coreNeedsWrite = reconciled.plotsOpened !== core.town.nextPlotIndex;
+      const reconciledTown: TownState = coreNeedsWrite ? { ...core.town, nextPlotIndex: reconciled.plotsOpened } : core.town;
+      if (reconciled.repaired > 0) {
+        // Only months that actually contain a repaired building, ascending
+        // ym order — rebuilt from the reconciled in-memory array, never
+        // read-modify-write. Position-indexed comparison against `boot.buildings`
+        // is safe: `reconcilePlacement` preserves array order/identity for
+        // every untouched entry (its own contract).
+        const repairedMonths = new Set<string>();
+        for (let i = 0; i < reconciled.buildings.length; i++) {
+          if (reconciled.buildings[i] !== boot.buildings[i]) repairedMonths.add(reconciled.buildings[i].builtOn.slice(0, 7));
+        }
+        for (const ym of [...repairedMonths].sort()) {
+          storageClient.saveBuildingsForMonth(ym, reconciled.buildings.filter((b) => b.builtOn.slice(0, 7) === ym));
+        }
+        // No player-facing notice — they did nothing wrong (§3.6 point 6).
+        analytics.track("placement_repaired", { count: reconciled.repaired });
+      }
+      if (coreNeedsWrite) {
+        storageClient.saveCore({ town: reconciledTown, budget: core.budget, onboarded: core.onboarded });
+      }
+
       // F14: drain the materials queue FIFO, AFTER F4's slot reset — the
       // reset is purely evaluated (slotsRemainingToday) at drain time.
       const drained = await drainQueueAndPersist(
         storageClient,
-        core.town,
-        boot.buildings,
+        reconciledTown,
+        reconciled.buildings,
         core.budget,
         core.onboarded,
         today,
@@ -262,7 +297,25 @@ export function useTownStore() {
     };
   }, [pushNotices]);
 
-  // storage.ts's own doc comment on `flush()` — unchanged from T003.
+  // storage.ts's own doc comment on `flush()` — unchanged from T003, PLUS
+  // (ADDENDUM-02 round-3 finding C2): flush on the effect's own cleanup too,
+  // not only on pagehide/visibilitychange. Without this, a component
+  // teardown that ISN'T a real page exit (a test's `root.unmount()`; a
+  // future in-app unmount) leaves this `storageRef`'s debounced writes
+  // sitting in a live ~300ms `setTimeout` that nothing will ever cancel.
+  // That timer still closes over the SAME shared storage port (real
+  // `window.localStorage` in the browser and in every test here), so it can
+  // fire later — during a LATER test's run, after that test's own `beforeEach`
+  // has already cleared and repopulated the same keys — and silently
+  // overwrite fresh state with a stale snapshot. This is a real gap
+  // independent of `reconcilePlacement` (any addEntry/claim write can leave
+  // one buffered), and it is what let round-3's own reconcile-boot-write
+  // regression corrupt a LATER, unrelated test's storage instead of just
+  // that test failing on its own. Flushing here is a no-op cost (idempotent
+  // when the buffer is already empty) and changes nothing about WHEN a write
+  // happens for an app that keeps running — it only guarantees a torn-down
+  // instance never leaves a live timer pointed at storage behind it. See
+  // `useTownStore.retention.test.tsx`'s "no dangling debounced write..." test.
   useEffect(() => {
     function flushNow() {
       storageRef.current.flush();
@@ -273,6 +326,7 @@ export function useTownStore() {
     window.addEventListener("pagehide", flushNow);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
+      flushNow();
       window.removeEventListener("pagehide", flushNow);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
@@ -288,7 +342,11 @@ export function useTownStore() {
     const now = clock.now();
     const entryId = makeId("e", now);
     const buildingId = makeId("b", now);
-    const variantIndex = Math.floor(Math.random() * BALANCE.variantsPerCategory);
+    const variantIndex = Math.floor(random.next() * BALANCE.variantsPerCategory);
+    // ADDENDUM-02 §3.3/§3.5 (B16/B24): a uniformly random free lot, computed
+    // here exactly like `variantIndex` already is, and passed in — placement.ts
+    // is the only module allowed to decide a plotIndex (rule R-4).
+    const plotIndex = pickPlot(prev.town.nextPlotIndex, prev.buildings, random.next);
 
     const result = applyNewEntry({
       town: prev.town,
@@ -303,6 +361,7 @@ export function useTownStore() {
       tierThresholds: BALANCE.tierThresholds,
       noSpendDayCostsSlot: BALANCE.noSpendDayCostsSlot,
       variantIndex,
+      plotIndex,
     });
 
     const storageClient = storageRef.current;
@@ -355,6 +414,7 @@ export function useTownStore() {
     const today = clock.today();
     const now = clock.now();
     const buildingId = makeId("b", now);
+    const plotIndex = pickPlot(prev.town.nextPlotIndex, prev.buildings, random.next);
 
     const result = claimNoSpendDay({
       town: prev.town,
@@ -366,6 +426,7 @@ export function useTownStore() {
       tierThresholds: BALANCE.tierThresholds,
       buildingId,
       createdAt: now,
+      plotIndex,
     });
     if (result === null) return false;
 

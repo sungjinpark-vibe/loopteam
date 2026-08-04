@@ -325,3 +325,54 @@ describe("F14 boot-time drain — performance evidence", () => {
     expect(elapsedMs).toBeLessThan(1000);
   });
 });
+
+// Round-3 finding C2: reconcilePlacement's boot-time saveCore/saveBuildingsForMonth
+// writes (§3.6) made a PRE-EXISTING gap much more likely to bite — every
+// `storageRef` is a `createChunkedStorage()` instance whose debounced writes
+// are buffered in-memory and flushed to the SHARED real `window.localStorage`
+// only via an explicit `pagehide`/`flush()` call or its own ~300ms timer. A
+// component teardown that is neither of those (a test's bare `unmount()`; any
+// future non-pagehide unmount) used to leave that timer dangling, still
+// pointed at the same storage keys every other test in this file also
+// writes — a slow full-suite run could let it fire mid a LATER test and
+// silently overwrite that test's fresh state with a stale snapshot (observed:
+// `slotsRemaining` short by exactly the slots a stale core snapshot had
+// already spent). Proven by QA's stash bisect: pre-task HEAD ran this same
+// suite 5/5 clean; post-task it failed ~30-50% of full-suite runs, always in
+// this file, always as a wrong domain value rather than a timeout.
+//
+// This test proves the fix directly and deterministically — no real 300ms
+// wait, no `pagehide` dispatch — by asserting a write is ALREADY visible to a
+// fresh, independent storage client the instant `unmount()` returns.
+describe("storage flush on component unmount — round-3 finding C2 regression", () => {
+  it("commits pending debounced writes to real storage on unmount, with no pagehide and no wait", async () => {
+    const localContainer = document.createElement("div");
+    document.body.appendChild(localContainer);
+    const localRoot = createRoot(localContainer);
+    let hookResult: ReturnType<typeof useTownStore> | null = null;
+    function LocalHarness() {
+      hookResult = useTownStore();
+      return null;
+    }
+    await act(async () => {
+      localRoot.render(<LocalHarness />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    act(() => {
+      hookResult!.addEntry(expenseDraft(DAY1, "unflushed-on-unmount"));
+    });
+
+    // Bare teardown — deliberately NOT the `pagehide`/`remount()` pattern
+    // every other test in this file uses to force a flush.
+    act(() => localRoot.unmount());
+    localContainer.remove();
+
+    // A brand-new client, reading straight from real localStorage (nothing
+    // buffered of its own) — if the unmounted instance's write is not
+    // already committed, this reads it as absent.
+    const inspector = createChunkedStorage();
+    const { entries } = inspector.loadEntriesForMonth(DAY1.slice(0, 7));
+    expect(entries.some((e) => e.memo === "unflushed-on-unmount")).toBe(true);
+  });
+});

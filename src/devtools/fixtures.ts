@@ -39,6 +39,7 @@ export const DEVTOOLS_FIXTURES_BUNDLE_MARKER = "__AIT_DEVTOOLS_FIXTURES_MARKER__
 
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
+import { seededRandom } from "../platform/random";
 import { BALANCE } from "../balance.placeholder";
 import { daysInMonth, shiftMonth, ymOnly, ymd } from "../calendar";
 import { buildingsStorageKey, createChunkedStorage, entriesStorageKey } from "../storage";
@@ -55,16 +56,11 @@ import type {
   TownState,
 } from "../types";
 
-// ── Deterministic PRNG (mulberry32) — reproducibility, not cryptographic strength. ──
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// Deterministic PRNG — reproducibility, not cryptographic strength. Reuses
+// `platform/random.ts`'s `seededRandom` (round-3 finding C3: this file used
+// to carry its own byte-identical mulberry32 copy; devtools/ may import from
+// src/ — only the reverse is banned — so the duplication was avoidable,
+// ADDENDUM-01 R-3 "no number in two files").
 
 const EXPENSE_CATEGORIES: ExpenseCategoryId[] = [
   "food",
@@ -264,7 +260,7 @@ function empty(): Fixture {
 
 /** One month, ~90 entries, budget set — the normal case: donut, pace bar. */
 function oneMonth(): Fixture {
-  const rng = mulberry32(1);
+  const rng = seededRandom(1);
   const seq = makeSequence();
   const plotCursor = { next: 0 };
   const { entries, buildings } = generateMonth({
@@ -304,7 +300,7 @@ function oneMonth(): Fixture {
 
 /** 36 months, ~5,400 buildings, 36 monuments, full tower, one 300-entry month — F3/F8 dense ACs. */
 function dense(): Fixture {
-  const rng = mulberry32(2);
+  const rng = seededRandom(2);
   const seq = makeSequence();
   const plotCursor = { next: 0 };
   const MONTHS = 36;
@@ -379,7 +375,7 @@ function dense(): Fixture {
 
 /** Today at the daily cap + 3 over — F14 queue push, header promise. */
 function capExceeded(): Fixture {
-  const rng = mulberry32(3);
+  const rng = seededRandom(3);
   const seq = makeSequence();
   const plotCursor = { next: 0 };
   const today = "2026-08-02";
@@ -429,7 +425,7 @@ function capExceeded(): Fixture {
 
 /** Queue already at materialQueueMax — F14 overflow branch (one more entry is ledger-only). */
 function queueFull(): Fixture {
-  const rng = mulberry32(4);
+  const rng = seededRandom(4);
   const seq = makeSequence();
   const plotCursor = { next: 0 };
   const today = "2026-08-02";
@@ -564,7 +560,7 @@ function noSpendStreak(): Fixture {
 
 /** lastSettledPeriod 3 months stale — F16 multi-month settlement, idempotency. */
 function unsettled(): Fixture {
-  const rng = mulberry32(6);
+  const rng = seededRandom(6);
   const seq = makeSequence();
   const plotCursor = { next: 0 };
   const today = "2026-08-02";

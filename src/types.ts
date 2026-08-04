@@ -73,7 +73,7 @@ export interface Building {
   source: BuildingSource;
   categoryId: BuildingCategoryId | null; // null for monument; 'park' only for nospend
   variantIndex: number; // category variant, park variant 0, or monument outcome bucket
-  plotIndex: number; // monotonic; plot = plotFromIndex(plotIndex) — absolute, never reflows
+  plotIndex: number; // ADDENDUM-02 §6.4: position on the town grid, not identity — unique among live buildings, changed only by the player's move (F2b, follow-up task); written only by placement.ts (rule R-4)
   builtOn: string; // 'YYYY-MM-DD'
   createdAt: number;
   monumentSummary?: MonthSummary; // only when source.kind === 'monument'
@@ -106,7 +106,7 @@ export interface MonthSummary {
 
 export interface TownState {
   townName: string;
-  nextPlotIndex: number; // monotonic; deletion leaves a permanent empty lot
+  nextPlotIndex: number; // ADDENDUM-02 §6.4: opened-lot counter (growth frontier), +1 per placed building, never decremented — NOT the next building's position (that's placement.pickPlot, drawn uniformly at random over the open pool)
   streakDays: number;
   longestStreakDays: number;
   lastActOn: string | null; // entry OR no-spend claim

@@ -33,6 +33,7 @@ function baseArgs(overrides: Partial<Parameters<typeof claimNoSpendDay>[0]> = {}
     tierThresholds,
     buildingId: "park1",
     createdAt: 1000,
+    plotIndex: 0,
     ...overrides,
   };
 }

@@ -22,10 +22,18 @@ function freshTown(overrides: Partial<TownState> = {}): TownState {
 
 const tierThresholds = [0, 10, 30, 80, 200];
 
+// ADDENDUM-02 §7.1 B18: `drainQueue` gains a required last parameter, an
+// allocator called ONCE with the drain count — a real allocator draws
+// randomly from the open pool (placement.allocatePlots); this deterministic
+// stand-in only needs to hand back `count` distinct indices per test.
+function seqAlloc(start: number): (count: number) => number[] {
+  return (count) => Array.from({ length: count }, (_, i) => start + i);
+}
+
 describe("drainQueue — F14", () => {
   it("drains nothing when the queue is empty", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-01", nextPlotIndex: 5 });
-    const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000);
+    const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5));
     expect(result.drained).toEqual([]);
     expect(result.town).toBe(town);
   });
@@ -38,7 +46,7 @@ describe("drainQueue — F14", () => {
     ];
     // Stale slotsUsedOn (yesterday) — F4's reset applies purely via slotsRemainingToday.
     const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 5, queue });
-    const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000);
+    const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5));
 
     expect(result.drained).toHaveLength(3); // cap (5) exceeds queue length (3) — all 3 drain
     expect(result.drained.map((d) => d.material.entryId)).toEqual(["q1", "q2", "q3"]);
@@ -59,7 +67,7 @@ describe("drainQueue — F14", () => {
       entryYm: "2026-08",
     }));
     const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 0, queue });
-    const result = drainQueue(town, 0, "2026-08-02", 2, tierThresholds, (i) => `b${i}`, 1000);
+    const result = drainQueue(town, 0, "2026-08-02", 2, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(0));
     expect(result.drained.map((d) => d.material.entryId)).toEqual(["q0", "q1"]);
     expect(result.town.queue.map((q) => q.entryId)).toEqual(["q2", "q3", "q4"]);
     expect(result.town.slotsUsedToday).toBe(2);
@@ -69,7 +77,7 @@ describe("drainQueue — F14", () => {
     const queue: QueuedMaterial[] = [{ entryId: "q1", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-02", entryYm: "2026-08" }];
     // Same day — slots are still fully used (that's WHY it queued), so nothing drains.
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5, queue });
-    const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000);
+    const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5));
     expect(result.drained).toEqual([]);
     expect(result.town).toBe(town);
   });
@@ -77,7 +85,7 @@ describe("drainQueue — F14", () => {
   it("fires a tier celebration when the drain itself crosses a new threshold", () => {
     const queue: QueuedMaterial[] = [{ entryId: "q1", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-01", entryYm: "2026-08" }];
     const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 9, queue, highestTierSeen: 0 });
-    const result = drainQueue(town, 9, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000);
+    const result = drainQueue(town, 9, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(9));
     expect(result.celebrateTier).toBe(1); // 9 existing + 1 drained = 10 -> crosses tierThresholds[1]
     expect(result.town.highestTierSeen).toBe(1);
   });
@@ -90,7 +98,7 @@ describe("drainQueue — F14", () => {
       { entryId: "q2", categoryId: "cafe", variantIndex: 1, queuedOn: "2026-08-01", entryYm: "2026-08" },
     ];
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5, queue });
-    const result = drainQueue(town, 5, "2026-08-02", 7, tierThresholds, (i) => `b${i}`, 1000);
+    const result = drainQueue(town, 5, "2026-08-02", 7, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5));
     expect(result.drained).toHaveLength(2); // remaining = 7 - 5 = 2
     // 5 already spent today + 2 just drained = 7, never rewritten down to 2.
     expect(result.town.slotsUsedToday).toBe(7);
@@ -99,7 +107,7 @@ describe("drainQueue — F14", () => {
   it("does not re-fire a celebration for a threshold already seen", () => {
     const queue: QueuedMaterial[] = [{ entryId: "q1", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-01", entryYm: "2026-08" }];
     const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 9, queue, highestTierSeen: 1 });
-    const result = drainQueue(town, 9, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000);
+    const result = drainQueue(town, 9, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(9));
     expect(result.celebrateTier).toBeNull();
   });
 });

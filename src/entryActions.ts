@@ -37,6 +37,8 @@ export interface ApplyNewEntryArgs {
   tierThresholds: readonly number[];
   noSpendDayCostsSlot: boolean;
   variantIndex: number;
+  /** Where the new building lands — computed by `placement.pickPlot`, supplied by the caller (rule R-4, ADDENDUM-02 §3.5). */
+  plotIndex: number;
 }
 
 export interface ApplyNewEntryResult {
@@ -74,6 +76,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     tierThresholds,
     noSpendDayCostsSlot,
     variantIndex,
+    plotIndex,
   } = args;
 
   // F15: logging a 지출 for an already-claimed date un-claims it. Refund the
@@ -125,7 +128,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
       source: { kind: "entry", entryId },
       categoryId: draft.categoryId,
       variantIndex,
-      plotIndex: town.nextPlotIndex,
+      plotIndex,
       builtOn: today,
       createdAt,
     };

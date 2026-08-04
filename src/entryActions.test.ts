@@ -46,6 +46,7 @@ function callArgs(overrides: Partial<Parameters<typeof applyNewEntry>[0]> = {}):
     tierThresholds: [0, 10, 30, 80, 200],
     noSpendDayCostsSlot: true,
     variantIndex: 0,
+    plotIndex: 0,
     ...overrides,
   };
 }

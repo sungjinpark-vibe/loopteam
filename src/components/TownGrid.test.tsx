@@ -9,6 +9,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { BALANCE } from "../balance.placeholder";
+import { openPlotCount } from "../placement";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import {
@@ -169,5 +170,59 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
 
   it("GRID_COLUMNS matches the template's token count (sanity cross-check with townLayout.test.ts)", () => {
     expect(GRID_TEMPLATE_COLUMNS.split(" ").length).toBe(GRID_COLUMNS);
+  });
+});
+
+describe("TownGrid — ADDENDUM-02 §3.2/§8.3 AC-P9: random placement's on-screen pool", () => {
+  function scatteredBuildings(indices: number[]): Building[] {
+    return indices.map((plotIndex, i) => ({
+      id: `sb${i}`,
+      source: { kind: "entry", entryId: `se${i}` },
+      categoryId: "cafe",
+      variantIndex: 0,
+      plotIndex,
+      builtOn: "2026-08-02",
+      createdAt: i,
+    }));
+  }
+
+  it("renders each building at data-plot-index matching its plotIndex, no lot rendered twice, exactly openPlotCount tiles", () => {
+    const buildings = scatteredBuildings([0, 5, 11, 2]);
+    const nextPlotIndex = 12;
+    const container = mountGrid(nextPlotIndex, buildings);
+    const tiles = [...container.querySelectorAll(".town-tile")] as HTMLElement[];
+
+    expect(tiles.length).toBe(openPlotCount(nextPlotIndex, buildings));
+
+    const seen = new Set<number>();
+    for (const tile of tiles) {
+      const idx = Number(tile.dataset.plotIndex);
+      expect(seen.has(idx)).toBe(false); // no lot rendered twice
+      seen.add(idx);
+    }
+    expect(seen.size).toBe(tiles.length);
+
+    for (const b of buildings) {
+      const tile = container.querySelector(`[data-plot-index="${b.plotIndex}"]`) as HTMLElement;
+      expect(tile).not.toBeNull();
+      expect(tile.id).toBe(`plot-${b.plotIndex}`);
+      expect(tile.querySelector(".building-tile")).not.toBeNull();
+    }
+  });
+
+  it("renders openPlotCount tiles (not the old renderedTileCount(nextPlotIndex)) once a building sits past the old tile boundary", () => {
+    // A building at index 14 with nextPlotIndex=1 could not have existed
+    // pre-addendum (a sequential cursor never overshoots itself), but a
+    // move/import/corrupt-recovery (this task's boot reconciler) can now hand
+    // a live building an index anywhere in the open pool — B20's DE-2
+    // latent-bug fix (§7.2): the old `renderedTileCount(nextPlotIndex)` would
+    // render only 12 tiles here and silently drop this building off-grid.
+    const buildings = scatteredBuildings([14]);
+    const nextPlotIndex = 1;
+    const container = mountGrid(nextPlotIndex, buildings);
+    const tiles = container.querySelectorAll(".town-tile");
+    expect(tiles.length).toBe(openPlotCount(nextPlotIndex, buildings));
+    expect(tiles.length).toBeGreaterThan(renderedTileCount(nextPlotIndex));
+    expect(container.querySelector('[data-plot-index="14"]')).not.toBeNull();
   });
 });

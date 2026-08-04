@@ -63,8 +63,15 @@ export default tseslint.config(
     // port — that's what makes the whole app time-travelable (§11 TimeTravel).
     // clock.test.ts is exempt too: asserting the port's own behavior legitimately
     // needs to build expected Date values independent of the port under test.
+    //
+    // ADDENDUM-02 §2 rule R-6: `Math.random()` is banned outside the random
+    // port for the same reason (DE-3 — untestable, unreproducible placement).
+    // Both bans share one block/one ignore list rather than two separate
+    // `no-restricted-syntax` blocks — see the `no-restricted-imports` block
+    // above for why: a later block for the same rule key silently REPLACES
+    // an earlier one's selectors in ESLint's flat config, it does not merge.
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/platform/clock.ts", "src/platform/clock.test.ts"],
+    ignores: ["src/platform/clock.ts", "src/platform/clock.test.ts", "src/platform/random.ts", "src/platform/random.test.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -75,6 +82,10 @@ export default tseslint.config(
         {
           selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
           message: "Date.now() is banned outside src/platform/clock.ts (MVP-SPEC §10.2).",
+        },
+        {
+          selector: "CallExpression[callee.object.name='Math'][callee.property.name='random']",
+          message: "Math.random() is banned outside src/platform/random.ts (ADDENDUM-02 §2 rule R-6).",
         },
       ],
     },

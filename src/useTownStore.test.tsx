@@ -19,6 +19,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
+import { setRandomOverride } from "./platform/random";
 import { plotFromIndex } from "./selectors";
 import { useTownStore } from "./useTownStore";
 
@@ -46,6 +47,10 @@ const TODAY = "2026-08-02";
 beforeEach(() => {
   window.localStorage.clear();
   setTimeTravelDate(TODAY);
+  // ADDENDUM-02 §3.3/§7.1 B25: rng() = 0 -> pool[0] -> lowest free index ->
+  // exactly today's pre-change sequential placement, so this file's
+  // positional assertions stay green unchanged.
+  setRandomOverride(() => 0);
   container = document.createElement("div");
   document.body.appendChild(container);
 });
@@ -54,6 +59,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   setTimeTravelDate(null);
+  setRandomOverride(null);
 });
 
 describe("useTownStore.addEntry — two saves in one session, then reload", () => {

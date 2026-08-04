@@ -33,6 +33,8 @@ export function drainQueue(
   /** Deterministic id generator, one call per drained material (i = 0, 1, 2, ...). */
   buildingIdFor: (i: number) => string,
   createdAt: number,
+  /** N distinct plot indices for this drain, called ONCE with the drain count — computed by `placement.allocatePlots` (rule R-4, ADDENDUM-02 §3.5). Not an rng: a drain places several buildings at once and they may not collide. */
+  allocatePlotIndices: (count: number) => number[],
 ): DrainQueueResult {
   const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
   if (remaining <= 0 || town.queue.length === 0) {
@@ -43,14 +45,14 @@ export function drainQueue(
   const toDrain = town.queue.slice(0, drainCount);
   const rest = town.queue.slice(drainCount);
 
-  let plotIndex = town.nextPlotIndex;
+  const plotIndices = allocatePlotIndices(drainCount);
   const drained = toDrain.map((material, i) => {
     const building: Building = {
       id: buildingIdFor(i),
       source: { kind: "entry", entryId: material.entryId },
       categoryId: material.categoryId,
       variantIndex: material.variantIndex,
-      plotIndex: plotIndex++,
+      plotIndex: plotIndices[i],
       builtOn: today,
       createdAt,
     };
@@ -71,7 +73,7 @@ export function drainQueue(
   const usedBeforeDrain = dailyBuildSlots - remaining;
   const newTown: TownState = {
     ...town,
-    nextPlotIndex: plotIndex,
+    nextPlotIndex: town.nextPlotIndex + drainCount,
     slotsUsedOn: today,
     slotsUsedToday: usedBeforeDrain + drainCount,
     queue: rest,

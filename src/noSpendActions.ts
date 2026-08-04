@@ -24,6 +24,8 @@ export interface ClaimNoSpendArgs {
   tierThresholds: readonly number[];
   buildingId: string;
   createdAt: number;
+  /** Where the park tile lands — computed by `placement.pickPlot`, supplied by the caller (rule R-4, ADDENDUM-02 §3.5). */
+  plotIndex: number;
 }
 
 export interface ClaimNoSpendResult {
@@ -34,7 +36,7 @@ export interface ClaimNoSpendResult {
 
 /** Returns null when the claim isn't allowed — rejected here, not just hidden behind a disabled button. */
 export function claimNoSpendDay(args: ClaimNoSpendArgs): ClaimNoSpendResult | null {
-  const { town, existingBuildingCount, entries, today, dailyBuildSlots, noSpendDayCostsSlot, tierThresholds, buildingId, createdAt } =
+  const { town, existingBuildingCount, entries, today, dailyBuildSlots, noSpendDayCostsSlot, tierThresholds, buildingId, createdAt, plotIndex } =
     args;
 
   if (!canClaimNoSpend(entries, town, today, dailyBuildSlots, noSpendDayCostsSlot)) return null;
@@ -44,7 +46,7 @@ export function claimNoSpendDay(args: ClaimNoSpendArgs): ClaimNoSpendResult | nu
     source: { kind: "nospend", date: today },
     categoryId: "park",
     variantIndex: 0, // spec §5 F15 / §8.1: "park variant 0"
-    plotIndex: town.nextPlotIndex,
+    plotIndex,
     builtOn: today,
     createdAt,
   };

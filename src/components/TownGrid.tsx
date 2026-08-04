@@ -17,6 +17,7 @@
  * must not rebuild every tile.
  */
 import { memo, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { openPlotCount } from "../placement";
 import {
   DISTRICT_ROW_GAP_PX,
   GRID_GAP_PX,
@@ -36,7 +37,6 @@ import {
   isBlockFirstRow,
   isCrossStreetRow,
   isStreetFrontCol,
-  renderedTileCount,
   roadSideOf,
 } from "../townLayout";
 import type { Building } from "../types";
@@ -61,8 +61,16 @@ function TownGridImpl({ nextPlotIndex, buildings, justBuiltId, ladder }: TownGri
     return map;
   }, [buildings]);
 
-  const tileCount = renderedTileCount(nextPlotIndex);
-  const rowCount = gridRowCount(nextPlotIndex);
+  // ADDENDUM-02 §3.2/§7.2 (B20): the pool a random placement/move can land in
+  // (rule R-5 — "the pool is what's on screen"), not the raw growth-frontier
+  // counter. `openPlotCount` is always >= `renderedTileCount(nextPlotIndex)`,
+  // so this is also the DE-2 latent-bug fix: a building whose plotIndex came
+  // from a move/import/corrupt-recovery can never sit outside the rendered
+  // grid. Idempotent with the mount points this component's own test uses
+  // (§7.2's per-file verdict), because openPlotCount is already a whole
+  // number of blocks.
+  const tileCount = openPlotCount(nextPlotIndex, buildings);
+  const rowCount = gridRowCount(tileCount);
 
   const tiles = useMemo(() => {
     const result = [];
@@ -78,6 +86,8 @@ function TownGridImpl({ nextPlotIndex, buildings, justBuiltId, ladder }: TownGri
       result.push(
         <div
           key={i}
+          id={`plot-${i}`}
+          data-plot-index={i}
           ref={isNewest ? newestTileRef : undefined}
           className={`town-tile town-tile--${side}${hasStreetlight ? " town-tile--streetlight" : ""}`}
           style={{ gridColumn: col + 1, gridRow: row + 1 }}
