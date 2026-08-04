@@ -161,11 +161,6 @@ button.town-fab {
   height: var(--town-tile-h);
 }
 
-/* Deliberately NOT given a roof silhouette (T012 acceptance criteria asked
- * to check this): an empty lot is an unbuilt plot, not a building — adding a
- * house shape here would contradict "unbuilt lots are countryside, not
- * construction site" right below. Same call for `.savings-plot--empty`
- * further down this file. */
 .empty-lot {
   width: 100%;
   height: 100%;
@@ -196,22 +191,26 @@ button.town-fab {
   content: "🌱";
 }
 
-/* §3.7 checklist item 1: buildings (and savings lots) face the street — pure
- * CSS on the wrapper; PlaceholderBuilding.tsx is not modified. The actual
- * shift amount lives next to `.building-roof` below, kept as one geometry in
- * one place rather than duplicated here. */
+/* §3.7 checklist item 1: buildings (and savings lots) face the street —
+ * pure CSS on the wrapper; PlaceholderBuilding.tsx is not modified. */
+.town-tile--left .building-roof {
+  left: 62%;
+}
+.town-tile--right .building-roof {
+  left: 38%;
+}
 
 /* Main street — one continuous ribbon down the whole rendered town.
  * grid-column is set inline from ROAD_COLUMN, and grid-row inline as
  * `1 / span gridRowCount(...)` — NOT `1 / -1`, which spans a single row
  * here because `.town-grid` declares no `grid-template-rows` (§3.4).
  *
- * No `z-index` here on purpose: TownGrid.tsx emits the cross streets right
- * after the main street in DOM order, so with no forced stacking context
- * they already paint on top at every intersection — that is what makes the
- * crosswalk (`.town-cross-street::after`) visible. A `z-index` on this
- * element creates a new stacking context that would win regardless of DOM
- * order and paint the centre line straight over it. */
+ * No `z-index` here on purpose (round-1 finding C1): TownGrid.tsx emits the
+ * cross streets right after the main street in DOM order, so with no forced
+ * stacking context they already paint on top at every intersection — that is
+ * what makes the crosswalk (`.town-cross-street::after`) visible. A
+ * `z-index` on this element creates a new stacking context that would win
+ * regardless of DOM order and paint the centre line straight over it. */
 .town-main-street {
   position: relative; /* the ::before centre line positions against THIS, not .town-screen */
   margin: calc(var(--town-gap) * -1) 0; /* close the row gaps: one continuous ribbon */
@@ -257,18 +256,11 @@ button.town-fab {
   font-size: 14px;
   line-height: 1;
 }
-/* Push the bulb clear of the tile horizontally, past the gap and past the
- * glyph's own ~14px width — `right`/`left` anchor the glyph's OWN edge, not
- * its far edge, so a value smaller than the glyph's width still lets most of
- * it hang back inside the tile (and on top of the roof, whose eave already
- * bleeds up to half a gap past the same edge — see `.building-roof` below).
- * `--town-gap + 14px` puts the whole glyph outside the tile, standing beside
- * it in the street like an actual lamp post. */
 .town-tile--streetlight.town-tile--left::after {
-  right: calc((var(--town-gap) + 14px) * -1);
+  right: -6px;
 }
 .town-tile--streetlight.town-tile--right::after {
-  left: calc((var(--town-gap) + 14px) * -1);
+  left: -6px;
 }
 
 .town-cross-street--busstop::before {
@@ -308,21 +300,11 @@ button.town-fab {
   position: relative;
   width: 100%;
   height: 100%;
-  /* SQUARE top, rounded bottom: a rounded top corner needs the roof to
-   * overhang it to stay covered, which is exactly how a shoulder of body
-   * colour ends up peeking out past the roof. A flat top has no corner to
-   * leak past, so any roof width >= 100% fully covers it — independent of
-   * the eave size below. The roof (below) still overhangs this edge
-   * (`.building-roof`'s `top`) so the pair reads as "a roof sitting on a
-   * body", not "a rectangle with a decal".
-   *
-   * No `overflow: hidden` here for the same reason: it would clip the roof
-   * back down to the body's own rectangle, undoing the point of having a
-   * roof at all. */
-  border-radius: 0 0 12px 12px;
+  border-radius: 12px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  overflow: hidden;
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -330,97 +312,37 @@ button.town-fab {
   font-size: 24px;
   line-height: 1;
   padding-bottom: 8px;
-  position: relative; /* stacks above .building-roof, which shares this z-order */
-  z-index: 1;
 }
 
-/* Roof silhouette — ONE opaque solid colour: an alpha colour composites
- * differently against the page background above the tile vs. the category
- * colour below it, which visibly splits the roof in two. `grey900` (bound to
- * the same theme.ts token every other dark colour in this file goes through,
- * never a raw hex) has no backdrop to composite against, so it reads as one
- * colour everywhere.
- *
- * Geometry: both the vertical overhang and the horizontal eave are HALF of
- * `--town-gap`, expressed as `calc(var(--town-gap) / 2)` so they move
- * together if the grid gap ever changes, and so neither one can consume the
- * entire gap on its own:
- *   - `top`: half the gap above the body, leaving the other half as visible
- *     air before the tile in the row above.
- *   - `width`: 100% of the body plus half the gap, split evenly by the
- *     centering transform below (a quarter-gap eave per side before the
- *     frontage shift). The frontage shift immediately below adds at most
- *     another quarter-gap toward the street side, so the worst-case bleed
- *     past the tile's own edge is still only half of `--town-gap`, on ONE
- *     side — always leaving the other half of the gap clear between two
- *     neighbouring roofs (so two adjacent roofs never touch and merge into
- *     one dark band), and always well short of the streetlight bulb, which
- *     is pushed a full gap plus its own glyph width away from the tile edge
- *     (`.town-tile--streetlight` below). The body's SQUARE top corners
- *     (`.building-tile` above) mean this eave no longer needs to be large
- *     enough to cover a rounded corner — it is purely a visual overhang now,
- *     so it is free to shrink.
- *
- * All three house-roof variants share this width/position (via `clip-path`
- * on the same box, not overrides), so there is exactly one geometry to
- * reason about; the park canopy (further below) also reuses it, only
- * overriding height/shape/colour. */
 .building-roof {
   position: absolute;
-  top: calc(var(--town-gap) / -2);
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: calc(100% + var(--town-gap) / 2);
-  background: var(--town-grey900);
+  width: 60%;
+  background: rgba(255, 255, 255, 0.55);
 }
 
-/* Frontage shift (§3.7 checklist item 1: buildings face the street) — kept
- * beside `.building-roof` itself since it's part of the same eave/overhang
- * budget documented there, not the road-layout section far above. Quarter-gap,
- * not the eave's own half-gap, so the total worst-case bleed (eave + shift)
- * stays capped at half of `--town-gap`. */
-.town-tile--left .building-roof {
-  left: calc(50% + var(--town-gap) / 4);
-}
-.town-tile--right .building-roof {
-  left: calc(50% - var(--town-gap) / 4);
-}
-
-/* The three house roof shapes are `clip-path` polygons that taper toward the
- * top: a plain rounded pill or a slab with square shoulders reads as a lid or
- * a cap at real tile size (~50px), not as a roof. Tapering every variant
- * guarantees a genuine pitched silhouette; only the taper amount and height
- * vary between them. */
 .building-roof-dome {
-  /* Hip-style roof: short flat ridge, steep sides. */
-  height: 18px;
-  clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+  height: 14px;
+  border-radius: 0 0 999px 999px;
 }
 
-/* Classic gable roof: a solid triangle spanning the full roof band. */
 .building-roof-peak {
-  height: 18px;
-  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  height: 0;
+  width: 0;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  border-left: 18px solid transparent;
+  border-right: 18px solid transparent;
+  border-top: 14px solid rgba(255, 255, 255, 0.55);
+  background: none;
 }
 
-/* Shallow/wide pitched roof — the "modern flat" variant, but still a roof:
- * a lower, wider taper than the other two so it reads distinctly without
- * going back to a flat-topped slab. */
 .building-roof-flat {
-  height: 13px;
-  clip-path: polygon(35% 0%, 65% 0%, 100% 100%, 0% 100%);
-}
-
-/* Park tile (F15 무지출 공원) — a rounded tree-canopy blob instead of a house
- * roof, and a darker green than the body colour beneath it, so the app's
- * rarest reward silhouette reads as "a tree" rather than "a house" at a
- * glance. Shares `.building-roof`'s width/position (no clip-path override —
- * plain border-radius on that same wide, short box is enough to round it into
- * an ellipse). */
-.building-roof-canopy {
-  height: 20px;
-  border-radius: 50%;
-  background: var(--town-green700);
+  height: 6px;
+  border-radius: 3px;
 }
 
 @keyframes building-rise {
@@ -483,7 +405,7 @@ button.town-fab {
 
 /* Fixed 5-column icon grid, not a horizontal scroller and not a free-flowing
  * wrap — all categories for the selected type stay on screen at once, at a
- * predictable tile size (spec §5 F1 "icon grid").
+ * predictable tile size (spec §5 F1 "icon grid"; round-5 fix, C1 finding).
  * `> *` stretches each ChipItem to fill its column instead of the chip's own
  * intrinsic (content-based) width. */
 .category-grid {
@@ -503,7 +425,7 @@ button.town-fab {
  * after this static one and wins any same-specificity tie regardless of
  * source order (same reasoning as `button.town-fab` above). Compacted so the
  * amount readout + keypad + category grid + date + memo all fit the 390x844
- * reference viewport at once. */
+ * reference viewport at once (round-5 fix, C1 finding). */
 .entry-keypad {
   font-size: 22px !important;
 }

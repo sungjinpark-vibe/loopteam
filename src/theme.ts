@@ -16,7 +16,6 @@ const TOWN_CSS_VARS: Record<string, string> = {
   "--town-grey200": colors.grey200,
   "--town-grey100": colors.grey100,
   "--town-blue500": colors.blue500,
-  "--town-green700": colors.green700, // park tile canopy (PlaceholderBuilding) — darker than the green600 body
 };
 
 const root = document.documentElement;
