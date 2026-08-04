@@ -12,8 +12,11 @@
   Addendum at `app_in_toss/docs/spec/ADDENDUM-01-savings-and-roads.md`; `MVP-SPEC.md` carries a
   pointer, not a full merge. **T006 (road layout, ADDENDUM-01 §3) `done` — 96/100.** The village
   actually renders: main street, cross streets, street furniture, savings-block empty cells, verified
-  live including the dense 5,400-building fixture. T007 (the savings buildings themselves,
-  ADDENDUM-01 §2) is next.
+  live including the dense 5,400-building fixture. **T007 (building roof visual) was reverted by the
+  director** after seeing it — back to T006's flat-colored-square buildings, see ▶ Next below.
+  **T008 (spec addendum — player-controlled placement, random-then-movable) `done`, 92/100, approved
+  by the director** ("좋아") — not yet implemented, next task. The savings buildings themselves
+  (ADDENDUM-01 §2) are still unbuilt, independent of placement, can slot in whenever.
   Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
   bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
   **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
@@ -50,18 +53,15 @@
 - **Last updated**: 2026-07-19 (in-session)
 
 ## ▶ Next, in this order
-1. **T007 done — accepted at 77/100 (PM judgment call).** Core complaint (buildings read as
-   colorless squares) is genuinely resolved — pitched roof silhouettes now render clearly at real
-   tile size, confirmed by direct visual check. Two narrow polish items left open, sent to the
-   director as a taste call rather than ground through more rounds: (a) the 'park'/무지출 tile's
-   canopy is low-contrast and reads more like a lid than a tree, (b) both streetlights at an
-   intersection cluster together rather than sitting one per side. See `backlog/tasks/T007.md` Log
-   for the full round history (67→69→75→89, then a fix-forward that regressed to 77).
-2. **T008 done — 92/100 in 2 rounds** (much tighter than ADDENDUM-01's 6-round history — the
-   scope-discipline note worked). Addendum at `app_in_toss/docs/spec/ADDENDUM-02-placement-and-move.md`.
-   7 open decisions (D-33..D-39) reported to the director, each with a shipped default. **Not yet
-   implemented** — next task is the build.
-3. T00x = the savings buildings themselves (ADDENDUM-01 §2) — independent of the placement/move
+1. **T007 reverted by the director** (2026-08-04, "이 전버전으로 다시 되돌려줘", right after seeing
+   the screenshots) — he preferred the original flat-colored-square look. Fully reverted (commit
+   7e766e8), gate re-verified green. See `backlog/tasks/T007.md` Log and the new Do Not Repeat entry
+   above (checkpoint taste calls early).
+2. **T008 (placement/move addendum) approved** — director replied "좋아" to the 7-decisions report.
+   Proceed to implementation on the shipped defaults (free/unlimited move, reject-not-swap,
+   park/monuments movable, hint mechanism MUST). Addendum at
+   `app_in_toss/docs/spec/ADDENDUM-02-placement-and-move.md`. Next task: build it.
+3. T0xx = the savings buildings themselves (ADDENDUM-01 §2) — independent of the placement/move
    feature (savings cells are structurally separate), can slot in whenever.
 3. Then build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6 settings
    + F12 export/import).
@@ -106,9 +106,7 @@
   instance's outcome.
 
 ## Next Run Should
-1. Report T008 to the director (7 decisions, each with a default); open the implementation task once
-   there's a green light (or proceed on the shipped defaults, mirroring how T001's spec approval
-   worked — approve headline items, proceed on marked assumptions otherwise).
+1. Open the build task for ADDENDUM-02 (placement/move) — approved, proceed on shipped defaults.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
@@ -172,6 +170,16 @@
   content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
   a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
   hash match, nothing changed.
+
+## Do Not Repeat (addendum, 2026-08-04)
+- **For pure visual/taste changes, send a screenshot checkpoint EARLY, before investing multiple
+  expensive rounds refining it.** T007 (building roof silhouette) ran 5 formal rounds + a fix-forward
+  attempt (~2M+ subagent tokens) polishing a visual direction, then the director reverted the whole
+  thing the moment he actually saw it at real size — he simply preferred the original flat-square
+  look. The score/rubric measured "does this look like a house" well; it cannot measure "does the
+  director like this," and only he can answer that. For a task whose brief is fundamentally a taste
+  call (not a correctness bug), get one cheap screenshot in front of the director after round 1,
+  before round 2+ spends more budget refining a direction he might reject outright.
 
 ## Do Not Repeat (addendum, 2026-08-03, cont'd — T005)
 - **Folding grafts into an already-passing explore-mode winner can REGRESS the score**, not just
