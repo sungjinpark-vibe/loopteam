@@ -106,7 +106,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Open the build task for ADDENDUM-02 (placement/move) — approved, proceed on shipped defaults.
+1. Check on T009's result (random placement, part a); report to the director; open T010 (long-press
+   move + UI, part b) once T009 lands.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
