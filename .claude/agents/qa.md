@@ -23,6 +23,11 @@ Work in English: test cases, reports, and notes in English (PM handles Korean fo
 - **Never delete a file/directory you didn't create in this exact task, even one that looks like
   obvious garbage** (`VISION.md` §4 "Never"). Report the stray path in your findings instead — deleting
   it is a PM/human call, not yours to make on your own judgment.
+- **When you start a dev server (or any background process) to drive a flow, kill only that exact
+  PID when you're done** (`Stop-Process -Id <pid>`, or track and kill the specific process tree you
+  launched). Never kill by broad image name (`taskkill /F /IM node.exe /T`, `pkill node`, etc.) — it
+  can take down unrelated processes you didn't start, including other agents' work or the loop's own
+  tooling (found 2026-08-04).
 
 ## Available skills (QA)
 - **verify** — drive the changed flow end-to-end and observe (not just tests/typecheck).

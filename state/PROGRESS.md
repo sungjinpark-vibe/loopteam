@@ -15,11 +15,13 @@
   live including the dense 5,400-building fixture. **T007 (building roof visual) was reverted by the
   director** after seeing it — back to T006's flat-colored-square buildings, see ▶ Next below.
   **T008 (spec addendum — player-controlled placement, random-then-movable) `done`, 92/100, approved
-  by the director** ("좋아"). **T009 (random placement, part a) `done` — 91/100 after 4 rounds.**
-  Buildings now land at a random open lot (not sequential); a real bug was found and fixed in
-  ADDENDUM-02 §3.2's own pseudocode along the way (see `backlog/tasks/T009.md` Log). T010 (long-press
-  move + UI, part b) is next. The savings buildings themselves (ADDENDUM-01 §2) are still unbuilt,
-  independent of placement, can slot in whenever.
+  by the director** ("좋아"). **T009 (random placement, part a) `done` — 91/100.** **T010 (long-press
+  move UI, part b) `done` — 94/100.** ADDENDUM-02 is now fully implemented: buildings land randomly,
+  can be long-press-moved anywhere in the open pool, free and unlimited, keyboard-accessible. Real
+  bugs were found and fixed in ADDENDUM-02 §3.2's own pseudocode along the way (see
+  `backlog/tasks/T009.md` Log). `qa` agent hardened against a process-kill scope incident (see Do Not
+  Repeat). The savings buildings themselves (ADDENDUM-01 §2) are still unbuilt, independent of
+  placement, can slot in whenever — likely the next natural task.
   Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
   bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
   **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
@@ -94,7 +96,13 @@
 - None.
 
 ## Needs Human Review
-- None active — T002's escalation (2026-08-02, 5-round limit at 74/90) was resolved by a focused
+- **Security note (2026-08-04, T010), resolved, kept for the pattern**: a QA/evidence step killed its
+  dev server via `taskkill /F /IM node.exe /T` — by image name, not the specific PID it started —
+  which could kill unrelated node processes (another agent's dev server, tooling). Same class as the
+  2026-07-18 `rm -rf` and 2026-08-01 `git checkout` scope incidents. **Investigated**: the Discord
+  daemon (PowerShell, not node) was unaffected, heartbeat confirmed fresh; no other workflow was
+  running concurrently this time. No actual harm, logged as a recurring pattern — see Do Not Repeat.
+- None else active — T002's escalation (2026-08-02, 5-round limit at 74/90) was resolved by a focused
   fix-forward round: 91/100 on the first try (commit 919a84a). Full detail: `backlog/tasks/T002.md`
   Log. T012's open decision was resolved by the director (flat-2D-art pivot approved) before
   the whole project paused. Full detail: `lifetown/docs/paused-state/PROGRESS-lifetown.md`. On resume,
@@ -109,8 +117,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T010's result (long-press move UI, part b); report to the director with a screenshot/clip
-   of the move interaction if possible.
+1. Report T010 to the director with a screenshot/clip of the move interaction, then decide the next
+   task with him — likely the savings buildings (ADDENDUM-01 §2) since placement/move is now done.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
@@ -174,6 +182,16 @@
   content — e.g. a 7MB `.unity` scene showed "211619 deletions" for zero actual change. Before treating
   a large diff on an LFS-tracked path as real, check `git lfs status`: if the `Git:` hash and `File:`
   hash match, nothing changed.
+
+## Do Not Repeat (addendum, 2026-08-04, cont'd — T010)
+- **Never kill a process by broad image name (`taskkill /F /IM node.exe /T`, `pkill node`, etc.) to
+  clean up a dev server an agent started.** Kill the specific PID the agent itself launched and
+  recorded (`Stop-Process -Id <pid>`), never every process matching an executable name — a blanket
+  kill can take down unrelated node processes (another concurrent agent's dev server, the loop's own
+  tooling). Found in T010's evidence step (2026-08-04); investigated, no actual harm that time
+  (the Discord daemon is PowerShell, not node, and nothing else was running concurrently), but this
+  is a real recurring risk class, same as the unauthorized `rm -rf`/`git checkout` incidents — brief
+  QA/evidence steps to track and kill only the PID they started.
 
 ## Do Not Repeat (addendum, 2026-08-04)
 - **For pure visual/taste changes, send a screenshot checkpoint EARLY, before investing multiple
