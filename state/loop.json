@@ -1,12 +1,14 @@
 {
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets. Keep this file SMALL: state values + short pointers only — narrative belongs in state/PROGRESS.md (cockpit) and state/journal.md (archive). Do not re-grow _state_reason/_paused_reason blobs here; a stale blob once carried a superseded channel rule (removed 2026-07-19).",
-  "tick": 71,
+  "tick": 72,
   "project": "app_in_toss",
   "active_task": "T011",
-  "last_tick_at": "2026-08-02 (in-session)",
+  "last_tick_at": "2026-08-05 (in-session)",
   "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself. Current state + resume pointers: state/PROGRESS.md.",
-  "escalations": [],
+  "escalations": [
+    { "task": "T011", "project": "app_in_toss", "date": "2026-08-05", "scoreHistory": [88,84,82,81], "reason": "no-progress brake, flat within ±2", "status": "PM attempting one focused fix-forward round on the category-grid overflow bug; see backlog/tasks/T011.md" }
+  ],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done."
 }

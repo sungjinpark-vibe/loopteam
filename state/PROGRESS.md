@@ -96,6 +96,11 @@
 - None.
 
 ## Needs Human Review
+- **T011 (app_in_toss savings buildings) escalated 2026-08-05** — no-progress brake after 4 rounds
+  (88→84→82→81, flat within ±2). Real defects, most severe a category-grid overflow that hides one
+  of five 저축 categories from the entry sheet entirely. Work committed as WIP (d49b88d), not marked
+  done. PM attempting one targeted fix-forward round on the overflow bug specifically before treating
+  this as blocked-on-director. Full detail: `backlog/tasks/T011.md` Log.
 - **Security note (2026-08-04, T010), resolved, kept for the pattern**: a QA/evidence step killed its
   dev server via `taskkill /F /IM node.exe /T` — by image name, not the specific PID it started —
   which could kill unrelated node processes (another agent's dev server, tooling). Same class as the
