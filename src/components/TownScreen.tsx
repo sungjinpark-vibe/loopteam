@@ -9,15 +9,16 @@
  * fire regardless of which tab is showing; this component owns everything
  * S2/S4-specific.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, useToast } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.placeholder";
+import { moodContentFor } from "../content.placeholder";
 import { EntrySheet } from "./EntrySheet";
 import { TownGrid } from "./TownGrid";
 import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
 import { useMoveMode } from "../hooks/useMoveMode";
-import { tier as computeTier } from "../selectors";
+import { budgetPace, moodTier, tier as computeTier } from "../selectors";
 import type { TownStore } from "../useTownStore";
 
 export interface TownScreenProps {
@@ -51,8 +52,25 @@ export function TownScreen({ store }: TownScreenProps) {
 
   const tier = computeTier(store.buildingCount, BALANCE.tierThresholds);
 
+  // F6 — town mood, reusing `budgetPace`/`moodTier` (selectors.ts) exactly as
+  // 기록's pace bar already does, so the two never disagree. Continuous
+  // through the month (budgetPace prorates by `dayOfMonth`, not a
+  // month-end-only calc) and pinned neutral whenever `budgetKrw === null`
+  // (`moodTier` returns -1 for a null pace). Current month's entries only —
+  // `getMonthEntries` returns the SAME array reference `state.entries` holds
+  // until the next save, so this only recomputes when spending/budget/date
+  // actually change, not on every unrelated re-render (rubric C4).
+  const todayYm = store.today.slice(0, 7);
+  const monthEntries = store.getMonthEntries(todayYm);
+  const pace = useMemo(
+    () => budgetPace(monthEntries, todayYm, store.budgetKrw, store.today),
+    [monthEntries, todayYm, store.budgetKrw, store.today],
+  );
+  const mood = moodTier(pace, BALANCE.moodPaceThresholds);
+  const moodContent = moodContentFor(mood);
+
   return (
-    <div className="town-screen">
+    <div className={`town-screen town-screen--mood-${moodContent.skyClass}`}>
       <TownHeader
         townName={store.townName}
         buildingCount={store.buildingCount}
@@ -61,6 +79,7 @@ export function TownScreen({ store }: TownScreenProps) {
         tier={tier}
         streakDays={store.streakDays}
         queueLength={store.queueLength}
+        moodLabel={moodContent.headerLabel}
       />
 
       {store.canClaimNoSpend && (

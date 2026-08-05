@@ -12,6 +12,8 @@ export interface TownHeaderProps {
   tier: number;
   streakDays: number;
   queueLength: number;
+  /** F6 — one-line mood status ("이번 달 페이스가 ..." or the null-budget nudge). Pure content, computed by the caller from `selectors.moodTier`. */
+  moodLabel: string;
 }
 
 export function TownHeader({
@@ -22,6 +24,7 @@ export function TownHeader({
   tier,
   streakDays,
   queueLength,
+  moodLabel,
 }: TownHeaderProps) {
   return (
     <header className="town-header">
@@ -39,6 +42,8 @@ export function TownHeader({
         <span aria-hidden="true">·</span>
         <span>연속 {streakDays}일</span>
       </div>
+      {/* F6 — ambient only: never removes/greys/downgrades a building, just this one line of text. */}
+      <p className="town-header-mood">{moodLabel}</p>
       {queueLength > 0 && <div className="town-header-queue-promise">내일 지을 건물 {queueLength}개 대기 중</div>}
     </header>
   );

@@ -22,11 +22,22 @@ import { budgetPace, categoryDonut, dayGroups, monthTotals, moodTier, type DayGr
 import type { EntryEditPatch, TownStore } from "../useTownStore";
 import type { LedgerEntry } from "../types";
 import { EntryDetailSheet } from "./EntryDetailSheet";
+import { SettingsSheet } from "./SettingsSheet";
 
 export interface HistoryScreenProps {
   store: Pick<
     TownStore,
-    "today" | "budgetKrw" | "noSpendDays" | "getMonthEntries" | "ensureMonthLoaded" | "updateEntry" | "deleteEntry"
+    | "today"
+    | "townName"
+    | "budgetKrw"
+    | "noSpendDays"
+    | "getMonthEntries"
+    | "ensureMonthLoaded"
+    | "updateEntry"
+    | "deleteEntry"
+    | "setTownName"
+    | "setBudget"
+    | "resetAll"
   >;
 }
 
@@ -145,9 +156,22 @@ const HistoryDayGroup = memo(function HistoryDayGroup({ group, onOpenRow }: Hist
 }, sameDayGroup);
 
 export function HistoryScreen({ store }: HistoryScreenProps) {
-  const { today, budgetKrw, noSpendDays, getMonthEntries, ensureMonthLoaded, updateEntry, deleteEntry } = store;
+  const {
+    today,
+    townName,
+    budgetKrw,
+    noSpendDays,
+    getMonthEntries,
+    ensureMonthLoaded,
+    updateEntry,
+    deleteEntry,
+    setTownName,
+    setBudget,
+    resetAll,
+  } = store;
   const [ym, setYm] = useState(() => today.slice(0, 7));
   const [selected, setSelected] = useState<{ entry: LedgerEntry; ym: string } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // F8 AC / §8.4: only the VIEWED month's entries chunk loads — a no-op for
   // the current month (already resident in `useTownStore`'s own state) and a
@@ -195,6 +219,13 @@ export function HistoryScreen({ store }: HistoryScreenProps) {
 
   return (
     <div className="history-screen">
+      {/* S3 -> S6 (spec §6 navigation: "설정 → S6") — the settings sheet's only entry point. */}
+      <div className="history-settings-row">
+        <Button as="button" variant="weak" size="small" aria-label="설정" onClick={() => setSettingsOpen(true)}>
+          ⚙️ 설정
+        </Button>
+      </div>
+
       <header className="history-month-nav">
         <Button as="button" variant="weak" size="small" aria-label="이전 달" onClick={() => setYm((y) => monthBefore(y))}>
           ‹
@@ -295,6 +326,16 @@ export function HistoryScreen({ store }: HistoryScreenProps) {
         onClose={() => setSelected(null)}
         onSave={handleSave}
         onDelete={handleDelete}
+      />
+
+      <SettingsSheet
+        open={settingsOpen}
+        townName={townName}
+        budgetKrw={budgetKrw}
+        onClose={() => setSettingsOpen(false)}
+        onSaveTownName={setTownName}
+        onSaveBudget={setBudget}
+        onResetAll={resetAll}
       />
     </div>
   );

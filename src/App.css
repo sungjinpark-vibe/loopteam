@@ -93,7 +93,27 @@
   position: relative;
   min-height: 100vh;
   padding-bottom: calc(var(--tab-bar-h) + 96px);
+  transition: background 400ms ease;
+}
+
+/* ── F6 town mood — S2 sky gradient, 3 tiers + neutral (moodTier's -1) ──
+   Slot-indexed, not name-indexed (spec §6.1 art item 7): D-4 may rename the
+   tiers freely without touching these classes. Mood is ambient background
+   only — nothing here can affect a building (design invariant 4, spec §7). */
+.town-screen--mood-neutral {
   background: linear-gradient(180deg, #eaf4ff 0%, var(--town-white) 220px);
+}
+
+.town-screen--mood-clear {
+  background: linear-gradient(180deg, #bfe6ff 0%, #eaf7ff 140px, var(--town-white) 260px);
+}
+
+.town-screen--mood-cloudy {
+  background: linear-gradient(180deg, #cfd8e2 0%, #eef1f4 140px, var(--town-white) 260px);
+}
+
+.town-screen--mood-rain {
+  background: linear-gradient(180deg, #8fa0b3 0%, #d5dde3 140px, var(--town-white) 260px);
 }
 
 .town-header {
@@ -128,6 +148,12 @@
   gap: 8px;
   font-size: 14px;
   color: var(--town-grey600);
+}
+
+.town-header-mood {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--town-grey700);
 }
 
 .town-header-queue-promise {
@@ -1018,4 +1044,45 @@ button.town-fab {
 
 .history-row--nospend .history-row-amount {
   font-weight: 400;
+}
+
+/* ── S3 설정 entry point ── */
+
+.history-settings-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── S6 설정 시트 ── */
+
+.settings-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.settings-row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--town-grey200);
+  font-size: 15px;
+  color: var(--town-grey900);
+}
+
+.settings-row--stub {
+  color: var(--town-grey400);
+}
+
+.settings-row-hint {
+  font-size: 12px;
+  color: var(--town-grey400);
 }

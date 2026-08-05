@@ -175,3 +175,35 @@ export const SAVINGS_STRUCTURE: Record<SavingCategoryId, SavingsStructureContent
 export function levelUpToastFor(id: SavingCategoryId): string {
   return SAVINGS_STRUCTURE[id].levelUpToast.replace("{label}", CATEGORY_CONTENT[id].label);
 }
+
+// ── F6 town mood (spec §5 F6 / §6.1 art item 7) ──
+
+export interface MoodContent {
+  /** Appended to `town-screen--mood-` (S2 sky gradient, App.css) and to `history-pace-bar-fill`'s palette index elsewhere — a slot name, not a design decision (§6.1: "ordered by slot index, not by name"). */
+  skyClass: string;
+  /** One-line status shown in the S2 town header. */
+  headerLabel: string;
+}
+
+/**
+ * Index 0..2 = `selectors.moodTier`'s 3 buckets (best -> worst pace), for
+ * `BALANCE.moodPaceThresholds`'s 2 thresholds. `MOOD_NEUTRAL` covers
+ * `moodTier`'s `-1` (no budget set) separately, per spec F6: "If budget ===
+ * null, mood is pinned neutral". Labels/slot count are D-4, director's call —
+ * placeholder content only, safe to rename without touching any selector.
+ */
+export const MOOD_CONTENT: MoodContent[] = [
+  { skyClass: "clear", headerLabel: "이번 달 페이스가 여유로워요" },
+  { skyClass: "cloudy", headerLabel: "이번 달 페이스가 딱 맞아요" },
+  { skyClass: "rain", headerLabel: "이번 달 페이스가 빠듯해요" },
+];
+
+export const MOOD_NEUTRAL: MoodContent = {
+  skyClass: "neutral",
+  headerLabel: "예산을 정하면 우리 동네 날씨가 생겨요",
+};
+
+/** `moodTier`'s return value (-1..thresholds.length) -> the content to render. Never touches building state (spec F6 AC) — sky/header only. */
+export function moodContentFor(tier: number): MoodContent {
+  return tier === -1 ? MOOD_NEUTRAL : (MOOD_CONTENT[tier] ?? MOOD_NEUTRAL);
+}

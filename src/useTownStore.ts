@@ -25,7 +25,7 @@
  * F10's "current month at boot, others on 기록 navigation" — that is exactly
  * enough for F15's `canClaimNoSpend`, which only ever looks at `today`.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { applyNewEntry, type EntryDraft } from "./entryActions";
 import { buildingForEntry, deleteEntryEffects, editEntryEffects, type EntryEditPatch } from "./historyActions";
 import { claimNoSpendDay } from "./noSpendActions";
@@ -33,7 +33,7 @@ import { drainQueue } from "./queueActions";
 import { allocatePlots, moveBuilding as movePlacement, pickPlot, reconcilePlacement, type MoveResult } from "./placement";
 import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
-import { clock } from "./platform/clock";
+import { clock, getTimeTravelDate, subscribeTimeTravel } from "./platform/clock";
 import { random } from "./platform/random";
 import { BALANCE } from "./balance.placeholder";
 import {
@@ -242,6 +242,23 @@ export function useTownStore() {
   // survive across renders/saves, not reset per save.
   const storageRef = useRef(createChunkedStorage());
   const [state, setState] = useState<LoadedState | null>(null);
+
+  // F6 round-2 fix (C2 finding #3): `today` below (near the return) is
+  // `clock.today()`, recomputed fresh on every render — but nothing forced a
+  // RENDER across a real day/month rollover while the component stayed
+  // mounted with no unrelated state change, so mood/pace could sit stale on
+  // screen. Two triggers cover the two ways "today" changes while mounted:
+  // TimeTravel (dev/test, `clock.ts`'s own doc: built exactly for "re-render
+  // on date change... not needing remount/poll") is wired here for the
+  // re-render side effect alone — the value itself is unused, `today` below
+  // still reads through `clock.today()`. The real-device case (no
+  // TimeTravel) has no such push channel; that half is covered by the
+  // visibilitychange effect further down instead.
+  useSyncExternalStore(subscribeTimeTravel, getTimeTravelDate, getTimeTravelDate);
+  // This render's canonical "current month" — recomputed fresh every render
+  // (cheap: one `slice`), same value the rollover-reconciliation effect
+  // below keys off.
+  const todayYm = clock.today().slice(0, 7);
   const [justBuiltId, setJustBuiltId] = useState<string | null>(null);
   // ADDENDUM-01 §2.6a — the savings structure that just crossed a ladder
   // threshold, plus a per-event sequence number. `justBuiltId` gets away with
@@ -318,6 +335,36 @@ export function useTownStore() {
     stateRef.current = state;
   }, [state]);
 
+  // Which 'YYYY-MM' `state.entries` currently holds — set once at boot, then
+  // kept in sync by the rollover-reconciliation effect below. `null` until
+  // boot resolves (mirrors `state` itself being `null` pre-boot).
+  const entriesYmRef = useRef<string | null>(null);
+
+  // F6 round-2 fix (C2 finding #3): `state.entries` is only ever loaded for
+  // "the current month" ONCE, at boot (this file's own header doc). A real
+  // rollover while the component stays mounted (no remount, no re-boot) left
+  // `state.entries` holding the OUTGOING month's entries forever — worse than
+  // just a stale mood/pace display, `addEntry` appends any NEW entry whose
+  // `occurredOn` matches the (new) `today` straight onto that stale array
+  // (`entryYm === todayYm` in `addEntry` below), silently mixing an old
+  // month's spending into the new month's totals. Reconciles whenever this
+  // render's `todayYm` (now forced to refresh promptly by the TimeTravel/
+  // visibilitychange triggers above) no longer matches what `state.entries`
+  // was last loaded for: folds the OUTGOING month into `historyEntries` (F8's
+  // own lazy-load cache — a later 기록 nav back to it finds it with no re-read,
+  // the same contract `ensureMonthLoaded` already promises every other month)
+  // and loads the new current month exactly like boot does.
+  useEffect(() => {
+    if (state === null || entriesYmRef.current === null || entriesYmRef.current === todayYm) return;
+    const outgoingYm = entriesYmRef.current;
+    entriesYmRef.current = todayYm;
+    const { entries: incomingEntries } = storageRef.current.loadEntriesForMonth(todayYm);
+    setState((s) => {
+      if (s === null) return s;
+      return { ...s, entries: incomingEntries, historyEntries: { ...s.historyEntries, [outgoingYm]: s.entries } };
+    });
+  }, [state, todayYm]);
+
   // `bootPromiseRef` caches the in-flight `loadBoot()` call itself across
   // StrictMode's dev-only mount -> cleanup -> remount — see T003's original
   // note on why a second real call would be unsafe.
@@ -370,6 +417,7 @@ export function useTownStore() {
         clock.now(),
       );
       if (cancelled) return;
+      entriesYmRef.current = today.slice(0, 7);
       const { entries: currentMonthEntries } = storageClient.loadEntriesForMonth(today.slice(0, 7));
 
       setState({
@@ -421,12 +469,28 @@ export function useTownStore() {
   // happens for an app that keeps running — it only guarantees a torn-down
   // instance never leaves a live timer pointed at storage behind it. See
   // `useTownStore.retention.test.tsx`'s "no dangling debounced write..." test.
+  // `forceTick` has no reader — its only job is to be a NEW value each call,
+  // so the `setForceTick` below always triggers a render (an object/counter
+  // that a memoized child can't shortcut past), unlike re-committing `state`
+  // itself (which would falsely look like a real state change to props that
+  // key off it by reference elsewhere, e.g. `EntryDetailSheet`'s `entries`
+  // identity checks).
+  const [, setForceTick] = useState(0);
   useEffect(() => {
     function flushNow() {
       storageRef.current.flush();
     }
     function onVisibilityChange() {
-      if (document.visibilityState === "hidden") flushNow();
+      if (document.visibilityState === "hidden") {
+        flushNow();
+      } else {
+        // Becoming visible again is the practical mobile-webview signal that
+        // real time may have passed while the host backgrounded this mini-app
+        // (e.g. overnight) — force a render so `today` (recomputed fresh
+        // below on every render) picks up a day/month rollover with no other
+        // trigger required (F6 round-2 fix, C2 finding #3).
+        setForceTick((n) => n + 1);
+      }
     }
     window.addEventListener("pagehide", flushNow);
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -757,6 +821,47 @@ export function useTownStore() {
     setState(next);
   }, []);
 
+  // ── S6 설정 — F6's "editable from 기록" half + town name + 데이터 초기화 ──
+
+  /** F6: the one global monthly budget, `null` to unset it (pins mood neutral, `moodTier`'s own contract). Persists via `saveCore` like every other core-field mutation here (setTownName below, F9's edits). */
+  const setBudget = useCallback((monthlyBudgetKrw: number | null) => {
+    const prev = stateRef.current;
+    if (prev === null) return;
+    const budget: BudgetSetting = { monthlyBudgetKrw, updatedAt: clock.now() };
+    storageRef.current.saveCore({ town: prev.town, budget, onboarded: prev.onboarded });
+    const next: LoadedState = { ...prev, budget };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  const setTownName = useCallback((townName: string) => {
+    const prev = stateRef.current;
+    if (prev === null) return;
+    const town: TownState = { ...prev.town, townName };
+    storageRef.current.saveCore({ town, budget: prev.budget, onboarded: prev.onboarded });
+    const next: LoadedState = { ...prev, town };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  /**
+   * 데이터 초기화 (S6) — wipes every stored chunk (`storage.ts`'s `clearAll`,
+   * written for exactly this call site — see its own doc comment) and resets
+   * in-memory state to the same fresh-install shape `freshCore` gives a
+   * brand-new boot, in place. Deliberately NOT a `window.location.reload()`:
+   * `clearAll` already cancels any pending debounced write (so nothing can
+   * resurrect after), and resetting in memory keeps this synchronous and
+   * testable without depending on jsdom/real navigation.
+   */
+  const resetAll = useCallback(() => {
+    const prev = stateRef.current;
+    if (prev === null) return;
+    storageRef.current.clearAll();
+    const next = freshCore(clock.now());
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
   const today = clock.today();
   return {
     loading: state === null,
@@ -789,6 +894,10 @@ export function useTownStore() {
     ensureMonthLoaded,
     deleteEntry,
     updateEntry,
+    // ── S6 설정 ──
+    setBudget,
+    setTownName,
+    resetAll,
   };
 }
 
