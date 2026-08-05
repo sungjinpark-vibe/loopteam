@@ -37,6 +37,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T011 | app_in_toss savings buildings (ADDENDUM-01 §2) | done | client-dev | build | 1 |
 | T012 | app_in_toss 기록 (history) screen + edit/delete (F8, F9, S3, S5) | done | client-dev | build | 1 |
 | T013 | app_in_toss town mood (F6) + settings sheet (S6) | done | client-dev | build | 1 |
+| T014 | app_in_toss JSON export / import (F12) | in-progress | client-dev | build | 1 |
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._

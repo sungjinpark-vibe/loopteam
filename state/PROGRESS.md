@@ -27,8 +27,9 @@
 - **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. Report T013 (91/100, passed) to the director; open T014 (F12 JSON export/import) — the last
-   MVP build-order item.
+1. **T014 running** — F12 JSON export/import, the last MVP build-order item. Once this passes, the
+   MVP feature set is functionally complete; next conversation with the director should be about
+   what comes after (real art order, Gate 3 playtest, or new feature requests).
 2. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
 
