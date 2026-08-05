@@ -29,7 +29,7 @@
 - **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. Open T013 (F6 budget/mood + S6 settings sheet).
+1. **T013 running** (F6 budget/mood + S6 settings sheet).
 2. Then T014 (F12 JSON export/import).
 3. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
