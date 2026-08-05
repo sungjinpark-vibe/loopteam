@@ -5,14 +5,17 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss**. T001-T013 all `done` (scores 90/91/92/95/89/96/[T007
-  reverted]/92/91/94/93/91/91). Full narrative + lessons from this whole stretch:
-  `state/journal.md` → "2026-08-02 to 2026-08-05 — app_in_toss: new project through T012". Detail on
-  any specific task: `backlog/tasks/T0##.md`.
-  **Where things stand**: ADDENDUM-01, ADDENDUM-02, and MVP build order F8/F9/F6/S6 all done.
-  **Only F12 (export/import) remains for the MVP.** Small non-blocking follow-ups logged, not yet
-  scheduled: a pre-existing TDS nested-dialog backdrop quirk (seen twice now, `backlog/tasks/T003.md`
-  and `T013.md`), a month-navigation empty-state flash (`backlog/tasks/T012.md`).
+- **Status**: ▶ ACTIVE — **app_in_toss — MVP feature-complete as of T014 (2026-08-05).**
+  T001-T014 all `done` (scores 90/91/92/95/89/96/[T007 reverted]/92/91/94/93/91/91/92). Full
+  narrative + lessons from this whole stretch: `state/journal.md` → "2026-08-02 to 2026-08-05 —
+  app_in_toss: new project through T012" (T013/T014 landed after that entry was written — see their
+  own task files for detail). Detail on any specific task: `backlog/tasks/T0##.md`.
+  **Where things stand**: ADDENDUM-01 (savings buildings + road layout), ADDENDUM-02
+  (random/movable placement), and the full MVP build order (F1-F17's in-scope items) are all
+  implemented and gated ≥90. **No task is currently `ready`** — the next step needs the director's
+  direction (see ▶ Next). Small non-blocking follow-ups logged, not yet scheduled: a pre-existing
+  TDS nested-dialog backdrop quirk (seen twice, `backlog/tasks/T003.md` and `T013.md`), a
+  month-navigation empty-state flash (`backlog/tasks/T012.md`).
   Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
   test → lint → gate:extra — same contract as `gate.ps1`).
 - **Standing note**: Discord replies are only auto-drained during an autonomous tick's scout step —
@@ -27,9 +30,13 @@
 - **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. **T014 running** — F12 JSON export/import, the last MVP build-order item. Once this passes, the
-   MVP feature set is functionally complete; next conversation with the director should be about
-   what comes after (real art order, Gate 3 playtest, or new feature requests).
+1. **Report the MVP-complete milestone to the director and ask direction.** Real candidates, do not
+   pick one unprompted: (a) Gate 3 — the 5-expert playtest that closes app development (VISION.md
+   §3.3) — but `BALANCE_UNSET` is still `true` (director hasn't approved real balance numbers), and
+   §9's own rule says a build with `BALANCE_UNSET === true` must not pass Gate 3, so a real balance
+   pass is a prerequisite; (b) the real art order (D-12's art-style-distance question is still open,
+   §6.1 lists ~40+ assets); (c) new feature requests, as they've been arriving steadily this whole
+   stretch; (d) polish the small logged follow-ups first. Do not invent work while idle.
 2. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
 
@@ -85,8 +92,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Report T012 (91/100, passed) to the director; open T013 (F6 budget/mood + S6 settings), then
-   T014 (F12 export/import) — the remaining MVP build-order step 4 items.
+1. Report T014 + the MVP-complete milestone to the director; wait for direction (see ▶ Next above).
+   Nothing is `ready` in the backlog on purpose — go idle rather than inventing work.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
