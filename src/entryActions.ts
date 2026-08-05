@@ -58,6 +58,117 @@ export interface ApplyNewEntryResult {
 }
 
 /**
+ * Adds `deltaKrw` (may be negative — F9's edit/delete back-out) to the
+ * savings tower's denormalized totals for `categoryId`'s bucket. The ONE
+ * place both a fresh 저축 save (below) and F9's edit/delete effects
+ * (`historyActions.ts`) touch `cumulativeSavingsKrw`/`savingsByCategoryKrw` —
+ * factored out so a 저축 back-out is never hand-rolled a second time (round-4
+ * finding C3). Floored at 0 (a back-out can never make either total negative,
+ * whether from a rounding-adjacent edit or a corrupt prior state).
+ */
+export function adjustSavings(town: TownState, categoryId: string, deltaKrw: number): TownState {
+  const bucket = savingsBucketOf(categoryId);
+  const buckets = town.savingsByCategoryKrw ?? {};
+  return {
+    ...town,
+    cumulativeSavingsKrw: Math.max(0, town.cumulativeSavingsKrw + deltaKrw),
+    savingsByCategoryKrw: { ...buckets, [bucket]: Math.max(0, (buckets[bucket] ?? 0) + deltaKrw) },
+  };
+}
+
+export interface BuildOrQueueArgs {
+  town: TownState;
+  /** Buildings count BEFORE this act (post any F15 revocation the caller already applied) — used for the F5 tier check. */
+  buildingCountBeforeThis: number;
+  today: string;
+  dailyBuildSlots: number;
+  materialQueueMax: number;
+  tierThresholds: readonly number[];
+  entryId: string;
+  categoryId: CategoryId;
+  variantIndex: number;
+  buildingId: string;
+  plotIndex: number;
+  createdAt: number;
+  /** 'YYYY-MM' of the entry's `occurredOn` — carried on a queued material (F14) so a later drain patches the right chunk. */
+  entryYm: string;
+  /** F7: whether this act should advance the streak. True for a fresh F1 save; false for an F9 edit-driven type conversion (not a new logging act). */
+  advancesStreak: boolean;
+}
+
+export interface BuildOrQueueResult {
+  building: Building | null;
+  queuedMaterial: QueuedMaterial | null;
+  queueOverflow: boolean;
+  town: TownState;
+  celebrateTier: number | null;
+}
+
+/**
+ * F2/F4's build-or-queue decision (F14) — the single place a save decides
+ * "build now, queue for tomorrow, or overflow", reused by `applyNewEntry`
+ * below AND by F9's edit-driven type conversion (`historyActions.ts`'s
+ * `editEntryEffects`, saving -> expense/income) so that second call site
+ * doesn't re-derive F2/F4/F5's rules by hand (round-4 finding C3).
+ */
+export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
+  const {
+    town,
+    buildingCountBeforeThis,
+    today,
+    dailyBuildSlots,
+    materialQueueMax,
+    tierThresholds,
+    entryId,
+    categoryId,
+    variantIndex,
+    buildingId,
+    plotIndex,
+    createdAt,
+    entryYm,
+    advancesStreak,
+  } = args;
+  const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
+
+  if (remaining > 0) {
+    const usedToday = dailyBuildSlots - remaining;
+    const building: Building = {
+      id: buildingId,
+      source: { kind: "entry", entryId },
+      categoryId,
+      variantIndex,
+      plotIndex,
+      builtOn: today,
+      createdAt,
+    };
+    const buildingCount = buildingCountBeforeThis + 1;
+    const newTier = tier(buildingCount, tierThresholds);
+    const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
+    const newTown: TownState = {
+      ...town,
+      ...(advancesStreak ? advanceStreak(town, today) : {}),
+      nextPlotIndex: town.nextPlotIndex + 1,
+      slotsUsedOn: today,
+      slotsUsedToday: usedToday + 1,
+      highestTierSeen: Math.max(town.highestTierSeen, newTier),
+    };
+    return { building, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
+  }
+
+  if (town.queue.length < materialQueueMax) {
+    const queuedMaterial: QueuedMaterial = { entryId, categoryId, variantIndex, queuedOn: today, entryYm };
+    const newTown: TownState = {
+      ...town,
+      ...(advancesStreak ? advanceStreak(town, today) : {}),
+      queue: [...town.queue, queuedMaterial],
+    };
+    return { building: null, queuedMaterial, queueOverflow: false, town: newTown, celebrateTier: null };
+  }
+
+  return { building: null, queuedMaterial: null, queueOverflow: true, town, celebrateTier: null };
+}
+
+/**
  * Saving a ledger entry applies, in order: F15 revocation (a same-day revoke
  * can free the very slot this entry needs, so it must run first), then F13's
  * "저축 never builds" short-circuit, then F2/F4's build-or-queue decision
@@ -114,13 +225,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     // `savingsBucketOf` is total over string and RETURNS SavingCategoryId;
     // that return type is the narrowing, and it also absorbs legacy `invest`
     // (ADDENDUM-01 §4.5/§4.5a).
-    const bucket = savingsBucketOf(draft.categoryId);
-    const buckets = town.savingsByCategoryKrw ?? {};
-    const newTown: TownState = {
-      ...town,
-      cumulativeSavingsKrw: town.cumulativeSavingsKrw + draft.amountKrw,
-      savingsByCategoryKrw: { ...buckets, [bucket]: (buckets[bucket] ?? 0) + draft.amountKrw },
-    };
+    const newTown = adjustSavings(town, draft.categoryId, draft.amountKrw);
     return {
       entry: { ...baseEntry, buildingId: null, queued: false },
       building: null,
@@ -132,70 +237,49 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     };
   }
 
-  const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
+  // `buildings` is the PRE-revocation array — when this same save just
+  // revoked a claimed 무지출 데이 above, its park tile is still in there but
+  // is about to be removed by the caller. Subtract it before counting, or a
+  // revoking save one building below a threshold falsely celebrates (and
+  // permanently burns that threshold in highestTierSeen, since it only ever
+  // increases — round-2 finding C2 #1).
+  const revokedCount = revokedNoSpend?.buildingId ? 1 : 0;
+  const decision = decideBuildOrQueue({
+    town,
+    buildingCountBeforeThis: buildings.length - revokedCount,
+    today,
+    dailyBuildSlots,
+    materialQueueMax,
+    tierThresholds,
+    entryId,
+    categoryId: draft.categoryId,
+    variantIndex,
+    buildingId,
+    plotIndex,
+    createdAt,
+    entryYm: draft.occurredOn.slice(0, 7),
+    advancesStreak: true, // F7: a fresh F1 save is a streak act when it builds OR queues; `decideBuildOrQueue`'s own overflow branch never advances it
+  });
 
-  if (remaining > 0) {
-    const usedToday = dailyBuildSlots - remaining;
-    const building: Building = {
-      id: buildingId,
-      source: { kind: "entry", entryId },
-      categoryId: draft.categoryId,
-      variantIndex,
-      plotIndex,
-      builtOn: today,
-      createdAt,
-    };
-    // `buildings` is the PRE-revocation array — when this same save just
-    // revoked a claimed 무지출 데이 above, its park tile is still in there
-    // but is about to be removed by the caller. Subtract it before counting,
-    // or a revoking save one building below a threshold falsely celebrates
-    // (and permanently burns that threshold in highestTierSeen, since it
-    // only ever increases — round-2 finding C2 #1).
-    const revokedCount = revokedNoSpend?.buildingId ? 1 : 0;
-    const buildingCount = buildings.length - revokedCount + 1;
-    const newTier = tier(buildingCount, tierThresholds);
-    const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
-    const newTown: TownState = {
-      ...town,
-      ...advanceStreak(town, today),
-      nextPlotIndex: town.nextPlotIndex + 1,
-      slotsUsedOn: today,
-      slotsUsedToday: usedToday + 1,
-      highestTierSeen: Math.max(town.highestTierSeen, newTier),
-    };
+  if (decision.building) {
     return {
       entry: { ...baseEntry, buildingId, queued: false },
-      building,
+      building: decision.building,
       queuedMaterial: null,
       queueOverflow: false,
-      town: newTown,
+      town: decision.town,
       revokedNoSpend,
-      celebrateTier,
+      celebrateTier: decision.celebrateTier,
     };
   }
 
-  // No slot remains today — F14: queue the material, or overflow if the queue is already full.
-  if (town.queue.length < materialQueueMax) {
-    const queuedMaterial: QueuedMaterial = {
-      entryId,
-      categoryId: draft.categoryId,
-      variantIndex,
-      queuedOn: today,
-      entryYm: draft.occurredOn.slice(0, 7),
-    };
-    const newTown: TownState = {
-      ...town,
-      // A queued material is still a build-producing act for F7 — the
-      // reward is owed, not denied; only true overflow (below) isn't.
-      ...advanceStreak(town, today),
-      queue: [...town.queue, queuedMaterial],
-    };
+  if (decision.queuedMaterial) {
     return {
       entry: { ...baseEntry, buildingId: null, queued: true },
       building: null,
-      queuedMaterial,
+      queuedMaterial: decision.queuedMaterial,
       queueOverflow: false,
-      town: newTown,
+      town: decision.town,
       revokedNoSpend,
       celebrateTier: null,
     };
@@ -207,7 +291,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     building: null,
     queuedMaterial: null,
     queueOverflow: true,
-    town,
+    town: decision.town,
     revokedNoSpend,
     celebrateTier: null,
   };

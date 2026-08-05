@@ -1,11 +1,14 @@
 /**
  * S5 내역 상세 시트 (spec §6 S5 / §5 F9) — sheet over S3, opened by tapping a
- * row in the 기록 entry list. Same field set as S4's `EntrySheet` (via the
- * shared `EntryFields`) plus 삭제, minus a live `type` switch: F9's own ACs
- * only ever exercise amount/memo/date/category edits, never a type change
- * (see `useTownStore.ts`'s `EntryEditPatch` doc for why that's a deliberate
- * scope line, not an oversight) — `type` renders as a plain read-only badge
- * here instead of `EntrySheet`'s interactive `SegmentedControl`.
+ * row in the 기록 entry list. Same field set as S4's `EntrySheet`, including a
+ * live `type` `SegmentedControl` (round-4 finding C1: F9's own AC is "F1's
+ * fields + 삭제 + 저장", and `type` is one of F1's fields — it must not be
+ * display-only). Changing `type` resets `categoryId` to `null` exactly like
+ * `EntrySheet.selectType` does — the category grid is filtered by type, so
+ * the old selection may not exist in the new list. `useTownStore.updateEntry`
+ * (via `historyActions.editEntryEffects`) owns what a type change actually
+ * does to the entry's building/queue/저축탑 membership; this component only
+ * collects the field values.
  *
  * Only the CHANGED fields are sent to `onSave` (a bare object, not the whole
  * entry) — `useTownStore.updateEntry` only re-skins the bound building when
@@ -32,7 +35,7 @@
  * before the first paint that shows the new entry.
  */
 import { useEffect, useRef, useState } from "react";
-import { BottomSheet, Button, ConfirmDialog } from "@toss/tds-mobile";
+import { BottomSheet, Button, ConfirmDialog, SegmentedControl } from "@toss/tds-mobile";
 import { appendAmountDigit } from "../format";
 import { useBackGuard } from "../hooks/useBackGuard";
 import type { CategoryId, EntryType, LedgerEntry } from "../types";
@@ -49,9 +52,8 @@ export interface EntryDetailSheetProps {
   onDelete: () => void;
 }
 
-const TYPE_LABEL: Record<EntryType, string> = { expense: "지출", income: "수입", saving: "저축" };
-
 export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete }: EntryDetailSheetProps) {
+  const [type, setType] = useState<EntryType>("expense");
   const [amountDigits, setAmountDigits] = useState("");
   const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
   const [date, setDate] = useState(today);
@@ -69,6 +71,7 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
   const [shownEntryId, setShownEntryId] = useState<string | null>(null);
   if (entry !== null && entry.id !== shownEntryId) {
     setShownEntryId(entry.id);
+    setType(entry.type);
     setAmountDigits(String(entry.amountKrw));
     setCategoryId(entry.categoryId);
     setDate(entry.occurredOn);
@@ -90,11 +93,21 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
     latestRef.current = { onClose, entry, today };
   });
 
+  function selectType(next: string) {
+    if (next === type) return;
+    setType(next as EntryType);
+    setCategoryId(null); // the category grid is filtered by type — the old selection may not exist in the new list (EntrySheet's own selectType does the same)
+  }
+
   const amountKrw = Number(amountDigits || "0");
   const canSave = entry !== null && amountKrw > 0 && categoryId !== null && date <= today;
   const touched =
     entry !== null &&
-    (amountKrw !== entry.amountKrw || categoryId !== entry.categoryId || date !== entry.occurredOn || memo !== (entry.memo ?? ""));
+    (type !== entry.type ||
+      amountKrw !== entry.amountKrw ||
+      categoryId !== entry.categoryId ||
+      date !== entry.occurredOn ||
+      memo !== (entry.memo ?? ""));
 
   function dismiss(currentlyTouched: boolean) {
     if (currentlyTouched) {
@@ -116,6 +129,7 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
   function handleSave() {
     if (!canSave || categoryId === null) return;
     const patch: EntryEditPatch = {};
+    if (type !== entry!.type) patch.type = type;
     if (amountKrw !== entry!.amountKrw) patch.amountKrw = amountKrw;
     if (categoryId !== entry!.categoryId) patch.categoryId = categoryId;
     if (date !== entry!.occurredOn) patch.occurredOn = date;
@@ -139,12 +153,14 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
         }
       >
         <div className="entry-sheet-body">
-          {/* `type` is read-only here (component doc comment) — a static
-           * badge, not EntrySheet's interactive SegmentedControl. */}
-          <div className="entry-detail-type-badge">{TYPE_LABEL[entry.type]}</div>
+          <SegmentedControl value={type} onChange={selectType} aria-label="거래 유형">
+            <SegmentedControl.Item value="expense">지출</SegmentedControl.Item>
+            <SegmentedControl.Item value="income">수입</SegmentedControl.Item>
+            <SegmentedControl.Item value="saving">저축</SegmentedControl.Item>
+          </SegmentedControl>
 
           <EntryFields
-            type={entry.type}
+            type={type}
             amountDigits={amountDigits}
             onAmountDigit={(digit) => setAmountDigits((prev) => appendAmountDigit(prev, digit))}
             onAmountBackspace={() => setAmountDigits((prev) => prev.slice(0, -1))}

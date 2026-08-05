@@ -101,6 +101,75 @@ describe("deleteEntry — F9", () => {
     });
     expect(latest!.getMonthEntries(ym)).toHaveLength(0);
   });
+
+  // Round-4 escalation repro (highest-value fix, C2): 6 entries in one day
+  // with dailyBuildSlots=5 -> 5 build, 1 queues. Deleting the QUEUED one must
+  // drop its material from town.queue, or the next day's drain builds a
+  // building for an entry that no longer exists.
+  it("deleting a QUEUED entry drops its material from the queue — the next day's drain never builds a ghost", async () => {
+    await mountAndWaitForBoot();
+    const ym = TODAY.slice(0, 7);
+    act(() => {
+      for (let i = 0; i < 6; i++) {
+        latest!.addEntry({ type: "expense", amountKrw: 1_000 + i, categoryId: "food", occurredOn: TODAY });
+      }
+    });
+    expect(latest?.buildingCount).toBe(5);
+    expect(latest?.queueLength).toBe(1);
+    const entries = latest!.getMonthEntries(ym);
+    const queuedEntry = entries.find((e) => e.queued)!;
+    expect(queuedEntry).toBeDefined();
+
+    act(() => {
+      latest!.deleteEntry(queuedEntry.id, ym);
+    });
+    expect(latest?.queueLength).toBe(0); // dropped, not left dangling
+    expect(latest!.getMonthEntries(ym)).toHaveLength(5);
+
+    // Reload on the NEXT day — the drain must see an empty queue and build nothing.
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+      root.unmount();
+    });
+    setTimeTravelDate("2026-08-16");
+    await mountAndWaitForBoot();
+    expect(latest?.buildingCount).toBe(5); // NOT 6 — no ghost building for the deleted entry
+    expect(latest?.queueLength).toBe(0);
+    // Every remaining building resolves back to a live entry (the F14 invariant this fix restores).
+    latest!.ensureMonthLoaded(ym);
+    const liveIds = new Set(latest!.getMonthEntries(ym).map((e) => e.id));
+    for (const b of latest!.buildings) {
+      if (b.source.kind === "entry") expect(liveIds.has(b.source.entryId)).toBe(true);
+    }
+  });
+
+  it("editing a QUEUED entry's category patches the pending material, not a building", async () => {
+    await mountAndWaitForBoot();
+    const ym = TODAY.slice(0, 7);
+    act(() => {
+      for (let i = 0; i < 6; i++) {
+        latest!.addEntry({ type: "expense", amountKrw: 1_000 + i, categoryId: "food", occurredOn: TODAY });
+      }
+    });
+    const queuedEntry = latest!.getMonthEntries(ym).find((e) => e.queued)!;
+
+    act(() => {
+      latest!.updateEntry(queuedEntry.id, ym, { categoryId: "cafe" });
+    });
+
+    // Reload the NEXT day and confirm the drained building actually got the new category.
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+      root.unmount();
+    });
+    setTimeTravelDate("2026-08-16");
+    await mountAndWaitForBoot();
+    expect(latest?.buildingCount).toBe(6);
+    const drainedBuilding = latest!.buildings.find(
+      (b) => b.source.kind === "entry" && b.source.entryId === queuedEntry.id,
+    );
+    expect(drainedBuilding?.categoryId).toBe("cafe");
+  });
 });
 
 describe("updateEntry — F9", () => {
@@ -199,5 +268,68 @@ describe("updateEntry — F9", () => {
     });
 
     expect(latest!.getMonthEntries(lastYm)).toHaveLength(2); // appended, not overwritten
+  });
+
+  // Round-4 finding C1: `type` is now editable (was display-only).
+  it("editing type from 저축 to 지출 builds a fresh building today and starts consuming a slot", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry({ type: "saving", amountKrw: 10_000, categoryId: "goal", occurredOn: TODAY });
+    });
+    const ym = TODAY.slice(0, 7);
+    const entry = latest!.getMonthEntries(ym)[0];
+    expect(latest?.buildingCount).toBe(0);
+    expect(latest?.savingsByCategoryKrw?.goal).toBe(10_000);
+
+    act(() => {
+      latest!.updateEntry(entry.id, ym, { type: "expense", categoryId: "food" });
+    });
+
+    expect(latest?.buildingCount).toBe(1);
+    expect(latest?.slotsRemaining).toBe(4);
+    expect(latest?.savingsByCategoryKrw?.goal ?? 0).toBe(0);
+    const updated = latest!.getMonthEntries(ym)[0];
+    expect(updated.type).toBe("expense");
+    expect(updated.buildingId).not.toBeNull();
+  });
+
+  it("editing type from 지출 to 저축 removes the building (not refunded) and starts contributing to the tower", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY });
+    });
+    const ym = TODAY.slice(0, 7);
+    const entry = latest!.getMonthEntries(ym)[0];
+    expect(latest?.buildingCount).toBe(1);
+    expect(latest?.slotsRemaining).toBe(4);
+
+    act(() => {
+      latest!.updateEntry(entry.id, ym, { type: "saving", categoryId: "goal" });
+    });
+
+    expect(latest?.buildingCount).toBe(0);
+    expect(latest?.slotsRemaining).toBe(4); // still not refunded
+    expect(latest?.savingsByCategoryKrw?.goal).toBe(4_500);
+  });
+
+  it("editing type between 지출 and 수입 re-skins the existing building in place", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY });
+    });
+    const ym = TODAY.slice(0, 7);
+    const entry = latest!.getMonthEntries(ym)[0];
+    const buildingBefore = latest!.buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entry.id)!;
+
+    act(() => {
+      latest!.updateEntry(entry.id, ym, { type: "income", categoryId: "salary" });
+    });
+
+    expect(latest?.buildingCount).toBe(1); // same building, not a new one
+    const buildingAfter = latest!.buildings.find((b) => b.id === buildingBefore.id)!;
+    expect(buildingAfter.categoryId).toBe("salary");
+    expect(buildingAfter.plotIndex).toBe(buildingBefore.plotIndex);
+    const updated = latest!.getMonthEntries(ym)[0];
+    expect(updated.type).toBe("income");
   });
 });

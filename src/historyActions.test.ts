@@ -1,0 +1,218 @@
+import { describe, expect, it } from "vitest";
+import { buildingForEntry, deleteEntryEffects, editEntryEffects } from "./historyActions";
+import type { Building, LedgerEntry, QueuedMaterial, TownState } from "./types";
+
+function freshTown(overrides: Partial<TownState> = {}): TownState {
+  return {
+    townName: "우리 동네",
+    nextPlotIndex: 0,
+    streakDays: 0,
+    longestStreakDays: 0,
+    lastActOn: null,
+    slotsUsedOn: "",
+    slotsUsedToday: 0,
+    highestTierSeen: 0,
+    queue: [],
+    noSpendDays: [],
+    cumulativeSavingsKrw: 0,
+    lastSettledPeriod: null,
+    ...overrides,
+  };
+}
+
+function entry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
+  return {
+    id: "e1",
+    type: "expense",
+    amountKrw: 4_500,
+    categoryId: "cafe",
+    occurredOn: "2026-08-15",
+    createdAt: 1000,
+    updatedAt: 1000,
+    buildingId: "b1",
+    queued: false,
+    ...overrides,
+  };
+}
+
+function building(overrides: Partial<Building> = {}): Building {
+  return {
+    id: "b1",
+    source: { kind: "entry", entryId: "e1" },
+    categoryId: "cafe",
+    variantIndex: 0,
+    plotIndex: 3,
+    builtOn: "2026-08-15",
+    createdAt: 1000,
+    ...overrides,
+  };
+}
+
+const tierThresholds = [0, 10, 30, 80, 200];
+
+describe("buildingForEntry", () => {
+  it("finds the one building whose source.entryId matches, ignoring nospend/monument buildings", () => {
+    const b = building();
+    const other: Building = { ...building({ id: "park" }), source: { kind: "nospend", date: "2026-08-15" } };
+    expect(buildingForEntry([other, b], "e1")).toBe(b);
+    expect(buildingForEntry([other], "e1")).toBeUndefined();
+  });
+});
+
+describe("deleteEntryEffects — F9", () => {
+  it("removes the bound building, leaves other buildings/slots untouched", () => {
+    const b = building();
+    const survivor = building({ id: "b2", plotIndex: 7, source: { kind: "entry", entryId: "e2" } });
+    const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 2, nextPlotIndex: 8 });
+    const result = deleteEntryEffects({ town, buildings: [b, survivor], entry: entry() });
+    expect(result.buildings).toEqual([survivor]);
+    expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
+    expect(result.town.slotsUsedToday).toBe(2); // not refunded
+    expect(result.town.nextPlotIndex).toBe(8); // not decremented
+  });
+
+  it("drops a QUEUED entry's material from town.queue (round-4 finding C2 — no ghost building on the next drain)", () => {
+    const queue: QueuedMaterial[] = [
+      { entryId: "e1", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-08-15", entryYm: "2026-08" },
+      { entryId: "e2", categoryId: "food", variantIndex: 1, queuedOn: "2026-08-15", entryYm: "2026-08" },
+    ];
+    const town = freshTown({ queue });
+    const queuedEntry = entry({ buildingId: null, queued: true });
+    const result = deleteEntryEffects({ town, buildings: [], entry: queuedEntry });
+    expect(result.town.queue.map((m) => m.entryId)).toEqual(["e2"]);
+    expect(result.removedBuilding).toBeNull(); // never built yet
+  });
+
+  it("deleting a 저축 entry backs its amount out of the tower total, floored at 0", () => {
+    const town = freshTown({ cumulativeSavingsKrw: 5_000, savingsByCategoryKrw: { goal: 5_000 } });
+    const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 50_000, buildingId: null });
+    const result = deleteEntryEffects({ town, buildings: [], entry: savingEntry });
+    expect(result.town.cumulativeSavingsKrw).toBe(0);
+    expect(result.town.savingsByCategoryKrw).toEqual({ goal: 0 });
+  });
+});
+
+function editArgs(overrides: Partial<Parameters<typeof editEntryEffects>[0]> = {}): Parameters<typeof editEntryEffects>[0] {
+  return {
+    town: freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 1, nextPlotIndex: 1 }),
+    buildings: [building()],
+    entry: entry(),
+    patch: {},
+    today: "2026-08-15",
+    dailyBuildSlots: 5,
+    materialQueueMax: 10,
+    tierThresholds,
+    newBuildingId: "bnew",
+    variantIndex: 0,
+    plotIndex: 9,
+    now: 2000,
+    ...overrides,
+  };
+}
+
+describe("editEntryEffects — F9, type unchanged", () => {
+  it("amount/memo/date edits never move the building", () => {
+    const result = editEntryEffects(editArgs({ patch: { amountKrw: 9_900, memo: "x" } }));
+    expect(result.buildings).toEqual([building()]);
+    expect(result.newBuilding).toBeNull();
+    expect(result.removedBuilding).toBeNull();
+    expect(result.entry.amountKrw).toBe(9_900);
+  });
+
+  it("a category edit re-skins the building in place, keeping the same plot", () => {
+    const result = editEntryEffects(editArgs({ patch: { categoryId: "food" } }));
+    expect(result.buildings[0].categoryId).toBe("food");
+    expect(result.buildings[0].plotIndex).toBe(3);
+    expect(result.buildings[0].builtOn).toBe("2026-08-15");
+  });
+
+  it("a category edit on a still-QUEUED entry patches the queue material instead of a building (round-4 finding C2)", () => {
+    const queue: QueuedMaterial[] = [{ entryId: "e1", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-08-15", entryYm: "2026-08" }];
+    const result = editEntryEffects(
+      editArgs({ town: freshTown({ queue }), buildings: [], entry: entry({ buildingId: null, queued: true }), patch: { categoryId: "food" } }),
+    );
+    expect(result.town.queue).toEqual([{ entryId: "e1", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-15", entryYm: "2026-08" }]);
+    expect(result.newBuilding).toBeNull();
+  });
+
+  it("a date edit across a month boundary on a QUEUED entry updates the material's entryYm (so a later drain patches the right chunk)", () => {
+    const queue: QueuedMaterial[] = [{ entryId: "e1", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-08-15", entryYm: "2026-08" }];
+    const result = editEntryEffects(
+      editArgs({
+        town: freshTown({ queue }),
+        buildings: [],
+        entry: entry({ buildingId: null, queued: true }),
+        patch: { occurredOn: "2026-07-20" },
+      }),
+    );
+    expect(result.town.queue[0].entryYm).toBe("2026-07");
+    expect(result.entry.occurredOn).toBe("2026-07-20");
+  });
+
+  it("a category edit on a 저축 entry moves the amount between buckets", () => {
+    const town = freshTown({ cumulativeSavingsKrw: 10_000, savingsByCategoryKrw: { goal: 10_000 } });
+    const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 10_000, buildingId: null });
+    const result = editEntryEffects(editArgs({ town, buildings: [], entry: savingEntry, patch: { categoryId: "deposit" } }));
+    expect(result.town.savingsByCategoryKrw).toEqual({ goal: 0, deposit: 10_000 });
+    expect(result.town.cumulativeSavingsKrw).toBe(10_000);
+  });
+});
+
+describe("editEntryEffects — F9, type changed (round-4 finding C1)", () => {
+  it("지출 <-> 수입 re-skins the existing building, no slot/queue accounting change", () => {
+    const result = editEntryEffects(editArgs({ patch: { type: "income", categoryId: "salary" } }));
+    expect(result.buildings[0].categoryId).toBe("salary");
+    expect(result.buildings[0].id).toBe("b1"); // same building, not a new one
+    expect(result.newBuilding).toBeNull();
+    expect(result.entry.type).toBe("income");
+    expect(result.entry.buildingId).toBe("b1"); // unchanged — still bound to the same building
+  });
+
+  it("저축 -> 지출 with a free slot builds a fresh building today and starts consuming a slot", () => {
+    const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 10_000, buildingId: null });
+    const town = freshTown({ cumulativeSavingsKrw: 10_000, savingsByCategoryKrw: { goal: 10_000 }, slotsUsedOn: "2026-08-15", slotsUsedToday: 1 });
+    const result = editEntryEffects(editArgs({ town, buildings: [], entry: savingEntry, patch: { type: "expense", categoryId: "food" } }));
+    expect(result.newBuilding).not.toBeNull();
+    expect(result.newBuilding?.id).toBe("bnew");
+    expect(result.newBuilding?.plotIndex).toBe(9);
+    expect(result.entry.buildingId).toBe("bnew");
+    expect(result.entry.queued).toBe(false);
+    expect(result.town.slotsUsedToday).toBe(2);
+    expect(result.town.savingsByCategoryKrw).toEqual({ goal: 0 }); // backed out
+  });
+
+  it("저축 -> 지출 with no slots remaining queues the material instead (F14)", () => {
+    const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 10_000, buildingId: null });
+    const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 5 });
+    const result = editEntryEffects(
+      editArgs({ town, buildings: [], entry: savingEntry, patch: { type: "expense", categoryId: "food" }, dailyBuildSlots: 5 }),
+    );
+    expect(result.newBuilding).toBeNull();
+    expect(result.entry.queued).toBe(true);
+    expect(result.entry.buildingId).toBeNull();
+    expect(result.town.queue).toHaveLength(1);
+    expect(result.town.queue[0].entryYm).toBe("2026-08");
+  });
+
+  it("지출 -> 저축 loses its building (not refunded) and starts contributing to the tower", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 3, nextPlotIndex: 4 });
+    const result = editEntryEffects(editArgs({ town, buildings: [building()], patch: { type: "saving", categoryId: "goal" } }));
+    expect(result.buildings).toEqual([]);
+    expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
+    expect(result.town.slotsUsedToday).toBe(3); // not refunded
+    expect(result.town.nextPlotIndex).toBe(4); // not decremented
+    expect(result.town.savingsByCategoryKrw).toEqual({ goal: 4_500 });
+    expect(result.entry.buildingId).toBeNull();
+    expect(result.entry.queued).toBe(false);
+  });
+
+  it("QUEUED 지출 -> 저축 drops the pending material instead of ever building it", () => {
+    const queue: QueuedMaterial[] = [{ entryId: "e1", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-08-15", entryYm: "2026-08" }];
+    const result = editEntryEffects(
+      editArgs({ town: freshTown({ queue }), buildings: [], entry: entry({ buildingId: null, queued: true }), patch: { type: "saving", categoryId: "goal" } }),
+    );
+    expect(result.town.queue).toEqual([]);
+    expect(result.entry.queued).toBe(false);
+    expect(result.town.savingsByCategoryKrw).toEqual({ goal: 4_500 });
+  });
+});

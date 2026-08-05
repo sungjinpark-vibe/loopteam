@@ -27,6 +27,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyNewEntry, type EntryDraft } from "./entryActions";
+import { buildingForEntry, deleteEntryEffects, editEntryEffects, type EntryEditPatch } from "./historyActions";
 import { claimNoSpendDay } from "./noSpendActions";
 import { drainQueue } from "./queueActions";
 import { allocatePlots, moveBuilding as movePlacement, pickPlot, reconcilePlacement, type MoveResult } from "./placement";
@@ -34,7 +35,6 @@ import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
 import { clock } from "./platform/clock";
 import { random } from "./platform/random";
-import { savingsBucketOf } from "./savingsBuckets";
 import { BALANCE } from "./balance.placeholder";
 import {
   buildingCount as countBuildings,
@@ -44,7 +44,7 @@ import {
   slotsRemainingToday,
 } from "./selectors";
 import { createChunkedStorage, defaultTownState, yieldToMainThread, type CoreState } from "./storage";
-import type { Building, BudgetSetting, CategoryId, LedgerEntry, SavingCategoryId, TownState } from "./types";
+import type { Building, BudgetSetting, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
   town: TownState;
@@ -89,19 +89,11 @@ export interface AddEntryResult {
   queueLength: number;
 }
 
-/**
- * F9 edit fields. `type` is deliberately NOT here: the spec's ACs for F9
- * only ever exercise amount/memo/date/category edits, and a type change
- * would have to re-decide slot consumption, queueing, and 저축탑 membership
- * from scratch — a different, riskier operation the spec doesn't actually
- * ask for. `EntryDetailSheet` renders `type` read-only for this reason.
- */
-export interface EntryEditPatch {
-  amountKrw?: number;
-  categoryId?: CategoryId;
-  occurredOn?: string;
-  memo?: string;
-}
+// F9's edit-patch shape (now including `type`, round-4 finding C1) lives in
+// `historyActions.ts` next to the pure functions that apply it — re-exported
+// here so existing importers (`EntryDetailSheet`, `HistoryScreen`) keep
+// reading it off `useTownStore`.
+export type { EntryEditPatch };
 
 function freshCore(now: number): LoadedState {
   return {
@@ -638,13 +630,13 @@ export function useTownStore() {
   }, []);
 
   /**
-   * F9 delete: removes the entry from its month chunk and, if it built
-   * something, removes that building too (building count -1, its plot
-   * becomes a permanent empty lot — `nextPlotIndex` is never decremented, so
-   * nothing else reflows, and `slotsUsedToday` is untouched — the consumed
-   * slot is NOT refunded, per spec). A deleted 저축 entry backs its amount out
-   * of the tower's denormalized totals so 기록/S2 stay consistent with the
-   * entries that actually still exist.
+   * F9 delete — thin wiring over `historyActions.deleteEntryEffects` (pure):
+   * persists the removed building's OLD month chunk (if any — round-4
+   * finding C3: building count -1, plot becomes a permanent empty lot,
+   * `nextPlotIndex` never decremented so nothing else reflows, and the slot
+   * is NOT refunded) and the entry's own month chunk (which also carries
+   * `town` — the queue-drop for a still-queued entry and the 저축 back-out,
+   * both computed by the pure function, round-4 finding C2/C3).
    */
   const deleteEntry = useCallback((entryId: string, ym: string) => {
     const prev = stateRef.current;
@@ -654,30 +646,21 @@ export function useTownStore() {
     const entry = list?.find((e) => e.id === entryId);
     if (!entry) return;
 
-    let buildings = prev.buildings;
-    const bound = buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entryId);
-    if (bound) {
-      buildings = buildings.filter((b) => b.id !== bound.id);
-      const buildYm = bound.builtOn.slice(0, 7);
-      mutateBuildingsForMonth(storageRef.current, buildYm, (existing) => existing.filter((b) => b.id !== bound.id));
-    }
-
-    let town = prev.town;
-    if (entry.type === "saving") {
-      const bucket = savingsBucketOf(entry.categoryId);
-      const buckets = { ...(town.savingsByCategoryKrw ?? {}) };
-      buckets[bucket] = Math.max(0, (buckets[bucket] ?? 0) - entry.amountKrw);
-      town = { ...town, cumulativeSavingsKrw: Math.max(0, town.cumulativeSavingsKrw - entry.amountKrw), savingsByCategoryKrw: buckets };
+    const result = deleteEntryEffects({ town: prev.town, buildings: prev.buildings, entry });
+    const storageClient = storageRef.current;
+    if (result.removedBuilding) {
+      const { id, ym: buildYm } = result.removedBuilding;
+      mutateBuildingsForMonth(storageClient, buildYm, (existing) => existing.filter((b) => b.id !== id));
     }
 
     const newList = list!.filter((e) => e.id !== entryId);
-    const core: CoreState = { town, budget: prev.budget, onboarded: prev.onboarded };
-    storageRef.current.saveEntriesForMonth(ym, newList, core);
+    const core: CoreState = { town: result.town, budget: prev.budget, onboarded: prev.onboarded };
+    storageClient.saveEntriesForMonth(ym, newList, core);
 
     const next: LoadedState = {
       ...prev,
-      town,
-      buildings,
+      town: result.town,
+      buildings: result.buildings,
       entries: ym === todayYm ? newList : prev.entries,
       historyEntries: ym === todayYm ? prev.historyEntries : { ...prev.historyEntries, [ym]: newList },
     };
@@ -686,16 +669,12 @@ export function useTownStore() {
   }, []);
 
   /**
-   * F9 edit: amount/memo/date changes never touch the bound building (spec:
-   * "does not move the building"); a category change re-skins that building
-   * in place (same `plotIndex`/`builtOn`), since `type` is not editable here
-   * (see `EntryEditPatch`'s doc) and building placement is entirely a
-   * function of the entry's SLOT-consuming act, not its category. Re-dating
-   * across a month boundary moves the entry between its two entries chunks
-   * (removed from the old month, appended to the new one, `saveEntriesForMonth`
-   * registers the new month in the index if it's genuinely new) while the
-   * building — which rose "today", independent of a backdated `occurredOn`,
-   * per F2/F4 — stays exactly where it always was.
+   * F9 edit — thin wiring over `historyActions.editEntryEffects` (pure, see
+   * its own doc for the four type-change cases; round-4 finding C1 made
+   * `type` itself editable). A fresh building/plot/variant is only rolled
+   * when the edit could possibly need one (저축 -> 지출/수입, the one case
+   * that can newly consume a slot) — same `pickPlot`/`random.next` calls
+   * `addEntry` already makes for a real F1 save.
    */
   const updateEntry = useCallback((entryId: string, ym: string, patch: EntryEditPatch) => {
     const prev = stateRef.current;
@@ -705,41 +684,54 @@ export function useTownStore() {
     const oldEntry = list?.find((e) => e.id === entryId);
     if (!oldEntry) return;
 
-    const newEntry: LedgerEntry = { ...oldEntry, ...patch, updatedAt: clock.now() };
+    const now = clock.now();
+    const needsFreshBuilding = oldEntry.type === "saving" && patch.type !== undefined && patch.type !== "saving";
+    const newBuildingId = needsFreshBuilding ? makeId("b", now) : "";
+    const variantIndex = needsFreshBuilding ? Math.floor(random.next() * BALANCE.variantsPerCategory) : 0;
+    const plotIndex = needsFreshBuilding ? pickPlot(prev.town.nextPlotIndex, prev.buildings, random.next) : 0;
+
+    const result = editEntryEffects({
+      town: prev.town,
+      buildings: prev.buildings,
+      entry: oldEntry,
+      patch,
+      today: clock.today(),
+      dailyBuildSlots: BALANCE.dailyBuildSlots,
+      materialQueueMax: BALANCE.materialQueueMax,
+      tierThresholds: BALANCE.tierThresholds,
+      newBuildingId,
+      variantIndex,
+      plotIndex,
+      now,
+    });
+
+    const storageClient = storageRef.current;
+    const oldBound = buildingForEntry(prev.buildings, entryId);
+    if (result.removedBuilding) {
+      const { id, ym: buildYm } = result.removedBuilding;
+      mutateBuildingsForMonth(storageClient, buildYm, (existing) => existing.filter((b) => b.id !== id));
+    } else if (result.newBuilding) {
+      const newBuilding = result.newBuilding;
+      const buildYm = newBuilding.builtOn.slice(0, 7);
+      mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, newBuilding]);
+    } else if (oldBound) {
+      // Same building, possibly re-skinned in place (category or 지출<->수입 type flip) — only re-persist its chunk when it actually changed.
+      const stillBound = result.buildings.find((b) => b.id === oldBound.id);
+      if (stillBound && stillBound.categoryId !== oldBound.categoryId) {
+        const buildYm = oldBound.builtOn.slice(0, 7);
+        mutateBuildingsForMonth(storageClient, buildYm, (existing) => existing.map((b) => (b.id === oldBound.id ? stillBound : b)));
+      }
+    }
+
+    const newEntry = result.entry;
     const newYm = newEntry.occurredOn.slice(0, 7);
-
-    let buildings = prev.buildings;
-    const bound = buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entryId);
-    if (bound && patch.categoryId !== undefined && patch.categoryId !== oldEntry.categoryId) {
-      const updatedBuilding: Building = { ...bound, categoryId: patch.categoryId };
-      buildings = buildings.map((b) => (b.id === bound.id ? updatedBuilding : b));
-      const buildYm = bound.builtOn.slice(0, 7);
-      mutateBuildingsForMonth(storageRef.current, buildYm, (existing) =>
-        existing.map((b) => (b.id === bound.id ? updatedBuilding : b)),
-      );
-    }
-
-    let town = prev.town;
-    if (oldEntry.type === "saving") {
-      const oldBucket = savingsBucketOf(oldEntry.categoryId);
-      const newBucket = savingsBucketOf(newEntry.categoryId);
-      const buckets = { ...(town.savingsByCategoryKrw ?? {}) };
-      buckets[oldBucket] = Math.max(0, (buckets[oldBucket] ?? 0) - oldEntry.amountKrw);
-      buckets[newBucket] = (buckets[newBucket] ?? 0) + newEntry.amountKrw;
-      town = {
-        ...town,
-        cumulativeSavingsKrw: town.cumulativeSavingsKrw - oldEntry.amountKrw + newEntry.amountKrw,
-        savingsByCategoryKrw: buckets,
-      };
-    }
-
-    const core: CoreState = { town, budget: prev.budget, onboarded: prev.onboarded };
+    const core: CoreState = { town: result.town, budget: prev.budget, onboarded: prev.onboarded };
     let entries = prev.entries;
     let historyEntries = prev.historyEntries;
 
     if (newYm === ym) {
       const updatedList = list!.map((e) => (e.id === entryId ? newEntry : e));
-      storageRef.current.saveEntriesForMonth(ym, updatedList, core);
+      storageClient.saveEntriesForMonth(ym, updatedList, core);
       if (ym === todayYm) entries = updatedList;
       else historyEntries = { ...historyEntries, [ym]: updatedList };
     } else {
@@ -749,18 +741,18 @@ export function useTownStore() {
       // existing entries are read fresh from storage when this session
       // hasn't visited it yet, never assumed empty.
       const oldList = list!.filter((e) => e.id !== entryId);
-      storageRef.current.saveEntriesForMonth(ym, oldList, core);
+      storageClient.saveEntriesForMonth(ym, oldList, core);
       if (ym === todayYm) entries = oldList;
       else historyEntries = { ...historyEntries, [ym]: oldList };
 
-      const destList = entriesForMonth({ entries, historyEntries }, newYm, todayYm) ?? storageRef.current.loadEntriesForMonth(newYm).entries;
+      const destList = entriesForMonth({ entries, historyEntries }, newYm, todayYm) ?? storageClient.loadEntriesForMonth(newYm).entries;
       const newDestList = [...destList, newEntry];
-      storageRef.current.saveEntriesForMonth(newYm, newDestList, core);
+      storageClient.saveEntriesForMonth(newYm, newDestList, core);
       if (newYm === todayYm) entries = newDestList;
       else historyEntries = { ...historyEntries, [newYm]: newDestList };
     }
 
-    const next: LoadedState = { ...prev, town, buildings, entries, historyEntries };
+    const next: LoadedState = { ...prev, town: result.town, buildings: result.buildings, entries, historyEntries };
     stateRef.current = next;
     setState(next);
   }, []);

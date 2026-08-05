@@ -755,18 +755,8 @@ button.town-fab {
 }
 
 /* ── S5 내역 상세 시트 — F9 (`EntryDetailSheet` reuses `.entry-sheet-*`/
- * `.category-grid`/`.entry-amount-*`/`.entry-keypad` above via `EntryFields`;
- * only the read-only type badge and the delete button's spacing are new). ── */
-
-.entry-detail-type-badge {
-  align-self: flex-start;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--town-grey700);
-  background: var(--town-grey100);
-}
+ * `.category-grid`/`.entry-amount-*`/`.entry-keypad`/the `SegmentedControl`
+ * above via `EntryFields`, same as `EntrySheet`). ── */
 
 /* ── S3 기록 ── */
 
