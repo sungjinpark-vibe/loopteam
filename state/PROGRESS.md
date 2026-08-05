@@ -5,77 +5,34 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss**. T001 (spec, 90), T002 (plumbing, 91), T003 (first demoable
-  slice, 92), T004 (retention layer, 95) all `done`. **T005 (spec addendum — savings buildings +
-  road layout, director-requested 2026-08-03) also `done`, accepted at 89/100** (below the 90 bar —
-  PM judgment call after 6 lead-verified rounds; full justification in `backlog/tasks/T005.md` Log).
-  Addendum at `app_in_toss/docs/spec/ADDENDUM-01-savings-and-roads.md`; `MVP-SPEC.md` carries a
-  pointer, not a full merge. **T006 (road layout, ADDENDUM-01 §3) `done` — 96/100.** The village
-  actually renders: main street, cross streets, street furniture, savings-block empty cells, verified
-  live including the dense 5,400-building fixture. **T007 (building roof visual) was reverted by the
-  director** after seeing it — back to T006's flat-colored-square buildings, see ▶ Next below.
-  **T008 (spec addendum — player-controlled placement, random-then-movable) `done`, 92/100, approved
-  by the director** ("좋아"). **T009 (random placement, part a) `done` — 91/100.** **T010 (long-press
-  move UI, part b) `done` — 94/100.** ADDENDUM-02 is now fully implemented: buildings land randomly,
-  can be long-press-moved anywhere in the open pool, free and unlimited, keyboard-accessible. Real
-  bugs were found and fixed in ADDENDUM-02 §3.2's own pseudocode along the way (see
-  `backlog/tasks/T009.md` Log). `qa` agent hardened against a process-kill scope incident (see Do Not
-  Repeat). **T011 (savings buildings, ADDENDUM-01 §2) `done` — 93/100** after an escalation +
-  2 fix-forward rounds (81→85→93). ADDENDUM-01 is now fully implemented: five real savings
-  structures render, grow correctly, preserve F13's invariant under the sharpest test case, and
-  the entry sheet's 저축 segment works at all viewport widths. One residual font-metric risk noted
-  as a later-task follow-up (see `backlog/tasks/T011.md` Log). `team-lead` agent hardened against a
-  git-mutation scope incident (see Do Not Repeat).
-  Small follow-ups logged, not blocking: a pre-existing TDS dialog quirk (backdrop double-tap),
-  bundle-size re-measurement once real routes exist — see `backlog/tasks/T003.md` Log.
-  **`gate/gate-node.ps1`'s typecheck step was a no-op from T002 through T004** (root tsconfig.json's
-  project-references shape made plain `tsc --noEmit` check zero files) — found by T004's implementer,
-  fixed 2026-08-03. Everything T002-T004 already shipped was independently confirmed clean via
-  `tsc -p tsconfig.app.json` at the time, so nothing shipped is retroactively suspect.
+- **Status**: ▶ ACTIVE — **app_in_toss**. T001-T012 all `done` (scores 90/91/92/95/89/96/[T007
+  reverted]/92/91/94/93/91). Full narrative + lessons from this whole stretch:
+  `state/journal.md` → "2026-08-02 to 2026-08-05 — app_in_toss: new project through T012". Detail on
+  any specific task: `backlog/tasks/T0##.md`.
+  **Where things stand**: ADDENDUM-01 (savings buildings + road layout) and ADDENDUM-02
+  (random/movable placement) both fully implemented. MVP build order through F8/F9 (기록/history,
+  edit/delete) done. Remaining for the MVP: F6 (budget/mood) + S6 (settings) + F12 (export/import).
+  Two small non-blocking follow-ups logged, not yet scheduled: a pre-existing TDS dialog quirk
+  (backdrop double-tap, `backlog/tasks/T003.md`), a month-navigation empty-state flash
+  (`backlog/tasks/T012.md`).
   Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
   test → lint → gate:extra — same contract as `gate.ps1`).
-  `quality-loop.js` takes `args.gateScript` and `args.runHint` so non-Unity projects don't need the
-  Unity-specific defaults. The `npx create-ait-app` non-interactive flags (`--inline --pm npm
-  --template react-ts --tds --skills --ai claude`) work — the docs only showed the interactive form.
-  Director answered 4 of 16 T001 open decisions on Discord (2026-08-02): app name stays a placeholder,
-  art style must stay clearly clear of Fortune City (trademark risk), monetization deferred, **React
-  rubric substitution approved**. The other 12 decisions proceed on the spec's own marked assumptions.
-  Life Town and touchRPG remain paused, untouched. Discord ENABLED both ways (rule 8, current). **Note**:
-  Discord replies are only auto-drained during an autonomous tick's scout step — while working
-  in-session, re-check `.discord/incoming.log` manually after sending anything that expects a reply,
-  don't assume silence means unanswered (confirmed 2026-08-02: a reply sat unread for a few minutes
-  during in-session work, listener itself was healthy).
-- **Engine improvement, session 1 (2026-07-19)** — director's four directives, all done or in flight:
-  1. **Skill/library research for all four parts** — done, results reported (see journal for the full
-     lists; top picks: Unity MCP `CoplayDev/unity-mcp`, `unity-dev-toolkit` QA skills, AltTester,
-     official `anthropics/skills` xlsx + algorithmic-art, UniTask/PrimeTween via openupm-cli).
-     **Adopt nothing without the director's pick.**
-  2. **rtk + ponytail subagent coverage** — verified empirically. rtk: ✅ applies to all subagents
-     (user-level PreToolUse hook on Bash/PowerShell; 70.7% avg savings, 1,002 commands). ponytail: ❌
-     was NOT active in this project at all (installed project-scoped to `c:\Users\user`, not here).
-     **Fixed**: registered for loop_engine in `installed_plugins.json` + scoped subagent injection to
-     code-producing agents via `PONYTAIL_SUBAGENT_MATCHER` in `.claude/settings.json`. **Takes effect
-     next session start** (plugins load at startup).
-  3-4. **Token-leak audit + per-tick file restructure** — done 2026-07-19: loop.json 4.3KB→1.1KB
-     (stale blobs carried a superseded channel rule — removed), VISION.md 30.8→21.8KB (touchRPG §2 →
-     snapshot), PROGRESS.md 19→~8KB (this rewrite), CLAUDE.md trim pending/next.
-- **Last updated**: 2026-07-19 (in-session)
+- **Standing note**: Discord replies are only auto-drained during an autonomous tick's scout step —
+  while working in-session, re-check `.discord/incoming.log` manually after sending anything that
+  expects a reply, don't assume silence means unanswered. Life Town and touchRPG remain paused,
+  untouched. Discord ENABLED both ways (rule 8, current).
+- **Engine-improvement backlog (2026-07-19 session), still awaiting the director's pick, low
+  priority while app_in_toss is active**: skill/library research results (full lists in journal —
+  top picks Unity MCP, UniTask/PrimeTween, etc. — **adopt nothing without the director's pick**);
+  rtk (✅ working) + ponytail (fixed, needed a session restart) subagent coverage; token-leak audit
+  done. None of this blocks app_in_toss work.
+- **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. **T007 reverted by the director** (2026-08-04, "이 전버전으로 다시 되돌려줘", right after seeing
-   the screenshots) — he preferred the original flat-colored-square look. Fully reverted (commit
-   7e766e8), gate re-verified green. See `backlog/tasks/T007.md` Log and the new Do Not Repeat entry
-   above (checkpoint taste calls early).
-2. **T008 (placement/move addendum) approved** — director replied "좋아" to the 7-decisions report.
-   Proceed to implementation on the shipped defaults (free/unlimited move, reject-not-swap,
-   park/monuments movable, hint mechanism MUST). Addendum at
-   `app_in_toss/docs/spec/ADDENDUM-02-placement-and-move.md`. Next task: build it.
-3. T0xx = the savings buildings themselves (ADDENDUM-01 §2) — independent of the placement/move
-   feature (savings cells are structurally separate), can slot in whenever.
-3. Then build order step 4 remainder (S3 기록/history + F9 edit/delete + F6 budget/mood + S6 settings
-   + F12 export/import).
-4. Engine-improvement backlog (research lists + rtk/ponytail verdict + token restructure, reported
-   2026-07-19) is still awaiting the director's pick — resume once app_in_toss has a rhythm going.
+1. Open T013 (F6 budget/mood + S6 settings sheet).
+2. Then T014 (F12 JSON export/import).
+3. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
+   priority while app_in_toss has momentum.
 
 ## Open Items
 - **Discord reply-drain gap** (2026-07-18, twice): with the loop paused, a Discord reply sits unread
@@ -100,11 +57,9 @@
 - None.
 
 ## Needs Human Review
-- **T012 (기록/history screen) escalated 2026-08-05** — hit the 5-round limit at 85/90 (69→87→85).
-  Real findings: missing dense-fixture perf evidence, unreadable donut for same-family colors, an
-  unverified date-edit field, cross-month re-date only proven at the unit-test level. PM attempting
-  one targeted fix-forward round. Full detail: `backlog/tasks/T012.md` Log.
-- None else active — T011's escalation (2026-08-05, no-progress brake at 81/100) was resolved via two
+- None active — T012's escalation (2026-08-05, 5-round limit at 85/90) was resolved via one
+  fix-forward round, final score 91/100. Full detail: `backlog/tasks/T012.md` Log.
+- T011's escalation (2026-08-05, no-progress brake at 81/100) was resolved via two
   targeted fix-forward rounds, final score 93/100. Full detail: `backlog/tasks/T011.md` Log.
 - **Security note (2026-08-05, T011), resolved, kept for the pattern**: a `team-lead` scoring agent
   ran `git checkout -- .` while reviewing — team-lead is supposed to be strictly read-only. No data
@@ -131,11 +86,8 @@
   instance's outcome.
 
 ## Next Run Should
-1. Check on T012's result (기록/history screen + edit/delete); report to the director.
-2. After T012: T013 (F6 budget/mood + S6 settings), then T014 (F12 export/import) — the remaining
-   MVP build-order step 4 items. Director confirmed proceeding with these after declining automatic
-   transaction detection (confirmed technically impossible on the Apps-in-Toss platform — see
-   `app_in_toss/VISION.md` Stack notes).
+1. Report T012 (91/100, passed) to the director; open T013 (F6 budget/mood + S6 settings), then
+   T014 (F12 export/import) — the remaining MVP build-order step 4 items.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch

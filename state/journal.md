@@ -1180,3 +1180,40 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   canvas-design/algorithmic-art skills were already wired from an earlier session, no duplicate entry.
 - Also this session: Discord briefly fully disabled then re-enabled same day (both directions
   confirmed live); S2 village mockup HTML->PNG built and sent via Discord.
+
+## 2026-08-02 to 2026-08-05 — app_in_toss: new project through T012 (director-directed, in-session)
+- New project: Toss mini-app, Fortune-City-style gamified 가계부. Stack = React/TS/Vite via
+  `create-ait-app` — director-approved exception to the engine's Unity-only rule (Apps-in-Toss only
+  supports Unity for the game category). New `gate/gate-node.ps1` written for this stack (later fixed
+  twice: a project-references tsconfig made its typecheck step a no-op through T004; a
+  fixture-not-in-bundle enforcement gap found in T002).
+- T001 spec (90/100) → T002 plumbing (91, after a session-limit infra retry) → T003 first demoable
+  slice (92) → T004 retention layer (95). Screenshots sent to director at each visual milestone —
+  established pattern: PM has no direct browser tool, delegates screenshot capture to a `qa` subagent
+  each time.
+- T005: director asked for savings sub-type buildings (예적금/주식투자 etc, not one generic tower) +
+  a road-based village layout. Addendum authoring ran 6 rounds (90→68→74→76→86→89, PM accepted below
+  the 90 bar as a judgment call after diminishing returns — full reasoning in `backlog/tasks/T005.md`).
+  Lesson banked: folding grafts into an already-passing explore doc can regress it; re-verify after.
+- T006 implemented the road layout (96/100). Director then asked to revert the building-roof visual
+  polish (T007) after seeing it — reverted cleanly to T006's look; lesson banked: checkpoint pure
+  taste calls with a screenshot after round 1, before spending more rounds refining a direction that
+  might get rejected outright.
+- T008: director asked for player-controlled building placement (random-then-movable), reversing a
+  PM engineering default from T005. Addendum this time scoped tighter (2 rounds, 89→92) after the
+  T005 lesson. T009 (random placement, 91) + T010 (long-press move UI, 94) implemented it fully.
+  A real bug was found and fixed in the addendum's own `requiredLots` pseudocode along the way.
+  Security incidents this stretch, both investigated with no actual harm, both used to harden the
+  relevant agent file: `qa` ran `taskkill /IM node.exe` (broad image-name kill) — hardened to
+  PID-only; `team-lead` ran `git checkout -- .` while scoring — hardened to explicitly read-only-git.
+- T011 (savings buildings, ADDENDUM-01 §2) escalated once (81/90) then passed at 93 after 2
+  fix-forward rounds — real defects (category-grid overflow hiding a 5th option, narrow-viewport
+  label clipping) not caught by testing only at the 390px reference viewport.
+- Director asked whether entries could auto-detect from Toss notifications "like Fortune City" —
+  researched the Apps-in-Toss SDK docs directly: no such access exists for mini-apps, a hard platform
+  wall, not an effort question. Recorded in `app_in_toss/VISION.md` so no future task re-investigates.
+- T012 (기록/history screen, F8/F9/S3/S5) escalated once (85/90) then passed at 91 after 1
+  fix-forward round; a genuine unrelated flaky-test bug (a boot-poll loop checking object identity
+  instead of a loading flag) was found and fixed as a byproduct.
+- State by end of this stretch: ADDENDUM-01 and ADDENDUM-02 both fully implemented; MVP build order
+  through F8/F9 done. Remaining: F6 (budget/mood) + S6 (settings) + F12 (export/import).
