@@ -28,22 +28,12 @@
  * (type -> amount -> category -> date -> memo).
  */
 import { useEffect, useRef, useState } from "react";
-import {
-  BottomSheet,
-  Button,
-  ChipItem,
-  ConfirmDialog,
-  NumberKeypad,
-  SegmentedControl,
-  TextField,
-  WheelDatePicker,
-} from "@toss/tds-mobile";
+import { BottomSheet, Button, ConfirmDialog, SegmentedControl } from "@toss/tds-mobile";
 import type { EntryDraft } from "../entryActions";
-import { CATEGORIES_BY_TYPE } from "../content.placeholder";
-import { commaizeAmount, krwReadingHint } from "../format";
+import { appendAmountDigit } from "../format";
 import { useBackGuard } from "../hooks/useBackGuard";
-import { dateToYmd, ymdToDate } from "../platform/clock";
 import type { CategoryId, EntryType } from "../types";
+import { EntryFields } from "./EntryFields";
 
 export interface EntrySheetProps {
   open: boolean;
@@ -51,9 +41,6 @@ export interface EntrySheetProps {
   onClose: () => void;
   onSave: (draft: EntryDraft) => void;
 }
-
-const MEMO_MAX = 40;
-const AMOUNT_DIGITS_MAX = 10; // ~99억 원 — a generous input ceiling, not a balance dial
 
 export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
   const [type, setType] = useState<EntryType>("expense");
@@ -94,16 +81,12 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
 
   const amountKrw = Number(amountDigits || "0");
   const canSave = amountKrw > 0 && categoryId !== null && date <= today;
-  const categories = CATEGORIES_BY_TYPE[type];
   // Anything different from the sheet's just-opened defaults counts as
   // "touched" — F1 AC: dismiss must confirm if any field was touched.
   const touched = type !== "expense" || amountDigits !== "" || categoryId !== null || date !== today || memo !== "";
 
   function pressDigit(digit: string) {
-    setAmountDigits((prev) => {
-      const next = (prev + digit).replace(/^0+(?=\d)/, "");
-      return next.length > AMOUNT_DIGITS_MAX ? prev : next;
-    });
+    setAmountDigits((prev) => appendAmountDigit(prev, digit));
   }
 
   function pressBackspace() {
@@ -160,66 +143,18 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
             <SegmentedControl.Item value="saving">저축</SegmentedControl.Item>
           </SegmentedControl>
 
-          <div className="entry-amount-display">
-            <span className="entry-amount-value">{commaizeAmount(amountDigits || "0")}</span>
-            <span className="entry-amount-suffix">원</span>
-          </div>
-          {amountKrw > 0 && <div className="entry-amount-hint">{krwReadingHint(amountKrw)}</div>}
-
-          {/* Amount's own input control sits directly under its readout — spec
-           * §6 S4 key elements list "numeric keypad · amount display" as one
-           * pair, and F1's <=3-tap flow needs it on screen with no scroll at
-           * the 390x844 reference viewport. `.entry-keypad` (App.css)
-           * compacts TDS's default 64px row height. */}
-          <NumberKeypad className="entry-keypad" onKeyClick={pressDigit} onBackspaceClick={pressBackspace} />
-
-          {/* "icon grid" (spec §5 F1 / MVP-SPEC.md:201): a fixed 5-column grid
-           * (`.category-grid`, App.css), not a horizontally scrolling chip
-           * row or a free-flowing wrap — every category for the selected
-           * type is on screen at once, at a predictable tile size. `<Chip>`
-           * wraps its children in a horizontal scroller by design (TDS's
-           * filter-chip pattern), so plain `ChipItem`s are used instead. */}
-          <div className="category-grid" role="group" aria-label="카테고리 선택">
-            {categories.map((c) => (
-              <ChipItem
-                key={c.id}
-                as="button"
-                selected={c.id === categoryId}
-                left={<span aria-hidden="true">{c.icon}</span>}
-                // `c.id` types as `ContentCategoryId` only because `CategoryContent`
-                // also describes F15's park tile and the read-only legacy `invest`
-                // row (content.placeholder.ts, ADDENDUM-01 §4.4); `categories` here
-                // is always CATEGORIES_BY_TYPE[expense|income|saving], which never
-                // contains "park" or "invest" at runtime.
-                onClick={() => setCategoryId(c.id as CategoryId)}
-              >
-                {c.label}
-              </ChipItem>
-            ))}
-          </div>
-
-          <WheelDatePicker
-            title="날짜 선택"
-            triggerLabel="날짜"
-            value={ymdToDate(date)}
-            // TDS's WheelDatePicker only reads `value` for the trigger's
-            // displayed text — the wheel itself opens at `initialDate`
-            // (component default: `new Date()`, the REAL device date). Under
-            // TimeTravel that silently disagreed with `date`/`today`: opening
-            // the picker and tapping 적용 with no scroll rewrote the entry to
-            // the real machine date (round-2 finding C1, QA evidence).
-            initialDate={ymdToDate(date)}
-            max={ymdToDate(today)}
-            onChange={(d) => setDate(dateToYmd(d))}
-          />
-
-          <TextField
-            variant="box"
-            label="메모"
-            placeholder="메모 (선택)"
-            value={memo}
-            maxLength={MEMO_MAX}
-            onChange={(e) => setMemo(e.target.value.slice(0, MEMO_MAX))}
+          <EntryFields
+            type={type}
+            amountDigits={amountDigits}
+            onAmountDigit={pressDigit}
+            onAmountBackspace={pressBackspace}
+            categoryId={categoryId}
+            onSelectCategory={setCategoryId}
+            date={date}
+            today={today}
+            onDateChange={setDate}
+            memo={memo}
+            onMemoChange={setMemo}
           />
         </div>
       </BottomSheet>

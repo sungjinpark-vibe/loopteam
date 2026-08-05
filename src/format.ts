@@ -14,6 +14,15 @@ export function decommaizeAmount(formatted: string): string {
   return formatted.replace(/[^0-9]/g, "");
 }
 
+/** ~99억 원 — a generous keypad input ceiling, not a balance dial. */
+const AMOUNT_DIGITS_MAX = 10;
+
+/** Appends one keypad digit to a normalized amount-digit string: caps length at AMOUNT_DIGITS_MAX, strips leading zeros. Shared by EntrySheet (S4) and EntryDetailSheet (S5) via `EntryFields`. */
+export function appendAmountDigit(prevDigits: string, digit: string): string {
+  const next = (prevDigits + digit).replace(/^0+(?=\d)/, "");
+  return next.length > AMOUNT_DIGITS_MAX ? prevDigits : next;
+}
+
 /**
  * KRW amount -> Korean 만/억/천 reading hint, spec §5 F1 AC:
  * "Typing 12000 shows '12,000원' + hint '1만 2천원'". Approximate by design

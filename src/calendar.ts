@@ -48,6 +48,13 @@ export function monthBefore(ym: string): string {
   return ymOnly(prev.y, prev.m);
 }
 
+/** 'YYYY-MM' one month after `ym` — S3's month ‹ › navigation (F8). */
+export function monthAfter(ym: string): string {
+  const { y, m } = parseYm(ym);
+  const next = shiftMonth(y, m, 1);
+  return ymOnly(next.y, next.m);
+}
+
 /** 'YYYY-MM-DD' one calendar day before `dateStr` — F7's "was the previous act yesterday?" check. */
 export function dayBefore(dateStr: string): string {
   const y = Number(dateStr.slice(0, 4));

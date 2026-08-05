@@ -5,10 +5,13 @@ import {
   budgetPace,
   buildingCount,
   canClaimNoSpend,
+  categoryDonut,
   categoryTotals,
+  dayGroups,
   grownStructures,
   ladderFor,
   monthTotal,
+  monthTotals,
   moodTier,
   plotFromIndex,
   rebuildDerived,
@@ -444,5 +447,101 @@ describe("grownStructures", () => {
     const grown = grownStructures(before, after, multiRungLadder);
     expect(grown).toEqual(["deposit"]);
     expect(grown.length).toBe(1);
+  });
+});
+
+// ── F8 기록 selectors — MVP-SPEC §5 F8 / §8.2 ──
+
+describe("monthTotals", () => {
+  it("sums each type for the month and derives netKrw = income - expense", () => {
+    const entries: LedgerEntry[] = [
+      makeEntry("expense", 10_000, "2026-08-01"),
+      makeEntry("expense", 5_000, "2026-08-02"),
+      makeEntry("income", 30_000, "2026-08-03"),
+      makeEntry("saving", 20_000, "2026-08-04"),
+      makeEntry("expense", 999_999, "2026-07-01"), // different month, must not leak in
+    ];
+    expect(monthTotals(entries, "2026-08")).toEqual({
+      expenseKrw: 15_000,
+      incomeKrw: 30_000,
+      savingKrw: 20_000,
+      netKrw: 15_000,
+    });
+  });
+
+  it("an empty month totals all zero", () => {
+    expect(monthTotals([], "2026-08")).toEqual({ expenseKrw: 0, incomeKrw: 0, savingKrw: 0, netKrw: 0 });
+  });
+});
+
+describe("categoryDonut", () => {
+  it("empty month -> [] (no divide-by-zero, no broken chart)", () => {
+    expect(categoryDonut([], "2026-08")).toEqual([]);
+  });
+
+  it("descending by amount, and percentages sum to exactly 100", () => {
+    const entries: LedgerEntry[] = [
+      makeEntry("expense", 60_000, "2026-08-01", "food"),
+      makeEntry("expense", 30_000, "2026-08-02", "cafe"),
+      makeEntry("expense", 10_000, "2026-08-03", "transport"),
+    ];
+    const slices = categoryDonut(entries, "2026-08");
+    expect(slices.map((s) => s.categoryId)).toEqual(["food", "cafe", "transport"]);
+    expect(slices.reduce((sum, s) => sum + s.percent, 0)).toBe(100);
+  });
+
+  it("a three-way split that would naively round to 99 or 101 still sums to exactly 100", () => {
+    // 1/3 each -> 33.33...% naive-rounds to 33 x 3 = 99.
+    const entries: LedgerEntry[] = [
+      makeEntry("expense", 1_000, "2026-08-01", "food"),
+      makeEntry("expense", 1_000, "2026-08-02", "cafe"),
+      makeEntry("expense", 1_000, "2026-08-03", "transport"),
+    ];
+    const slices = categoryDonut(entries, "2026-08");
+    expect(slices.reduce((sum, s) => sum + s.percent, 0)).toBe(100);
+    for (const s of slices) expect(s.percent === 33 || s.percent === 34).toBe(true);
+  });
+
+  it("ignores income/saving and other months", () => {
+    const entries: LedgerEntry[] = [
+      makeEntry("expense", 10_000, "2026-08-01", "food"),
+      makeEntry("income", 999_999, "2026-08-02", "salary"),
+      makeEntry("saving", 999_999, "2026-08-03", "goal"),
+      makeEntry("expense", 999_999, "2026-07-01", "food"),
+    ];
+    expect(categoryDonut(entries, "2026-08")).toEqual([{ categoryId: "food", totalKrw: 10_000, percent: 100 }]);
+  });
+});
+
+describe("dayGroups", () => {
+  it("groups entries by day, most recent day first, most-recently-created entry first within a day", () => {
+    const entries: LedgerEntry[] = [
+      { ...makeEntry("expense", 1_000, "2026-08-01"), createdAt: 1 },
+      { ...makeEntry("expense", 2_000, "2026-08-01"), createdAt: 2 },
+      { ...makeEntry("income", 5_000, "2026-08-03"), createdAt: 3 },
+    ];
+    const groups = dayGroups(entries, [], "2026-08");
+    expect(groups.map((g) => g.date)).toEqual(["2026-08-03", "2026-08-01"]);
+    expect(groups[1].entries.map((e) => e.amountKrw)).toEqual([2_000, 1_000]); // createdAt desc
+    expect(groups[1].expenseKrw).toBe(3_000);
+  });
+
+  it("a claimed 무지출 데이 with zero entries still produces a distinct zero-amount row", () => {
+    const groups = dayGroups([], ["2026-08-05"], "2026-08");
+    expect(groups).toEqual([{ date: "2026-08-05", entries: [], isNoSpend: true, expenseKrw: 0, incomeKrw: 0, savingKrw: 0 }]);
+  });
+
+  it("a day with both a no-spend claim and other entries (income logged) keeps both", () => {
+    const entries: LedgerEntry[] = [makeEntry("income", 5_000, "2026-08-05")];
+    const groups = dayGroups(entries, ["2026-08-05"], "2026-08");
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ date: "2026-08-05", isNoSpend: true, incomeKrw: 5_000 });
+    expect(groups[0].entries).toHaveLength(1);
+  });
+
+  it("filters no-spend days and entries outside the requested month", () => {
+    const entries: LedgerEntry[] = [makeEntry("expense", 1_000, "2026-07-15")];
+    const groups = dayGroups(entries, ["2026-07-20"], "2026-08");
+    expect(groups).toEqual([]);
   });
 });

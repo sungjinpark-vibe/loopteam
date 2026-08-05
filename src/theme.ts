@@ -16,6 +16,7 @@ const TOWN_CSS_VARS: Record<string, string> = {
   "--town-grey200": colors.grey200,
   "--town-grey100": colors.grey100,
   "--town-blue500": colors.blue500,
+  "--town-red500": colors.red500, // S3 기록 — 지출 row amount colour (F8)
   // ADDENDUM-01 §2.3/§6.1 item 4 — one paint colour per savings StructureKind
   // (placeholder shape, D-22 replaces with real art). No CSS fallback (R-3):
   // this file is the one place that binds a var to a token.

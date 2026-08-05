@@ -34,6 +34,7 @@ import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
 import { clock } from "./platform/clock";
 import { random } from "./platform/random";
+import { savingsBucketOf } from "./savingsBuckets";
 import { BALANCE } from "./balance.placeholder";
 import {
   buildingCount as countBuildings,
@@ -43,15 +44,32 @@ import {
   slotsRemainingToday,
 } from "./selectors";
 import { createChunkedStorage, defaultTownState, yieldToMainThread, type CoreState } from "./storage";
-import type { Building, BudgetSetting, LedgerEntry, SavingCategoryId, TownState } from "./types";
+import type { Building, BudgetSetting, CategoryId, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
   town: TownState;
   buildings: Building[];
   /** Current month only (F10) — sufficient for F15's "any 지출 today?" check. */
   entries: LedgerEntry[];
+  /**
+   * F8/F9 — every OTHER month's entries the 기록 screen has navigated to so
+   * far, loaded lazily one chunk at a time (`ensureMonthLoaded`) and kept
+   * here for the session so re-visiting a month doesn't re-read/re-parse its
+   * chunk. The CURRENT month deliberately lives in `entries` above, not here
+   * — one array per month, never two sources of truth for the same chunk.
+   */
+  historyEntries: Record<string, LedgerEntry[]>;
   budget: BudgetSetting;
   onboarded: boolean;
+}
+
+/** `ym`'s entries from whichever of `entries`/`historyEntries` holds them — `undefined` if that month hasn't been loaded yet (F8's "only the viewed chunk loads"). */
+function entriesForMonth(
+  state: Pick<LoadedState, "entries" | "historyEntries">,
+  ym: string,
+  todayYm: string,
+): LedgerEntry[] | undefined {
+  return ym === todayYm ? state.entries : state.historyEntries[ym];
 }
 
 export interface AddEntryResult {
@@ -71,11 +89,26 @@ export interface AddEntryResult {
   queueLength: number;
 }
 
+/**
+ * F9 edit fields. `type` is deliberately NOT here: the spec's ACs for F9
+ * only ever exercise amount/memo/date/category edits, and a type change
+ * would have to re-decide slot consumption, queueing, and 저축탑 membership
+ * from scratch — a different, riskier operation the spec doesn't actually
+ * ask for. `EntryDetailSheet` renders `type` read-only for this reason.
+ */
+export interface EntryEditPatch {
+  amountKrw?: number;
+  categoryId?: CategoryId;
+  occurredOn?: string;
+  memo?: string;
+}
+
 function freshCore(now: number): LoadedState {
   return {
     town: defaultTownState(),
     buildings: [],
     entries: [],
+    historyEntries: {},
     budget: { monthlyBudgetKrw: null, updatedAt: now },
     onboarded: true, // F11 onboarding is out of scope for this task — go straight to the town
   };
@@ -351,6 +384,7 @@ export function useTownStore() {
         town: drained.town,
         buildings: drained.buildings,
         entries: currentMonthEntries,
+        historyEntries: {},
         budget: core.budget,
         onboarded: core.onboarded,
       });
@@ -582,6 +616,155 @@ export function useTownStore() {
     return result;
   }, []);
 
+  // ── F8/F9 — 기록 (history) ──
+
+  /** Loads `ym`'s entries chunk into `historyEntries` if it isn't already known — a no-op for the current month (already in `entries`) or an already-cached month. Synchronous: `loadEntriesForMonth` only ever hits the (already in-memory) debounce buffer or a single `localStorage.getItem`. */
+  const ensureMonthLoaded = useCallback((ym: string) => {
+    const prev = stateRef.current;
+    if (prev === null) return;
+    const todayYm = clock.today().slice(0, 7);
+    if (ym === todayYm || prev.historyEntries[ym] !== undefined) return;
+    const { entries } = storageRef.current.loadEntriesForMonth(ym);
+    const next: LoadedState = { ...prev, historyEntries: { ...prev.historyEntries, [ym]: entries } };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  /** `ym`'s entries — `[]` if that month hasn't been loaded yet (call `ensureMonthLoaded` first). */
+  const getMonthEntries = useCallback((ym: string): LedgerEntry[] => {
+    const prev = stateRef.current;
+    if (prev === null) return [];
+    return entriesForMonth(prev, ym, clock.today().slice(0, 7)) ?? [];
+  }, []);
+
+  /**
+   * F9 delete: removes the entry from its month chunk and, if it built
+   * something, removes that building too (building count -1, its plot
+   * becomes a permanent empty lot — `nextPlotIndex` is never decremented, so
+   * nothing else reflows, and `slotsUsedToday` is untouched — the consumed
+   * slot is NOT refunded, per spec). A deleted 저축 entry backs its amount out
+   * of the tower's denormalized totals so 기록/S2 stay consistent with the
+   * entries that actually still exist.
+   */
+  const deleteEntry = useCallback((entryId: string, ym: string) => {
+    const prev = stateRef.current;
+    if (prev === null) return;
+    const todayYm = clock.today().slice(0, 7);
+    const list = entriesForMonth(prev, ym, todayYm);
+    const entry = list?.find((e) => e.id === entryId);
+    if (!entry) return;
+
+    let buildings = prev.buildings;
+    const bound = buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entryId);
+    if (bound) {
+      buildings = buildings.filter((b) => b.id !== bound.id);
+      const buildYm = bound.builtOn.slice(0, 7);
+      mutateBuildingsForMonth(storageRef.current, buildYm, (existing) => existing.filter((b) => b.id !== bound.id));
+    }
+
+    let town = prev.town;
+    if (entry.type === "saving") {
+      const bucket = savingsBucketOf(entry.categoryId);
+      const buckets = { ...(town.savingsByCategoryKrw ?? {}) };
+      buckets[bucket] = Math.max(0, (buckets[bucket] ?? 0) - entry.amountKrw);
+      town = { ...town, cumulativeSavingsKrw: Math.max(0, town.cumulativeSavingsKrw - entry.amountKrw), savingsByCategoryKrw: buckets };
+    }
+
+    const newList = list!.filter((e) => e.id !== entryId);
+    const core: CoreState = { town, budget: prev.budget, onboarded: prev.onboarded };
+    storageRef.current.saveEntriesForMonth(ym, newList, core);
+
+    const next: LoadedState = {
+      ...prev,
+      town,
+      buildings,
+      entries: ym === todayYm ? newList : prev.entries,
+      historyEntries: ym === todayYm ? prev.historyEntries : { ...prev.historyEntries, [ym]: newList },
+    };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  /**
+   * F9 edit: amount/memo/date changes never touch the bound building (spec:
+   * "does not move the building"); a category change re-skins that building
+   * in place (same `plotIndex`/`builtOn`), since `type` is not editable here
+   * (see `EntryEditPatch`'s doc) and building placement is entirely a
+   * function of the entry's SLOT-consuming act, not its category. Re-dating
+   * across a month boundary moves the entry between its two entries chunks
+   * (removed from the old month, appended to the new one, `saveEntriesForMonth`
+   * registers the new month in the index if it's genuinely new) while the
+   * building — which rose "today", independent of a backdated `occurredOn`,
+   * per F2/F4 — stays exactly where it always was.
+   */
+  const updateEntry = useCallback((entryId: string, ym: string, patch: EntryEditPatch) => {
+    const prev = stateRef.current;
+    if (prev === null) return;
+    const todayYm = clock.today().slice(0, 7);
+    const list = entriesForMonth(prev, ym, todayYm);
+    const oldEntry = list?.find((e) => e.id === entryId);
+    if (!oldEntry) return;
+
+    const newEntry: LedgerEntry = { ...oldEntry, ...patch, updatedAt: clock.now() };
+    const newYm = newEntry.occurredOn.slice(0, 7);
+
+    let buildings = prev.buildings;
+    const bound = buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entryId);
+    if (bound && patch.categoryId !== undefined && patch.categoryId !== oldEntry.categoryId) {
+      const updatedBuilding: Building = { ...bound, categoryId: patch.categoryId };
+      buildings = buildings.map((b) => (b.id === bound.id ? updatedBuilding : b));
+      const buildYm = bound.builtOn.slice(0, 7);
+      mutateBuildingsForMonth(storageRef.current, buildYm, (existing) =>
+        existing.map((b) => (b.id === bound.id ? updatedBuilding : b)),
+      );
+    }
+
+    let town = prev.town;
+    if (oldEntry.type === "saving") {
+      const oldBucket = savingsBucketOf(oldEntry.categoryId);
+      const newBucket = savingsBucketOf(newEntry.categoryId);
+      const buckets = { ...(town.savingsByCategoryKrw ?? {}) };
+      buckets[oldBucket] = Math.max(0, (buckets[oldBucket] ?? 0) - oldEntry.amountKrw);
+      buckets[newBucket] = (buckets[newBucket] ?? 0) + newEntry.amountKrw;
+      town = {
+        ...town,
+        cumulativeSavingsKrw: town.cumulativeSavingsKrw - oldEntry.amountKrw + newEntry.amountKrw,
+        savingsByCategoryKrw: buckets,
+      };
+    }
+
+    const core: CoreState = { town, budget: prev.budget, onboarded: prev.onboarded };
+    let entries = prev.entries;
+    let historyEntries = prev.historyEntries;
+
+    if (newYm === ym) {
+      const updatedList = list!.map((e) => (e.id === entryId ? newEntry : e));
+      storageRef.current.saveEntriesForMonth(ym, updatedList, core);
+      if (ym === todayYm) entries = updatedList;
+      else historyEntries = { ...historyEntries, [ym]: updatedList };
+    } else {
+      // Cross-month re-date: remove from the OLD chunk, append to the NEW
+      // one — two `saveEntriesForMonth` writes, exactly the "moves the entry
+      // between month chunks" the spec names. The destination month's
+      // existing entries are read fresh from storage when this session
+      // hasn't visited it yet, never assumed empty.
+      const oldList = list!.filter((e) => e.id !== entryId);
+      storageRef.current.saveEntriesForMonth(ym, oldList, core);
+      if (ym === todayYm) entries = oldList;
+      else historyEntries = { ...historyEntries, [ym]: oldList };
+
+      const destList = entriesForMonth({ entries, historyEntries }, newYm, todayYm) ?? storageRef.current.loadEntriesForMonth(newYm).entries;
+      const newDestList = [...destList, newEntry];
+      storageRef.current.saveEntriesForMonth(newYm, newDestList, core);
+      if (newYm === todayYm) entries = newDestList;
+      else historyEntries = { ...historyEntries, [newYm]: newDestList };
+    }
+
+    const next: LoadedState = { ...prev, town, buildings, entries, historyEntries };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
   const today = clock.today();
   return {
     loading: state === null,
@@ -607,5 +790,15 @@ export function useTownStore() {
     addEntry,
     claimNoSpend,
     moveBuilding,
+    // ── F8/F9 기록 ──
+    budgetKrw: state?.budget.monthlyBudgetKrw ?? null,
+    noSpendDays: state?.town.noSpendDays ?? [],
+    getMonthEntries,
+    ensureMonthLoaded,
+    deleteEntry,
+    updateEntry,
   };
 }
+
+/** The hook's own return shape — lets S3/S5 components (`HistoryScreen`, `EntryDetailSheet`'s callers) type a `Pick<TownStore, ...>` prop instead of re-declaring each field's type by hand. */
+export type TownStore = ReturnType<typeof useTownStore>;

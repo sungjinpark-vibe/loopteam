@@ -311,3 +311,94 @@ export function grownStructures(
   }
   return grown;
 }
+
+// ── F8 기록 (history + stats) selectors — APPEND ONLY, nothing above this line is opened ──
+
+/** Month totals for S3's totals row (지출/수입/저축/순액). `netKrw` is income minus expense — saving is money moved, not spent, so it doesn't offset the net. */
+export interface MonthTotals {
+  expenseKrw: number;
+  incomeKrw: number;
+  savingKrw: number;
+  netKrw: number;
+}
+
+export function monthTotals(entries: readonly LedgerEntry[], ym: string): MonthTotals {
+  const expenseKrw = monthTotal(entries, ym, "expense");
+  const incomeKrw = monthTotal(entries, ym, "income");
+  const savingKrw = monthTotal(entries, ym, "saving");
+  return { expenseKrw, incomeKrw, savingKrw, netKrw: incomeKrw - expenseKrw };
+}
+
+export interface DonutSlice {
+  categoryId: CategoryId;
+  totalKrw: number;
+  /** Integer percent; every month's slices sum to exactly 100 (see below). */
+  percent: number;
+}
+
+/**
+ * F8's expense category donut: `categoryTotals`' own descending order, with
+ * INTEGER percentages guaranteed to sum to exactly 100 for a non-empty month.
+ * Rounding each slice independently (`Math.round`) can under/overshoot 100 by
+ * a point or two — the largest-remainder method instead floors every slice,
+ * then hands the leftover point(s) to the slices with the biggest fractional
+ * part first, which is what the spec's AC ("percentages sum to 100 within
+ * rounding") asks for. Empty month -> `[]` (no divide-by-zero), so the caller
+ * renders an empty state instead of a broken chart.
+ */
+export function categoryDonut(entries: readonly LedgerEntry[], ym: string): DonutSlice[] {
+  const totals = categoryTotals(entries, ym);
+  const grandTotal = totals.reduce((sum, t) => sum + t.totalKrw, 0);
+  if (grandTotal <= 0) return [];
+  const raw = totals.map((t) => (t.totalKrw / grandTotal) * 100);
+  const floors = raw.map(Math.floor);
+  const leftover = 100 - floors.reduce((a, b) => a + b, 0);
+  const byFractionDesc = raw.map((v, i) => ({ i, frac: v - floors[i] })).sort((a, b) => b.frac - a.frac);
+  const percents = [...floors];
+  for (let k = 0; k < leftover; k++) percents[byFractionDesc[k].i] += 1;
+  return totals.map((t, i) => ({ categoryId: t.categoryId, totalKrw: t.totalKrw, percent: percents[i] }));
+}
+
+/** One day's rows in S3's entry list. */
+export interface DayGroup {
+  date: string; // 'YYYY-MM-DD'
+  /** This day's entries, most-recently-created first. */
+  entries: LedgerEntry[];
+  /** A claimed 무지출 데이 for this date — spec's "distinct zero-amount row" AC, even when `entries` is otherwise empty. */
+  isNoSpend: boolean;
+  expenseKrw: number;
+  incomeKrw: number;
+  savingKrw: number;
+}
+
+/**
+ * F8's reverse-chronological, day-grouped entry list for one month. A day
+ * that was claimed as a 무지출 데이 always produces a group — even with zero
+ * entries that day — so the no-spend row is never silently dropped; a day
+ * that also logged income/saving keeps both.
+ */
+export function dayGroups(entries: readonly LedgerEntry[], noSpendDays: readonly string[], ym: string): DayGroup[] {
+  const byDate = new Map<string, LedgerEntry[]>();
+  for (const e of entries) {
+    if (ymOf(e.occurredOn) !== ym) continue;
+    const list = byDate.get(e.occurredOn);
+    if (list) list.push(e);
+    else byDate.set(e.occurredOn, [e]);
+  }
+  const noSpendInMonth = noSpendDays.filter((d) => ymOf(d) === ym);
+  const dates = new Set<string>([...byDate.keys(), ...noSpendInMonth]);
+  return [...dates]
+    .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)) // descending — most recent day first
+    .map((date) => {
+      const dayEntries = (byDate.get(date) ?? []).slice().sort((a, b) => b.createdAt - a.createdAt);
+      let expenseKrw = 0;
+      let incomeKrw = 0;
+      let savingKrw = 0;
+      for (const e of dayEntries) {
+        if (e.type === "expense") expenseKrw += e.amountKrw;
+        else if (e.type === "income") incomeKrw += e.amountKrw;
+        else savingKrw += e.amountKrw;
+      }
+      return { date, entries: dayEntries, isNoSpend: noSpendInMonth.includes(date), expenseKrw, incomeKrw, savingKrw };
+    });
+}

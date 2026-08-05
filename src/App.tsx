@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, useToast } from "@toss/tds-mobile";
+import { useToast } from "@toss/tds-mobile";
 import "./App.css";
 import { BALANCE } from "./balance.placeholder";
 import { levelUpToastFor } from "./content.placeholder";
-import { EntrySheet } from "./components/EntrySheet";
+import { HistoryScreen } from "./components/HistoryScreen";
 import { TierCelebration } from "./components/TierCelebration";
-import { TownGrid } from "./components/TownGrid";
-import { TownHeader } from "./components/TownHeader";
-import type { EntryDraft } from "./entryActions";
-import { useMoveMode } from "./hooks/useMoveMode";
-import { tier as computeTier } from "./selectors";
+import { TownScreen } from "./components/TownScreen";
 import { useTownStore, type Notice } from "./useTownStore";
 
 /**
@@ -41,18 +37,22 @@ function noticeToastMessage(notice: Exclude<Notice, { kind: "tier" }>): string {
   }
 }
 
+type Tab = "town" | "history";
+
 /**
- * S2 (우리 동네) + S4 (입력 시트) — MVP-SPEC build order.
- * Step 2 (T003) closed F1+F2+F3's loop. This task (step 3) adds the
- * retention layer: F4 slot reset, F14 materials queue, F5 tier celebration,
- * F7 streak, F15 무지출 데이.
+ * Root shell: one `useTownStore()` instance (one storage client, one
+ * debounce buffer — see `TownScreen.tsx`'s doc for why this must not be
+ * called twice), the 2-tab bottom nav between S2 (우리 동네) and S3 (기록,
+ * this task), and the notice-toast/tier-celebration plumbing that must fire
+ * regardless of which tab is active (a boot-time notice can arrive before
+ * the player ever looks at either tab). Nothing here is screen-specific —
+ * that all lives in `TownScreen`/`HistoryScreen`.
  */
 function App() {
   const store = useTownStore();
   const { notice, dismissNotice } = store;
-  const [sheetOpen, setSheetOpen] = useState(false);
   const { openToast } = useToast();
-  const move = useMoveMode(store.buildings, store.moveBuilding);
+  const [tab, setTab] = useState<Tab>("town");
 
   // One-shot notices (F10 recovered corruption, F14 "return promise kept" on
   // boot, F5 tier celebration, ADDENDUM-02 §4.5 move hint) share one FIFO
@@ -87,125 +87,46 @@ function App() {
     return <div className="town-loading">불러오는 중…</div>;
   }
 
-  function handleSave(draft: EntryDraft) {
-    const result = store.addEntry(draft);
-    setSheetOpen(false);
-    // F14: a save with zero slots either queues (return-promise toast) or,
-    // once the queue itself is full, overflows plainly — never a silent no-op.
-    if (result.queued) {
-      // `result.queueLength` is the queue's length AFTER this save (post-push) —
-      // `store.queueLength` would read the PRE-save value here, from the
-      // render closure captured before `addEntry`'s state commit re-renders.
-      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`);
-    } else if (result.queueOverflow) {
-      openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
-    }
-  }
-
-  function handleClaimNoSpend() {
-    const claimed = store.claimNoSpend();
-    if (claimed) openToast("오늘은 무지출! 공원이 생겼어요.");
-  }
-
-  const tier = computeTier(store.buildingCount, BALANCE.tierThresholds);
-
   return (
-    <div className="town-screen">
+    <div className="app-shell">
       {BALANCE.BALANCE_UNSET && (
         <div className="balance-banner" role="status">
           밸런스 미승인 — 임시 수치
         </div>
       )}
 
-      <TownHeader
-        townName={store.townName}
-        buildingCount={store.buildingCount}
-        slotsRemaining={store.slotsRemaining}
-        dailyBuildSlots={store.dailyBuildSlots}
-        tier={tier}
-        streakDays={store.streakDays}
-        queueLength={store.queueLength}
-      />
+      {tab === "town" ? <TownScreen store={store} /> : <HistoryScreen store={store} />}
 
-      {store.canClaimNoSpend && (
-        <div className="town-nospend-action">
-          <Button as="button" color="primary" variant="weak" size="medium" display="block" onClick={handleClaimNoSpend}>
-            오늘 무지출!
-          </Button>
-        </div>
-      )}
-
-      {/* ADDENDUM-01 §2.4 (break B13) — the town grid now always renders: the
-          저축 블록 is a row of it, and it must exist on a fresh install. The
-          empty-state copy is a banner ABOVE the grid, not an alternative to
-          it, and keeps F3's AC (message + ↘ arrow at 0 buildings). */}
-      {store.buildingCount === 0 && (
-        <div className="town-empty-state town-empty-state--with-grid">
-          <p>첫 지출을 기록하면 첫 건물이 생겨요</p>
-          <div className="town-empty-arrow" aria-hidden="true">
-            ↘
-          </div>
-        </div>
-      )}
-
-      <TownGrid
-        nextPlotIndex={store.nextPlotIndex}
-        buildings={store.buildings}
-        justBuiltId={store.justBuiltId}
-        savingsByCategoryKrw={store.savingsByCategoryKrw}
-        ladder={BALANCE.savingsTowerSegments}
-        ladderOverrides={BALANCE.savingsStructureSegments}
-        justGrew={store.justGrew}
-        onRiseSettled={store.clearJustGrew}
-        movingId={move.movingId}
-        cursorIndex={move.cursorIndex}
-        onPlotLongPress={move.onPlotLongPress}
-        onPlotTap={move.onPlotTap}
-        onCursorMove={move.onCursorMove}
-        onCancel={move.cancel}
-      />
-
-      {/* ADDENDUM-02 §4.3/§4.4 — rendered OUTSIDE `.town-grid` (a sibling,
-          not a grid child) so ADDENDUM-01 §2.4a's direct-children guard on
-          the grid (AC-M7) is untouched. */}
-      {move.movingId !== null ? (
-        <div className="town-move-bar" role="status">
-          <span>{move.rejectMessage ?? "옮길 자리를 골라주세요"}</span>
-          <Button as="button" color="primary" variant="weak" size="small" onClick={move.cancel}>
-            취소
-          </Button>
-        </div>
-      ) : (
-        move.justMoved !== null && (
-          <div className="town-move-bar" role="status">
-            <span>{move.undoFailedMessage ?? "건물을 옮겼어요"}</span>
-            <Button as="button" color="primary" variant="weak" size="small" onClick={move.undo}>
-              되돌리기
-            </Button>
-            <Button as="button" color="primary" variant="fill" size="small" onClick={move.dismissJustMoved}>
-              완료
-            </Button>
-          </div>
-        )
-      )}
-
-      {/* The FAB hides in move mode — one `useBackGuard` history entry per
-          open in-page modal at a time (§4.3 "Enter" row). */}
-      {move.movingId === null && (
-        <Button
-          as="button"
-          color="primary"
-          variant="fill"
-          size="xlarge"
-          aria-label="거래 입력"
-          className="town-fab"
-          onClick={() => setSheetOpen(true)}
+      {/* Minimal 2-item bottom tab bar (spec §6: "a 2-item bottom tab bar
+          (우리 동네 / 기록). Maximum depth is 2") — no router: two screens,
+          switched by local state, is the whole navigation model this app
+          needs right now. */}
+      <nav className="bottom-tab-bar" role="tablist" aria-label="화면 전환">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "town"}
+          className={`bottom-tab${tab === "town" ? " bottom-tab--active" : ""}`}
+          onClick={() => setTab("town")}
         >
-          +
-        </Button>
-      )}
-
-      <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
+          <span className="bottom-tab-icon" aria-hidden="true">
+            🏠
+          </span>
+          <span>우리 동네</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "history"}
+          className={`bottom-tab${tab === "history" ? " bottom-tab--active" : ""}`}
+          onClick={() => setTab("history")}
+        >
+          <span className="bottom-tab-icon" aria-hidden="true">
+            📒
+          </span>
+          <span>기록</span>
+        </button>
+      </nav>
 
       <TierCelebration tier={notice?.kind === "tier" ? notice.tier : null} onDismiss={dismissNotice} />
     </div>

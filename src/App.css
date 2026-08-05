@@ -1,7 +1,60 @@
+:root {
+  --tab-bar-h: 56px;
+}
+
 #root {
   width: 100%;
   min-height: 100vh;
   box-sizing: border-box;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+/* ── Bottom tab bar — 우리 동네 / 기록 (spec §6: "2-item bottom tab bar") ── */
+
+.bottom-tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  height: var(--tab-bar-h);
+  border-top: 1px solid var(--town-grey200);
+  background: var(--town-white);
+}
+
+@media (min-width: 481px) {
+  .bottom-tab-bar {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+}
+
+.bottom-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  font-size: 11px;
+  color: var(--town-grey600);
+}
+
+.bottom-tab-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bottom-tab--active {
+  color: var(--town-blue500);
+  font-weight: 700;
 }
 
 @media (min-width: 481px) {
@@ -39,7 +92,7 @@
 .town-screen {
   position: relative;
   min-height: 100vh;
-  padding-bottom: 96px;
+  padding-bottom: calc(var(--tab-bar-h) + 96px);
   background: linear-gradient(180deg, #eaf4ff 0%, var(--town-white) 220px);
 }
 
@@ -112,7 +165,7 @@
 .town-empty-arrow {
   position: fixed;
   right: 56px;
-  bottom: 96px;
+  bottom: calc(var(--tab-bar-h) + 96px);
   font-size: 28px;
   color: var(--town-blue500);
 }
@@ -126,7 +179,7 @@
 button.town-fab {
   position: fixed;
   right: 20px;
-  bottom: 24px;
+  bottom: calc(var(--tab-bar-h) + 24px);
   width: 56px;
   height: 56px;
   min-width: 56px;
@@ -197,7 +250,7 @@ button.town-fab {
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: 24px;
+  bottom: calc(var(--tab-bar-h) + 24px);
   z-index: 5;
   display: flex;
   align-items: center;
@@ -699,4 +752,280 @@ button.town-fab {
 .entry-keypad td {
   height: 40px !important;
   line-height: 40px !important;
+}
+
+/* ── S5 내역 상세 시트 — F9 (`EntryDetailSheet` reuses `.entry-sheet-*`/
+ * `.category-grid`/`.entry-amount-*`/`.entry-keypad` above via `EntryFields`;
+ * only the read-only type badge and the delete button's spacing are new). ── */
+
+.entry-detail-type-badge {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--town-grey700);
+  background: var(--town-grey100);
+}
+
+/* ── S3 기록 ── */
+
+.history-screen {
+  min-height: 100vh;
+  padding: 12px 20px calc(var(--tab-bar-h) + 32px);
+}
+
+.history-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 0 16px;
+}
+
+.history-month-label {
+  min-width: 96px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--town-grey900);
+}
+
+.history-totals {
+  display: grid;
+  /* Round-1 finding C1: a flat `repeat(4, 1fr)` gives each of four 7-digit
+   * KRW figures (e.g. "1,391,500원") only ~1/4 of the card width, which
+   * ellipsized at every width this app supports (320/360px) — the same
+   * class of narrow-viewport label overflow T011 round-7 already fixed
+   * elsewhere (commit 8287cc4). 2x2 below 400px roughly doubles each cell's
+   * width; four-across only once there is room to spare. */
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--town-grey100);
+}
+
+@media (min-width: 400px) {
+  .history-totals {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.history-total-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.history-total-label {
+  font-size: 11px;
+  color: var(--town-grey600);
+}
+
+.history-total-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--town-grey900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.history-pace {
+  margin-top: 16px;
+}
+
+.history-pace-empty {
+  font-size: 13px;
+  color: var(--town-grey600);
+}
+
+.history-pace-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--town-grey200);
+  overflow: hidden;
+}
+
+.history-pace-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 300ms ease;
+}
+
+.history-pace-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--town-grey600);
+}
+
+.history-donut-section {
+  margin-top: 20px;
+}
+
+.history-donut-empty {
+  font-size: 13px;
+  color: var(--town-grey600);
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* A ring, not a filled pie — the centre hole is a plain inset background
+ * layer (native CSS, no SVG/canvas/chart dependency needed for one donut). */
+.history-donut {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+}
+.history-donut::after {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background: var(--town-white);
+}
+
+.history-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-donut-legend-item {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.history-donut-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.history-donut-legend-label {
+  color: var(--town-grey900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-donut-legend-amount {
+  color: var(--town-grey600);
+}
+
+.history-donut-legend-percent {
+  min-width: 34px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--town-grey900);
+}
+
+.history-donut-total {
+  margin-top: 8px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--town-grey600);
+}
+
+.history-day-list {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-day-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Perf (rubric C4): a dense month (300+ entries, spec's own stress case)
+   * can produce ~30 day groups with several rows each. `content-visibility:
+   * auto` lets the browser skip layout/paint/style work for groups scrolled
+   * out of view instead of doing it for the whole list on every render — a
+   * native platform feature (no virtualization library needed) that degrades
+   * safely: unsupported engines just ignore the property and render normally.
+   * `contain-intrinsic-size` gives the browser a placeholder height so the
+   * scrollbar doesn't jump as off-screen groups get measured.
+   * ponytail: not a substitute for real list virtualization if a month ever
+   * needs to hold thousands of rows — revisit with row-level windowing if a
+   * dense-month profile ever shows this isn't enough. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
+.history-day-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--town-grey700);
+}
+
+.history-day-subtotal {
+  font-weight: 400;
+  color: var(--town-grey600);
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  font-size: 14px;
+  color: var(--town-grey900);
+}
+
+.history-row-icon {
+  font-size: 18px;
+  text-align: center;
+}
+
+.history-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-row-memo {
+  color: var(--town-grey600);
+  font-size: 12px;
+}
+
+.history-row-amount {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.history-row-amount--expense {
+  color: var(--town-red500);
+}
+
+.history-row-amount--income {
+  color: var(--town-blue500);
+}
+
+.history-row--nospend {
+  color: var(--town-grey600);
+}
+
+.history-row--nospend .history-row-amount {
+  font-weight: 400;
 }
