@@ -5,16 +5,14 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss**. T001-T012 all `done` (scores 90/91/92/95/89/96/[T007
-  reverted]/92/91/94/93/91). Full narrative + lessons from this whole stretch:
+- **Status**: ▶ ACTIVE — **app_in_toss**. T001-T013 all `done` (scores 90/91/92/95/89/96/[T007
+  reverted]/92/91/94/93/91/91). Full narrative + lessons from this whole stretch:
   `state/journal.md` → "2026-08-02 to 2026-08-05 — app_in_toss: new project through T012". Detail on
   any specific task: `backlog/tasks/T0##.md`.
-  **Where things stand**: ADDENDUM-01 (savings buildings + road layout) and ADDENDUM-02
-  (random/movable placement) both fully implemented. MVP build order through F8/F9 (기록/history,
-  edit/delete) done. Remaining for the MVP: F6 (budget/mood) + S6 (settings) + F12 (export/import).
-  Two small non-blocking follow-ups logged, not yet scheduled: a pre-existing TDS dialog quirk
-  (backdrop double-tap, `backlog/tasks/T003.md`), a month-navigation empty-state flash
-  (`backlog/tasks/T012.md`).
+  **Where things stand**: ADDENDUM-01, ADDENDUM-02, and MVP build order F8/F9/F6/S6 all done.
+  **Only F12 (export/import) remains for the MVP.** Small non-blocking follow-ups logged, not yet
+  scheduled: a pre-existing TDS nested-dialog backdrop quirk (seen twice now, `backlog/tasks/T003.md`
+  and `T013.md`), a month-navigation empty-state flash (`backlog/tasks/T012.md`).
   Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
   test → lint → gate:extra — same contract as `gate.ps1`).
 - **Standing note**: Discord replies are only auto-drained during an autonomous tick's scout step —
@@ -29,9 +27,9 @@
 - **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. **T013 running** (F6 budget/mood + S6 settings sheet).
-2. Then T014 (F12 JSON export/import).
-3. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
+1. Report T013 (91/100, passed) to the director; open T014 (F12 JSON export/import) — the last
+   MVP build-order item.
+2. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
 
 ## Open Items
