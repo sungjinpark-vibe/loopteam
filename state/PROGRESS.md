@@ -100,7 +100,11 @@
 - None.
 
 ## Needs Human Review
-- None active — T011's escalation (2026-08-05, no-progress brake at 81/100) was resolved via two
+- **T012 (기록/history screen) escalated 2026-08-05** — hit the 5-round limit at 85/90 (69→87→85).
+  Real findings: missing dense-fixture perf evidence, unreadable donut for same-family colors, an
+  unverified date-edit field, cross-month re-date only proven at the unit-test level. PM attempting
+  one targeted fix-forward round. Full detail: `backlog/tasks/T012.md` Log.
+- None else active — T011's escalation (2026-08-05, no-progress brake at 81/100) was resolved via two
   targeted fix-forward rounds, final score 93/100. Full detail: `backlog/tasks/T011.md` Log.
 - **Security note (2026-08-05, T011), resolved, kept for the pattern**: a `team-lead` scoring agent
   ran `git checkout -- .` while reviewing — team-lead is supposed to be strictly read-only. No data

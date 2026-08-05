@@ -7,6 +7,8 @@
   "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself. Current state + resume pointers: state/PROGRESS.md.",
-  "escalations": [],
+  "escalations": [
+    { "task": "T012", "project": "app_in_toss", "date": "2026-08-05", "scoreHistory": [69,87,85], "reason": "5-round limit, still below 90", "status": "PM attempting one focused fix-forward round on dense-perf evidence and date-field verification; see backlog/tasks/T012.md" }
+  ],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done."
 }
