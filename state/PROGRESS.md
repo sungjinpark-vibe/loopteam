@@ -127,10 +127,15 @@
   instance's outcome.
 
 ## Next Run Should
-1. Report T011 to the director with a screenshot of the five savings structures; discuss next
-   priorities — ADDENDUM-01 and ADDENDUM-02 are both now fully implemented, MVP build order step 4
-   remainder (S3 기록/history, F9 edit/delete, F6 budget/mood, S6 settings, F12 export/import) is the
-   natural next chunk, or the director may have new feedback first.
+1. **Waiting on the director** after reporting a platform feasibility finding (2026-08-05): he asked
+   whether entries could be auto-detected from Toss notifications/transaction history instead of
+   manual entry, "exactly like Fortune City." Researched the Apps-in-Toss SDK docs directly — **no
+   such access exists**: mini-apps cannot read host-app notifications or transaction/payment history,
+   by platform design (security). This is a hard platform wall, not an effort/design question — do
+   not spend a planner/design task on it. Reported plainly; the only way to get real auto-detection
+   would be a separate native app project, a different scope entirely. Once he responds, resume with
+   MVP build order step 4 remainder (S3 기록/history, F9 edit/delete, F6 budget/mood, S6 settings,
+   F12 export/import) unless he redirects.
 3. **Wait for the director's pick on engine-improvement adoption** (report sent 2026-07-19, still open,
    lower priority than app_in_toss now).
 4. Commit the engine repo on any `state/`/`backlog/` change; apps push to their own remote branch
