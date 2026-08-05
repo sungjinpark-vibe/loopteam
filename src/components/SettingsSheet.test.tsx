@@ -21,7 +21,7 @@ import { act } from "react";
 import { ThemeProvider } from "@toss/tds-mobile";
 import { afterEach, describe, expect, it } from "vitest";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
-import { SettingsSheet, type SettingsSheetProps } from "./SettingsSheet";
+import { SettingsSheet, type ImportOutcome, type SettingsSheetProps } from "./SettingsSheet";
 
 // Same jsdom-vs-real-browser gaps `EntryDetailSheet.test.tsx` already
 // documents and stubs for — this is the second component test to mount a
@@ -57,6 +57,9 @@ function makeCalls() {
   const savedNames: string[] = [];
   const savedBudgets: (number | null)[] = [];
   let resetCount = 0;
+  const exportCalls: number[] = [];
+  const importCalls: string[] = [];
+  let importResult: ImportOutcome = { ok: true };
   const props: SettingsSheetProps = {
     open: true,
     townName: "우리 동네",
@@ -65,8 +68,25 @@ function makeCalls() {
     onSaveTownName: (n) => savedNames.push(n),
     onSaveBudget: (b) => savedBudgets.push(b),
     onResetAll: () => resetCount++,
+    onExport: async () => {
+      exportCalls.push(1);
+      return { json: "{}", filename: "town-export-test.json" };
+    },
+    onImport: async (raw) => {
+      importCalls.push(raw);
+      return importResult;
+    },
   };
-  return { props, onClose, savedNames, savedBudgets, getResetCount: () => resetCount };
+  return {
+    props,
+    onClose,
+    savedNames,
+    savedBudgets,
+    getResetCount: () => resetCount,
+    exportCalls,
+    importCalls,
+    setImportResult: (r: typeof importResult) => (importResult = r),
+  };
 }
 
 function render(props: SettingsSheetProps): void {
@@ -165,5 +185,145 @@ describe("SettingsSheet — back guard (§10.4) + commit-on-dismiss", () => {
     // Back press #2 (confirm now closed) closes the sheet itself.
     popBack();
     expect(onClose.count).toBe(1);
+  });
+});
+
+// jsdom implements neither (this file's own header note, same class of gap as
+// EntryDetailSheet.test.tsx's own) — stubbed so `downloadJsonFile` (real
+// browser API, only reachable via 내보내기) doesn't throw under test.
+(URL as unknown as { createObjectURL: (b: Blob) => string }).createObjectURL ??= () => "blob:mock";
+(URL as unknown as { revokeObjectURL: (u: string) => void }).revokeObjectURL ??= () => {};
+
+function fileInput(): HTMLInputElement {
+  return document.body.querySelector<HTMLInputElement>(".settings-file-input")!;
+}
+
+/** Simulates picking `file` in the native file input, then flushes the microtask `file.text()` runs on. */
+async function selectFile(file: File): Promise<void> {
+  await act(async () => {
+    Object.defineProperty(fileInput(), "files", { value: [file], configurable: true });
+    fileInput().dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+async function clickAndFlush(button: HTMLButtonElement): Promise<void> {
+  await act(async () => {
+    button.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+describe("SettingsSheet — F12 내보내기/가져오기", () => {
+  it("내보내기 tap calls onExport and triggers a download with no confirm (non-destructive)", async () => {
+    const { props, exportCalls } = makeCalls();
+    render(props);
+
+    await clickAndFlush(findButton("내보내기")!);
+
+    expect(exportCalls).toEqual([1]);
+  });
+
+  it("가져오기: picking a file opens a destructive-action confirm; canceling calls onImport zero times and leaves the sheet open", async () => {
+    const { props, importCalls, onClose } = makeCalls();
+    render(props);
+
+    await selectFile(new File(["{\"schemaVersion\":1}"], "export.json", { type: "application/json" }));
+    expect(findButton("덮어쓰기")).toBeTruthy(); // the confirm dialog is open
+
+    act(() => {
+      findButton("취소")!.click();
+    });
+
+    expect(importCalls).toEqual([]);
+    expect(onClose.count).toBe(0);
+  });
+
+  it("가져오기: confirming calls onImport with the file's text; a successful import closes the sheet", async () => {
+    const { props, importCalls, onClose } = makeCalls();
+    render(props);
+    const raw = '{"schemaVersion":1,"core":{}}';
+
+    await selectFile(new File([raw], "export.json", { type: "application/json" }));
+    await clickAndFlush(findButton("덮어쓰기")!);
+
+    expect(importCalls).toEqual([raw]);
+    expect(onClose.count).toBe(1);
+  });
+
+  it("가져오기: a rejected import (bad schemaVersion / malformed JSON) shows a visible error and never closes the sheet", async () => {
+    const { props, onClose, setImportResult } = makeCalls();
+    setImportResult({ ok: false, error: "지원하지 않는 데이터 버전이에요." });
+    render(props);
+
+    await selectFile(new File(["not valid json"], "export.json", { type: "application/json" }));
+    await clickAndFlush(findButton("덮어쓰기")!);
+
+    expect(onClose.count).toBe(0);
+    expect(document.body.querySelector(".settings-import-error")?.textContent).toBe("지원하지 않는 데이터 버전이에요.");
+  });
+
+  // Round-1 finding C4 #2 — the row must be visibly non-interactive and not
+  // re-triggerable while a (potentially slow, dense-town) export is in flight.
+  it("내보내기: disables and relabels the row while in flight, and ignores a second tap until it resolves", async () => {
+    const { props } = makeCalls();
+    let resolveExport: ((v: { json: string; filename: string }) => void) | null = null;
+    let callCount = 0;
+    props.onExport = () =>
+      new Promise((resolve) => {
+        callCount++;
+        resolveExport = resolve;
+      });
+    render(props);
+
+    act(() => {
+      findButton("내보내기")!.click();
+    });
+    expect(findButton("내보내는 중…")).toBeTruthy();
+    expect(findButton("내보내는 중…")!.disabled).toBe(true);
+
+    // A second tap while still pending must not start a second export.
+    act(() => {
+      findButton("내보내는 중…")!.click();
+    });
+    expect(callCount).toBe(1);
+
+    await act(async () => {
+      resolveExport!({ json: "{}", filename: "x.json" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(findButton("내보내기")).toBeTruthy(); // back to normal, re-enabled
+  });
+
+  // Round-1 finding C3 — `handleExportClick` had no try/catch, so a throwing
+  // export produced an unhandled rejection and no user feedback at all.
+  it("내보내기: a throwing export shows a visible error instead of an unhandled rejection, and re-enables the row", async () => {
+    const { props } = makeCalls();
+    props.onExport = (): Promise<{ json: string; filename: string }> => {
+      throw new Error("boom");
+    };
+    render(props);
+
+    await clickAndFlush(findButton("내보내기")!);
+
+    expect(document.body.querySelector(".settings-import-error")?.textContent).toBe("내보내기에 실패했어요. 다시 시도해주세요.");
+    expect(findButton("내보내기")).toBeTruthy(); // not stuck on "내보내는 중…"
+  });
+
+  // Round-1 finding C3 — `void file.text().then(...)` had no `.catch`, so an
+  // unreadable/removed picked file silently did nothing.
+  it("가져오기: an unreadable file shows a visible error instead of silently doing nothing", async () => {
+    const { props, importCalls } = makeCalls();
+    render(props);
+    const unreadable = { text: () => Promise.reject(new Error("cannot read")) } as unknown as File;
+
+    await act(async () => {
+      Object.defineProperty(fileInput(), "files", { value: [unreadable], configurable: true });
+      fileInput().dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(importCalls).toEqual([]);
+    expect(document.body.querySelector(".settings-import-error")?.textContent).toBe("파일을 읽을 수 없어요. 다시 시도해주세요.");
   });
 });

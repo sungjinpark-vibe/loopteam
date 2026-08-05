@@ -17,6 +17,7 @@ import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
 import { budgetPace, moodTier } from "./selectors";
+import type { ImportResult } from "./storage";
 import { useTownStore } from "./useTownStore";
 
 let container: HTMLDivElement;
@@ -197,6 +198,75 @@ describe("useTownStore — S6 설정 (setBudget / setTownName / resetAll)", () =
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("F12: export -> wipe (resetAll, simulating a fresh context) -> import restores byte-identical state — plot index, queue, streak, savings all preserved", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.setTownName("행복동");
+      latest!.setBudget(600_000);
+      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY });
+      latest!.addEntry({ type: "saving", amountKrw: 50_000, categoryId: "deposit", occurredOn: TODAY });
+    });
+    const beforeTown = latest!.townName;
+    const beforeBudget = latest!.budgetKrw;
+    const beforeBuildings = latest!.buildings;
+    const beforeSavings = latest!.savingsByCategoryKrw;
+    expect(beforeBuildings).toHaveLength(1);
+
+    const { json } = await latest!.exportData();
+
+    // "wipe the browser profile" — resetAll clears storage AND in-memory state.
+    act(() => {
+      latest!.resetAll();
+    });
+    expect(latest?.buildingCount).toBe(0);
+
+    let importResult: ImportResult | null = null;
+    await act(async () => {
+      importResult = await latest!.importData(json);
+    });
+
+    expect(importResult).toEqual({ ok: true });
+    expect(latest!.townName).toBe(beforeTown);
+    expect(latest!.budgetKrw).toBe(beforeBudget);
+    expect(latest!.buildings).toEqual(beforeBuildings);
+    expect(latest!.savingsByCategoryKrw).toEqual(beforeSavings);
+  });
+
+  it("F12: importing an unknown schemaVersion is rejected and leaves existing state untouched", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.setTownName("행복동");
+      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY });
+    });
+    const beforeTown = latest!.townName;
+    const beforeBuildings = latest!.buildings;
+
+    let importResult: ImportResult | null = null;
+    await act(async () => {
+      importResult = await latest!.importData(JSON.stringify({ schemaVersion: 99, core: {}, entries: {}, buildings: {} }));
+    });
+
+    expect(importResult).toEqual({ ok: false, error: expect.any(String) });
+    expect(latest!.townName).toBe(beforeTown);
+    expect(latest!.buildings).toBe(beforeBuildings); // same reference — nothing was even re-set
+  });
+
+  it("F12: importing malformed JSON is rejected without crashing, and leaves existing state untouched", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY });
+    });
+    const beforeBuildings = latest!.buildings;
+
+    let importResult: ImportResult | null = null;
+    await act(async () => {
+      importResult = await latest!.importData("{ not valid json ,,,");
+    });
+
+    expect(importResult).toEqual({ ok: false, error: expect.any(String) });
+    expect(latest!.buildings).toBe(beforeBuildings);
   });
 
   it("F6 invariant: a budget edit that drives mood to the worst tier never touches buildingCount or the buildings array", async () => {

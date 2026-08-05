@@ -1086,3 +1086,36 @@ button.town-fab {
   font-size: 12px;
   color: var(--town-grey400);
 }
+
+/* F12 내보내기/가져오기 rows — same reset-to-plain-row pattern .history-row uses. */
+.settings-row-action {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* F12 내보내기 in-flight state — visibly non-interactive while the export runs. */
+.settings-row-action:disabled {
+  color: var(--town-grey400);
+  cursor: default;
+}
+
+.settings-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.settings-import-error {
+  margin: -8px 0 0;
+  font-size: 13px;
+  color: var(--town-red500);
+}

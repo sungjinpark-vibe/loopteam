@@ -38,6 +38,8 @@ export interface HistoryScreenProps {
     | "setTownName"
     | "setBudget"
     | "resetAll"
+    | "exportData"
+    | "importData"
   >;
 }
 
@@ -168,6 +170,8 @@ export function HistoryScreen({ store }: HistoryScreenProps) {
     setTownName,
     setBudget,
     resetAll,
+    exportData,
+    importData,
   } = store;
   const [ym, setYm] = useState(() => today.slice(0, 7));
   const [selected, setSelected] = useState<{ entry: LedgerEntry; ym: string } | null>(null);
@@ -336,6 +340,8 @@ export function HistoryScreen({ store }: HistoryScreenProps) {
         onSaveTownName={setTownName}
         onSaveBudget={setBudget}
         onResetAll={resetAll}
+        onExport={exportData}
+        onImport={importData}
       />
     </div>
   );

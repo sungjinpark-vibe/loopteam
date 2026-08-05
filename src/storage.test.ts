@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createChunkedStorage } from "./storage";
+import { createChunkedStorage, serializeExport } from "./storage";
+import { LAYOUT_VERSION } from "./townLayout";
 import type { StoragePort } from "./platform/storage";
 import type { Building, BudgetSetting, LedgerEntry, TownState } from "./types";
 
@@ -311,5 +312,136 @@ describe("chunked storage round-trip", () => {
     client.clearAll();
     client.flush(); // must be a no-op — nothing should land on the raw port
     expect(Object.keys(port.dump())).toEqual([]);
+  });
+});
+
+// ── F12 export/import (MVP-SPEC.md §5) ──
+
+const denseTown: TownState = {
+  ...town,
+  nextPlotIndex: 7,
+  streakDays: 24,
+  longestStreakDays: 180,
+  queue: [{ entryId: "e9", categoryId: "cafe", variantIndex: 2, queuedOn: "2026-08-02", entryYm: "2026-08" }],
+  cumulativeSavingsKrw: 350_000,
+  savingsByCategoryKrw: { deposit: 200_000, stock: 150_000 },
+};
+
+/** A two-month, multi-chunk state — the round trip has to preserve chunk boundaries, not just the total. */
+function seedTwoMonths(client: ReturnType<typeof createChunkedStorage>) {
+  const core = { town: denseTown, budget, onboarded: true };
+  client.saveEntriesForMonth("2026-07", [{ ...entry, id: "e0", occurredOn: "2026-07-15" }], core);
+  client.saveBuildingsForMonth("2026-07", [{ ...building, id: "b0", builtOn: "2026-07-15", plotIndex: 3 }]);
+  client.saveEntriesForMonth("2026-08", [entry], core);
+  client.saveBuildingsForMonth("2026-08", [building]);
+  client.flush();
+  return core;
+}
+
+describe("F12 export/import", () => {
+  it("round trip through a fresh context (new port) is byte-identical — plot indices, queue, streak, savings all preserved", async () => {
+    const sourcePort = makeFakePort();
+    const source = createChunkedStorage(sourcePort);
+    seedTwoMonths(source);
+
+    const exported = await source.exportAll();
+    expect(exported.schemaVersion).toBe(1);
+    expect(exported.layoutVersion).toBe(LAYOUT_VERSION);
+    const json = await serializeExport(exported); // exactly what a downloaded .json holds — the real production serializer, not a re-implementation
+
+    // "wipe the browser profile (or open in a fresh context)" — a brand-new port.
+    const targetPort = makeFakePort();
+    const target = createChunkedStorage(targetPort);
+    const result = target.importAll(json);
+    expect(result).toEqual({ ok: true });
+
+    const sourceBoot = await source.loadBoot();
+    const targetBoot = await target.loadBoot();
+    expect(targetBoot.core).toEqual(sourceBoot.core);
+    expect(targetBoot.core?.town.nextPlotIndex).toBe(7);
+    expect(targetBoot.core?.town.queue).toEqual(denseTown.queue);
+    expect(targetBoot.core?.town.streakDays).toBe(24);
+    expect(targetBoot.core?.town.savingsByCategoryKrw).toEqual(denseTown.savingsByCategoryKrw);
+    expect(targetBoot.buildings.map((b) => b.id).sort()).toEqual(["b0", "b1"]);
+    expect(target.loadEntriesForMonth("2026-07").entries).toEqual(source.loadEntriesForMonth("2026-07").entries);
+    expect(target.loadEntriesForMonth("2026-08").entries).toEqual(source.loadEntriesForMonth("2026-08").entries);
+    // Same LAYOUT_VERSION as the source — a normal current-build round trip
+    // never triggers the relayout notice on the target's next boot.
+    expect(targetBoot.relayout).toBe(false);
+  });
+
+  it("preserves an old/foreign export's layoutVersion instead of stamping the current one — round-1 finding C2 #3", async () => {
+    const sourcePort = makeFakePort();
+    const source = createChunkedStorage(sourcePort);
+    seedTwoMonths(source);
+    const exported = await source.exportAll();
+
+    // Simulate a file exported from a build that predates the road layout
+    // (ADDENDUM-01 §3.6) — no `layoutVersion` field at all, same shape a
+    // pre-addendum export would have produced.
+    const { layoutVersion: _drop, ...foreignExport } = exported;
+    void _drop;
+    const json = JSON.stringify(foreignExport);
+
+    const targetPort = makeFakePort();
+    const target = createChunkedStorage(targetPort);
+    expect(target.importAll(json)).toEqual({ ok: true });
+
+    // The index must NOT have been silently stamped with the CURRENT
+    // LAYOUT_VERSION by `emptyIndex()` — the one-time relayout notice has to
+    // still be able to fire on the very next boot, exactly like a genuinely
+    // old town would (`useTownStore.relayout.test.tsx`).
+    const targetBoot = await target.loadBoot();
+    expect(targetBoot.relayout).toBe(true);
+  });
+
+  it("rejects an unknown schemaVersion and leaves existing state untouched", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    seedTwoMonths(client);
+    const before = { ...port.dump() };
+
+    const result = client.importAll(JSON.stringify({ schemaVersion: 99, core: { town, budget, onboarded: true }, entries: {}, buildings: {} }));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBeTruthy();
+    expect(port.dump()).toEqual(before);
+  });
+
+  it("rejects a file with no schemaVersion field and leaves existing state untouched", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    seedTwoMonths(client);
+    const before = { ...port.dump() };
+
+    const result = client.importAll(JSON.stringify({ core: { town, budget, onboarded: true }, entries: {}, buildings: {} }));
+
+    expect(result.ok).toBe(false);
+    expect(port.dump()).toEqual(before);
+  });
+
+  it("rejects malformed (non-JSON) input without crashing, and leaves existing state untouched", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    seedTwoMonths(client);
+    const before = { ...port.dump() };
+
+    const result = client.importAll("{ not valid json ,,,");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBeTruthy();
+    expect(port.dump()).toEqual(before);
+  });
+
+  it("rejects a structurally wrong-but-schema-matching payload (e.g. entries not a chunk map) without crashing", () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    seedTwoMonths(client);
+    const before = { ...port.dump() };
+
+    const result = client.importAll(JSON.stringify({ schemaVersion: 1, core: { town, budget, onboarded: true }, entries: "not-a-map", buildings: {} }));
+
+    expect(result.ok).toBe(false);
+    expect(port.dump()).toEqual(before);
   });
 });

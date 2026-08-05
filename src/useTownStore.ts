@@ -43,7 +43,7 @@ import {
   ladderFor,
   slotsRemainingToday,
 } from "./selectors";
-import { createChunkedStorage, defaultTownState, yieldToMainThread, type CoreState } from "./storage";
+import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
 import type { Building, BudgetSetting, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
@@ -862,6 +862,61 @@ export function useTownStore() {
     setState(next);
   }, []);
 
+  /**
+   * F12 내보내기 — serializes every stored chunk plus the core into one JSON
+   * string ready to hand to a `<a download>`/Blob. Both `storage.ts` steps
+   * are time-budgeted/yielded (§10.4): `exportAll` reads every chunk back
+   * out, `serializeExport` then stringifies it chunk-by-chunk rather than
+   * one `JSON.stringify` over the whole state — round-1 finding C4 #2, the
+   * one genuinely unbounded step a dense town's export used to have. Toss
+   * mini-app constraint (this task's brief): this is a WebView, not a native
+   * shell — "download a file" needs no Apps-in-Toss SDK, only the standard
+   * browser APIs the caller (SettingsSheet) already reaches for.
+   */
+  const exportData = useCallback(async (): Promise<{ json: string; filename: string }> => {
+    const data = await storageRef.current.exportAll();
+    const json = await serializeExport(data);
+    return { json, filename: `town-export-${clock.today()}.json` };
+  }, []);
+
+  /**
+   * F12 가져오기 — validates + replaces every chunk (`storage.ts`'s
+   * `importAll`: an unknown/missing `schemaVersion` or malformed JSON is
+   * rejected there, storage untouched, before this function is even reached
+   * for the success path). On success, reloads in-memory state straight from
+   * storage via `loadBoot` (the exact same read path a real boot uses) rather
+   * than re-running `reconcilePlacement`/`drainQueueAndPersist` — the
+   * imported chunks already went through both once, on the machine that
+   * exported them, so replaying either here would risk the "byte-identical"
+   * AC by re-deriving instead of just loading what was written.
+   */
+  const importData = useCallback(async (rawJson: string): Promise<ImportResult> => {
+    const result = storageRef.current.importAll(rawJson);
+    if (!result.ok) return result;
+
+    const boot = await storageRef.current.loadBoot();
+    if (boot.core === null) {
+      // importAll just wrote a core chunk — reading back null means the
+      // WRITE itself failed (storage quota/blocked, platform/storage.ts's
+      // own "silently dropped" note), not that the imported file was invalid.
+      return { ok: false, error: "가져오기에 실패했어요. 저장 공간을 확인해주세요." };
+    }
+    const today = clock.today();
+    entriesYmRef.current = today.slice(0, 7);
+    const { entries } = storageRef.current.loadEntriesForMonth(today.slice(0, 7));
+    const next: LoadedState = {
+      town: boot.core.town,
+      buildings: boot.buildings,
+      entries,
+      historyEntries: {},
+      budget: boot.core.budget,
+      onboarded: boot.core.onboarded,
+    };
+    stateRef.current = next;
+    setState(next);
+    return { ok: true };
+  }, []);
+
   const today = clock.today();
   return {
     loading: state === null,
@@ -898,6 +953,8 @@ export function useTownStore() {
     setBudget,
     setTownName,
     resetAll,
+    exportData,
+    importData,
   };
 }
 

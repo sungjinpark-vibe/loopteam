@@ -53,6 +53,79 @@ export interface CorruptionNotice {
   reason: string;
 }
 
+/**
+ * F12 export/import payload — MVP-SPEC.md §5. `entries`/`buildings` are keyed
+ * by 'YYYY-MM' exactly as the chunked layout already stores them (§8.4) — not
+ * flattened — so a round trip writes each chunk straight back through
+ * `saveEntriesForMonth`/`saveBuildingsForMonth` unchanged, same as
+ * `devtools/fixtures.ts`'s `loadFixtureIntoStorage` does for a fixture.
+ */
+export interface StorageExport {
+  schemaVersion: number;
+  // ADDENDUM-01 §3.6 (rule R-1) / F12 round-1 finding C2 #3 — carried through
+  // the round trip so an old/foreign export keeps that fact on import
+  // instead of silently being stamped as the CURRENT layout: `importAll`
+  // writes this straight into the rebuilt index rather than letting
+  // `emptyIndex()` default it to `LAYOUT_VERSION`, so `loadBoot`'s one-time
+  // relayout notice still fires for a genuinely old town moved in from a
+  // file (same absent-means-pre-addendum semantics as `StorageIndex`'s own
+  // field).
+  layoutVersion?: number;
+  core: CoreState;
+  entries: Record<string, LedgerEntry[]>;
+  buildings: Record<string, Building[]>;
+}
+
+export type ImportResult = { ok: true } | { ok: false; error: string };
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function isChunkMap(v: unknown): v is Record<string, unknown[]> {
+  return isPlainObject(v) && Object.values(v).every((x) => Array.isArray(x));
+}
+
+/**
+ * F12 import validation, run BEFORE `importAll` touches storage — an unknown/
+ * missing `schemaVersion` and malformed JSON are both rejected here with a
+ * visible error, so a rejected file never gets the chance to wipe existing
+ * state (AC: "existing state provably untouched").
+ */
+function parseStorageExport(rawJson: string): { ok: true; data: StorageExport } | { ok: false; error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    return { ok: false, error: "파일을 읽을 수 없어요. 올바른 내보내기 파일인지 확인해주세요." };
+  }
+  if (!isPlainObject(parsed) || parsed.schemaVersion !== SCHEMA_VERSION) {
+    return { ok: false, error: "지원하지 않는 데이터 버전이에요." };
+  }
+  const { core, entries, buildings, layoutVersion } = parsed;
+  if (
+    !isPlainObject(core) ||
+    !isPlainObject(core.town) ||
+    !isPlainObject(core.budget) ||
+    typeof core.onboarded !== "boolean" ||
+    !isChunkMap(entries) ||
+    !isChunkMap(buildings) ||
+    (layoutVersion !== undefined && typeof layoutVersion !== "number")
+  ) {
+    return { ok: false, error: "파일 형식이 올바르지 않아요." };
+  }
+  return {
+    ok: true,
+    data: {
+      schemaVersion: parsed.schemaVersion,
+      layoutVersion,
+      core: core as unknown as CoreState,
+      entries: entries as Record<string, LedgerEntry[]>,
+      buildings: buildings as Record<string, Building[]>,
+    },
+  };
+}
+
 export interface BootState {
   index: StorageIndex;
   core: CoreState | null;
@@ -181,6 +254,29 @@ export function yieldToMainThread(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/** Roughly half a 60fps frame — conservative, not tuned against real hardware (§10.4). */
+const MAIN_THREAD_BUDGET_MS = 8;
+
+/**
+ * The one time-budgeted iteration primitive every batched pass in this
+ * module shares (round-1 F12 finding C3: `exportAll` used to re-implement
+ * this same budget/yield loop inline instead of reusing it): runs `fn` once
+ * per item, yielding to the main thread whenever more than `budgetMs` of
+ * continuous work has elapsed since the last yield. `readBuildingChunksBatched`
+ * and F12's `exportAll`/`serializeExport` all go through this rather than
+ * each re-timing its own loop.
+ */
+async function forEachBatched<T>(items: readonly T[], fn: (item: T) => void, budgetMs = MAIN_THREAD_BUDGET_MS): Promise<void> {
+  let sliceStart = nowMs();
+  for (const item of items) {
+    fn(item);
+    if (nowMs() - sliceStart > budgetMs) {
+      await yieldToMainThread();
+      sliceStart = nowMs();
+    }
+  }
+}
+
 /**
  * Reads every building chunk, yielding to the main thread every ~8ms of
  * continuous parsing instead of doing all of it in one blocking pass — the
@@ -192,10 +288,8 @@ async function readBuildingChunksBatched(
   buildingMonths: readonly string[],
   corrupted: CorruptionNotice[],
 ): Promise<Building[]> {
-  const TIME_BUDGET_MS = 8; // roughly half a 60fps frame — conservative, not tuned against real hardware
   const buildings: Building[] = [];
-  let sliceStart = nowMs();
-  for (const ym of buildingMonths) {
+  await forEachBatched(buildingMonths, (ym) => {
     const key = buildingsKey(ym);
     const result = readJson<Building[]>(bufferedPort, key);
     if (result.corrupt) {
@@ -203,12 +297,36 @@ async function readBuildingChunksBatched(
     } else {
       buildings.push(...(result.value ?? []));
     }
-    if (nowMs() - sliceStart > TIME_BUDGET_MS) {
-      await yieldToMainThread();
-      sliceStart = nowMs();
-    }
-  }
+  });
   return buildings;
+}
+
+/**
+ * F12 export — turns a `StorageExport` into the JSON text a `<a download>`
+ * actually writes to disk. Deliberately NOT one `JSON.stringify(data, null,
+ * 2)` over the whole state: a dense town's chunk maps are multi-MB once
+ * serialized, so stringifying them as a single value is itself an unbounded
+ * synchronous step (round-1 finding C4 #2). `core` is small and serialized
+ * directly; every entries/buildings chunk is stringified one month at a
+ * time through `forEachBatched`, yielding between chunks the same way every
+ * other batched pass in this module does — exporting the dense fixture
+ * (~5,400 buildings, §11) never blocks the main thread for longer than one
+ * chunk's own stringify.
+ */
+export async function serializeExport(data: StorageExport): Promise<string> {
+  const entryParts: string[] = [];
+  await forEachBatched(Object.keys(data.entries), (ym) => {
+    entryParts.push(`${JSON.stringify(ym)}:${JSON.stringify(data.entries[ym])}`);
+  });
+  const buildingParts: string[] = [];
+  await forEachBatched(Object.keys(data.buildings), (ym) => {
+    buildingParts.push(`${JSON.stringify(ym)}:${JSON.stringify(data.buildings[ym])}`);
+  });
+  const layoutVersionField = data.layoutVersion === undefined ? "" : `,"layoutVersion":${data.layoutVersion}`;
+  return (
+    `{"schemaVersion":${data.schemaVersion}${layoutVersionField},"core":${JSON.stringify(data.core)},` +
+    `"entries":{${entryParts.join(",")}},"buildings":{${buildingParts.join(",")}}}`
+  );
 }
 
 const DEBOUNCE_MS = 300;
@@ -285,6 +403,97 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
 
   function saveCore(core: CoreState): void {
     writeJson(bufferedPort, CORE_KEY, core);
+  }
+
+  /** Save one month's entries + core — exactly two chunk keys touched when the month is already known (F10 AC), debounced before reaching the raw port. */
+  function saveEntriesForMonth(ym: string, entries: LedgerEntry[], core: CoreState): void {
+    writeJson(bufferedPort, entriesKey(ym), entries);
+    saveCore(core);
+    registerMonth("entryMonths", ym);
+  }
+
+  /** Save one month's buildings. Written alongside `saveEntriesForMonth` whenever a build happens. */
+  function saveBuildingsForMonth(ym: string, buildings: Building[]): void {
+    writeJson(bufferedPort, buildingsKey(ym), buildings);
+    registerMonth("buildingMonths", ym);
+  }
+
+  /** Wipes every known key — used by 데이터 초기화 (S6), fixture loading (§11), and F12 import (the old state must not linger under a key the imported file never touches). */
+  function clearAll(): void {
+    const { index } = readIndex();
+    bufferedPort.remove(INDEX_KEY);
+    bufferedPort.remove(CORE_KEY);
+    for (const ym of index.entryMonths) bufferedPort.remove(entriesKey(ym));
+    for (const ym of index.buildingMonths) bufferedPort.remove(buildingsKey(ym));
+    // Drop anything still pending too — a flush after clearAll must never
+    // resurrect data that was just wiped.
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    pending.clear();
+  }
+
+  /**
+   * F12 export — reads every chunk back out through the same helpers
+   * `loadBoot` uses (`readIndex`, `readJson`, the chunk key builders),
+   * batched through the same `forEachBatched` primitive `readBuildingChunksBatched`
+   * uses (§10.4 main-thread budget) so exporting a dense fixture's state does
+   * not block the UI (rubric C4). Returns chunks exactly as stored — nothing
+   * flattened or re-derived — so `importAll` can write them straight back.
+   * `layoutVersion` rides along so an old/foreign export still carries that
+   * fact through the round trip (`StorageExport`'s own doc comment).
+   */
+  async function exportAll(): Promise<StorageExport> {
+    const { index } = readIndex();
+    const coreResult = readJson<CoreState>(bufferedPort, CORE_KEY);
+    const core: CoreState =
+      coreResult.value ?? { town: defaultTownState(), budget: { monthlyBudgetKrw: null, updatedAt: 0 }, onboarded: false };
+    const entries: Record<string, LedgerEntry[]> = {};
+    const buildings: Record<string, Building[]> = {};
+    await forEachBatched(index.entryMonths, (ym) => {
+      entries[ym] = readJson<LedgerEntry[]>(bufferedPort, entriesKey(ym)).value ?? [];
+    });
+    await forEachBatched(index.buildingMonths, (ym) => {
+      buildings[ym] = readJson<Building[]>(bufferedPort, buildingsKey(ym)).value ?? [];
+    });
+    return { schemaVersion: SCHEMA_VERSION, layoutVersion: index.layoutVersion, core, entries, buildings };
+  }
+
+  /**
+   * F12 import — validates first (`parseStorageExport`), touching nothing on
+   * failure, then replaces every chunk through the exact same public write
+   * path `devtools/fixtures.ts`'s `loadFixtureIntoStorage` uses (`clearAll`
+   * -> `saveCore` -> `saveEntriesForMonth`/`saveBuildingsForMonth` per
+   * month) — import is structurally that same "write a full state blob
+   * through the chunked API in one pass" operation, just sourced from a
+   * downloaded file instead of a fixture object.
+   *
+   * The index is written directly here (round-1 finding C2 #3), BEFORE any
+   * `saveEntriesForMonth`/`saveBuildingsForMonth` call below: those go
+   * through `registerMonth`, which only touches the index when a month isn't
+   * already listed, so pre-populating it with the imported `layoutVersion`
+   * (possibly absent, for an old/foreign export) is what stops
+   * `emptyIndex()`'s "genuinely fresh install" default from silently
+   * stamping an imported old town as the CURRENT layout — without this, the
+   * one-time relayout notice (ADDENDUM-01 §3.6) could never fire again.
+   */
+  function importAll(rawJson: string): ImportResult {
+    const parsed = parseStorageExport(rawJson);
+    if (!parsed.ok) return parsed;
+    const { core, entries, buildings, layoutVersion } = parsed.data;
+    clearAll();
+    const index: StorageIndex = {
+      schemaVersion: SCHEMA_VERSION,
+      layoutVersion,
+      entryMonths: Object.keys(entries).sort(),
+      buildingMonths: Object.keys(buildings).sort(),
+    };
+    writeJson(bufferedPort, INDEX_KEY, index);
+    saveCore(core);
+    for (const [ym, monthEntries] of Object.entries(entries)) saveEntriesForMonth(ym, monthEntries, core);
+    for (const [ym, monthBuildings] of Object.entries(buildings)) saveBuildingsForMonth(ym, monthBuildings);
+    return { ok: true };
   }
 
   return {
@@ -399,19 +608,8 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     },
 
     saveCore,
-
-    /** Save one month's entries + core — exactly two chunk keys touched when the month is already known (F10 AC), debounced before reaching the raw port. */
-    saveEntriesForMonth(ym: string, entries: LedgerEntry[], core: CoreState): void {
-      writeJson(bufferedPort, entriesKey(ym), entries);
-      saveCore(core);
-      registerMonth("entryMonths", ym);
-    },
-
-    /** Save one month's buildings. Written alongside `saveEntriesForMonth` whenever a build happens. */
-    saveBuildingsForMonth(ym: string, buildings: Building[]): void {
-      writeJson(bufferedPort, buildingsKey(ym), buildings);
-      registerMonth("buildingMonths", ym);
-    },
+    saveEntriesForMonth,
+    saveBuildingsForMonth,
 
     /**
      * Forces any debounced writes to the raw port immediately — call before
@@ -424,21 +622,13 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       flushPendingWrites();
     },
 
-    /** Wipes every known key — used by 데이터 초기화 (S6) and by fixture loading (§11). */
-    clearAll(): void {
-      const { index } = readIndex();
-      bufferedPort.remove(INDEX_KEY);
-      bufferedPort.remove(CORE_KEY);
-      for (const ym of index.entryMonths) bufferedPort.remove(entriesKey(ym));
-      for (const ym of index.buildingMonths) bufferedPort.remove(buildingsKey(ym));
-      // Drop anything still pending too — a flush after clearAll must never
-      // resurrect data that was just wiped.
-      if (flushTimer !== null) {
-        clearTimeout(flushTimer);
-        flushTimer = null;
-      }
-      pending.clear();
-    },
+    clearAll,
+
+    /** F12 — serializes every chunk plus the core into one downloadable blob (MVP-SPEC §5). */
+    exportAll,
+
+    /** F12 — validates then replaces every chunk (MVP-SPEC §5); untouched on validation failure. */
+    importAll,
   };
 }
 
