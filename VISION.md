@@ -50,6 +50,15 @@
   C1 (spec satisfied), C2 (correctness), C5 (no regression) apply unchanged. **Approved by the
   director 2026-08-02** (Discord, msg 1533234064742551795, item 4) — safe to score build-mode tasks
   against this substitution.
+- **Platform hard limit, confirmed 2026-08-05: the Apps-in-Toss SDK gives a mini-app NO access to
+  Toss notifications, the host app's transaction/payment history, or linked bank/card data.**
+  Verified directly against the SDK docs (`https://developers-apps-in-toss.toss.im/llms-full.txt`)
+  after the director asked whether ledger entries could be auto-detected "like Fortune City" instead
+  of typed in manually. This is a platform security boundary, not an engineering-effort question —
+  do not open a design/planning task on automatic transaction detection within this app. The MVP's
+  manual-entry flow (F1) is the only way this feature works on this platform. If the director ever
+  wants real auto-detection, that requires a separate native app (Android/iOS, OS-level notification
+  listener permission) — a different project outside app_in_toss's scope entirely, not a task here.
 
 ## Change log
 - 2026-08-02 Created. Stack (React/TS/Vite/TDS via `create-ait-app`) approved by the director as an
