@@ -98,14 +98,43 @@ function Harness() {
   return null;
 }
 
+// A plain function, not inlined at the call site: TS narrows `latest`
+// against its LAST STATIC assignment in the enclosing function, and
+// `mountAndWaitForBoot` below assigns `latest = null` right before the poll
+// loop — inlined, the compiler doesn't know `Harness` (a different function)
+// reassigns it between polls and narrows the "not null" branch to `never`.
+// A separate function has no such local assignment to narrow against.
+function stillLoading(): boolean {
+  return latest === null || latest.loading;
+}
+
 async function mountAndWaitForBoot(): Promise<void> {
   if (root !== null) act(() => root!.unmount());
   root = createRoot(container);
   latest = null;
-  await act(async () => {
+  act(() => {
     root!.render(<Harness />);
-    await new Promise((resolve) => setTimeout(resolve, 0));
   });
+  // A single tick is enough for every OTHER test file's small fixtures (boot
+  // settles inside one macrotask), but this file's dense fixture (~5,400
+  // buildings / 36 month chunks) can make `storage.ts`'s own TIME_BUDGET_MS=8ms
+  // batched reader yield via a REAL `setTimeout(0)` more than once under
+  // load — a fixed one-tick wait then observes the harness before
+  // `useTownStore`'s boot effect has called `setState`, and every assertion
+  // below reads the pre-boot zero state (flaky exit=1 under `npm test`,
+  // reliably green when this file runs alone). `useTownStore()`'s return
+  // value is NEVER `null` (it always has a `loading` flag, `null` only
+  // internally) — the loop must poll THAT, not object identity, or it exits
+  // on the very first (still-loading) render. Polling with ONE `act()` per
+  // tick (rather than a loop of bare timers inside a single `act()`) lets
+  // each pending `setState` actually flush and update `latest` before the
+  // next check — nesting the loop inside one `act()` call left React's own
+  // state-flush timing decoupled from the loop's exit check.
+  for (let i = 0; i < 200 && stillLoading(); i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+  }
 }
 
 beforeEach(() => {
