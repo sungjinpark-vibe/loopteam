@@ -12,10 +12,11 @@
  * stale paint cache. Keyboard/gesture dismissal is unaffected (`useBackGuard`
  * still works); only pointer hit-testing on the backdrop is blocked.
  *
- * Found independently in two sheets that nest a `ConfirmDialog` inside their
- * own `BottomSheet` (`EntryDetailSheet`'s delete-confirm, T012; `SettingsSheet`'s
- * 초기화/가져오기 confirms, T013) — same TDS pairing, same bug, so the fix lives
- * once here rather than being copy-pasted into each sheet.
+ * Found independently in sheets that nest a `ConfirmDialog` inside their own
+ * `BottomSheet` (`EntryDetailSheet`'s delete-confirm, T012; `SettingsSheet`'s
+ * 초기화/가져오기 confirms, T013; `EntrySheet`'s close-with-unsaved-changes
+ * confirm, T016) — same TDS pairing, same bug, so the fix lives once here
+ * rather than being copy-pasted into each sheet.
  *
  * Fix: once a nested confirm's `open` flips true -> false while the outer
  * sheet is still `open`, wait one frame for React to finish committing the

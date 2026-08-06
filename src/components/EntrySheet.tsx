@@ -32,6 +32,7 @@ import { BottomSheet, Button, ConfirmDialog, SegmentedControl } from "@toss/tds-
 import type { EntryDraft } from "../entryActions";
 import { appendAmountDigit } from "../format";
 import { useBackGuard } from "../hooks/useBackGuard";
+import { useConfirmDialogBackdropFix } from "../hooks/useConfirmDialogBackdropFix";
 import type { CategoryId, EntryType } from "../types";
 import { EntryFields } from "./EntryFields";
 
@@ -121,6 +122,11 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
   }
 
   useBackGuard(open, touched, dismiss);
+
+  // Vendor bug workaround (see hook doc) — cancelling the nested
+  // ConfirmDialog above (close-with-unsaved-changes) otherwise leaves this
+  // sheet's own backdrop tap dead.
+  useConfirmDialogBackdropFix(open, confirmOpen);
 
   return (
     <>
