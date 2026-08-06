@@ -41,11 +41,14 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T015 | app_in_toss — two known follow-up bugs (dialog backdrop, month-nav flash) | in-progress | client-dev | build | 1 |
 | T016 | app_in_toss — balance pass (director-approved values, flip BALANCE_UNSET) | blocked | client-dev | build | 1 |
 | T017 | app_in_toss — harden EntrySheet backdrop fix (fix-forward round 2) | in-progress | client-dev | build | 1 |
+| T018 | app_in_toss spec addendum — monetization (ads, paid extra builds, decoration shop) | ready | planner | explore | 1 |
 
 _MVP feature-complete as of T014 (2026-08-05). T015 passed 90/100 (commit 1492757) but its
 fix-forward round for a lead-flagged third bug site scored 86/100 FAIL (commit da5d291) — T017 is
-round 2 of that fix, in progress. T016 (balance pass) queued behind T017 — both touch overlapping
-files. T016 unblocks Gate 3, the milestone that ends app_in_toss development._
+round 2 of that fix, verification in progress. T016 (balance pass) queued behind T017 — both touch
+overlapping files. T016 unblocks Gate 3. T018 (new director-requested monetization design, answers
+the spec's previously-open D-7) can run in parallel — explore mode, writes a doc only, no file
+conflict with T016/T017._
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._

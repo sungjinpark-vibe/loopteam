@@ -36,13 +36,25 @@
 - **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. **Director answered the balance ask same session** (dailyBuildSlots 5→10, rest default;
-   `materialQueueMax`/D-14 was accidentally left off the question — defaulted unchanged, flagged to
-   director). T016 opened (`blocked` on T015 — both touch `HistoryScreen.tsx`). **When T015's
-   notification lands: flip T016 to `ready` and launch its quality-loop workflow.**
-2. **After T016 passes**: run Gate 3 (`playtest.js`) — this is the milestone that ends app_in_toss
-   development. Once Gate 3 is scheduled, the other candidates ((b) real art order, D-12 still open;
-   (c) new feature requests) remain queued behind it, not concurrent with it.
+1. **T017 in progress** — T015 passed 90/100 (commit 1492757) but the lead flagged a third unfixed
+   backdrop-bug site (`EntrySheet.tsx`); fix-forward round 1 (da5d291) then FAILED lead review at
+   86/100 (real findings: a 2-dimmer selector race, no regression test for the new site, a
+   nondeterministic test suite). Round 2 (commit abf4a16) just landed — verification is running now
+   (async team-lead agent). **On result: if ≥90, mark T015/T017 done, flip T016 to `ready`, launch its
+   quality-loop workflow. If still <90, one more targeted fix-forward round, do not let this drag past
+   3 rounds without re-evaluating the approach.**
+2. **T018 running in parallel** (explore mode, doc-only, no file conflict with T016/T017) — new
+   director-requested monetization design (ads via building speech-bubbles + in-game currency, paid
+   extra builds past the 10/day cap, a decoration shop). This is an explicit, informed reversal of
+   MVP-SPEC.md's original "no currency, no ads" cut decision (§1.3/§8) — flagged to the director,
+   proceeding since the request was concrete and deliberate, not a casual aside. Real ad/payment
+   settlement is blocked on missing Toss console/business-registration accounts, so design mandates
+   the existing platform-port pattern (browser/dev stub now, toss driver later) so the full economy
+   is still buildable and demoable today.
+3. **After T016 passes**: run Gate 3 (`playtest.js`) — this is the milestone that ends app_in_toss's
+   *original MVP* development. T018's monetization build-out (once its spec is approved) is new scope
+   layered on top and does not block Gate 3 on the original MVP scope. The other older candidates
+   ((b) real art order, D-12 still open; (c) other new feature requests) remain queued behind both.
 2. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
 
