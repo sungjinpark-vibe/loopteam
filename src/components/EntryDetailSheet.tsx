@@ -38,6 +38,7 @@ import { useEffect, useRef, useState } from "react";
 import { BottomSheet, Button, ConfirmDialog, SegmentedControl } from "@toss/tds-mobile";
 import { appendAmountDigit } from "../format";
 import { useBackGuard } from "../hooks/useBackGuard";
+import { useConfirmDialogBackdropFix } from "../hooks/useConfirmDialogBackdropFix";
 import type { CategoryId, EntryType, LedgerEntry } from "../types";
 import type { EntryEditPatch } from "../useTownStore";
 import { EntryFields } from "./EntryFields";
@@ -123,6 +124,11 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
   }
 
   useBackGuard(open, touched, dismiss);
+
+  // Vendor bug workaround (see hook doc) — cancelling either nested
+  // ConfirmDialog above (close-with-unsaved-changes, delete) otherwise
+  // leaves this sheet's own backdrop tap dead.
+  useConfirmDialogBackdropFix(open, confirmCloseOpen || confirmDeleteOpen);
 
   if (entry === null) return null; // nothing to show — BottomSheet stays closed via `open` regardless
 

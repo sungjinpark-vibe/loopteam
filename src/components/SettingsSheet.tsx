@@ -51,6 +51,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { BottomSheet, Button, ConfirmDialog, TextField } from "@toss/tds-mobile";
 import { commaizeAmount, decommaizeAmount } from "../format";
 import { useBackGuard } from "../hooks/useBackGuard";
+import { useConfirmDialogBackdropFix } from "../hooks/useConfirmDialogBackdropFix";
 
 export type ImportOutcome = { ok: true } | { ok: false; error: string };
 
@@ -207,6 +208,11 @@ export function SettingsSheet({
   }
 
   useBackGuard(open, confirmResetOpen || importConfirmOpen, dismiss);
+
+  // Vendor bug workaround (see hook doc) — cancelling either nested
+  // ConfirmDialog above (초기화, 가져오기) otherwise leaves this sheet's own
+  // backdrop tap dead.
+  useConfirmDialogBackdropFix(open, confirmResetOpen || importConfirmOpen);
 
   return (
     <>

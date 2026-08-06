@@ -11,7 +11,7 @@
  * (§8.4/AC), and `updateEntry`/`deleteEntry` are the same functions F9 tests
  * against directly.
  */
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { colors } from "@toss/tds-colors";
 import { Button } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.placeholder";
@@ -181,7 +181,17 @@ export function HistoryScreen({ store }: HistoryScreenProps) {
   // the current month (already resident in `useTownStore`'s own state) and a
   // single chunk read for any other month, cached for the rest of the
   // session by the store itself.
-  useEffect(() => {
+  //
+  // `useLayoutEffect`, not `useEffect` (T012 follow-up finding): `ym` changes
+  // and `getMonthEntries(ym)` below reads DURING RENDER, so a plain `useEffect`
+  // (which fires after the browser has already painted) always lets the FIRST
+  // commit for a newly-navigated-to month see `entries === []` and paint the
+  // empty state for one frame before the real data replaces it.
+  // `ensureMonthLoaded` is fully synchronous (one `localStorage.getItem` at
+  // most — see its own doc comment), so running it as a layout effect instead
+  // costs nothing: React re-renders with the loaded chunk BEFORE the browser
+  // paints, so the empty-state frame never reaches the screen.
+  useLayoutEffect(() => {
     ensureMonthLoaded(ym);
   }, [ym, ensureMonthLoaded]);
 
