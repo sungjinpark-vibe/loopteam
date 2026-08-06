@@ -67,14 +67,23 @@ function findButton(text: string): HTMLButtonElement | undefined {
   return [...document.body.querySelectorAll("button")].find((b) => b.textContent === text);
 }
 
-/** The sheet's own dimmer — TDS renders it `role="button" aria-label="닫기"`, never `inert` on itself (only the confirm's own dimmer is, see the hook's own doc). */
+/**
+ * The sheet's own dimmer (`role="button" aria-label="닫기"`) — captured once,
+ * at the only moment exactly one `[aria-label="닫기"]` node exists in the
+ * document (before the nested confirm, with its own dimmer, has opened),
+ * mirroring how `useConfirmDialogBackdropFix` itself captures its ref. A
+ * later re-query while the confirm is open would have to disambiguate two
+ * matching nodes with no reliable attribute to do it by (T017 round 2/3).
+ */
 function sheetDimmer(): HTMLElement {
-  return [...document.body.querySelectorAll<HTMLElement>('[aria-label="닫기"]')].find((el) => !el.hasAttribute("inert"))!;
+  const nodes = [...document.body.querySelectorAll<HTMLElement>('[aria-label="닫기"]')];
+  if (nodes.length !== 1) throw new Error(`expected exactly one dimmer before the confirm opens, found ${nodes.length}`);
+  return nodes[0];
 }
 
-/** Any leftover `inert` attribute above `sheetDimmer()`, stopping at `document.body` — what the hook is supposed to clear. */
-function hasInertAncestorAboveSheetDimmer(): boolean {
-  let node: HTMLElement | null = sheetDimmer().parentElement;
+/** Any leftover `inert` attribute above the given dimmer, stopping at `document.body` — what the hook is supposed to clear. */
+function hasInertAncestorAbove(dimmer: HTMLElement): boolean {
+  let node: HTMLElement | null = dimmer.parentElement;
   while (node && node !== document.body) {
     if (node.hasAttribute("inert")) return true;
     node = node.parentElement;
@@ -86,6 +95,11 @@ describe("EntrySheet — nested-confirm backdrop fix (T016/T017)", () => {
   it("touching a field, dismissing the backdrop, then canceling the unsaved-changes confirm leaves the sheet's own backdrop tappable again", async () => {
     renderSheet();
 
+    // Capture the sheet's own dimmer now, before the nested confirm (and its
+    // own `[aria-label="닫기"]` node) exists — the only moment there's
+    // exactly one to find.
+    const dimmer = sheetDimmer();
+
     // Touch a field so `touched` is true — backdrop-tap must confirm, not close outright.
     const memoInput = document.body.querySelector<HTMLInputElement>('input[placeholder="메모 (선택)"]')!;
     const nativeValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
@@ -96,7 +110,7 @@ describe("EntrySheet — nested-confirm backdrop fix (T016/T017)", () => {
 
     // Fire the dimmer click — opens the nested "입력한 내용이 사라져요" confirm.
     act(() => {
-      sheetDimmer().click();
+      dimmer.click();
     });
     expect(findButton("계속 입력")).not.toBeUndefined(); // the confirm really opened
 
@@ -111,6 +125,6 @@ describe("EntrySheet — nested-confirm backdrop fix (T016/T017)", () => {
       await new Promise((resolve) => requestAnimationFrame(resolve));
     });
 
-    expect(hasInertAncestorAboveSheetDimmer()).toBe(false);
+    expect(hasInertAncestorAbove(dimmer)).toBe(false);
   });
 });

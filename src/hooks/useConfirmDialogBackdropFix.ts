@@ -57,7 +57,11 @@ export function useConfirmDialogBackdropFix(sheetOpen: boolean, confirmOpen: boo
   // so it's captured on the render right before a later render flips
   // `confirmOpen` true.
   useLayoutEffect(() => {
-    if (!sheetOpen || confirmOpen) return;
+    if (!sheetOpen) {
+      sheetDimmerRef.current = null; // sheet is gone — nothing left to remember
+      return;
+    }
+    if (confirmOpen) return;
     const dimmers = document.querySelectorAll('[aria-label="닫기"]');
     if (dimmers.length === 1) sheetDimmerRef.current = dimmers[0];
   }, [sheetOpen, confirmOpen]);
@@ -68,20 +72,22 @@ export function useConfirmDialogBackdropFix(sheetOpen: boolean, confirmOpen: boo
     if (!justClosed || !sheetOpen) return;
 
     const raf = requestAnimationFrame(() => {
-      let sheetDimmer = sheetDimmerRef.current;
-      // The ref should always be populated by the time a confirm closes —
-      // it's (re)captured on every render where the confirm isn't open,
-      // which necessarily includes the render right before this one opened
-      // it. Fallback only for a hook instance that mounted with the confirm
-      // ALREADY open (so the capture effect above never got a
-      // confirm-closed render to run on): safe only when there is exactly
-      // one candidate to begin with — otherwise leave the DOM alone rather
+      // The ref is populated by the capture effect above, which re-runs on
+      // `[sheetOpen, confirmOpen]` transitions (not every render) but always
+      // includes the render where `confirmOpen` last settled to false before
+      // it can next flip true — so by the time a confirm actually closes,
+      // the ref is populated. T017 round 3 added a re-query fallback here
+      // for a hook instance that mounted with the confirm ALREADY open (so
+      // the capture effect never got a confirm-closed render to run on
+      // first). Round 4 removed it: none of the three call sites can
+      // construct that scenario (each nested confirm's `open` flag is local
+      // `useState(false)`, never true on first mount), and even if one
+      // could, the lead's live-Chromium trace found two `[aria-label="닫기"]`
+      // nodes still coexisting at this rAF in every case they produced, so
+      // the fallback's `dimmers.length === 1` rescue would not have fired
+      // anyway. Trust the ref; if it's ever unpopulated, do nothing rather
       // than guess.
-      if (sheetDimmer === null || !sheetDimmer.isConnected) {
-        const dimmers = document.querySelectorAll('[aria-label="닫기"]');
-        sheetDimmer = dimmers.length === 1 ? dimmers[0] : null;
-      }
-      let node = sheetDimmer?.parentElement ?? null;
+      let node = sheetDimmerRef.current?.parentElement ?? null;
       while (node && node !== document.body) {
         if (node.hasAttribute("inert")) node.removeAttribute("inert");
         node = node.parentElement;
