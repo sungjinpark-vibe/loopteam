@@ -40,10 +40,12 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T014 | app_in_toss JSON export / import (F12) | done | client-dev | build | 1 |
 | T015 | app_in_toss — two known follow-up bugs (dialog backdrop, month-nav flash) | in-progress | client-dev | build | 1 |
 | T016 | app_in_toss — balance pass (director-approved values, flip BALANCE_UNSET) | blocked | client-dev | build | 1 |
+| T017 | app_in_toss — harden EntrySheet backdrop fix (fix-forward round 2) | in-progress | client-dev | build | 1 |
 
-_MVP feature-complete as of T014 (2026-08-05). T015 in progress; T016 (balance pass, director already
-approved values) queued behind it — both touch HistoryScreen.tsx, run sequentially. T016 unblocks
-Gate 3, the milestone that ends app_in_toss development._
+_MVP feature-complete as of T014 (2026-08-05). T015 passed 90/100 (commit 1492757) but its
+fix-forward round for a lead-flagged third bug site scored 86/100 FAIL (commit da5d291) — T017 is
+round 2 of that fix, in progress. T016 (balance pass) queued behind T017 — both touch overlapping
+files. T016 unblocks Gate 3, the milestone that ends app_in_toss development._
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._
