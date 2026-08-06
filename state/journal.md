@@ -1257,3 +1257,43 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   `blocked` on T015 — both tasks touch `HistoryScreen.tsx`; sequencing to avoid a same-file edit race
   since the quality-loop workflow doesn't use worktree isolation for this repo. Will flip T016 to
   `ready` and launch its workflow once T015's notification lands.
+
+## Tick 79 (cont.) — 2026-08-06/07 (in-session)
+- Director gave a new monetization brief mid-session: building speech-bubble ads paying in-game
+  currency (~10min interval, tap to watch + reward), paid extra construction past the new 10/day cap
+  (₩1,000/build), and a decoration shop (₩100-5,000, dual-currency: in-game + real money).
+- This is an explicit reversal of MVP-SPEC.md's deliberate "no currency, no ads" cut decision
+  (§1.3/§8) — told the director this directly, proceeding anyway since the brief was concrete and
+  clearly a considered decision, not a casual aside. Real ad revenue and real payment settlement are
+  blocked on Toss developer-console + business-registration accounts the director hasn't set up —
+  designed T018's scope around the codebase's existing platform-port pattern (browser/dev stub now,
+  toss driver swapped in later) so the full economy can still be built and demoed today.
+- Opened T018 (explore mode, planner, 기획팀장 rubric) for `ADDENDUM-03-monetization.md` — running
+  concurrently with T017 (no file overlap, explore mode writes docs only).
+- **T017 fix-forward saga, now 2 failed rounds past T015's own formal pass**: round 1 (da5d291)
+  scored 86/100 FAIL — a lead-flagged third unfixed instance of the nested-confirm backdrop bug
+  (EntrySheet.tsx) plus a 2-dimmer selector race, no test coverage for the new site, and a
+  nondeterministic test suite. Round 2 (abf4a16) tried an `inert`-attribute-based disambiguation and
+  scored WORSE — 81/100 FAIL: the reviewing lead traced the hook's actual DOM query live in Chrome and
+  found the "confirm's dimmer always carries inert on itself" invariant is **false in a real browser**
+  (only true in jsdom) — the fix "worked" only by document-order coincidence, identical to the
+  original bug, and the false invariant got written into a permanent docblock plus a jsdom-only test
+  that passed for the wrong reason. **Real lesson, not a process gap**: a claim of "verified live" is
+  only as good as which runtime it was verified in — jsdom and real Chromium disagree on vendor
+  component internals often enough that a hook this deep into TDS's DOM shape needs verification in an
+  actual browser, every round, not just the first.
+- Round 3 (in flight at session close): capture the sheet's own backdrop node via a ref while no
+  confirm is open (deterministic, no inference from live TDS internals) instead of trying to
+  disambiguate multiple DOM nodes after the fact — specified by the round-2 reviewing lead and
+  adversarially checked sound before handing to round 3's implementer.
+- **Session closed by the director for the day with T017 round 3 and T018 both still running as
+  background agents.** No daemon watches workflow/agent completions unattended in this architecture —
+  only Discord polling runs without a live session. Full resume instructions (including "if round 3
+  also failed, stop and escalate rather than trying round 4") written into `state/PROGRESS.md`'s
+  ▶ Next section — read that first on resume, don't re-derive from this entry.
+- **Do Not Repeat addition**: when a subagent's fix touches vendor/third-party component DOM
+  internals (TDS, or any minified dependency), do not accept "verified live" without confirming it ran
+  in an actual browser engine, not just the test suite's DOM environment (jsdom) — this cost two failed
+  rounds before being caught, and the failure mode (false invariant baked into a comment + a test that
+  passes for the wrong reason) is exactly the kind of thing that looks done until someone reproduces it
+  for real.

@@ -5,44 +5,67 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss — MVP feature-complete as of T014 (2026-08-05).**
+- **Status**: ▶ ACTIVE — **app_in_toss — MVP feature-complete as of T014 (2026-08-05). Session
+  paused 2026-08-07 with two background workflows still in flight** (see ▶ Next — **read that
+  section first on resume**, it has the exact resume actions).
   T001-T014 all `done` (scores 90/91/92/95/89/96/[T007 reverted]/92/91/94/93/91/91/92). Full
   narrative + lessons from this whole stretch: `state/journal.md` → "2026-08-02 to 2026-08-05 —
-  app_in_toss: new project through T012" (T013/T014 landed after that entry was written — see their
-  own task files for detail). Detail on any specific task: `backlog/tasks/T0##.md`.
+  app_in_toss: new project through T012" and the "Tick 79" entries (2026-08-05/07) for everything
+  since. Detail on any specific task: `backlog/tasks/T0##.md`.
   **Where things stand**: ADDENDUM-01 (savings buildings + road layout), ADDENDUM-02
   (random/movable placement), and the full MVP build order (F1-F17's in-scope items) are all
   implemented and gated ≥90.
-  **Director answered the MVP-complete direction question (Discord msg 1534600530750345386,
-  "1번 진행해줘") = option (a), Gate 3 prerequisites.** Since Gate 3 needs `BALANCE_UNSET === false`
-  (MVP-SPEC.md §9) and the actual numbers are the director's call (D-3/D-4/D-5/D-13/D-14/D-15, §13),
-  PM sent a plain-language 6-question balance ask to Discord (msg 1534906419516538891, 2026-08-05)
-  with a shipped-default offered for each — awaiting reply, not yet resolved.
-  **T015 opened and running concurrently** (the two small logged follow-ups below — no director
-  decision needed for these, so started them while the balance ask is outstanding): a pre-existing
-  TDS nested-dialog backdrop quirk (seen twice, `backlog/tasks/T003.md` and `T013.md`), a
-  month-navigation empty-state flash (`backlog/tasks/T012.md`). Quality-loop workflow run wf_8fc63a04-8af.
+  **Director answered the MVP-complete direction question** ("1번 진행해줘" = Gate 3 prerequisites)
+  **and the follow-up 6-question balance ask** (`dailyBuildSlots` 5→10, rest kept default;
+  `materialQueueMax`/D-14 was accidentally omitted from the question, defaulted unchanged and
+  flagged). T016 (write `balance.approved.ts`, flip `BALANCE_UNSET`) is drafted and `blocked` on
+  T017 landing — see `backlog/tasks/T016.md` for the exact approved-values table.
+  **Director also gave a new monetization brief mid-session** (2026-08-06/07): building
+  speech-bubble ads paying in-game currency, ₩1,000 for a build past the 10/day cap, a ₩100-5,000
+  decoration shop (dual-currency). This explicitly reverses MVP-SPEC.md's original "no currency, no
+  ads" cut decision — flagged to the director as such, proceeding since the request was concrete and
+  deliberate. Real ad/payment settlement is blocked on missing Toss console/business-registration
+  accounts, so **T018** designs it against the existing platform-port pattern (browser/dev stub now,
+  toss driver later) so the full economy is buildable and demoable today regardless.
   Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
   test → lint → gate:extra — same contract as `gate.ps1`).
 - **Standing note**: Discord replies are only auto-drained during an autonomous tick's scout step —
   while working in-session, re-check `.discord/incoming.log` manually after sending anything that
-  expects a reply, don't assume silence means unanswered. Life Town and touchRPG remain paused,
-  untouched. Discord ENABLED both ways (rule 8, current).
+  expects a reply, don't assume silence means unanswered. Inbox fully drained as of 2026-08-07,
+  `handled.txt` = `1534600530750345386`. **This session, the director asked for status updates to be
+  sent in-session rather than to Discord** — a per-session redirection, not a standing channel-rule
+  change; default back to Discord (VISION.md §7 rule 8) unless told again. Life Town and touchRPG
+  remain paused, untouched.
 - **Engine-improvement backlog (2026-07-19 session), still awaiting the director's pick, low
   priority while app_in_toss is active**: skill/library research results (full lists in journal —
   top picks Unity MCP, UniTask/PrimeTween, etc. — **adopt nothing without the director's pick**);
   rtk (✅ working) + ponytail (fixed, needed a session restart) subagent coverage; token-leak audit
   done. None of this blocks app_in_toss work.
-- **Last updated**: 2026-08-05 (in-session)
+- **Last updated**: 2026-08-07 (in-session, session paused by director — "오늘은 여기서 마무리 해줘")
 
-## ▶ Next, in this order
-1. **T017 in progress** — T015 passed 90/100 (commit 1492757) but the lead flagged a third unfixed
-   backdrop-bug site (`EntrySheet.tsx`); fix-forward round 1 (da5d291) then FAILED lead review at
-   86/100 (real findings: a 2-dimmer selector race, no regression test for the new site, a
-   nondeterministic test suite). Round 2 (commit abf4a16) just landed — verification is running now
-   (async team-lead agent). **On result: if ≥90, mark T015/T017 done, flip T016 to `ready`, launch its
-   quality-loop workflow. If still <90, one more targeted fix-forward round, do not let this drag past
-   3 rounds without re-evaluating the approach.**
+## ▶ Next, in this order — READ FIRST ON RESUME
+1. **Two background agents were in flight when the session paused, both unsupervised until a session
+   resumes and catches their task-notification** (there is no daemon watching workflow completions —
+   only Discord polling runs unattended):
+   - **T017 fix-forward round 3** (agent id in this session's transcript only — if its notification
+     was never caught, just re-run: read `backlog/tasks/T017.md`'s full log for exact context, then
+     redo the round-3 prompt described there against current `app_in_toss` HEAD to see if it already
+     landed a commit past `abf4a16`. Round 1 (da5d291) scored 86/100 FAIL, round 2 (abf4a16) scored
+     81/100 FAIL WORSE — root cause both times: the shared hook's multi-dimmer disambiguation doesn't
+     hold in real Chromium, only in jsdom. Round 3's fix (ref-capture the sheet's own backdrop node
+     while no confirm is open, instead of inferring it from live DOM state) was specified by the
+     round-2 reviewing lead and adversarially verified sound before being handed to round 3.
+     **If round 3 also failed: stop manual fix-forwards, escalate to the director as unfinished with
+     the full 86→81→? score history** (VISION.md §5) rather than attempting a round 4.
+   - **T018 monetization spec** (`docs/spec/ADDENDUM-03-monetization.md`, explore mode, 기획팀장
+     rubric) — check `docs/spec/` for whether the file now exists and `backlog/tasks/T018.md` for a
+     completion log. If it landed and scored ≥90, report it to the director for approval before any
+     build task starts (approval workflow, CLAUDE.md).
+2. **Once T017 passes**: flip T016 to `ready`, launch its quality-loop workflow (approved balance
+   values already in `backlog/tasks/T016.md`, no further director input needed).
+3. **Once T016 passes**: run Gate 3 (`playtest.js`) — ends the *original MVP* scope's development.
+   T018's monetization build-out is new scope layered on top, does not block Gate 3 on the original
+   MVP. Real art order (D-12 still open) and other new feature requests remain queued behind both.
 2. **T018 running in parallel** (explore mode, doc-only, no file conflict with T016/T017) — new
    director-requested monetization design (ads via building speech-bubbles + in-game currency, paid
    extra builds past the 10/day cap, a decoration shop). This is an explicit, informed reversal of
