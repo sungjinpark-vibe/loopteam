@@ -24,25 +24,43 @@
  * same window), then strip any leftover `inert` attribute among the SHEET's
  * own backdrop's ancestors, stopping at `document.body`.
  *
- * T017 finding C2: while the confirm is still open (or mid-teardown, the
- * exact window this hook fires in), there are TWO `[aria-label="닫기"]`
- * nodes in the document — the sheet's own dimmer AND the confirm's own
- * dimmer — so a bare `document.querySelector` picks whichever the browser
- * happens to return first, which is a document-order accident, not a
- * guarantee. Disambiguated by a DOM signal verified live (component-test DOM
- * dump, both immediately after cancel and pre-raf): the confirm's own dimmer
- * always carries `inert` DIRECTLY ON ITSELF while its dialog is open/closing
- * (that's Radix's normal, correctly-self-cleaning aria-hiding of the confirm
- * layer — unrelated to the vendor bug), while the SHEET's own dimmer never
- * does — only an ANCESTOR of it does, and only because of the bug this hook
- * exists to undo. Filtering to the one `[aria-label="닫기"]` node that is
- * NOT itself `inert` picks the sheet's backdrop deterministically regardless
- * of how many `닫기`-labeled nodes exist or what order they're in.
+ * T017 round 3: the sheet's own backdrop can't be found by inspecting live
+ * DOM state once the confirm is open — while it is, there are TWO
+ * `[aria-label="닫기"]` nodes in the document (the sheet's own dimmer and
+ * the confirm's own). Rounds 1 and 2 each tried to tell them apart by some
+ * attribute one node was assumed to carry and the other wasn't (document
+ * order, then `inert` directly on the node) — both assumptions were
+ * contradicted by a real-Chromium trace on a LATER attempt (an attribute
+ * that looked stable in one build/timing turned out not to be), which is
+ * exactly the failure mode to stop repeating: whatever TDS puts on these
+ * nodes internally is undocumented and has already been observed to vary.
+ * So this hook stops inspecting vendor DOM state altogether and CAPTURES a
+ * ref to the sheet's own backdrop while `confirmOpen` is `false` — the only
+ * moment exactly one `[aria-label="닫기"]` node exists in the document at
+ * all, so there is nothing to disambiguate yet. On the confirm's
+ * `open -> false` transition, cleanup walks up from that remembered node
+ * instead of re-querying the DOM, which is correct no matter how many
+ * `닫기`-labeled nodes coexist or what attributes vendor code puts on them
+ * (verified live in Chromium at all three call sites, T017 round 3: after
+ * cancelling the nested confirm, `document.elementFromPoint` over the
+ * dimmer's own coverage area resolves back to the dimmer itself).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 export function useConfirmDialogBackdropFix(sheetOpen: boolean, confirmOpen: boolean): void {
   const wasConfirmOpen = useRef(confirmOpen);
+  const sheetDimmerRef = useRef<Element | null>(null);
+
+  // Capture the sheet's OWN backdrop while no nested confirm is open — the
+  // only moment exactly one `[aria-label="닫기"]` node exists in the
+  // document (the confirm's own dimmer isn't mounted yet). Runs before paint
+  // so it's captured on the render right before a later render flips
+  // `confirmOpen` true.
+  useLayoutEffect(() => {
+    if (!sheetOpen || confirmOpen) return;
+    const dimmers = document.querySelectorAll('[aria-label="닫기"]');
+    if (dimmers.length === 1) sheetDimmerRef.current = dimmers[0];
+  }, [sheetOpen, confirmOpen]);
 
   useEffect(() => {
     const justClosed = wasConfirmOpen.current && !confirmOpen;
@@ -50,8 +68,19 @@ export function useConfirmDialogBackdropFix(sheetOpen: boolean, confirmOpen: boo
     if (!justClosed || !sheetOpen) return;
 
     const raf = requestAnimationFrame(() => {
-      const dimmers = document.querySelectorAll('[aria-label="닫기"]');
-      const sheetDimmer = [...dimmers].find((el) => !el.hasAttribute("inert"));
+      let sheetDimmer = sheetDimmerRef.current;
+      // The ref should always be populated by the time a confirm closes —
+      // it's (re)captured on every render where the confirm isn't open,
+      // which necessarily includes the render right before this one opened
+      // it. Fallback only for a hook instance that mounted with the confirm
+      // ALREADY open (so the capture effect above never got a
+      // confirm-closed render to run on): safe only when there is exactly
+      // one candidate to begin with — otherwise leave the DOM alone rather
+      // than guess.
+      if (sheetDimmer === null || !sheetDimmer.isConnected) {
+        const dimmers = document.querySelectorAll('[aria-label="닫기"]');
+        sheetDimmer = dimmers.length === 1 ? dimmers[0] : null;
+      }
       let node = sheetDimmer?.parentElement ?? null;
       while (node && node !== document.body) {
         if (node.hasAttribute("inert")) node.removeAttribute("inert");
