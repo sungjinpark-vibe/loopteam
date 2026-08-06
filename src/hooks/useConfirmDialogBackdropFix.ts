@@ -21,11 +21,23 @@
  * Fix: once a nested confirm's `open` flips true -> false while the outer
  * sheet is still `open`, wait one frame for React to finish committing the
  * confirm's own portal teardown (TDS's own — buggy — cleanup runs in that
- * same window), then walk up from the sheet's own backdrop (uniquely
- * identified in this app by TDS's built-in `aria-label="닫기"` — there is
- * only ever one such dismiss-backdrop mounted at a time, verified live) and
- * strip any leftover `inert` attribute among its ancestors, stopping at
- * `document.body`.
+ * same window), then strip any leftover `inert` attribute among the SHEET's
+ * own backdrop's ancestors, stopping at `document.body`.
+ *
+ * T017 finding C2: while the confirm is still open (or mid-teardown, the
+ * exact window this hook fires in), there are TWO `[aria-label="닫기"]`
+ * nodes in the document — the sheet's own dimmer AND the confirm's own
+ * dimmer — so a bare `document.querySelector` picks whichever the browser
+ * happens to return first, which is a document-order accident, not a
+ * guarantee. Disambiguated by a DOM signal verified live (component-test DOM
+ * dump, both immediately after cancel and pre-raf): the confirm's own dimmer
+ * always carries `inert` DIRECTLY ON ITSELF while its dialog is open/closing
+ * (that's Radix's normal, correctly-self-cleaning aria-hiding of the confirm
+ * layer — unrelated to the vendor bug), while the SHEET's own dimmer never
+ * does — only an ANCESTOR of it does, and only because of the bug this hook
+ * exists to undo. Filtering to the one `[aria-label="닫기"]` node that is
+ * NOT itself `inert` picks the sheet's backdrop deterministically regardless
+ * of how many `닫기`-labeled nodes exist or what order they're in.
  */
 import { useEffect, useRef } from "react";
 
@@ -38,8 +50,9 @@ export function useConfirmDialogBackdropFix(sheetOpen: boolean, confirmOpen: boo
     if (!justClosed || !sheetOpen) return;
 
     const raf = requestAnimationFrame(() => {
-      const dimmer = document.querySelector('[aria-label="닫기"]');
-      let node = dimmer?.parentElement ?? null;
+      const dimmers = document.querySelectorAll('[aria-label="닫기"]');
+      const sheetDimmer = [...dimmers].find((el) => !el.hasAttribute("inert"));
+      let node = sheetDimmer?.parentElement ?? null;
       while (node && node !== document.body) {
         if (node.hasAttribute("inert")) node.removeAttribute("inert");
         node = node.parentElement;

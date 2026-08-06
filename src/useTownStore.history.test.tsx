@@ -21,13 +21,33 @@ function Harness() {
   return null;
 }
 
+// A plain function, not inlined, so TS doesn't narrow `latest` to `never`
+// against `Harness`'s reassignment (same note as `historyDense.test.tsx`'s
+// own `stillLoading`).
+function stillLoading(): boolean {
+  return latest === null || latest.loading;
+}
+
+// A single fixed `setTimeout(0)` tick is NOT enough to guarantee boot has
+// settled: `useTownStore`'s boot effect awaits `drainQueueAndPersist`, which
+// yields via its own `setTimeout(0)` (`yieldToMainThread`, storage.ts) once
+// per >8ms time-budget slice — under file-parallelism contention that extra
+// macrotask can land AFTER this function's single wait tick already
+// resolved, so the test would proceed against a still-null `state`
+// (`ensureMonthLoaded` no-ops when `state === null`). Poll `loading` instead
+// of trusting a fixed number of ticks (T017 finding C5 — flaked at
+// `useTownStore.history.test.tsx:249-250`).
 async function mountAndWaitForBoot(): Promise<void> {
   root = createRoot(container);
   latest = null;
-  await act(async () => {
+  act(() => {
     root.render(<Harness />);
-    await new Promise((resolve) => setTimeout(resolve, 0));
   });
+  for (let i = 0; i < 200 && stillLoading(); i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+  }
 }
 
 const TODAY = "2026-08-15";
