@@ -41,7 +41,7 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T015 | app_in_toss — two known follow-up bugs (dialog backdrop, month-nav flash) | in-progress | client-dev | build | 1 |
 | T016 | app_in_toss — balance pass (director-approved values, flip BALANCE_UNSET) | blocked | client-dev | build | 1 |
 | T017 | app_in_toss — harden EntrySheet backdrop fix (fix-forward round 2) | in-progress | client-dev | build | 1 |
-| T018 | app_in_toss spec addendum — monetization (ads, paid extra builds, decoration shop) | ready | planner | explore | 1 |
+| T018 | app_in_toss spec addendum — monetization (ads, paid extra builds, decoration shop) | awaiting-approval | planner | explore | 1 |
 
 _MVP feature-complete as of T014 (2026-08-05). T015 passed 90/100 (commit 1492757) but its
 fix-forward round for a lead-flagged third bug site scored 86/100 FAIL (commit da5d291) — T017 is

@@ -3,7 +3,7 @@
   "tick": 79,
   "project": "app_in_toss",
   "active_task": "T017,T018",
-  "last_tick_at": "2026-08-07 (in-session, session closed by director for the day)",
+  "last_tick_at": "2026-08-07 (in-session, resumed after interrupt -- T017 round 3 + T018 relaunched, director wants app playable when back from work)",
   "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself. Current state + resume pointers: state/PROGRESS.md.",
