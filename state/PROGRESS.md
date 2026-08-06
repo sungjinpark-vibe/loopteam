@@ -12,10 +12,16 @@
   own task files for detail). Detail on any specific task: `backlog/tasks/T0##.md`.
   **Where things stand**: ADDENDUM-01 (savings buildings + road layout), ADDENDUM-02
   (random/movable placement), and the full MVP build order (F1-F17's in-scope items) are all
-  implemented and gated ≥90. **No task is currently `ready`** — the next step needs the director's
-  direction (see ▶ Next). Small non-blocking follow-ups logged, not yet scheduled: a pre-existing
+  implemented and gated ≥90.
+  **Director answered the MVP-complete direction question (Discord msg 1534600530750345386,
+  "1번 진행해줘") = option (a), Gate 3 prerequisites.** Since Gate 3 needs `BALANCE_UNSET === false`
+  (MVP-SPEC.md §9) and the actual numbers are the director's call (D-3/D-4/D-5/D-13/D-14/D-15, §13),
+  PM sent a plain-language 6-question balance ask to Discord (msg 1534906419516538891, 2026-08-05)
+  with a shipped-default offered for each — awaiting reply, not yet resolved.
+  **T015 opened and running concurrently** (the two small logged follow-ups below — no director
+  decision needed for these, so started them while the balance ask is outstanding): a pre-existing
   TDS nested-dialog backdrop quirk (seen twice, `backlog/tasks/T003.md` and `T013.md`), a
-  month-navigation empty-state flash (`backlog/tasks/T012.md`).
+  month-navigation empty-state flash (`backlog/tasks/T012.md`). Quality-loop workflow run wf_8fc63a04-8af.
   Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
   test → lint → gate:extra — same contract as `gate.ps1`).
 - **Standing note**: Discord replies are only auto-drained during an autonomous tick's scout step —
@@ -30,13 +36,14 @@
 - **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. **Report the MVP-complete milestone to the director and ask direction.** Real candidates, do not
-   pick one unprompted: (a) Gate 3 — the 5-expert playtest that closes app development (VISION.md
-   §3.3) — but `BALANCE_UNSET` is still `true` (director hasn't approved real balance numbers), and
-   §9's own rule says a build with `BALANCE_UNSET === true` must not pass Gate 3, so a real balance
-   pass is a prerequisite; (b) the real art order (D-12's art-style-distance question is still open,
-   §6.1 lists ~40+ assets); (c) new feature requests, as they've been arriving steadily this whole
-   stretch; (d) polish the small logged follow-ups first. Do not invent work while idle.
+1. **Wait for the director's balance-numbers reply** (Discord msg 1534906419516538891 sent
+   2026-08-05 — 6 plain-language questions covering D-3/D-4/D-5/D-13/D-14/D-15, each with a
+   shipped-default offered). On reply: write `balance.approved.ts` per MVP-SPEC.md §9 rule 3
+   (never edit the placeholder in place), flip `BALANCE_UNSET` to `false`, then run Gate 3
+   (`playtest.js`) — this is the milestone that ends app_in_toss development. If several ticks pass
+   with no reply, one quiet nudge (VISION.md §6) — do not proceed with invented numbers.
+   Once Gate 3 is scheduled, the other candidates ((b) real art order, D-12 still open; (c) new
+   feature requests) remain queued behind it, not concurrent with it.
 2. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
 

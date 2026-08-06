@@ -1217,3 +1217,27 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   instead of a loading flag) was found and fixed as a byproduct.
 - State by end of this stretch: ADDENDUM-01 and ADDENDUM-02 both fully implemented; MVP build order
   through F8/F9 done. Remaining: F6 (budget/mood) + S6 (settings) + F12 (export/import).
+
+## Tick 79 — 2026-08-05 (in-session)
+- T013 (town mood + settings) and T014 (JSON export/import) landed since the last entry, both
+  passing gate — 91/100 and 92/100 respectively. That closed the MVP build order (F1-F17 in-scope
+  items all implemented). Reported MVP-complete to the director on Discord, asked which of 4
+  candidate directions to take next (Gate 3 prereqs / real art order / new feature requests / polish
+  logged follow-ups).
+- Found the director's reply ("1번 진행해줘", msg 1534600530750345386) had NOT yet been drained —
+  it postdated `handled.txt`'s last-acted id and was sitting unread in `incoming.log` during a later
+  in-session exchange. Root cause: outside the scout's tick step, nothing auto-drains the inbox; a
+  reply that lands between manual checks sits unseen until the next explicit check. Caught this time
+  by re-reading `incoming.log` against `handled.txt` before assuming "no direction given yet."
+- "1번" = option (a), Gate 3 prerequisites. Gate 3 needs `BALANCE_UNSET === false`
+  (MVP-SPEC.md §9), and the actual numbers are explicitly the director's call, not the PM's
+  (§13 D-3/D-4/D-5/D-13/D-14/D-15) — a build with placeholder numbers must not pass Gate 3 by the
+  spec's own rule. Sent a plain-language 6-question ask (msg 1534906419516538891) with a
+  shipped-default offered per question, so the director can just confirm defaults if they have no
+  strong opinion, rather than being handed a raw open-decisions table.
+- Opened T015 concurrently (in-progress) for the two small no-decision-needed follow-ups already
+  logged during T012/T013 (TDS nested-dialog backdrop quirk, month-nav empty-state flash) — these
+  don't block on the director, so no reason to sit idle while the balance ask is outstanding.
+- **Do Not Repeat addition**: when resuming an in-session conversation after a gap, re-diff
+  `.discord/incoming.log` against `.discord/handled.txt` before assuming the backlog's "awaiting
+  director direction" state is still accurate — a reply may have already landed and gone unread.

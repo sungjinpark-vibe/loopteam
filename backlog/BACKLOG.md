@@ -38,9 +38,11 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T012 | app_in_toss 기록 (history) screen + edit/delete (F8, F9, S3, S5) | done | client-dev | build | 1 |
 | T013 | app_in_toss town mood (F6) + settings sheet (S6) | done | client-dev | build | 1 |
 | T014 | app_in_toss JSON export / import (F12) | done | client-dev | build | 1 |
+| T015 | app_in_toss — two known follow-up bugs (dialog backdrop, month-nav flash) | in-progress | client-dev | build | 1 |
 
-_MVP feature-complete as of T014 (2026-08-05). No task currently `ready` — next work needs the
-director's direction (Gate 3 playtest? real art order? new feature requests?)._
+_MVP feature-complete as of T014 (2026-08-05). T015 is a no-decision-needed bugfix follow-up;
+after it, next work still needs the director's direction (Gate 3 playtest? real art order? new
+feature requests?)._
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._
