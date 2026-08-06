@@ -1241,3 +1241,19 @@ Keep entries short. Record **decisions and outcomes**, not narration.
 - **Do Not Repeat addition**: when resuming an in-session conversation after a gap, re-diff
   `.discord/incoming.log` against `.discord/handled.txt` before assuming the backlog's "awaiting
   director direction" state is still accurate — a reply may have already landed and gone unread.
+
+## Tick 79 (cont.) — 2026-08-05 (in-session)
+- Director answered the balance ask same session: `dailyBuildSlots` raised 5→10 (explicit — future
+  paid-raise-past-10 intent noted but NOT built now, ties to spec's already-open D-7 monetization
+  item), everything else kept at the placeholder's own suggested default.
+- **PM error caught before it shipped**: the balance ask sent to Discord only listed 6 of the 7
+  substantive `BALANCE` dials — `materialQueueMax` (D-14) was omitted by mistake. Told the director
+  directly, defaulted it to unchanged (matches the pattern of every other untouched dial), logged in
+  T016's brief so it's revisit-able if the director objects later. **Do Not Repeat**: when drafting a
+  multi-question director ask from a spec's open-decisions table, cross-check the question list
+  against the actual field list in code (`balance.placeholder.ts` here), not just memory of the spec
+  prose — the prose and the code drifted by one field without anyone noticing until now.
+- Opened T016 (write `balance.approved.ts` per §9 rule 3, wire the app to it, flip the banner off) as
+  `blocked` on T015 — both tasks touch `HistoryScreen.tsx`; sequencing to avoid a same-file edit race
+  since the quality-loop workflow doesn't use worktree isolation for this repo. Will flip T016 to
+  `ready` and launch its workflow once T015's notification lands.

@@ -36,14 +36,13 @@
 - **Last updated**: 2026-08-05 (in-session)
 
 ## ▶ Next, in this order
-1. **Wait for the director's balance-numbers reply** (Discord msg 1534906419516538891 sent
-   2026-08-05 — 6 plain-language questions covering D-3/D-4/D-5/D-13/D-14/D-15, each with a
-   shipped-default offered). On reply: write `balance.approved.ts` per MVP-SPEC.md §9 rule 3
-   (never edit the placeholder in place), flip `BALANCE_UNSET` to `false`, then run Gate 3
-   (`playtest.js`) — this is the milestone that ends app_in_toss development. If several ticks pass
-   with no reply, one quiet nudge (VISION.md §6) — do not proceed with invented numbers.
-   Once Gate 3 is scheduled, the other candidates ((b) real art order, D-12 still open; (c) new
-   feature requests) remain queued behind it, not concurrent with it.
+1. **Director answered the balance ask same session** (dailyBuildSlots 5→10, rest default;
+   `materialQueueMax`/D-14 was accidentally left off the question — defaulted unchanged, flagged to
+   director). T016 opened (`blocked` on T015 — both touch `HistoryScreen.tsx`). **When T015's
+   notification lands: flip T016 to `ready` and launch its quality-loop workflow.**
+2. **After T016 passes**: run Gate 3 (`playtest.js`) — this is the milestone that ends app_in_toss
+   development. Once Gate 3 is scheduled, the other candidates ((b) real art order, D-12 still open;
+   (c) new feature requests) remain queued behind it, not concurrent with it.
 2. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
 
