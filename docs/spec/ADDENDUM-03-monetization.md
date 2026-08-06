@@ -686,7 +686,7 @@ export interface EconomyState {
 
 Every key below lands in `balance.approved.ts` as a signed diff (MVP-SPEC §9 rule 3: placeholders are never edited in place). **No value is proposed except the two the director gave.** And instead of shipping arbitrary placeholders:
 
-> **Null-dial rule.** Where a new economy value is `null`, the feature it drives is **disabled and invisible** — no UI surface, no entry point, no toast. The machine ships; the dial does not. A null dial cannot be screenshotted and quoted back as a design decision, which a plausible-looking placeholder can. `BALANCE_UNSET`'s banner still applies to the app as a whole; this is the per-feature version.
+> **Null-dial rule.** Where a new economy value is `null`, the feature it drives is **disabled and invisible** — no UI surface, no entry point, no toast. The machine ships; the dial does not. A null dial cannot be screenshotted and quoted back as a design decision, which a plausible-looking placeholder can. It is also stricter than a `[TBD]` marker: `[TBD]` is a convention in a document that no code enforces and that a build ignores silently, whereas `null` is enforced at the call site — the feature physically cannot render until the director answers, so an unanswered dial fails loudly as a missing feature rather than quietly as a wrong number. `BALANCE_UNSET`'s banner still applies to the app as a whole; this is the per-feature version.
 
 | Key | Status | What `null` means concretely |
 |---|---|---|
