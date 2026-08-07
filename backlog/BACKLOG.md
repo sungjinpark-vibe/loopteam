@@ -42,12 +42,15 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T016 | app_in_toss — balance pass (director-approved values, flip BALANCE_UNSET) | done | client-dev | build | 1 |
 | T017 | app_in_toss — harden EntrySheet backdrop fix (fix-forward round 2) | done | client-dev | build | 1 |
 | T018 | app_in_toss spec addendum — monetization (ads, paid extra builds, decoration shop) | awaiting-approval | planner | explore | 1 |
+| T019 | app_in_toss — Gate 3 FAILED (avg 64.4, all 5 experts below 80 floor) | blocked | N/A | N/A | 1 |
 
-_MVP feature-complete as of T014 (2026-08-05). T015/T017 (backdrop-lockup bug fix, hardened over 4
-rounds) done — passed 93/100. T016 (balance pass) done — passed 90/100. Gate 3 prerequisite clear,
-Gate 3 (`playtest.js`) running now — ends app_in_toss's original MVP development. T018
-(director-requested monetization spec) passed 94/100, `awaiting-approval` — report to director for
-sign-off before any build task starts on it._
+_T001-T017 all done, but **Gate 3 (the real completion gate) failed hard on its first run** — avg
+64.4/100, every expert below the 80 floor. Root cause: MVP-SPEC.md's build-order step 5 (F16 monthly
+settlement/monuments, S1 onboarding, F17 memo chips) was never actually built despite prior records
+claiming "F1-F17 all implemented" — nobody verified it. Plus real design gaps (reward decoupled from
+money amount, overspending has no consequence). See T019 for the full report. **T019 is `blocked` on
+director direction** — this needs scope/priority decisions, not more autonomous fix-forward rounds.
+T018 (monetization spec, 94/100) remains `awaiting-approval`, independent of T019._
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._

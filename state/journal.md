@@ -1297,3 +1297,58 @@ Keep entries short. Record **decisions and outcomes**, not narration.
   rounds before being caught, and the failure mode (false invariant baked into a comment + a test that
   passes for the wrong reason) is exactly the kind of thing that looks done until someone reproduces it
   for real.
+
+## Tick 79 (cont.) — 2026-08-07 (in-session) — Gate 3 FAILED, MVP-complete claim was wrong
+- T016 (balance pass) passed 90/100 on the first round: `balance.approved.ts` created, all 13 live
+  import sites re-pointed, dailyBuildSlots live-verified at 10, banner gone. Committed app_in_toss
+  e99e0d1. This cleared MVP-SPEC.md §9's stated Gate 3 prerequisite, so Gate 3 was launched.
+- **Gate 3 (playtest.js) came back avg 64.4/100, every one of 5 experts below the 80 floor**
+  (game-designer 60, ux-researcher 67, liveops-pd 70, qa-lead 72, target-player 53). This is not
+  marginal — it's a genuine, well-evidenced failure. Full findings in `backlog/tasks/T019.md`.
+- **Root cause traced and confirmed via direct grep**: MVP-SPEC.md §12's build order has a step 5
+  (F16 monthly settlement + monuments, S1 onboarding, F17 memo chips, polish) that **no task was ever
+  opened for**. `useTownStore.ts` has zero `monument` references — F16 was never wired past a dead
+  type (`types.ts`'s `monumentSummary`, unused). No `Onboarding` component existed. `backlog/tasks/
+  T013.md`'s own brief had silently assumed onboarding/F11 "already built" without anyone checking.
+  **`state/PROGRESS.md` had been claiming "the full MVP build order (F1-F17) all implemented and gated
+  ≥90" since 2026-08-05 — this was false**, and nobody caught it until the first time anything looked
+  at the whole product experience holistically instead of task-by-task. This is exactly the failure
+  mode the gate system exists to prevent, except it happened at the PM's own record-keeping level.
+- Real design findings beyond the missing features: reward is fully decoupled from `amountKrw` (a ₩1
+  and a ₩10,000,000 entry build identically; a no-spend day yields a TENTH the growth of ten impulse
+  buys same day since it also burns a slot); overspending has zero mechanical consequence (mood is
+  text-only, nothing decays); the tier-celebration is a hard blocking modal that swallows the primary
+  add-entry action; two identical console errors fire on every page load; several flows (controlled
+  +1-day rollover, true concurrent mash, multi-threshold tier jump) couldn't even be verified because
+  no TimeTravel UI hook is exposed to QA.
+- **Separately, a real engine-tooling bug was found and fixed, no data loss.** `playtest.js`'s
+  post-fix-round mechanical gate check was hardcoded to `gate.ps1` (Unity) — the same gap
+  `quality-loop.js` already had fixed months ago, just never carried over to the sibling workflow.
+  The round's own automatic "Fix" step ran for real and produced genuine WIP (including a new
+  `Onboarding.tsx`), but then the verification step failed with "not a Unity project," and the
+  resulting "repair the compile error" prompt (built on that false premise) was **correctly blocked by
+  the safety classifier** before it could act — it flagged the risk of an agent trying to restructure
+  the React codebase into Unity shape based on a false signal. Good outcome, no harm. Fixed at the
+  engine level: `playtest.js` gained `args.gateScript`/`args.runHint` overrides mirroring
+  `quality-loop.js`, and `gate/gate-node.ps1` gained the `-SkipTest` switch the fix-round verification
+  always passes (engine commit 5e1b269). Also found and killed a stray dev-server process (esbuild.exe
+  locked by an orphaned `npm run dev` from the QA evidence step, PID identified precisely and killed,
+  not a broad kill) that was blocking `npm install` on manual gate re-runs.
+- The autonomous fix round's uncommitted WIP was rescued rather than lost or silently built on: ran
+  the real gate against it (passes mechanically — typecheck/build/lint/gate:extra green, one
+  known-flaky wall-clock-sensitive perf test confirmed passing in isolation), then committed it
+  clearly marked as **unverified, not scored, not to be treated as done** (app_in_toss commit 7ed237d).
+- **Escalated to the director per VISION.md §5, not pushed through with more autonomous rounds.**
+  This crossed from bug-fixing into scope/design-priority territory: F16/F17 were explicitly on the
+  spec's own "cut if time runs out" list (so leaving them cut may be an acceptable director call), but
+  S1 onboarding was NOT on that list (the spec treated it as essential), and the reward/mood-consequence
+  findings are core-loop product decisions, not implementation bugs. Opened T019 (`blocked`, awaiting
+  director direction) rather than guessing at priority.
+- **Do Not Repeat addition**: a task-by-task "each gate passed ≥90" record is not the same as "the
+  product actually holds together" — Gate 3's whole purpose is to catch exactly this gap, but only if
+  it's actually run, and only if the PM's own "feature-complete" bookkeeping doesn't quietly skip a
+  build-order step without anyone re-deriving it from the spec. Before declaring any milestone complete
+  going forward, cross-check the spec's own build order against what actually has a task+passed-gate
+  behind it — don't trust a prior session's summary of "all done" without spot-checking at least the
+  items that sound like they might have been silently dropped (anything named in a "cut if time runs
+  out" list is a natural suspect for exactly this).

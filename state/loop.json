@@ -2,11 +2,11 @@
   "_comment": "Live loop state. The PM updates this at the end of every tick. Survives context resets. Keep this file SMALL: state values + short pointers only — narrative belongs in state/PROGRESS.md (cockpit) and state/journal.md (archive). Do not re-grow _state_reason/_paused_reason blobs here; a stale blob once carried a superseded channel rule (removed 2026-07-19).",
   "tick": 79,
   "project": "app_in_toss",
-  "active_task": "Gate3",
-  "last_tick_at": "2026-08-07 (in-session -- T015/T016/T017 done, T018 spec awaiting-approval, Gate 3 playtest running)",
+  "active_task": null,
+  "last_tick_at": "2026-08-07 (in-session -- Gate 3 FAILED avg 64.4, all 5 experts below floor, escalated to director as T019)",
   "consecutive_idle_ticks": 0,
   "paused": false,
   "_paused_note": "Set paused:true to make the loop go straight back to sleep without doing work. The kill switch — the user can stop the team without stopping the loop itself. Current state + resume pointers: state/PROGRESS.md.",
-  "escalations": [],
+  "escalations": ["T019"],
   "_escalations_note": "Tasks the quality loop could not pass within its round budget. The PM must surface these to the user rather than let them silently look done."
 }

@@ -5,10 +5,16 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ▶ ACTIVE — **app_in_toss. MVP feature-complete since T014 (2026-08-05); T015/T017
-  (backdrop-lockup bugfix, hardened over 4 rounds) done at 93/100 (2026-08-07); T018 (director's
-  monetization spec) passed 94/100 and is `awaiting-approval`; T016 (balance pass) is running now**
-  (see ▶ Next). T001-T014 scores: 90/91/92/95/89/96/[T007 reverted]/92/91/94/93/91/91/92.
+- **Status**: ⚠ ESCALATED — **app_in_toss's Gate 3 (the real MVP completion gate) FAILED HARD on
+  its first run** (2026-08-07): avg 64.4/100, every one of the 5 experts below the 80 floor
+  (60/67/70/72/53). Full report: `backlog/tasks/T019.md`. T001-T017 had all individually passed their
+  own gates (T015/T017 backdrop bugfix done at 93/100; T016 balance pass done at 90/100; T018
+  monetization spec passed 94/100, `awaiting-approval`), but **the "MVP feature-complete" claim in
+  this file was wrong** — MVP-SPEC.md's build-order step 5 (F16 monthly settlement/monuments, S1
+  onboarding, F17 memo chips) was never actually built and nobody checked before declaring it done.
+  Plus real design gaps the panel found: reward fully decoupled from money amount, overspending has no
+  mechanical consequence. **This needs the director's direction on scope/priority before any more
+  work** — see ▶ Next. T001-T014 scores: 90/91/92/95/89/96/[T007 reverted]/92/91/94/93/91/91/92.
   Full narrative: `state/journal.md` → "2026-08-02 to 2026-08-05" and the "Tick 79" entries
   (2026-08-05/07). Detail on any task: `backlog/tasks/T0##.md`.
   **Where things stand**: ADDENDUM-01/02 and the full MVP build order (F1-F17) all implemented and
@@ -42,17 +48,18 @@
   app playable when he's back)
 
 ## ▶ Next, in this order
-1. **T016 (balance pass) is running now** (quality-loop workflow, background) — approved values
-   already in `backlog/tasks/T016.md`, no further director input needed. On completion: if ≥90, mark
-   done, commit/push, then proceed to step 2. If it fails, do 1-2 targeted fix-forward rounds per the
-   established pattern before escalating.
-2. **Once T016 passes**: run Gate 3 (`playtest.js`) — ends the *original MVP* scope's development.
-   Report the panel's scores to the director. T018's monetization build-out (once approved) is new
-   scope layered on top and doesn't block Gate 3 on the original MVP.
-3. **Report T018's spec to the director for approval** (document/decision output — per the approval
-   workflow, never auto-advance to a build task without sign-off, but don't block other work on it
-   either). If approved, the next task is planning the build-order split (likely: platform ports for
-   ads/payment first, then the economy state + UI, matching the addendum's own build order).
+1. **T019 (Gate 3 failure) needs the director's direction — do not invent scope/priority calls here.**
+   Report plainly what failed and why (full detail in `backlog/tasks/T019.md`), and ask specifically:
+   (a) build F16/F17 now or leave them cut (spec's own cut-list already named them optional); (b) how
+   to prioritize the reward/money-decoupling and overspend-consequence design gaps — these are core-loop
+   design questions, not bugs; (c) whether the rescued, unverified Onboarding.tsx WIP (app_in_toss
+   commit `7ed237d`) is worth building on. Do not re-run Gate 3 until real work has landed against
+   these — a second bare-average-64 run wastes a full expert-panel pass for no new information.
+2. **Report T018's spec to the director for approval** (independent of T019 — document/decision output,
+   never auto-advance to a build task without sign-off, but don't block other work on it either).
+3. Once T019's direction is set: open the concrete follow-up tasks (likely: onboarding, reward-scaling,
+   mood consequences, F16/F17 if the director wants them) and work them normally through Gate 1/2
+   before attempting Gate 3 again.
 4. Real art order (D-12 still open) and other new feature requests remain queued behind the above.
 5. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
@@ -80,7 +87,12 @@
 - None.
 
 ## Needs Human Review
-- None active — T012's escalation (2026-08-05, 5-round limit at 85/90) was resolved via one
+- **ACTIVE — T019, app_in_toss Gate 3 failed hard** (2026-08-07): avg 64.4/100, all 5 experts below
+  the 80 floor. Root cause: MVP-SPEC.md build-order step 5 (F16/S1/F17) was never built despite prior
+  records claiming MVP feature-complete, plus real design gaps (reward decoupled from money,
+  overspending has no consequence). Needs director direction on scope/priority — see
+  `backlog/tasks/T019.md` and ▶ Next above. Not something to push through with more autonomous rounds.
+- None else active — T012's escalation (2026-08-05, 5-round limit at 85/90) was resolved via one
   fix-forward round, final score 91/100. Full detail: `backlog/tasks/T012.md` Log.
 - T011's escalation (2026-08-05, no-progress brake at 81/100) was resolved via two
   targeted fix-forward rounds, final score 93/100. Full detail: `backlog/tasks/T011.md` Log.
