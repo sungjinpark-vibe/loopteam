@@ -23,9 +23,10 @@ import type { TownStore } from "../useTownStore";
 
 export interface TownScreenProps {
   store: TownStore;
+  onOpenSettings: () => void;
 }
 
-export function TownScreen({ store }: TownScreenProps) {
+export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { openToast } = useToast();
   const move = useMoveMode(store.buildings, store.moveBuilding);
@@ -47,7 +48,11 @@ export function TownScreen({ store }: TownScreenProps) {
 
   function handleClaimNoSpend() {
     const claimed = store.claimNoSpend();
-    if (claimed) openToast("오늘은 무지출! 공원이 생겼어요.");
+    if (claimed) {
+      openToast(
+        BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.",
+      );
+    }
   }
 
   const tier = computeTier(store.buildingCount, BALANCE.tierThresholds);
@@ -80,6 +85,8 @@ export function TownScreen({ store }: TownScreenProps) {
         streakDays={store.streakDays}
         queueLength={store.queueLength}
         moodLabel={moodContent.headerLabel}
+        budgetUnset={mood === -1}
+        onOpenSettings={onOpenSettings}
       />
 
       {store.canClaimNoSpend && (
@@ -87,6 +94,9 @@ export function TownScreen({ store }: TownScreenProps) {
           <Button as="button" color="primary" variant="weak" size="medium" display="block" onClick={handleClaimNoSpend}>
             오늘 무지출!
           </Button>
+          {/* ux-researcher, playtest round 1: this button silently consumed a
+              build slot with no disclosure anywhere before the tap. */}
+          {BALANCE.noSpendDayCostsSlot && <p className="town-nospend-hint">건축 슬롯 1개를 사용해요</p>}
         </div>
       )}
 

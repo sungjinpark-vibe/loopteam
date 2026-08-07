@@ -72,7 +72,7 @@ function Harness() {
   latest = store;
   return (
     <TDSMobileProvider userAgent={{ fontA11y: undefined, fontScale: undefined, isAndroid: false, isIOS: false }}>
-      <TownScreen store={store} />
+      <TownScreen store={store} onOpenSettings={() => {}} />
     </TDSMobileProvider>
   );
 }
@@ -125,8 +125,12 @@ describe("TownScreen — F6 sky mood, all 4 states verified in the mounted DOM",
     await mountAndWaitForBoot();
 
     // 1. No budget set yet (fresh boot) — pinned neutral, with the nudge copy.
+    // Rendered as a tappable link straight into 설정 (round-1 playtest fix),
+    // so the DOM text carries a trailing "›" affordance the raw content
+    // string doesn't — `.startsWith` keeps this assertion about the COPY,
+    // not this presentational detail.
     expect(moodClass()).toBe(`town-screen--mood-${MOOD_NEUTRAL.skyClass}`);
-    expect(moodHeaderText()).toBe(MOOD_NEUTRAL.headerLabel);
+    expect(moodHeaderText()?.startsWith(MOOD_NEUTRAL.headerLabel)).toBe(true);
 
     // 2. Budget set, nothing spent yet — pace 0, tier 0 (clear).
     act(() => {

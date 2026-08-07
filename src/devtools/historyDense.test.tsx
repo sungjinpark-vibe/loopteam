@@ -61,7 +61,7 @@ function Harness() {
   if (latest.loading) return null;
   return (
     <ThemeProvider>
-      <HistoryScreen store={latest} />
+      <HistoryScreen store={latest} onOpenSettings={() => {}} />
     </ThemeProvider>
   );
 }

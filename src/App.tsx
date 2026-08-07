@@ -4,6 +4,8 @@ import "./App.css";
 import { BALANCE } from "./balance.approved";
 import { levelUpToastFor } from "./content.placeholder";
 import { HistoryScreen } from "./components/HistoryScreen";
+import { Onboarding } from "./components/Onboarding";
+import { SettingsSheet } from "./components/SettingsSheet";
 import { TierCelebration } from "./components/TierCelebration";
 import { TownScreen } from "./components/TownScreen";
 import { useTownStore, type Notice } from "./useTownStore";
@@ -53,6 +55,12 @@ function App() {
   const { notice, dismissNotice } = store;
   const { openToast } = useToast();
   const [tab, setTab] = useState<Tab>("town");
+  // S6 설정 — one instance for the whole shell (single `useTownStore()`,
+  // §TownScreen.tsx's own doc on why two instances would race): both tabs'
+  // 설정 entry points (기록's row, Town header's gear, and the mood nudge
+  // when no budget is set) open this same sheet instead of each owning a
+  // duplicate.
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // One-shot notices (F10 recovered corruption, F14 "return promise kept" on
   // boot, F5 tier celebration, ADDENDUM-02 §4.5 move hint) share one FIFO
@@ -95,7 +103,11 @@ function App() {
         </div>
       )}
 
-      {tab === "town" ? <TownScreen store={store} /> : <HistoryScreen store={store} />}
+      {tab === "town" ? (
+        <TownScreen store={store} onOpenSettings={() => setSettingsOpen(true)} />
+      ) : (
+        <HistoryScreen store={store} onOpenSettings={() => setSettingsOpen(true)} />
+      )}
 
       {/* Minimal 2-item bottom tab bar (spec §6: "a 2-item bottom tab bar
           (우리 동네 / 기록). Maximum depth is 2") — no router: two screens,
@@ -128,7 +140,34 @@ function App() {
         </button>
       </nav>
 
-      <TierCelebration tier={notice?.kind === "tier" ? notice.tier : null} onDismiss={dismissNotice} />
+      <TierCelebration
+        tier={notice?.kind === "tier" ? notice.tier : null}
+        buildingCount={store.buildingCount}
+        tierThresholds={BALANCE.tierThresholds}
+        onDismiss={dismissNotice}
+      />
+
+      <SettingsSheet
+        open={settingsOpen}
+        townName={store.townName}
+        budgetKrw={store.budgetKrw}
+        onClose={() => setSettingsOpen(false)}
+        onSaveTownName={store.setTownName}
+        onSaveBudget={store.setBudget}
+        onResetAll={store.resetAll}
+        onExport={store.exportData}
+        onImport={store.importData}
+      />
+
+      {/* S1 — fires once, only for a genuinely fresh install (`onboarded`
+          defaults false in `freshCore`; an existing player's persisted core
+          is already `true`). Rendered last/on top of everything else in the
+          shell, including the tab bar, so a first-timer can't tap around it
+          into a half-explained state (round-1 playtest: zero onboarding was
+          the single most common finding across all five expert lenses). */}
+      {!store.onboarded && (
+        <Onboarding dailyBuildSlots={store.dailyBuildSlots} onSetBudget={store.setBudget} onComplete={store.completeOnboarding} />
+      )}
     </div>
   );
 }

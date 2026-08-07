@@ -102,7 +102,7 @@ function freshCore(now: number): LoadedState {
     entries: [],
     historyEntries: {},
     budget: { monthlyBudgetKrw: null, updatedAt: now },
-    onboarded: true, // F11 onboarding is out of scope for this task — go straight to the town
+    onboarded: false, // F11 — a genuinely fresh install (boot.core === null) sees the onboarding overlay once
   };
 }
 
@@ -845,6 +845,21 @@ export function useTownStore() {
   }, []);
 
   /**
+   * F11 — S1's one-shot dismiss. Fires once, when the cold-start onboarding
+   * overlay closes (skip or finish, treated identically — spec makes no
+   * distinction). Same write shape as `setTownName`/`setBudget` above: only
+   * `onboarded` changes, everything else on `core` rides along unchanged.
+   */
+  const completeOnboarding = useCallback(() => {
+    const prev = stateRef.current;
+    if (prev === null || prev.onboarded) return;
+    storageRef.current.saveCore({ town: prev.town, budget: prev.budget, onboarded: true });
+    const next: LoadedState = { ...prev, onboarded: true };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  /**
    * 데이터 초기화 (S6) — wipes every stored chunk (`storage.ts`'s `clearAll`,
    * written for exactly this call site — see its own doc comment) and resets
    * in-memory state to the same fresh-install shape `freshCore` gives a
@@ -939,6 +954,10 @@ export function useTownStore() {
     clearJustGrew,
     notice,
     dismissNotice,
+    // F11 — S1 onboarding: `false` only for a genuinely fresh install
+    // (`freshCore`'s default) until `completeOnboarding` fires once.
+    onboarded: state?.onboarded ?? true,
+    completeOnboarding,
     addEntry,
     claimNoSpend,
     moveBuilding,

@@ -133,6 +133,12 @@
   color: var(--town-grey900);
 }
 
+.town-header-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .town-header-tier-badge {
   padding: 4px 10px;
   border-radius: 999px;
@@ -140,6 +146,18 @@
   font-weight: 700;
   color: var(--town-white);
   background: var(--town-blue500);
+}
+
+/* S6 entry point straight from the Town tab — round-1 playtest (ux-researcher/
+ * liveops-pd): the mood line's own "예산을 정하면…" instruction had no route
+ * to 설정 from this screen (only 기록's header carried the button). */
+.town-header-settings {
+  border: none;
+  background: none;
+  padding: 4px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .town-header-stats {
@@ -156,6 +174,17 @@
   color: var(--town-grey700);
 }
 
+.town-header-mood--link {
+  display: block;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  color: var(--town-blue500);
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .town-header-queue-promise {
   margin-top: 6px;
   font-size: 13px;
@@ -166,6 +195,13 @@
 
 .town-nospend-action {
   margin: 4px 20px 12px;
+}
+
+.town-nospend-hint {
+  margin: 4px 4px 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--town-grey600);
 }
 
 .town-empty-state {
@@ -446,7 +482,14 @@ button.town-fab {
   word-break: keep-all;
 }
 .savings-structure-board {
-  font-size: 10px;
+  /* Round-1 playtest (ux-researcher C1 #2 follow-up): "증권거래소" (5
+   * unbreakable Hangul syllables, no word boundary) still hit the
+   * `overflow-wrap: anywhere` last resort above and broke mid-word at the
+   * 390px reference viewport — 9px (down from 10px) buys back just enough
+   * width for every current signboard (longest: 5 syllables) to fit its 78%
+   * board without needing the fallback there; the fallback itself stays as
+   * defense-in-depth for a future, longer signboard string. */
+  font-size: 9px;
   text-align: center;
 }
 .savings-structure-hint {
@@ -1118,4 +1161,146 @@ button.town-fab {
   margin: -8px 0 0;
   font-size: 13px;
   color: var(--town-red500);
+}
+
+/* ── S1 온보딩 — round-1 playtest's single most common finding (all 5 experts).
+   Fixed full-screen overlay rather than a TDS sheet: it must sit above the
+   bottom tab bar (z-index 10) AND the FAB, and must be gone entirely once
+   `onComplete` fires (no lingering portal/backdrop to work around). ── */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(17, 20, 24, 0.56);
+}
+
+.onboarding-card {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  background: var(--town-white);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.onboarding-skip {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: var(--town-grey600);
+  cursor: pointer;
+}
+
+.onboarding-beat {
+  padding: 28px 0 16px;
+  text-align: center;
+}
+
+.onboarding-emoji {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.onboarding-beat h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--town-grey900);
+}
+
+.onboarding-beat p {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--town-grey600);
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.onboarding-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--town-grey200);
+}
+
+.onboarding-dot--active {
+  background: var(--town-blue500);
+  width: 16px;
+}
+
+/* ── F5 tier celebration — non-blocking banner (round-1 playtest: the prior
+   TDS ConfirmDialog blocked the FAB/all input; this sits above the FAB
+   without a dimmer and auto-dismisses on its own, `TierCelebration.tsx`). ── */
+.tier-celebration {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--tab-bar-h) + 88px);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--town-grey900);
+  color: var(--town-white);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.24);
+  animation: tier-celebration-in 200ms ease-out;
+}
+
+@keyframes tier-celebration-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tier-celebration-emoji {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.tier-celebration-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tier-celebration-text strong {
+  font-size: 14px;
+}
+
+.tier-celebration-text span {
+  font-size: 12px;
+  color: var(--town-grey300);
+}
+
+.tier-celebration-dismiss {
+  border: none;
+  background: none;
+  color: var(--town-white);
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
 }

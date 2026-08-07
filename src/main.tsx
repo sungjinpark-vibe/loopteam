@@ -35,4 +35,25 @@ if (import.meta.env.DEV) {
       };
     },
   );
+
+  // Dev-only console hook for §11.B TimeTravel — `setTimeTravelDate`/
+  // `getTimeTravelDate` already existed in `platform/clock.ts` (the app was
+  // already time-travelable everywhere `clock.today()`/`clock.now()` are
+  // read from) but had no reachable entry point outside the app itself; the
+  // S7 "TimeTravel" sheet that was meant to expose it is a later task. This
+  // is the same console-only stand-in `__aitLoadFixture` above already is:
+  // `window.__aitSetTimeTravelDate("2026-08-08")` moves the app's clock to
+  // that date (re-renders live, no reload needed — `useTownStore` already
+  // subscribes via `subscribeTimeTravel`); `window.__aitSetTimeTravelDate(null)`
+  // restores the real device date. `window.__aitGetTimeTravelDate()` reads
+  // the current override for a Playwright assertion.
+  void import("./platform/clock").then(({ setTimeTravelDate, getTimeTravelDate }) => {
+    (
+      window as unknown as {
+        __aitSetTimeTravelDate: (dateOrNull: string | null) => void;
+        __aitGetTimeTravelDate: () => string | null;
+      }
+    ).__aitSetTimeTravelDate = setTimeTravelDate;
+    (window as unknown as { __aitGetTimeTravelDate: () => string | null }).__aitGetTimeTravelDate = getTimeTravelDate;
+  });
 }
