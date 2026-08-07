@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createChunkedStorage, serializeExport } from "../storage";
-import { BALANCE } from "../balance.placeholder";
+import { BALANCE } from "../balance.approved";
 import { FIXTURES, loadFixtureIntoStorage } from "./fixtures";
 import type { StoragePort } from "../platform/storage";
 import { budgetPace, monthTotal } from "../selectors";

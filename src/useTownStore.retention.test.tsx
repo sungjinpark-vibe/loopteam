@@ -7,7 +7,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BALANCE } from "./balance.placeholder";
+import { BALANCE } from "./balance.approved";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { createChunkedStorage } from "./storage";
@@ -65,7 +65,7 @@ afterEach(() => {
 describe("F4 daily slot reset + F14 queue drain, across a real reload", () => {
   it("fills the queue past the cap, then drains it exactly on the next day's reopen", async () => {
     await mountAndWaitForBoot();
-    expect(latest?.dailyBuildSlots).toBe(BALANCE.dailyBuildSlots); // 5, per balance.placeholder.ts
+    expect(latest?.dailyBuildSlots).toBe(BALANCE.dailyBuildSlots); // 10, per balance.approved.ts
     expect(latest?.notice).toBeNull(); // nothing was pending on a fresh boot
 
     // cap(5) + 3 over — the first 5 build, the last 3 queue. `addEntry`'s

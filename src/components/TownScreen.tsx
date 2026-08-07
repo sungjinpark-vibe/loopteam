@@ -11,7 +11,7 @@
  */
 import { useMemo, useState } from "react";
 import { Button, useToast } from "@toss/tds-mobile";
-import { BALANCE } from "../balance.placeholder";
+import { BALANCE } from "../balance.approved";
 import { moodContentFor } from "../content.placeholder";
 import { EntrySheet } from "./EntrySheet";
 import { TownGrid } from "./TownGrid";

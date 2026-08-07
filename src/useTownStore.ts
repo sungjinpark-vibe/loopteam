@@ -35,7 +35,7 @@ import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
 import { clock, getTimeTravelDate, subscribeTimeTravel } from "./platform/clock";
 import { random } from "./platform/random";
-import { BALANCE } from "./balance.placeholder";
+import { BALANCE } from "./balance.approved";
 import {
   buildingCount as countBuildings,
   canClaimNoSpend as selectCanClaimNoSpend,

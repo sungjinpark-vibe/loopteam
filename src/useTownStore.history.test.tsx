@@ -7,6 +7,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { BALANCE } from "./balance.approved";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
@@ -77,7 +78,7 @@ describe("deleteEntry — F9", () => {
       latest!.addEntry(lunch);
     });
     expect(latest?.buildingCount).toBe(2);
-    expect(latest?.slotsRemaining).toBe(3);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
     const ym = TODAY.slice(0, 7);
     latest!.ensureMonthLoaded(ym); // no-op for the current month, exercised for parity with a history-tab call
     const entries = latest!.getMonthEntries(ym);
@@ -91,7 +92,7 @@ describe("deleteEntry — F9", () => {
     });
 
     expect(latest?.buildingCount).toBe(1); // -1
-    expect(latest?.slotsRemaining).toBe(3); // unchanged — not refunded
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2); // unchanged — not refunded
     expect(latest!.buildings.some((b) => b.source.kind === "entry" && b.source.entryId === cafeEntry.id)).toBe(false);
     const survivorBuildingAfter = latest!.buildings.find((b) => b.id === survivorBuildingBefore.id)!;
     expect(survivorBuildingAfter.plotIndex).toBe(survivorBuildingBefore.plotIndex); // no shift
@@ -104,7 +105,7 @@ describe("deleteEntry — F9", () => {
     });
     await mountAndWaitForBoot();
     expect(latest?.buildingCount).toBe(1);
-    expect(latest?.slotsRemaining).toBe(3);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
     latest!.ensureMonthLoaded(ym);
     expect(latest!.getMonthEntries(ym)).toHaveLength(1);
   });
@@ -122,19 +123,19 @@ describe("deleteEntry — F9", () => {
     expect(latest!.getMonthEntries(ym)).toHaveLength(0);
   });
 
-  // Round-4 escalation repro (highest-value fix, C2): 6 entries in one day
-  // with dailyBuildSlots=5 -> 5 build, 1 queues. Deleting the QUEUED one must
+  // Round-4 escalation repro (highest-value fix, C2): dailyBuildSlots+1 entries
+  // in one day -> dailyBuildSlots build, 1 queues. Deleting the QUEUED one must
   // drop its material from town.queue, or the next day's drain builds a
   // building for an entry that no longer exists.
   it("deleting a QUEUED entry drops its material from the queue — the next day's drain never builds a ghost", async () => {
     await mountAndWaitForBoot();
     const ym = TODAY.slice(0, 7);
     act(() => {
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < BALANCE.dailyBuildSlots + 1; i++) {
         latest!.addEntry({ type: "expense", amountKrw: 1_000 + i, categoryId: "food", occurredOn: TODAY });
       }
     });
-    expect(latest?.buildingCount).toBe(5);
+    expect(latest?.buildingCount).toBe(BALANCE.dailyBuildSlots);
     expect(latest?.queueLength).toBe(1);
     const entries = latest!.getMonthEntries(ym);
     const queuedEntry = entries.find((e) => e.queued)!;
@@ -144,7 +145,7 @@ describe("deleteEntry — F9", () => {
       latest!.deleteEntry(queuedEntry.id, ym);
     });
     expect(latest?.queueLength).toBe(0); // dropped, not left dangling
-    expect(latest!.getMonthEntries(ym)).toHaveLength(5);
+    expect(latest!.getMonthEntries(ym)).toHaveLength(BALANCE.dailyBuildSlots);
 
     // Reload on the NEXT day — the drain must see an empty queue and build nothing.
     act(() => {
@@ -153,7 +154,7 @@ describe("deleteEntry — F9", () => {
     });
     setTimeTravelDate("2026-08-16");
     await mountAndWaitForBoot();
-    expect(latest?.buildingCount).toBe(5); // NOT 6 — no ghost building for the deleted entry
+    expect(latest?.buildingCount).toBe(BALANCE.dailyBuildSlots); // NOT +1 — no ghost building for the deleted entry
     expect(latest?.queueLength).toBe(0);
     // Every remaining building resolves back to a live entry (the F14 invariant this fix restores).
     latest!.ensureMonthLoaded(ym);
@@ -167,7 +168,7 @@ describe("deleteEntry — F9", () => {
     await mountAndWaitForBoot();
     const ym = TODAY.slice(0, 7);
     act(() => {
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < BALANCE.dailyBuildSlots + 1; i++) {
         latest!.addEntry({ type: "expense", amountKrw: 1_000 + i, categoryId: "food", occurredOn: TODAY });
       }
     });
@@ -184,7 +185,7 @@ describe("deleteEntry — F9", () => {
     });
     setTimeTravelDate("2026-08-16");
     await mountAndWaitForBoot();
-    expect(latest?.buildingCount).toBe(6);
+    expect(latest?.buildingCount).toBe(BALANCE.dailyBuildSlots + 1);
     const drainedBuilding = latest!.buildings.find(
       (b) => b.source.kind === "entry" && b.source.entryId === queuedEntry.id,
     );
@@ -306,7 +307,7 @@ describe("updateEntry — F9", () => {
     });
 
     expect(latest?.buildingCount).toBe(1);
-    expect(latest?.slotsRemaining).toBe(4);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 1);
     expect(latest?.savingsByCategoryKrw?.goal ?? 0).toBe(0);
     const updated = latest!.getMonthEntries(ym)[0];
     expect(updated.type).toBe("expense");
@@ -321,14 +322,14 @@ describe("updateEntry — F9", () => {
     const ym = TODAY.slice(0, 7);
     const entry = latest!.getMonthEntries(ym)[0];
     expect(latest?.buildingCount).toBe(1);
-    expect(latest?.slotsRemaining).toBe(4);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 1);
 
     act(() => {
       latest!.updateEntry(entry.id, ym, { type: "saving", categoryId: "goal" });
     });
 
     expect(latest?.buildingCount).toBe(0);
-    expect(latest?.slotsRemaining).toBe(4); // still not refunded
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 1); // still not refunded
     expect(latest?.savingsByCategoryKrw?.goal).toBe(4_500);
   });
 

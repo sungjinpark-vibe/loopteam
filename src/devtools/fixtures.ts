@@ -40,7 +40,7 @@ export const DEVTOOLS_FIXTURES_BUNDLE_MARKER = "__AIT_DEVTOOLS_FIXTURES_MARKER__
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
 import { seededRandom } from "../platform/random";
-import { BALANCE } from "../balance.placeholder";
+import { BALANCE } from "../balance.approved";
 import { daysInMonth, shiftMonth, ymOnly, ymd } from "../calendar";
 import { savingsByCategory } from "../selectors";
 import { SAVING_CATEGORY_IDS, savingsBucketOf } from "../savingsBuckets";

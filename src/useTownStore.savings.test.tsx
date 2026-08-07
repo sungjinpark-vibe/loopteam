@@ -6,7 +6,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BALANCE } from "./balance.placeholder";
+import { BALANCE } from "./balance.approved";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";

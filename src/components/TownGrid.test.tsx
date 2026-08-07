@@ -9,7 +9,7 @@
  */
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BALANCE } from "../balance.placeholder";
+import { BALANCE } from "../balance.approved";
 import { LONG_PRESS_MS, LONG_PRESS_TOLERANCE_PX } from "../hooks/useTileGestures";
 import { openPlotCount } from "../placement";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";

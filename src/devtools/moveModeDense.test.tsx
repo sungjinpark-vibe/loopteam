@@ -39,7 +39,7 @@
  */
 import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { BALANCE } from "../balance.placeholder";
+import { BALANCE } from "../balance.approved";
 import { TownGrid, type TownGridProps } from "../components/TownGrid";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import { FIXTURES } from "./fixtures";

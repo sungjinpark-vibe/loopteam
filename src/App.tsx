@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@toss/tds-mobile";
 import "./App.css";
-import { BALANCE } from "./balance.placeholder";
+import { BALANCE } from "./balance.approved";
 import { levelUpToastFor } from "./content.placeholder";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { TierCelebration } from "./components/TierCelebration";

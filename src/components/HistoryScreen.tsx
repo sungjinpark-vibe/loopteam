@@ -14,7 +14,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { colors } from "@toss/tds-colors";
 import { Button } from "@toss/tds-mobile";
-import { BALANCE } from "../balance.placeholder";
+import { BALANCE } from "../balance.approved";
 import { monthAfter, monthBefore, parseYm } from "../calendar";
 import { CATEGORY_CONTENT } from "../content.placeholder";
 import { commaizeAmount } from "../format";

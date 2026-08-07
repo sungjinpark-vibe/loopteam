@@ -17,6 +17,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { BALANCE } from "./balance.approved";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
@@ -67,14 +68,14 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     await mountAndWaitForBoot();
     expect(latest?.loading).toBe(false);
     expect(latest?.buildingCount).toBe(0);
-    expect(latest?.slotsRemaining).toBe(5);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots);
 
     const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
     act(() => {
       latest!.addEntry(coffee);
     });
     expect(latest?.buildingCount).toBe(1);
-    expect(latest?.slotsRemaining).toBe(4);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 1);
     expect(latest?.buildings[0]?.plotIndex).toBe(0);
 
     // The second save in the same session — the path never exercised before:
@@ -87,7 +88,7 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
       latest!.addEntry(secondCoffee);
     });
     expect(latest?.buildingCount).toBe(2);
-    expect(latest?.slotsRemaining).toBe(3);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
     expect(latest?.nextPlotIndex).toBe(2);
     const secondBuilding = latest!.buildings.find((b) => b.plotIndex === 1);
     expect(secondBuilding).toBeDefined();
@@ -106,7 +107,7 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     });
     await mountAndWaitForBoot();
     expect(latest?.buildingCount).toBe(2);
-    expect(latest?.slotsRemaining).toBe(3);
+    expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
     expect(latest?.buildings.map((b) => b.plotIndex).sort()).toEqual([0, 1]);
     expect(latest?.buildings.map((b) => b.categoryId).sort()).toEqual(["cafe", "food"]);
   });
