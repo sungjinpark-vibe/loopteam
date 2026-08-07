@@ -41,6 +41,11 @@ export const meta = {
 //   floor       number   default 80 (no expert may be below this)
 //   maxRounds   number   default 5
 //   context     string   extra context
+//   gateScript  string   absolute path to a mechanical gate script (JSON/exit-code contract like
+//                        gate.ps1). Defaults to gate.ps1 (Unity). Pass gate-node.ps1 (or similar)
+//                        for a non-Unity stack.
+//   runHint     string   stack-specific instructions for how QA should actually run the build
+//                        (e.g. "npm run dev, drive it with Playwright"). Defaults to Unity phrasing.
 
 // `args` arrives as a JSON STRING in this environment, not an object (verified
 // 2026-07-16 — see quality-loop.js for the same guard and the evidence).
@@ -64,6 +69,10 @@ const PASS_MARK = a.passMark ?? 90
 const FLOOR = a.floor ?? 80
 const MAX_ROUNDS = a.maxRounds ?? 5
 const CONTEXT = a.context ? `\n\n## Context\n${a.context}` : ''
+// Defaults to the Unity gate — pass a.gateScript for non-Unity projects (e.g.
+// gate-node.ps1 for a React/TS app_in_toss-style project). Mirrors quality-loop.js.
+const GATE_SCRIPT = a.gateScript ?? 'C:\\Users\\user\\loop_engine\\gate\\gate.ps1'
+const RUN_HINT = a.runHint ?? 'Unity — PlayMode or a player build; whichever a player would actually get.'
 
 if (!APP_DIR) return { ok: false, error: 'playtest requires args.appDir (the Unity project to play)' }
 if (!BRIEF) return { ok: false, error: "playtest requires args.brief (the director's intent to judge against)" }
@@ -177,7 +186,7 @@ ${TARGET}
 ${FLOWS || '(none specified — drive the core loop from a cold start through a full cycle)'}
 
 ## Your job
-1. Run the real build (Unity — PlayMode or a player build; whichever a player would actually get).
+1. Run the real build (${RUN_HINT}).
 2. **Start cold, like a brand new player.** Record the first 30 seconds blow-by-blow: what appears, in
    what order, what is explained, what is not. The UX expert lives on this.
 3. Drive the core loop end to end, at least one full cycle. Note where it stalls or drags.
@@ -389,7 +398,7 @@ Work in English. Make sure it still compiles and runs before you finish.`,
     const gate = await agent(
       `Run the mechanical gate. Do not fix anything. Do not run it twice.
 
-  powershell -NoProfile -File "C:\\Users\\user\\loop_engine\\gate\\gate.ps1" -AppDir "${APP_DIR}" -SkipTest -JsonOut "C:\\Users\\user\\loop_engine\\state\\gate-result.json"
+  powershell -NoProfile -File "${GATE_SCRIPT}" -AppDir "${APP_DIR}" -SkipTest -JsonOut "C:\\Users\\user\\loop_engine\\state\\gate-result.json"
 
 Then read C:\\Users\\user\\loop_engine\\state\\gate-result.json and report its contents verbatim.`,
       { label: `gate r${round}.${attempt}`, phase: 'Gate', agentType: 'gate-runner', model: 'haiku', schema: GATE_SCHEMA },

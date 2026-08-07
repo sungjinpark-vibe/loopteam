@@ -16,7 +16,8 @@
 param(
   [Parameter(Mandatory=$true)][string]$AppDir,
   [string]$JsonOut = "",
-  [int]$TimeoutMinutes = 10
+  [int]$TimeoutMinutes = 10,
+  [switch]$SkipTest
 )
 
 $ErrorActionPreference = 'Continue'
@@ -186,7 +187,9 @@ if ($typecheckOk) {
 
 # ── 4. Tests (not a pass signal if absent, same policy as the Unity gate) ──
 $testScript = if ($pkg.scripts -and $pkg.scripts.test -and ($pkg.scripts.test -notmatch 'no test specified')) { "npm test" } else { $null }
-if ($testScript) {
+if ($SkipTest) {
+  Add-Check "test" $true "skipped (-SkipTest — not a pass signal, for fast compile-only checks only)"
+} elseif ($testScript) {
   $r = Invoke-Cmd $testScript $AppDir $TimeoutMinutes
   if ($r.timedOut) {
     Add-Check "test" $false "TIMEOUT after $TimeoutMinutes min running '$testScript'"
