@@ -40,15 +40,13 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T014 | app_in_toss JSON export / import (F12) | done | client-dev | build | 1 |
 | T015 | app_in_toss — two known follow-up bugs (dialog backdrop, month-nav flash) | in-progress | client-dev | build | 1 |
 | T016 | app_in_toss — balance pass (director-approved values, flip BALANCE_UNSET) | blocked | client-dev | build | 1 |
-| T017 | app_in_toss — harden EntrySheet backdrop fix (fix-forward round 2) | in-progress | client-dev | build | 1 |
+| T017 | app_in_toss — harden EntrySheet backdrop fix (fix-forward round 2) | done | client-dev | build | 1 |
 | T018 | app_in_toss spec addendum — monetization (ads, paid extra builds, decoration shop) | awaiting-approval | planner | explore | 1 |
 
-_MVP feature-complete as of T014 (2026-08-05). T015 passed 90/100 (commit 1492757) but its
-fix-forward round for a lead-flagged third bug site scored 86/100 FAIL (commit da5d291) — T017 is
-round 2 of that fix, verification in progress. T016 (balance pass) queued behind T017 — both touch
-overlapping files. T016 unblocks Gate 3. T018 (new director-requested monetization design, answers
-the spec's previously-open D-7) can run in parallel — explore mode, writes a doc only, no file
-conflict with T016/T017._
+_MVP feature-complete as of T014 (2026-08-05). T015/T017 (backdrop-lockup bug fix, hardened over 4
+rounds) done — passed 93/100. T016 (balance pass, director-approved values) now `ready`, launching.
+T016 unblocks Gate 3. T018 (director-requested monetization spec) passed 94/100, `awaiting-approval`
+— report to director for sign-off before any build task starts on it._
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._
