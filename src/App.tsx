@@ -6,21 +6,23 @@ import { levelUpToastFor } from "./content.placeholder";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { Onboarding } from "./components/Onboarding";
 import { SettingsSheet } from "./components/SettingsSheet";
+import { SettlementCard } from "./components/SettlementCard";
 import { TierCelebration } from "./components/TierCelebration";
 import { TownScreen } from "./components/TownScreen";
 import { useTownStore, type Notice } from "./useTownStore";
 
 /**
- * One toast line per non-"tier" `Notice` kind ("tier" renders as the
- * full-screen celebration overlay instead, handled separately in the
- * component below). A `switch` with an exhaustive `never` default — not the
- * ternary chain this replaces — so TypeScript itself refuses to compile if a
- * future `Notice` kind is added here without an explicit case (ADDENDUM-01
- * §3.6 break B8: a binary ternary once silently rendered `undefined` for a
- * third notice kind; round-2 finding C3 re-opened that exact hazard by
- * adding "moveHint" as a fourth implicit `else` instead of its own case).
+ * One toast line per `Notice` kind that isn't its own banner ("tier" and
+ * "settlement" each render as a non-blocking banner instead, handled
+ * separately in the component below). A `switch` with an exhaustive `never`
+ * default — not the ternary chain this replaces — so TypeScript itself
+ * refuses to compile if a future `Notice` kind is added here without an
+ * explicit case (ADDENDUM-01 §3.6 break B8: a binary ternary once silently
+ * rendered `undefined` for a third notice kind; round-2 finding C3 re-opened
+ * that exact hazard by adding "moveHint" as a fourth implicit `else` instead
+ * of its own case).
  */
-function noticeToastMessage(notice: Exclude<Notice, { kind: "tier" }>): string {
+function noticeToastMessage(notice: Exclude<Notice, { kind: "tier" | "settlement" }>): string {
   switch (notice.kind) {
     case "corruption":
       return notice.message;
@@ -84,7 +86,7 @@ function App() {
   // once rather than at every future call site that might reorder these deps.
   const shownNoticeRef = useRef<Notice | null>(null);
   useEffect(() => {
-    if (notice === null || notice.kind === "tier") return;
+    if (notice === null || notice.kind === "tier" || notice.kind === "settlement") return;
     if (shownNoticeRef.current === notice) return;
     shownNoticeRef.current = notice;
     openToast(noticeToastMessage(notice));
@@ -146,6 +148,8 @@ function App() {
         tierThresholds={BALANCE.tierThresholds}
         onDismiss={dismissNotice}
       />
+
+      <SettlementCard summary={notice?.kind === "settlement" ? notice.summary : null} onDismiss={dismissNotice} />
 
       <SettingsSheet
         open={settingsOpen}

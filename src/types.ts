@@ -95,6 +95,12 @@ export interface QueuedMaterial {
   entryId: string;
   categoryId: CategoryId;
   variantIndex: number; // rolled at queue time so the reward is already determined
+  // ADDENDUM-04 §6 — OPTIONAL, no migration: a material queued before this
+  // field existed simply has none. Read discipline lives at the drain site
+  // (queueActions.ts), same rule `expOf`/`savingsOf` already set — never
+  // open-code a fallback at a second call site. Missing === today's exact
+  // behaviour (implicit gain 1), never a crash.
+  amountKrw?: number;
   queuedOn: string; // 'YYYY-MM-DD'; may never build on this same date
   // 'YYYY-MM' of the ORIGINAL entry's `occurredOn` — the ledger chunk the
   // drain must patch (buildingId/queued) once this material builds. Distinct

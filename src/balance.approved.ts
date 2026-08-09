@@ -11,6 +11,9 @@
  *    Building past 10/day is intended to require a paid unlock later
  *    (see docs/spec/ADDENDUM-03-monetization.md, not-yet-approved) — that
  *    monetization system is out of scope here. This ships only the flat cap.
+ *  - expPerLevel/maxLevel/expAmountTiers (ADDENDUM-04, building EXP):
+ *    director-confirmed 2026-08-09, closing §7 Option 3 — EXP scales with
+ *    amount for every entry type, no per-type branching.
  * Everything else is unchanged from the placeholder (materialQueueMax was
  * left out of the director's question — defaulted to unchanged, per the
  * rest of the dials the director didn't ask to touch).
@@ -34,13 +37,18 @@ export const BALANCE = {
   savingsStructureSegments: {} as Partial<Record<SavingCategoryId, readonly number[]>>,
   noSpendDayCostsSlot: true, // unchanged from placeholder — D-15
 
-  // --- ADDENDUM-04 (building EXP). NEW dials, PM defaults, NOT yet confirmed
-  // by the director. Reported to him alongside the open §7 question. ---
-  expPerLevel: 3, // EXP needed per visible level
-  maxLevel: 5, // visual cap only; EXP past it still counts toward tier
-  // ADDENDUM-04 §7 — OPEN QUESTION, deliberately off. `null` = flat 1 EXP per
-  // act, so a ₩1,000 and a ₩10,000,000 entry still grow the town identically.
-  // A table of [maxAmountKrwExclusive, exp] pairs turns it on; do NOT enable
-  // it without the director, the balance file is his (MVP-SPEC §9 rule 3).
-  expAmountTiers: null as readonly (readonly [number, number])[] | null,
+  // --- ADDENDUM-04 (building EXP). director-confirmed, 2026-08-09. ---
+  expPerLevel: 3, // director-confirmed, 2026-08-09 — EXP needed per visible level
+  maxLevel: 5, // director-confirmed, 2026-08-09 — visual cap only; EXP past it still counts toward tier
+  // ADDENDUM-04 §7 — CLOSED, 2026-08-09: director chose Option 3. EXP scales
+  // with amount for ALL entry types (저축/수입/지출 alike — `expGainFor` stays
+  // type-agnostic, no per-type branching anywhere). Gate-3 finding #2
+  // ("overspending has zero mechanical consequence") is now a required
+  // follow-up, not just an open caveat — see the doc.
+  expAmountTiers: [
+    [10_000, 1],
+    [50_000, 2],
+    [200_000, 3],
+    [Infinity, 5],
+  ] as readonly (readonly [number, number])[] | null,
 } as const;

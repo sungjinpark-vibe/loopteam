@@ -739,6 +739,29 @@ button.town-fab {
   color: #fff;
 }
 
+/* F16 — monument: a plaque-style ring (never used by a category tile or the
+ * F15 park tile) plus the engraved YYYY-MM plate at the tile's base, so a
+ * monument reads as a distinct object on sight, not just a grey building. */
+.building-tile--monument {
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.65),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.08);
+}
+
+.building-monument-period {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 7px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.75);
+  color: #333;
+  white-space: nowrap;
+}
+
 @keyframes building-rise {
   from {
     transform: translateY(16px) scale(0.85);

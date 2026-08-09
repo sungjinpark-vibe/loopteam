@@ -20,4 +20,17 @@ describe("BALANCE approved", () => {
     expect(BALANCE.savingsStructureSegments).toEqual({});
     expect(BALANCE.noSpendDayCostsSlot).toBe(true);
   });
+
+  // ADDENDUM-04 §7/§8 — director-confirmed 2026-08-09: Option 3 (all entry
+  // types scale with amount), expPerLevel/maxLevel confirmed as PM-proposed.
+  it("has the director-confirmed ADDENDUM-04 building-EXP dials", () => {
+    expect(BALANCE.expPerLevel).toBe(3);
+    expect(BALANCE.maxLevel).toBe(5);
+    expect(BALANCE.expAmountTiers).toEqual([
+      [10_000, 1],
+      [50_000, 2],
+      [200_000, 3],
+      [Infinity, 5],
+    ]);
+  });
 });

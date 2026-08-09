@@ -173,11 +173,35 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
   const bound = buildingForEntry(buildings, oldEntry.id);
 
   if (newType === oldEntry.type) {
+    const amountChanged = patch.amountKrw !== undefined && patch.amountKrw !== oldEntry.amountKrw;
     // Amount/memo/date edits never move the building (spec); a category
-    // change re-skins it in place, keeping the same plot.
-    if (bound && categoryChanged) {
-      const updated: Building = { ...bound, categoryId: newCategoryId };
+    // change re-skins it in place, keeping the same plot. ADDENDUM-04 §6/§7:
+    // an amount change on a FOUNDING entry re-derives its building's founding
+    // exp component (`gain - 1`, the same formula `decideBuildOrQueue` used
+    // to create it), leaving any contributor exp already on it untouched. A
+    // grow-CONTRIBUTION entry has no building of its own — its amount edit
+    // backs the old gain out of the host and adds the new one instead (the
+    // delete/저축-conversion cases below already do this; this was the one
+    // case that silently did nothing before this dial existed). Either way a
+    // no-op delta (dial off, or same tier) never writes an `exp` key that
+    // wasn't already there.
+    if (bound && (categoryChanged || amountChanged)) {
+      let updated: Building = categoryChanged ? { ...bound, categoryId: newCategoryId } : bound;
+      if (amountChanged) {
+        const delta = expGainFor(newAmountKrw, expAmountTiers) - expGainFor(oldEntry.amountKrw, expAmountTiers);
+        if (delta !== 0) updated = { ...updated, exp: Math.max(0, expOf(updated) + delta) };
+      }
       buildings = buildings.map((b) => (b.id === bound.id ? updated : b));
+    } else if (!bound && amountChanged && isGrowContribution(buildings, oldEntry)) {
+      const host = buildings.find((b) => b.id === oldEntry.buildingId);
+      if (host) {
+        const delta = expGainFor(newAmountKrw, expAmountTiers) - expGainFor(oldEntry.amountKrw, expAmountTiers);
+        if (delta !== 0) {
+          const updated: Building = { ...host, exp: Math.max(0, expOf(host) + delta) };
+          grownBuilding = updated;
+          buildings = buildings.map((b) => (b.id === host.id ? updated : b));
+        }
+      }
     }
     // F14 (round-4 finding C2): a still-queued material follows the same
     // category/date edits its future building would have gotten.
@@ -187,7 +211,7 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
         queue: town.queue.map((m): QueuedMaterial => (m.entryId === oldEntry.id ? { ...m, categoryId: newCategoryId, entryYm: newYm } : m)),
       };
     }
-    if (wasSaving && (categoryChanged || (patch.amountKrw !== undefined && patch.amountKrw !== oldEntry.amountKrw))) {
+    if (wasSaving && (categoryChanged || amountChanged)) {
       town = adjustSavings(town, oldEntry.categoryId, -oldEntry.amountKrw);
       town = adjustSavings(town, newCategoryId, newAmountKrw);
     }
@@ -207,6 +231,9 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
   } else if (wasSaving && !willBeSaving) {
     // 저축 -> 지출/수입: never built or queued — decide fresh (reuses F2/F4's
     // own decision function; no streak credit, this is an edit, not a new act).
+    // ADDENDUM-04 §3/§7: this newly founds exactly like a fresh F1 save, so
+    // it gets the same amount-driven founding exp via the shared
+    // `decideBuildOrQueue` (root-cause fix, not a special case here).
     town = adjustSavings(town, oldEntry.categoryId, -oldEntry.amountKrw);
     const decision = decideBuildOrQueue({
       town,
@@ -222,7 +249,9 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
       plotIndex,
       createdAt: now,
       entryYm: newYm,
+      amountKrw: newAmountKrw,
       advancesStreak: false,
+      expGain: expGainFor(newAmountKrw, expAmountTiers),
     });
     town = decision.town;
     if (decision.building) {

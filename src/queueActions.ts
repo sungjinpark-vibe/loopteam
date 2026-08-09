@@ -13,7 +13,7 @@
  * follows the same pure-function-then-storage-side-effects split that
  * `entryActions.ts`/`useTownStore.ts` already use for a normal save.
  */
-import { slotsRemainingToday, tier } from "./selectors";
+import { expGainFor, expOf, slotsRemainingToday, tier } from "./selectors";
 import type { Building, QueuedMaterial, TownState } from "./types";
 
 export interface DrainQueueResult {
@@ -35,6 +35,14 @@ export function drainQueue(
   createdAt: number,
   /** N distinct plot indices for this drain, called ONCE with the drain count — computed by `placement.allocatePlots` (rule R-4, ADDENDUM-02 §3.5). Not an rng: a drain places several buildings at once and they may not collide. */
   allocatePlotIndices: (count: number) => number[],
+  /**
+   * ADDENDUM-04 §6/§7 — `BALANCE.expAmountTiers`, threaded through so a
+   * drained material founds with the SAME amount-driven exp a same-day
+   * founding save would get (`decideBuildOrQueue`'s parity rule). Optional,
+   * defaults to `null` (flat gain 1 — today's exact behaviour and every
+   * existing call site's default) so this stays additive.
+   */
+  expAmountTiers: readonly (readonly [number, number])[] | null = null,
 ): DrainQueueResult {
   const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
   if (remaining <= 0 || town.queue.length === 0) {
@@ -46,7 +54,11 @@ export function drainQueue(
   const rest = town.queue.slice(drainCount);
 
   const plotIndices = allocatePlotIndices(drainCount);
+  // ADDENDUM-04 §6/§7 parity fix: a material queued without `amountKrw`
+  // (pre-existing data, migration-safe) reads gain 1 via `expGainFor`'s own
+  // `null`-tiers contract — exactly today's behaviour, never a crash.
   const drained = toDrain.map((material, i) => {
+    const gain = material.amountKrw !== undefined ? expGainFor(material.amountKrw, expAmountTiers) : 1;
     const building: Building = {
       id: buildingIdFor(i),
       source: { kind: "entry", entryId: material.entryId },
@@ -55,11 +67,13 @@ export function drainQueue(
       plotIndex: plotIndices[i],
       builtOn: today,
       createdAt,
+      ...(gain > 1 ? { exp: gain - 1 } : {}),
     };
     return { material, building };
   });
 
-  const buildingCount = existingBuildingCount + drained.length;
+  const growthScoreGain = drained.reduce((sum, d) => sum + 1 + expOf(d.building), 0);
+  const buildingCount = existingBuildingCount + growthScoreGain;
   const newTier = tier(buildingCount, tierThresholds);
   const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
 

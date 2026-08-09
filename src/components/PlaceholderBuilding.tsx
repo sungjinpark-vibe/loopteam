@@ -24,6 +24,13 @@ export interface BuildingVisualProps {
    * shape) is independent of this.
    */
   level?: number;
+  /**
+   * F16 — 'YYYY-MM' engraved on a monument tile (`source.kind === "monument"`,
+   * `categoryId === null`); undefined for every other tile. Monuments never
+   * grow (selectors.ts's `growCandidates` already excludes them), so `level`
+   * stays 1 and no `Lv.N` badge ever shows on one — no extra guard needed here.
+   */
+  monumentPeriod?: string;
 }
 
 const ROOF_SHAPES = ["dome", "peak", "flat"] as const;
@@ -41,21 +48,24 @@ const MAX_VISUAL_LEVEL = 5;
 // step that clears it.
 const FLOOR_HEIGHT_PX = 6;
 
-function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 1 }: BuildingVisualProps) {
+function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 1, monumentPeriod }: BuildingVisualProps) {
   const content = categoryId ? CATEGORY_CONTENT[categoryId] : null;
-  const color = content?.color ?? colors.grey400;
+  // F16 — a monument (categoryId === null) gets its own stone tone rather
+  // than falling back to the same grey400 the "etc"/"other_saving" categories
+  // already use, so it never blends into an ordinary building on sight.
+  const color = content?.color ?? (monumentPeriod ? colors.grey600 : colors.grey400);
   const icon = content?.icon ?? "🏛️";
   // variantIndex is always >= 0 (every producer is `Math.floor(random() * n)`) — plain modulo is enough.
   const roof = ROOF_SHAPES[variantIndex % ROOF_SHAPES.length];
   const floors = Math.max(0, Math.min(level, MAX_VISUAL_LEVEL) - 1);
-  const title = floors > 0 ? [content?.label, `Lv.${level}`].filter(Boolean).join(" ") : content?.label;
+  const title = monumentPeriod ?? (floors > 0 ? [content?.label, `Lv.${level}`].filter(Boolean).join(" ") : content?.label);
+
+  const classNames = ["building-tile", monumentPeriod && "building-tile--monument", justBuilt && "building-tile-rise"]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div
-      className={justBuilt ? "building-tile building-tile-rise" : "building-tile"}
-      style={{ backgroundColor: color }}
-      title={title}
-    >
+    <div className={classNames} style={{ backgroundColor: color }} title={title}>
       <div className={`building-roof building-roof-${roof}`} />
       {floors > 0 && (
         <div className="building-floors" style={{ height: floors * FLOOR_HEIGHT_PX }} aria-hidden="true" />
@@ -66,6 +76,12 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 
       {floors > 0 && (
         <span className="building-level-badge" aria-hidden="true">
           {`Lv.${level}`}
+        </span>
+      )}
+      {/* F16 AC: "each engraved with its own YYYY-MM" — visible on the tile, never a Lv.N badge (monuments never grow). */}
+      {monumentPeriod && (
+        <span className="building-monument-period" aria-hidden="true">
+          {monumentPeriod}
         </span>
       )}
     </div>

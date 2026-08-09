@@ -193,6 +193,7 @@ describe("applyNewEntry — F14 materials queue", () => {
       entryId: "e6",
       categoryId: "cafe",
       variantIndex: 0,
+      amountKrw: 4_500, // ADDENDUM-04 §6 — captured at queue time (draft.amountKrw)
       queuedOn: "2026-08-02",
       entryYm: "2026-08",
     });
@@ -389,7 +390,7 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
   it("grows the host instead of building — no new Building, host exp +gain, entry.buildingId = host.id", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0, nextPlotIndex: 5 });
     const result = applyNewEntry(
-      callArgs({ town, buildings: [host], entryId: "e20", buildingId: "b20", growTargetId: "host1", growExpGain: 1 }),
+      callArgs({ town, buildings: [host], entryId: "e20", buildingId: "b20", growTargetId: "host1", expGain: 1 }),
     );
     expect(result.building).toBeNull();
     expect(result.grownBuilding).toEqual({ ...host, exp: 1 });
@@ -407,7 +408,7 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
       longestStreakDays: 3,
     });
     const result = applyNewEntry(
-      callArgs({ town, buildings: [host], entryId: "e21", buildingId: "b21", growTargetId: "host1", growExpGain: 1 }),
+      callArgs({ town, buildings: [host], entryId: "e21", buildingId: "b21", growTargetId: "host1", expGain: 1 }),
     );
     expect(result.town.streakDays).toBe(4);
     expect(result.town.lastActOn).toBe("2026-08-02");
@@ -429,7 +430,7 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
     expect(built.celebrateTier).toBe(1); // 9 + 1 (new building) = 10 -> tierThresholds[1]
 
     const grown = applyNewEntry(
-      callArgs({ town, buildings: nineNoExp, entryId: "eg", buildingId: "bg", growTargetId: nineNoExp[0].id, growExpGain: 1 }),
+      callArgs({ town, buildings: nineNoExp, entryId: "eg", buildingId: "bg", growTargetId: nineNoExp[0].id, expGain: 1 }),
     );
     expect(grown.celebrateTier).toBe(1); // 9 + 1 (grow gain) = 10, same threshold
   });
@@ -444,7 +445,7 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
         buildingId: "b22",
         dailyBuildSlots: 5,
         growTargetId: "host1",
-        growExpGain: 1,
+        expGain: 1,
       }),
     );
     expect(result.grownBuilding).toBeNull();
@@ -456,7 +457,7 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
   it("a bogus growTargetId falls back to a normal build — the entry is never lost", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(
-      callArgs({ town, buildings: [host], entryId: "e23", buildingId: "b23", growTargetId: "does-not-exist", growExpGain: 1 }),
+      callArgs({ town, buildings: [host], entryId: "e23", buildingId: "b23", growTargetId: "does-not-exist", expGain: 1 }),
     );
     expect(result.grownBuilding).toBeNull();
     expect(result.building).not.toBeNull();
@@ -467,9 +468,46 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
   it("a growTargetId naming a park tile (not entry-founded) falls back to a normal build", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(
-      callArgs({ town, buildings: [park], entryId: "e24", buildingId: "b24", growTargetId: "park1", growExpGain: 1 }),
+      callArgs({ town, buildings: [park], entryId: "e24", buildingId: "b24", growTargetId: "park1", expGain: 1 }),
     );
     expect(result.grownBuilding).toBeNull();
     expect(result.building).not.toBeNull();
+  });
+});
+
+describe("applyNewEntry — ADDENDUM-04 §7 founding parity (expGain > 1)", () => {
+  it("expGain 1 (flat, or dial off) omits `exp` entirely — byte-identical to a pre-dial founding", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
+    const result = applyNewEntry(callArgs({ town, entryId: "e30", buildingId: "b30", expGain: 1 }));
+    expect(result.building).not.toHaveProperty("exp");
+  });
+
+  it("expGain > 1 founds a building with exp = expGain - 1", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
+    const result = applyNewEntry(callArgs({ town, entryId: "e31", buildingId: "b31", expGain: 5 }));
+    expect(result.building?.exp).toBe(4);
+  });
+
+  it("§3 parity: founding and growing with the same expGain contribute the same growth score", () => {
+    const nineNoExp: Building[] = Array.from({ length: 9 }, (_, i) => ({
+      id: `q${i}`,
+      source: { kind: "entry", entryId: `qe${i}` },
+      categoryId: "cafe",
+      variantIndex: 0,
+      plotIndex: i,
+      builtOn: "2026-08-01",
+      createdAt: 0,
+    }));
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0, highestTierSeen: 0 });
+
+    const founded = applyNewEntry(callArgs({ town, buildings: nineNoExp, entryId: "ef", buildingId: "bf", expGain: 3 }));
+    expect(founded.building?.exp).toBe(2); // 1 (.length) + 2 (exp) === 3, same as a grow of gain 3
+    expect(founded.celebrateTier).toBe(1); // 9 + 3 = 12 -> tierThresholds[1]
+
+    const grown = applyNewEntry(
+      callArgs({ town, buildings: nineNoExp, entryId: "eg3", buildingId: "bg3", growTargetId: nineNoExp[0].id, expGain: 3 }),
+    );
+    expect(grown.grownBuilding?.exp).toBe(3);
+    expect(grown.celebrateTier).toBe(1); // 9 + 3 = 12, same threshold — neither branch is punished
   });
 });

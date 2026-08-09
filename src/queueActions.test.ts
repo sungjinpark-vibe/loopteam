@@ -110,4 +110,50 @@ describe("drainQueue — F14", () => {
     const result = drainQueue(town, 9, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(9));
     expect(result.celebrateTier).toBeNull();
   });
+
+  // ADDENDUM-04 §6/§7 — closing the F14/EXP parity gap the previous agent
+  // flagged: a drained material must found with the SAME amount-driven exp a
+  // same-day founding save gets, not an implicit flat gain 1.
+  describe("ADDENDUM-04 §6 — amount-driven exp at drain time", () => {
+    const expAmountTiers: readonly (readonly [number, number])[] = [
+      [10_000, 1],
+      [50_000, 2],
+      [200_000, 3],
+      [Infinity, 5],
+    ];
+
+    it("a material queued WITH amountKrw founds with the matching gain (exp = gain - 1)", () => {
+      const queue: QueuedMaterial[] = [
+        { entryId: "q1", categoryId: "food", variantIndex: 0, amountKrw: 250_000, queuedOn: "2026-08-01", entryYm: "2026-08" },
+      ];
+      const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 5, queue });
+      const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5), expAmountTiers);
+      expect(result.drained[0].building.exp).toBe(4); // gain 5 (>= 200,000 tier) - 1
+    });
+
+    it("a small-amount material (gain 1) omits `exp` entirely — byte-identical to today's shape", () => {
+      const queue: QueuedMaterial[] = [
+        { entryId: "q1", categoryId: "food", variantIndex: 0, amountKrw: 3_000, queuedOn: "2026-08-01", entryYm: "2026-08" },
+      ];
+      const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 5, queue });
+      const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5), expAmountTiers);
+      expect(result.drained[0].building.exp).toBeUndefined();
+    });
+
+    it("migration-safe: a material persisted with no `amountKrw` reads gain 1, never crashes", () => {
+      const queue: QueuedMaterial[] = [{ entryId: "q1", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-01", entryYm: "2026-08" }];
+      const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 5, queue });
+      const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5), expAmountTiers);
+      expect(result.drained[0].building.exp).toBeUndefined();
+    });
+
+    it("omitting the `expAmountTiers` arg entirely (every pre-existing call site) keeps flat gain 1, even with amountKrw present", () => {
+      const queue: QueuedMaterial[] = [
+        { entryId: "q1", categoryId: "food", variantIndex: 0, amountKrw: 250_000, queuedOn: "2026-08-01", entryYm: "2026-08" },
+      ];
+      const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 5, queue });
+      const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5));
+      expect(result.drained[0].building.exp).toBeUndefined();
+    });
+  });
 });

@@ -14,6 +14,11 @@ export function decommaizeAmount(formatted: string): string {
   return formatted.replace(/[^0-9]/g, "");
 }
 
+/** 12000 -> '12,000원' — the one KRW display format shared by 기록 (HistoryScreen) and the F16 monument detail popover. Real ledger amounts only (spec §7 rule 2); never used for a game-side count. */
+export function formatKrw(amountKrw: number): string {
+  return `${commaizeAmount(String(amountKrw))}원`;
+}
+
 /** ~99억 원 — a generous keypad input ceiling, not a balance dial. */
 const AMOUNT_DIGITS_MAX = 10;
 

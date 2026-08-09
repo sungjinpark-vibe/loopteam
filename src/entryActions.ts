@@ -48,12 +48,17 @@ export interface ApplyNewEntryArgs {
    */
   growTargetId?: string;
   /**
-   * ADDENDUM-04 §7 — EXP to add when this save grows `growTargetId`, already
-   * computed by the caller via `expGainFor(draft.amountKrw, BALANCE.expAmountTiers)`
+   * ADDENDUM-04 §3/§7 — EXP this act's amount is worth, already computed by
+   * the caller via `expGainFor(draft.amountKrw, BALANCE.expAmountTiers)`
    * (selectors.ts) — this module stays balance-free like every other dial
-   * here. Unused when `growTargetId` is absent.
+   * here. Feeds whichever branch `decideBuildOrQueue` actually takes: added
+   * to the grow target's exp when `growTargetId` resolves, or split into a
+   * founding exp of `expGain - 1` on the new Building otherwise — either way
+   * the growth-score contribution is exactly `expGain`, so founding and
+   * growing are never a strictly-better choice than the other (§3 parity).
+   * Missing/undefined defaults to 1 (flat), same as the dial-off shape.
    */
-  growExpGain?: number;
+  expGain?: number;
 }
 
 export interface ApplyNewEntryResult {
@@ -108,6 +113,8 @@ export interface BuildOrQueueArgs {
   createdAt: number;
   /** 'YYYY-MM' of the entry's `occurredOn` — carried on a queued material (F14) so a later drain patches the right chunk. */
   entryYm: string;
+  /** ADDENDUM-04 §6 — carried onto a queued material so a later drain can re-run `expGainFor` at the amount that was actually logged, closing the F14 parity gap (queueActions.ts). */
+  amountKrw: number;
   /** F7: whether this act should advance the streak. True for a fresh F1 save; false for an F9 edit-driven type conversion (not a new logging act). */
   advancesStreak: boolean;
   /**
@@ -118,8 +125,13 @@ export interface BuildOrQueueArgs {
    * never grows, it queues exactly as today.
    */
   growTarget?: Building;
-  /** EXP to add to `growTarget` — already computed by the caller (ADDENDUM-04 §7). Unused when `growTarget` is undefined. */
-  growExpGain?: number;
+  /**
+   * ADDENDUM-04 §3/§7 — EXP this act's amount is worth (see `ApplyNewEntryArgs.expGain`
+   * for the full contract). Used to grow `growTarget` when present, or to
+   * set the founding exp of a freshly-created Building otherwise. Missing
+   * defaults to 1 (flat).
+   */
+  expGain?: number;
 }
 
 export interface BuildOrQueueResult {
@@ -154,19 +166,20 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
     plotIndex,
     createdAt,
     entryYm,
+    amountKrw,
     advancesStreak,
     growTarget,
-    growExpGain,
+    expGain,
   } = args;
   const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
 
   if (remaining > 0) {
     const usedToday = dailyBuildSlots - remaining;
+    const gain = expGain ?? 1;
 
     // ADDENDUM-04 §5: growing consumes a slot and advances the streak
     // exactly like building, but creates no Building and opens no lot.
     if (growTarget) {
-      const gain = growExpGain ?? 0;
       const grownBuilding: Building = { ...growTarget, exp: expOf(growTarget) + gain };
       const newScore = growthScoreBeforeThis + gain;
       const newTier = tier(newScore, tierThresholds);
@@ -182,6 +195,11 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       return { building: null, grownBuilding, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
     }
 
+    // ADDENDUM-04 §3/§7 parity: a new building's growth-score contribution
+    // must equal a grow of the same amount (`gain`) — 1 from `.length` + a
+    // founding exp of `gain - 1`. `exp` is omitted (not written as 0) when
+    // `gain === 1` (dial off, or a small amount) so an untouched building is
+    // byte-identical to before this dial existed (ADDENDUM-04 §2).
     const building: Building = {
       id: buildingId,
       source: { kind: "entry", entryId },
@@ -190,8 +208,9 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       plotIndex,
       builtOn: today,
       createdAt,
+      ...(gain > 1 ? { exp: gain - 1 } : {}),
     };
-    const newScore = growthScoreBeforeThis + 1;
+    const newScore = growthScoreBeforeThis + gain;
     const newTier = tier(newScore, tierThresholds);
     const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
     const newTown: TownState = {
@@ -207,7 +226,7 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
 
   // ADDENDUM-04 §4/§5: no free slot means no grow either — queues exactly as today.
   if (town.queue.length < materialQueueMax) {
-    const queuedMaterial: QueuedMaterial = { entryId, categoryId, variantIndex, queuedOn: today, entryYm };
+    const queuedMaterial: QueuedMaterial = { entryId, categoryId, variantIndex, amountKrw, queuedOn: today, entryYm };
     const newTown: TownState = {
       ...town,
       ...(advancesStreak ? advanceStreak(town, today) : {}),
@@ -241,7 +260,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     variantIndex,
     plotIndex,
     growTargetId,
-    growExpGain,
+    expGain,
   } = args;
 
   // F15: logging a 지출 for an already-claimed date un-claims it. Refund the
@@ -324,9 +343,10 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     plotIndex,
     createdAt,
     entryYm: draft.occurredOn.slice(0, 7),
+    amountKrw: draft.amountKrw,
     advancesStreak: true, // F7: a fresh F1 save is a streak act when it builds, grows, OR queues; `decideBuildOrQueue`'s own overflow branch never advances it
     growTarget,
-    growExpGain,
+    expGain,
   });
 
   if (decision.grownBuilding) {

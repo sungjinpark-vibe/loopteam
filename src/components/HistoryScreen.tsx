@@ -17,7 +17,7 @@ import { Button } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.approved";
 import { monthAfter, monthBefore, parseYm } from "../calendar";
 import { CATEGORY_CONTENT } from "../content.placeholder";
-import { commaizeAmount } from "../format";
+import { formatKrw } from "../format";
 import { budgetPace, categoryDonut, dayGroups, monthTotals, moodTier, type DayGroup, type DonutSlice } from "../selectors";
 import type { EntryEditPatch, TownStore } from "../useTownStore";
 import type { LedgerEntry } from "../types";
@@ -30,10 +30,6 @@ export interface HistoryScreenProps {
   >;
   /** Settings now mounts once at the app shell (Town header also links here) — HistoryScreen only owns the entry-point button. */
   onOpenSettings: () => void;
-}
-
-function formatKrw(amountKrw: number): string {
-  return `${commaizeAmount(String(amountKrw))}원`;
 }
 
 function formatMonthLabel(ym: string): string {

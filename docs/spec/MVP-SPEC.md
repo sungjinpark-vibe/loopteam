@@ -302,12 +302,13 @@ The town screen offers **[오늘 무지출!]** when: today has zero 지출 entri
 **Why it earns its place:** it gives the app a same-day action on the days with nothing to log, and it makes the best financial outcome the most beautiful thing in town — which no amount of sky-dimming achieves. It is also the guard that keeps town growth from tracking transaction volume (§1.3).
 **AC:** Button is hidden once any 지출 exists for today and after claiming. Claim → building count +1, slots −1, streak counts the day. Log an expense for the same day afterwards → park gone, slot refunded, expense builds; building count net +1. Claiming twice in one day is impossible via UI and rejected by the domain function.
 
-**[d2] F16 · Monthly settlement + 기념비 (monument)**
+**[d2] F16 · Monthly settlement + 기념비 (monument) — IMPLEMENTED (2026-08-09)**
 On app open, if `core.lastSettledPeriod` is earlier than the current period, settle each unsettled month in order (so a 3-month absence mints 3 monuments, oldest first). For each: compute that month's expense total, income total, savings total, budget outcome bucket and days-logged; place one **monument** building (`source.kind = 'monument'`, `variantIndex` = the outcome bucket) at the next plot, consuming **no slot**; store the summary on the building for its detail popover. Show a one-time "지난달 결산" card summarizing the most recent settled month. Idempotent: `lastSettledPeriod` advances inside the same write.
 **Why:** the tier ladder was draft 1's only long-horizon artifact, and it is a single number. Twelve dated monuments a year is bounded content (one sprite family × the number of outcome buckets) that makes year two legible, and it makes the month-scale *outcome* permanent rather than ambient.
 **AC:** Fixture with an unsettled 3-month gap → exactly 3 monuments in chronological plot order, each engraved with its own `YYYY-MM`. Reopening the app mints nothing further. Settlement of a month with zero entries produces a monument in the "no data" bucket (no crash, no divide-by-zero when `budget === null`). Tapping a monument shows that month's summary.
 
-**[d2] F17 · Recent-memo chips**
+**[d2] F17 · Recent-memo chips — STAYS CUT (director decision, 2026-08-09)**
+Deferred, not implemented alongside F16. Do not build this without a new director go-ahead.
 In the entry sheet, once a category is selected, show up to 6 chips of the most recent *distinct* memos used with that category (scan limited to the current and previous month chunks). One tap fills the memo field.
 **Why:** it is the actual user benefit of Fortune City's Smart Note, with no location permission and no SDK dependency, and it fits inside the ≤3-tap / ≤8-second entry budget.
 **AC:** Chips are per-category, distinct, most-recent-first, ≤6. A category never used shows no chip row (no empty container). Tapping a chip fills the field and leaves it editable.

@@ -52,6 +52,14 @@ const tierThresholds = [0, 10, 30, 80, 200];
 // ADDENDUM-04 §7 default (BALANCE.expAmountTiers) — flat 1 EXP/act; the
 // amount-tiered case is exercised separately below.
 const expAmountTiers = null;
+// The director-confirmed table (BALANCE.expAmountTiers, 2026-08-09) — used by
+// the amount-edit parity tests below, where a flat table would never move exp.
+const tieredExpAmountTiers: readonly (readonly [number, number])[] = [
+  [10_000, 1],
+  [50_000, 2],
+  [200_000, 3],
+  [Infinity, 5],
+];
 
 describe("buildingForEntry", () => {
   it("finds the one building whose source.entryId matches, ignoring nospend/monument buildings", () => {
@@ -130,6 +138,26 @@ describe("editEntryEffects — F9, type unchanged", () => {
     expect(result.buildings[0].builtOn).toBe("2026-08-15");
   });
 
+  // ADDENDUM-04 §6/§7 — with the amount dial on, editing a FOUNDING entry's
+  // amount must re-derive its building's founding exp component (gain - 1)
+  // and leave any contributor exp already on the host untouched.
+  it("an amount edit on a founding entry adjusts the host by (newGain-1)-(oldGain-1), leaving contributor exp untouched", () => {
+    // amountKrw 4_500 -> gain 1 under tieredExpAmountTiers, so this host's
+    // exp of 5 is entirely from OTHER entries' grow contributions.
+    const hostWithContributorExp = building({ exp: 5 });
+    const result = editEntryEffects(
+      editArgs({ buildings: [hostWithContributorExp], patch: { amountKrw: 60_000 }, expAmountTiers: tieredExpAmountTiers }),
+    );
+    // new gain 3 (60_000 falls in the [50_000, 200_000) tier) - old gain 1 = +2
+    expect(result.buildings[0].exp).toBe(7);
+    expect(result.entry.amountKrw).toBe(60_000);
+  });
+
+  it("an amount edit under a flat table (dial off) never touches exp", () => {
+    const result = editEntryEffects(editArgs({ buildings: [building({ exp: 5 })], patch: { amountKrw: 60_000 } }));
+    expect(result.buildings[0].exp).toBe(5);
+  });
+
   it("a category edit on a still-QUEUED entry patches the queue material instead of a building (round-4 finding C2)", () => {
     const queue: QueuedMaterial[] = [{ entryId: "e1", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-08-15", entryYm: "2026-08" }];
     const result = editEntryEffects(
@@ -183,6 +211,18 @@ describe("editEntryEffects — F9, type changed (round-4 finding C1)", () => {
     expect(result.entry.queued).toBe(false);
     expect(result.town.slotsUsedToday).toBe(2);
     expect(result.town.savingsByCategoryKrw).toEqual({ goal: 0 }); // backed out
+  });
+
+  // ADDENDUM-04 §3/§7 — a 저축 -> 지출/수입 conversion founds exactly like a
+  // fresh F1 save, through the same shared `decideBuildOrQueue`, so it gets
+  // the same amount-driven founding exp (root-cause fix, not special-cased).
+  it("저축 -> 지출 with a tiered amount founds the building with exp = gain - 1 (§3 parity)", () => {
+    const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 60_000, buildingId: null });
+    const town = freshTown({ cumulativeSavingsKrw: 60_000, savingsByCategoryKrw: { goal: 60_000 }, slotsUsedOn: "2026-08-15", slotsUsedToday: 1 });
+    const result = editEntryEffects(
+      editArgs({ town, buildings: [], entry: savingEntry, patch: { type: "expense", categoryId: "food" }, expAmountTiers: tieredExpAmountTiers }),
+    );
+    expect(result.newBuilding?.exp).toBe(2); // gain 3 (60_000 falls in the [50_000, 200_000) tier) - 1
   });
 
   it("저축 -> 지출 with no slots remaining queues the material instead (F14)", () => {
@@ -270,5 +310,27 @@ describe("editEntryEffects — ADDENDUM-04 grow contribution", () => {
     expect(result.buildings).toEqual([{ ...host, exp: 2 }]);
     expect(result.entry.buildingId).toBeNull();
     expect(result.town.savingsByCategoryKrw).toEqual({ goal: 4_500 });
+  });
+
+  // ADDENDUM-04 §6/§7 — previously a no-op (the amount-edit case this dial
+  // makes visible): must back the old gain out and add the new one, same
+  // shared `expGainFor` math the delete/convert-to-저축 cases already use.
+  it("an amount edit on a grow-contribution entry backs out the old gain and adds the new one", () => {
+    const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 3 });
+    const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 }); // gain 1 under tieredExpAmountTiers
+    const result = editEntryEffects(
+      editArgs({ buildings: [host], entry: growEntry, patch: { amountKrw: 60_000 }, expAmountTiers: tieredExpAmountTiers }),
+    );
+    // new gain 3 - old gain 1 = +2 on top of the host's existing 3
+    expect(result.grownBuilding).toEqual({ ...host, exp: 5 });
+    expect(result.buildings).toEqual([{ ...host, exp: 5 }]);
+  });
+
+  it("an amount edit on a grow-contribution entry under a flat table (dial off) never touches the host", () => {
+    const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 3 });
+    const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 });
+    const result = editEntryEffects(editArgs({ buildings: [host], entry: growEntry, patch: { amountKrw: 60_000 } }));
+    expect(result.grownBuilding).toBeNull();
+    expect(result.buildings).toEqual([host]);
   });
 });
