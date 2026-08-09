@@ -10,15 +10,16 @@
  * S2/S4-specific.
  */
 import { useMemo, useState } from "react";
-import { Button, useToast } from "@toss/tds-mobile";
+import { Button, ConfirmDialog, useToast } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.approved";
 import { moodContentFor } from "../content.placeholder";
 import { EntrySheet } from "./EntrySheet";
 import { TownGrid } from "./TownGrid";
 import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
+import { useGrowPickMode } from "../hooks/useGrowPickMode";
 import { useMoveMode } from "../hooks/useMoveMode";
-import { budgetPace, moodTier, tier as computeTier } from "../selectors";
+import { budgetPace, levelOf, moodTier, tier as computeTier } from "../selectors";
 import type { TownStore } from "../useTownStore";
 
 export interface TownScreenProps {
@@ -26,14 +27,22 @@ export interface TownScreenProps {
   onOpenSettings: () => void;
 }
 
+// Stable reference so passing it during grow-pick mode doesn't defeat
+// `TownGrid`'s `React.memo` every render the way a fresh inline arrow would.
+const noopLongPress = () => false;
+
 export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  // ADDENDUM-04 §4 — the draft held between the entry sheet closing and the
+  // grow choice being resolved (새 건물 세우기 / 기존 건물 키우기), and again
+  // for the duration of grid pick-mode when there are 2+ candidates. Non-null
+  // for exactly the lifetime of "the ConfirmDialog OR pick mode is showing".
+  const [growDraft, setGrowDraft] = useState<EntryDraft | null>(null);
   const { openToast } = useToast();
   const move = useMoveMode(store.buildings, store.moveBuilding);
 
-  function handleSave(draft: EntryDraft) {
-    const result = store.addEntry(draft);
-    setSheetOpen(false);
+  function saveEntry(draft: EntryDraft, growTargetId?: string) {
+    const result = store.addEntry(draft, growTargetId);
     // F14: a save with zero slots either queues (return-promise toast) or,
     // once the queue itself is full, overflows plainly — never a silent no-op.
     if (result.queued) {
@@ -43,7 +52,65 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`);
     } else if (result.queueOverflow) {
       openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
+    } else if (result.grew) {
+      // ADDENDUM-04 §5/§8 — one-line level-up feedback on the same toast
+      // channel as F14's notices above; no celebration system (§4's "what
+      // was deliberately NOT built" applies to this feedback too).
+      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})`);
     }
+  }
+
+  function handleGrowPickCommit(buildingId: string) {
+    if (growDraft === null) return; // defensive — pick mode can't be active with no held draft
+    saveEntry(growDraft, buildingId);
+    setGrowDraft(null);
+  }
+
+  const growPick = useGrowPickMode(store.buildings, handleGrowPickCommit);
+  const pickModeActive = growPick.candidateIds !== null;
+  // Dialog and pick-mode are two phases of the SAME `growDraft`, never shown
+  // together — the dialog closes the instant pick mode starts (§4: "the
+  // sheet is already closed, the town is visible, candidates highlighted").
+  const growDialogOpen = growDraft !== null && !pickModeActive;
+
+  function handleSave(draft: EntryDraft) {
+    // ADDENDUM-04 §4 — the choice trigger, evaluated once at save time.
+    const canGrow =
+      draft.type !== "saving" && store.slotsRemaining > 0 && store.growCandidates(draft.categoryId).length > 0;
+    if (!canGrow) {
+      saveEntry(draft);
+      setSheetOpen(false);
+      return;
+    }
+    // Close the sheet FIRST — the dialog must never nest inside an open
+    // BottomSheet (the vendor backdrop bug `useConfirmDialogBackdropFix`
+    // exists for; avoided here by construction, not patched a second time).
+    setSheetOpen(false);
+    setGrowDraft(draft);
+  }
+
+  function handleBuildNew() {
+    if (growDraft === null) return;
+    saveEntry(growDraft);
+    setGrowDraft(null);
+  }
+
+  function handleGrow() {
+    if (growDraft === null) return;
+    const candidates = store.growCandidates(growDraft.categoryId);
+    if (candidates.length === 1) {
+      saveEntry(growDraft, candidates[0].id);
+      setGrowDraft(null);
+      return;
+    }
+    // 2+ candidates — grid pick mode (§4). `growDraft` stays held; the
+    // ConfirmDialog closes on its own via `growDialogOpen` above.
+    growPick.start(new Set(candidates.map((c) => c.id)));
+  }
+
+  function handleGrowPickCancel() {
+    growPick.cancel();
+    setGrowDraft(null);
   }
 
   function handleClaimNoSpend() {
@@ -55,7 +122,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     }
   }
 
-  const tier = computeTier(store.buildingCount, BALANCE.tierThresholds);
+  // ADDENDUM-04 §3 — tier now reads the growth score (buildings.length +
+  // Σexp), not the raw building count. `TownHeader`'s `buildingCount` prop
+  // below is unchanged — it still wants the literal count.
+  const tier = computeTier(store.growthScore, BALANCE.tierThresholds);
 
   // F6 — town mood, reusing `budgetPace`/`moodTier` (selectors.ts) exactly as
   // 기록's pace bar already does, so the two never disagree. Continuous
@@ -120,23 +190,40 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         savingsByCategoryKrw={store.savingsByCategoryKrw}
         ladder={BALANCE.savingsTowerSegments}
         ladderOverrides={BALANCE.savingsStructureSegments}
+        expPerLevel={BALANCE.expPerLevel}
+        maxLevel={BALANCE.maxLevel}
         justGrew={store.justGrew}
         onRiseSettled={store.clearJustGrew}
         movingId={move.movingId}
         cursorIndex={move.cursorIndex}
-        onPlotLongPress={move.onPlotLongPress}
-        onPlotTap={move.onPlotTap}
+        // ADDENDUM-04 §4 — the two grid modes are mutually exclusive (see
+        // this file's own state comments): while pick mode is active, a
+        // long-press must not also start move mode, and a tap routes to the
+        // grow commit instead of the move commit.
+        onPlotLongPress={pickModeActive ? noopLongPress : move.onPlotLongPress}
+        onPlotTap={pickModeActive ? growPick.onPlotTap : move.onPlotTap}
         onCursorMove={move.onCursorMove}
-        onCancel={move.cancel}
+        growCandidateIds={growPick.candidateIds ?? undefined}
+        onCancel={pickModeActive ? handleGrowPickCancel : move.cancel}
       />
 
-      {/* ADDENDUM-02 §4.3/§4.4 — rendered OUTSIDE `.town-grid` (a sibling,
-          not a grid child) so ADDENDUM-01 §2.4a's direct-children guard on
-          the grid (AC-M7) is untouched. */}
+      {/* ADDENDUM-02 §4.3/§4.4 + ADDENDUM-04 §4 — rendered OUTSIDE
+          `.town-grid` (a sibling, not a grid child) so ADDENDUM-01 §2.4a's
+          direct-children guard on the grid (AC-M7) is untouched. Move mode,
+          grow-pick mode, and the post-move bar are mutually exclusive on
+          screen — this if/else-if chain is what keeps exactly one banner
+          visible at a time. */}
       {move.movingId !== null ? (
         <div className="town-move-bar" role="status">
           <span>{move.rejectMessage ?? "옮길 자리를 골라주세요"}</span>
           <Button as="button" color="primary" variant="weak" size="small" onClick={move.cancel}>
+            취소
+          </Button>
+        </div>
+      ) : pickModeActive ? (
+        <div className="town-move-bar" role="status">
+          <span>키울 건물을 선택하세요</span>
+          <Button as="button" color="primary" variant="weak" size="small" onClick={handleGrowPickCancel}>
             취소
           </Button>
         </div>
@@ -154,9 +241,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         )
       )}
 
-      {/* The FAB hides in move mode — one `useBackGuard` history entry per
-          open in-page modal at a time (§4.3 "Enter" row). */}
-      {move.movingId === null && (
+      {/* The FAB hides in move mode AND grow-pick mode — one `useBackGuard`
+          history entry per open in-page modal at a time (§4.3 "Enter" row;
+          ADDENDUM-04 §4 extends the same rule to pick mode). */}
+      {move.movingId === null && !pickModeActive && (
         <Button
           as="button"
           color="primary"
@@ -171,6 +259,20 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       )}
 
       <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
+
+      {/* ADDENDUM-04 §4 — the choice dialog. Opens only after the entry
+          sheet above has already closed (never nested inside it, see
+          `handleSave`'s own comment). No "remember my choice" toggle — the
+          spec explicitly rejects one (§4 "what was deliberately NOT built"):
+          fixed button positions every time. */}
+      <ConfirmDialog
+        open={growDialogOpen}
+        title="같은 종류 건물이 이미 있어요"
+        description="새로 지을까요, 기존 건물을 키울까요?"
+        onClose={() => setGrowDraft(null)}
+        cancelButton={<ConfirmDialog.CancelButton onClick={handleBuildNew}>새로 짓기</ConfirmDialog.CancelButton>}
+        confirmButton={<ConfirmDialog.ConfirmButton onClick={handleGrow}>키우기</ConfirmDialog.ConfirmButton>}
+      />
     </div>
   );
 }

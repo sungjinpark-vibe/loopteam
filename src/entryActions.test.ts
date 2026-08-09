@@ -365,3 +365,111 @@ describe("applyNewEntry — F15 revocation", () => {
     expect(result.town.highestTierSeen).toBe(0); // must stay 0 so the REAL 10th building later still celebrates
   });
 });
+
+describe("applyNewEntry — ADDENDUM-04 grow", () => {
+  const host: Building = {
+    id: "host1",
+    source: { kind: "entry", entryId: "founding1" },
+    categoryId: "cafe",
+    variantIndex: 0,
+    plotIndex: 2,
+    builtOn: "2026-08-01",
+    createdAt: 0,
+  };
+  const park: Building = {
+    id: "park1",
+    source: { kind: "nospend", date: "2026-08-02" },
+    categoryId: "park",
+    variantIndex: 0,
+    plotIndex: 3,
+    builtOn: "2026-08-02",
+    createdAt: 0,
+  };
+
+  it("grows the host instead of building — no new Building, host exp +gain, entry.buildingId = host.id", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0, nextPlotIndex: 5 });
+    const result = applyNewEntry(
+      callArgs({ town, buildings: [host], entryId: "e20", buildingId: "b20", growTargetId: "host1", growExpGain: 1 }),
+    );
+    expect(result.building).toBeNull();
+    expect(result.grownBuilding).toEqual({ ...host, exp: 1 });
+    expect(result.entry.buildingId).toBe("host1");
+    expect(result.town.nextPlotIndex).toBe(5); // unchanged — grow opens no lot
+    expect(result.town.slotsUsedToday).toBe(1); // slot IS consumed
+  });
+
+  it("grow advances the streak exactly like a build (F7)", () => {
+    const town = freshTown({
+      slotsUsedOn: "2026-08-02",
+      slotsUsedToday: 0,
+      lastActOn: "2026-08-01",
+      streakDays: 3,
+      longestStreakDays: 3,
+    });
+    const result = applyNewEntry(
+      callArgs({ town, buildings: [host], entryId: "e21", buildingId: "b21", growTargetId: "host1", growExpGain: 1 }),
+    );
+    expect(result.town.streakDays).toBe(4);
+    expect(result.town.lastActOn).toBe("2026-08-02");
+  });
+
+  it("a new build and a grow each add exactly 1 to the growth score — both cross the same tier", () => {
+    const nineNoExp: Building[] = Array.from({ length: 9 }, (_, i) => ({
+      id: `b${i}`,
+      source: { kind: "entry", entryId: `e${i}` },
+      categoryId: "cafe",
+      variantIndex: 0,
+      plotIndex: i,
+      builtOn: "2026-08-01",
+      createdAt: 0,
+    }));
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0, highestTierSeen: 0 });
+
+    const built = applyNewEntry(callArgs({ town, buildings: nineNoExp, entryId: "eb", buildingId: "bb" }));
+    expect(built.celebrateTier).toBe(1); // 9 + 1 (new building) = 10 -> tierThresholds[1]
+
+    const grown = applyNewEntry(
+      callArgs({ town, buildings: nineNoExp, entryId: "eg", buildingId: "bg", growTargetId: nineNoExp[0].id, growExpGain: 1 }),
+    );
+    expect(grown.celebrateTier).toBe(1); // 9 + 1 (grow gain) = 10, same threshold
+  });
+
+  it("no free slot: a growTargetId still queues — grow is never a free bypass of the F4 daily cap", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5 });
+    const result = applyNewEntry(
+      callArgs({
+        town,
+        buildings: [host],
+        entryId: "e22",
+        buildingId: "b22",
+        dailyBuildSlots: 5,
+        growTargetId: "host1",
+        growExpGain: 1,
+      }),
+    );
+    expect(result.grownBuilding).toBeNull();
+    expect(result.building).toBeNull();
+    expect(result.queuedMaterial).not.toBeNull();
+    expect(result.entry.queued).toBe(true);
+  });
+
+  it("a bogus growTargetId falls back to a normal build — the entry is never lost", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
+    const result = applyNewEntry(
+      callArgs({ town, buildings: [host], entryId: "e23", buildingId: "b23", growTargetId: "does-not-exist", growExpGain: 1 }),
+    );
+    expect(result.grownBuilding).toBeNull();
+    expect(result.building).not.toBeNull();
+    expect(result.building?.id).toBe("b23");
+    expect(result.entry.buildingId).toBe("b23");
+  });
+
+  it("a growTargetId naming a park tile (not entry-founded) falls back to a normal build", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
+    const result = applyNewEntry(
+      callArgs({ town, buildings: [park], entryId: "e24", buildingId: "b24", growTargetId: "park1", growExpGain: 1 }),
+    );
+    expect(result.grownBuilding).toBeNull();
+    expect(result.building).not.toBeNull();
+  });
+});

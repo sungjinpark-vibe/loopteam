@@ -70,3 +70,11 @@
   substitution approved (D-9, see above). The other 12 decisions were not addressed — proceeding on
   the spec's own marked assumptions until told otherwise. T001 → `done`. T002 (scaffold + first
   vertical slice) is next, blocked only on writing the Node/React mechanical gate first.
+- 2026-08-09 **Director rule change — building EXP.** A building now has EXP. Saving an entry whose
+  category already has a standing building offers a choice: build a new one, or grow an existing one
+  (the player picks which, when there are several). No building of that category yet → no prompt, same
+  as before. Design contract: `docs/spec/ADDENDUM-04-building-exp.md`; task T020. Tier is now driven by
+  a **growth score** (`buildings.length + Σ exp`) rather than a raw building count, so both choices
+  advance the town at the same rate and no existing save's tier moves. **Still the director's call
+  (ADDENDUM-04 §7): whether EXP should scale with the ₩ amount** — the dial ships off (flat 1 per act),
+  so Gate-3 finding #1 is only half addressed until he answers.

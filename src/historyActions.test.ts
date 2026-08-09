@@ -49,6 +49,9 @@ function building(overrides: Partial<Building> = {}): Building {
 }
 
 const tierThresholds = [0, 10, 30, 80, 200];
+// ADDENDUM-04 §7 default (BALANCE.expAmountTiers) — flat 1 EXP/act; the
+// amount-tiered case is exercised separately below.
+const expAmountTiers = null;
 
 describe("buildingForEntry", () => {
   it("finds the one building whose source.entryId matches, ignoring nospend/monument buildings", () => {
@@ -64,7 +67,7 @@ describe("deleteEntryEffects — F9", () => {
     const b = building();
     const survivor = building({ id: "b2", plotIndex: 7, source: { kind: "entry", entryId: "e2" } });
     const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 2, nextPlotIndex: 8 });
-    const result = deleteEntryEffects({ town, buildings: [b, survivor], entry: entry() });
+    const result = deleteEntryEffects({ town, buildings: [b, survivor], entry: entry(), expAmountTiers });
     expect(result.buildings).toEqual([survivor]);
     expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
     expect(result.town.slotsUsedToday).toBe(2); // not refunded
@@ -78,7 +81,7 @@ describe("deleteEntryEffects — F9", () => {
     ];
     const town = freshTown({ queue });
     const queuedEntry = entry({ buildingId: null, queued: true });
-    const result = deleteEntryEffects({ town, buildings: [], entry: queuedEntry });
+    const result = deleteEntryEffects({ town, buildings: [], entry: queuedEntry, expAmountTiers });
     expect(result.town.queue.map((m) => m.entryId)).toEqual(["e2"]);
     expect(result.removedBuilding).toBeNull(); // never built yet
   });
@@ -86,7 +89,7 @@ describe("deleteEntryEffects — F9", () => {
   it("deleting a 저축 entry backs its amount out of the tower total, floored at 0", () => {
     const town = freshTown({ cumulativeSavingsKrw: 5_000, savingsByCategoryKrw: { goal: 5_000 } });
     const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 50_000, buildingId: null });
-    const result = deleteEntryEffects({ town, buildings: [], entry: savingEntry });
+    const result = deleteEntryEffects({ town, buildings: [], entry: savingEntry, expAmountTiers });
     expect(result.town.cumulativeSavingsKrw).toBe(0);
     expect(result.town.savingsByCategoryKrw).toEqual({ goal: 0 });
   });
@@ -106,6 +109,7 @@ function editArgs(overrides: Partial<Parameters<typeof editEntryEffects>[0]> = {
     variantIndex: 0,
     plotIndex: 9,
     now: 2000,
+    expAmountTiers,
     ...overrides,
   };
 }
@@ -213,6 +217,58 @@ describe("editEntryEffects — F9, type changed (round-4 finding C1)", () => {
     );
     expect(result.town.queue).toEqual([]);
     expect(result.entry.queued).toBe(false);
+    expect(result.town.savingsByCategoryKrw).toEqual({ goal: 4_500 });
+  });
+});
+
+// ── ADDENDUM-04 — a "grow contribution" entry: `buildingId` names a host
+// whose OWN founding entry ("founding1") is a different entry than the one
+// under test ("grow1") — the marker `isGrowContribution` (this file) infers
+// with no extra field, per spec §6.
+describe("deleteEntryEffects — ADDENDUM-04 grow contribution", () => {
+  it("decrements the host's exp instead of removing it — the host survives", () => {
+    const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 2 });
+    const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [host], entry: growEntry, expAmountTiers });
+    expect(result.removedBuilding).toBeNull();
+    expect(result.grownBuilding).toEqual({ ...host, exp: 1 });
+    expect(result.buildings).toEqual([{ ...host, exp: 1 }]);
+  });
+
+  it("floors the host's exp at 0 rather than going negative", () => {
+    const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 0 });
+    const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [host], entry: growEntry, expAmountTiers });
+    expect(result.grownBuilding?.exp).toBe(0);
+  });
+
+  it("deleting the FOUNDING entry of a grown building still removes the whole building, EXP included (unchanged)", () => {
+    const founding = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 5 });
+    const foundingEntry = entry({ id: "founding1", buildingId: "host1" });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [founding], entry: foundingEntry, expAmountTiers });
+    expect(result.removedBuilding).toEqual({ id: "host1", ym: "2026-08" });
+    expect(result.grownBuilding).toBeNull();
+    expect(result.buildings).toEqual([]);
+  });
+});
+
+describe("editEntryEffects — ADDENDUM-04 grow contribution", () => {
+  it("a category edit on a grow-contribution entry does not re-skin the host — nothing moves", () => {
+    const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, categoryId: "cafe" });
+    const growEntry = entry({ id: "grow1", buildingId: "host1", categoryId: "cafe" });
+    const result = editEntryEffects(editArgs({ buildings: [host], entry: growEntry, patch: { categoryId: "food" } }));
+    expect(result.buildings).toEqual([host]); // host untouched
+    expect(result.entry.categoryId).toBe("food"); // the entry record itself still reflects the edit
+  });
+
+  it("지출/수입 -> 저축 conversion of a grow-contribution entry backs its EXP out of the host instead of removing it", () => {
+    const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 3 });
+    const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 });
+    const result = editEntryEffects(editArgs({ buildings: [host], entry: growEntry, patch: { type: "saving", categoryId: "goal" } }));
+    expect(result.removedBuilding).toBeNull();
+    expect(result.grownBuilding).toEqual({ ...host, exp: 2 });
+    expect(result.buildings).toEqual([{ ...host, exp: 2 }]);
+    expect(result.entry.buildingId).toBeNull();
     expect(result.town.savingsByCategoryKrw).toEqual({ goal: 4_500 });
   });
 });

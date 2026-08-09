@@ -19,6 +19,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useTileGestures } from "../hooks/useTileGestures";
 import { openPlotCount } from "../placement";
+import { levelOf } from "../selectors";
 import {
   DISTRICT_ROW_GAP_PX,
   GRID_GAP_PX,
@@ -55,6 +56,9 @@ export interface TownGridProps {
   ladder: readonly number[];
   /** Per-structure overrides — BALANCE.savingsStructureSegments (D-13a). Ships `{}`. */
   ladderOverrides: Partial<Record<SavingCategoryId, readonly number[]>>;
+  /** ADDENDUM-04 §8 — BALANCE.expPerLevel/maxLevel, threaded through like every other dial (this component imports no balance config of its own). */
+  expPerLevel: number;
+  maxLevel: number;
   /** The structure that just gained a level, and a per-event sequence number (§2.6a). */
   justGrew: { id: SavingCategoryId; seq: number } | null;
   /** The rise animation ended — clears `justGrew` (round-4 finding C1 #2, threaded straight through to `SavingsRow`). */
@@ -77,6 +81,13 @@ export interface TownGridProps {
   /** An arrow key moved the roving cursor to this (already-clamped) index. */
   onCursorMove: (nextIndex: number) => void;
   /**
+   * ADDENDUM-04 §4 — the live grow-candidate ids while grid pick-mode is
+   * active (undefined/empty outside it). Building tiles whose id is a member
+   * get the highlight class; never set together with move mode (`TownScreen`
+   * keeps the two mutually exclusive).
+   */
+  growCandidateIds?: ReadonlySet<string>;
+  /**
    * [취소] / Escape / Android back — cancels move mode outright. A dedicated
    * prop rather than reusing `onPlotTap` at the moving building's own plot:
    * "tap the moving tile again" and "press Escape" are two different user
@@ -96,6 +107,8 @@ function TownGridImpl({
   savingsByCategoryKrw,
   ladder,
   ladderOverrides,
+  expPerLevel,
+  maxLevel,
   justGrew,
   onRiseSettled,
   movingId,
@@ -103,6 +116,7 @@ function TownGridImpl({
   onPlotLongPress,
   onPlotTap,
   onCursorMove,
+  growCandidateIds,
   onCancel,
 }: TownGridProps) {
   const newestTileRef = useRef<HTMLDivElement | null>(null);
@@ -146,7 +160,12 @@ function TownGridImpl({
       // imperatively to the two affected DOM nodes.
       const isMoving = building !== undefined && building.id === movingId;
       const isDroppable = movingId !== null && building === undefined; // every free lot is droppable (G2 guarantees >= 1)
-      const stateClasses = (isMoving ? " town-tile--moving" : "") + (isDroppable ? " town-tile--droppable" : "");
+      // ADDENDUM-04 §4 — grid pick-mode highlight; mirrors town-tile--droppable's shape with its own class.
+      const isGrowCandidate = building !== undefined && (growCandidateIds?.has(building.id) ?? false);
+      const stateClasses =
+        (isMoving ? " town-tile--moving" : "") +
+        (isDroppable ? " town-tile--droppable" : "") +
+        (isGrowCandidate ? " town-tile--grow-candidate" : "");
 
       // §4.4 DOM contract: role="button" + aria-label on building tiles
       // always, and on an empty tile only while droppable — never on inert
@@ -168,7 +187,12 @@ function TownGridImpl({
           {...a11yProps}
         >
           {building ? (
-            <PlaceholderBuilding categoryId={building.categoryId} variantIndex={building.variantIndex} justBuilt={isNewest} />
+            <PlaceholderBuilding
+              categoryId={building.categoryId}
+              variantIndex={building.variantIndex}
+              justBuilt={isNewest}
+              level={levelOf(building, expPerLevel, maxLevel)}
+            />
           ) : (
             <EmptyLot variant={decorVariant(row, col, 3) as 0 | 1 | 2} />
           )}
@@ -176,7 +200,11 @@ function TownGridImpl({
       );
     }
     return result;
-  }, [tileCount, byPlotIndex, justBuiltId, movingId]);
+    // `byPlotIndex` is rebuilt (new Map) whenever `buildings` itself changes —
+    // including an in-place grow that only bumps one building's `exp` — so a
+    // level change re-renders its tile through this same dep with no extra
+    // dep needed for "exp changed" specifically (ADDENDUM-04 task note).
+  }, [tileCount, byPlotIndex, justBuiltId, movingId, growCandidateIds, expPerLevel, maxLevel]);
 
   // Cursor highlight applied imperatively, NOT baked into the `tiles` memo
   // above (see its comment): a repeated arrow-key press only needs to move a

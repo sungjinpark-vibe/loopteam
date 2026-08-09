@@ -33,4 +33,14 @@ export const BALANCE = {
   // unchanged from placeholder — no per-structure override.
   savingsStructureSegments: {} as Partial<Record<SavingCategoryId, readonly number[]>>,
   noSpendDayCostsSlot: true, // unchanged from placeholder — D-15
+
+  // --- ADDENDUM-04 (building EXP). NEW dials, PM defaults, NOT yet confirmed
+  // by the director. Reported to him alongside the open §7 question. ---
+  expPerLevel: 3, // EXP needed per visible level
+  maxLevel: 5, // visual cap only; EXP past it still counts toward tier
+  // ADDENDUM-04 §7 — OPEN QUESTION, deliberately off. `null` = flat 1 EXP per
+  // act, so a ₩1,000 and a ₩10,000,000 entry still grow the town identically.
+  // A table of [maxAmountKrwExclusive, exp] pairs turns it on; do NOT enable
+  // it without the director, the balance file is his (MVP-SPEC §9 rule 3).
+  expAmountTiers: null as readonly (readonly [number, number])[] | null,
 } as const;

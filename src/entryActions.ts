@@ -10,7 +10,7 @@
  * normal 지출 save (logging an expense on an already-claimed date), not on a
  * dedicated user action, so it has to run as part of this same save.
  */
-import { advanceStreak, slotsRemainingToday, tier } from "./selectors";
+import { advanceStreak, expOf, growthScore, slotsRemainingToday, tier } from "./selectors";
 import { savingsBucketOf } from "./savingsBuckets";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
@@ -40,12 +40,28 @@ export interface ApplyNewEntryArgs {
   variantIndex: number;
   /** Where the new building lands — computed by `placement.pickPlot`, supplied by the caller (rule R-4, ADDENDUM-02 §3.5). */
   plotIndex: number;
+  /**
+   * ADDENDUM-04 §4/§5 — grow an existing building instead of placing a new
+   * one. The id of a LIVE, entry-founded building; a stale id (named no live
+   * building) or no free slot both fall back to the normal build/queue path
+   * below rather than losing the entry — see `decideBuildOrQueue`.
+   */
+  growTargetId?: string;
+  /**
+   * ADDENDUM-04 §7 — EXP to add when this save grows `growTargetId`, already
+   * computed by the caller via `expGainFor(draft.amountKrw, BALANCE.expAmountTiers)`
+   * (selectors.ts) — this module stays balance-free like every other dial
+   * here. Unused when `growTargetId` is absent.
+   */
+  growExpGain?: number;
 }
 
 export interface ApplyNewEntryResult {
   entry: LedgerEntry;
-  /** Built now (F2) — null when queued, overflowed, or a 저축 entry. */
+  /** Built now (F2) — null when queued, overflowed, grown, or a 저축 entry. */
   building: Building | null;
+  /** ADDENDUM-04 §5 — the host this save grew, EXP already added — null unless this save actually grew. */
+  grownBuilding: Building | null;
   /** Pushed to the queue (F14) — null unless this save queued a material. */
   queuedMaterial: QueuedMaterial | null;
   /** True when the queue was already at `materialQueueMax` — entry saved with no material at all. */
@@ -78,8 +94,8 @@ export function adjustSavings(town: TownState, categoryId: string, deltaKrw: num
 
 export interface BuildOrQueueArgs {
   town: TownState;
-  /** Buildings count BEFORE this act (post any F15 revocation the caller already applied) — used for the F5 tier check. */
-  buildingCountBeforeThis: number;
+  /** Growth score BEFORE this act (post any F15 revocation the caller already applied) — used for the F5 tier check (ADDENDUM-04 §3: `growthScore(buildings)`, not a raw count). */
+  growthScoreBeforeThis: number;
   today: string;
   dailyBuildSlots: number;
   materialQueueMax: number;
@@ -94,10 +110,22 @@ export interface BuildOrQueueArgs {
   entryYm: string;
   /** F7: whether this act should advance the streak. True for a fresh F1 save; false for an F9 edit-driven type conversion (not a new logging act). */
   advancesStreak: boolean;
+  /**
+   * ADDENDUM-04 §4/§5 — resolved LIVE host to grow instead of placing a new
+   * building; undefined falls back to the normal build decision below (a
+   * stale `growTargetId` must never lose the entry, per `applyNewEntry`).
+   * Only consulted when a slot is free — the queue path (`remaining <= 0`)
+   * never grows, it queues exactly as today.
+   */
+  growTarget?: Building;
+  /** EXP to add to `growTarget` — already computed by the caller (ADDENDUM-04 §7). Unused when `growTarget` is undefined. */
+  growExpGain?: number;
 }
 
 export interface BuildOrQueueResult {
   building: Building | null;
+  /** ADDENDUM-04 §5 — the host `growTarget` grew into, EXP already added — null unless this decision actually grew. */
+  grownBuilding: Building | null;
   queuedMaterial: QueuedMaterial | null;
   queueOverflow: boolean;
   town: TownState;
@@ -114,7 +142,7 @@ export interface BuildOrQueueResult {
 export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
   const {
     town,
-    buildingCountBeforeThis,
+    growthScoreBeforeThis,
     today,
     dailyBuildSlots,
     materialQueueMax,
@@ -127,11 +155,33 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
     createdAt,
     entryYm,
     advancesStreak,
+    growTarget,
+    growExpGain,
   } = args;
   const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
 
   if (remaining > 0) {
     const usedToday = dailyBuildSlots - remaining;
+
+    // ADDENDUM-04 §5: growing consumes a slot and advances the streak
+    // exactly like building, but creates no Building and opens no lot.
+    if (growTarget) {
+      const gain = growExpGain ?? 0;
+      const grownBuilding: Building = { ...growTarget, exp: expOf(growTarget) + gain };
+      const newScore = growthScoreBeforeThis + gain;
+      const newTier = tier(newScore, tierThresholds);
+      const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
+      const newTown: TownState = {
+        ...town,
+        ...(advancesStreak ? advanceStreak(town, today) : {}),
+        // nextPlotIndex unchanged — no lot opens (§5).
+        slotsUsedOn: today,
+        slotsUsedToday: usedToday + 1,
+        highestTierSeen: Math.max(town.highestTierSeen, newTier),
+      };
+      return { building: null, grownBuilding, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
+    }
+
     const building: Building = {
       id: buildingId,
       source: { kind: "entry", entryId },
@@ -141,8 +191,8 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       builtOn: today,
       createdAt,
     };
-    const buildingCount = buildingCountBeforeThis + 1;
-    const newTier = tier(buildingCount, tierThresholds);
+    const newScore = growthScoreBeforeThis + 1;
+    const newTier = tier(newScore, tierThresholds);
     const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
     const newTown: TownState = {
       ...town,
@@ -152,9 +202,10 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       slotsUsedToday: usedToday + 1,
       highestTierSeen: Math.max(town.highestTierSeen, newTier),
     };
-    return { building, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
+    return { building, grownBuilding: null, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
   }
 
+  // ADDENDUM-04 §4/§5: no free slot means no grow either — queues exactly as today.
   if (town.queue.length < materialQueueMax) {
     const queuedMaterial: QueuedMaterial = { entryId, categoryId, variantIndex, queuedOn: today, entryYm };
     const newTown: TownState = {
@@ -162,10 +213,10 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       ...(advancesStreak ? advanceStreak(town, today) : {}),
       queue: [...town.queue, queuedMaterial],
     };
-    return { building: null, queuedMaterial, queueOverflow: false, town: newTown, celebrateTier: null };
+    return { building: null, grownBuilding: null, queuedMaterial, queueOverflow: false, town: newTown, celebrateTier: null };
   }
 
-  return { building: null, queuedMaterial: null, queueOverflow: true, town, celebrateTier: null };
+  return { building: null, grownBuilding: null, queuedMaterial: null, queueOverflow: true, town, celebrateTier: null };
 }
 
 /**
@@ -189,6 +240,8 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     noSpendDayCostsSlot,
     variantIndex,
     plotIndex,
+    growTargetId,
+    growExpGain,
   } = args;
 
   // F15: logging a 지출 for an already-claimed date un-claims it. Refund the
@@ -196,6 +249,10 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
   // was never spendable "now" and there is nothing to hand back.
   let town = args.town;
   let revokedNoSpend: ApplyNewEntryResult["revokedNoSpend"] = null;
+  // ADDENDUM-04 §3: the revoked park tile's own contribution to the growth
+  // score (1 + its exp, though a park tile never actually grows — kept
+  // general so this reads correctly even if that ever changes).
+  let revokedContribution = 0;
   if (draft.type === "expense" && town.noSpendDays.includes(draft.occurredOn)) {
     const revokedBuilding = buildings.find((b) => b.source.kind === "nospend" && b.source.date === draft.occurredOn);
     const refund = noSpendDayCostsSlot && draft.occurredOn === today && town.slotsUsedOn === today;
@@ -205,6 +262,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
       slotsUsedToday: refund ? Math.max(0, town.slotsUsedToday - 1) : town.slotsUsedToday,
     };
     revokedNoSpend = { date: draft.occurredOn, buildingId: revokedBuilding?.id ?? null };
+    revokedContribution = revokedBuilding ? 1 + expOf(revokedBuilding) : 0;
   }
 
   const baseEntry = {
@@ -229,6 +287,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     return {
       entry: { ...baseEntry, buildingId: null, queued: false },
       building: null,
+      grownBuilding: null,
       queuedMaterial: null,
       queueOverflow: false,
       town: newTown,
@@ -237,16 +296,23 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     };
   }
 
+  // ADDENDUM-04 §4/§5: resolve a LIVE, entry-founded host for growTargetId.
+  // `buildings` still includes a same-save-revoked park tile (never
+  // `source.kind === "entry"`, so it can never match here) — no bogus grow
+  // target. A stale/bogus id (a race between the dialog and a delete) leaves
+  // `growTarget` undefined, and `decideBuildOrQueue` below falls back to the
+  // normal build/queue path rather than losing the entry.
+  const growTarget = growTargetId ? buildings.find((b) => b.id === growTargetId && b.source.kind === "entry") : undefined;
+
   // `buildings` is the PRE-revocation array — when this same save just
   // revoked a claimed 무지출 데이 above, its park tile is still in there but
-  // is about to be removed by the caller. Subtract it before counting, or a
-  // revoking save one building below a threshold falsely celebrates (and
+  // is about to be removed by the caller. Subtract its contribution before
+  // scoring, or a revoking save one below a threshold falsely celebrates (and
   // permanently burns that threshold in highestTierSeen, since it only ever
   // increases — round-2 finding C2 #1).
-  const revokedCount = revokedNoSpend?.buildingId ? 1 : 0;
   const decision = decideBuildOrQueue({
     town,
-    buildingCountBeforeThis: buildings.length - revokedCount,
+    growthScoreBeforeThis: growthScore(buildings) - revokedContribution,
     today,
     dailyBuildSlots,
     materialQueueMax,
@@ -258,13 +324,29 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     plotIndex,
     createdAt,
     entryYm: draft.occurredOn.slice(0, 7),
-    advancesStreak: true, // F7: a fresh F1 save is a streak act when it builds OR queues; `decideBuildOrQueue`'s own overflow branch never advances it
+    advancesStreak: true, // F7: a fresh F1 save is a streak act when it builds, grows, OR queues; `decideBuildOrQueue`'s own overflow branch never advances it
+    growTarget,
+    growExpGain,
   });
+
+  if (decision.grownBuilding) {
+    return {
+      entry: { ...baseEntry, buildingId: decision.grownBuilding.id, queued: false },
+      building: null,
+      grownBuilding: decision.grownBuilding,
+      queuedMaterial: null,
+      queueOverflow: false,
+      town: decision.town,
+      revokedNoSpend,
+      celebrateTier: decision.celebrateTier,
+    };
+  }
 
   if (decision.building) {
     return {
       entry: { ...baseEntry, buildingId, queued: false },
       building: decision.building,
+      grownBuilding: null,
       queuedMaterial: null,
       queueOverflow: false,
       town: decision.town,
@@ -277,6 +359,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     return {
       entry: { ...baseEntry, buildingId: null, queued: true },
       building: null,
+      grownBuilding: null,
       queuedMaterial: decision.queuedMaterial,
       queueOverflow: false,
       town: decision.town,
@@ -289,6 +372,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
   return {
     entry: { ...baseEntry, buildingId: null, queued: false },
     building: null,
+    grownBuilding: null,
     queuedMaterial: null,
     queueOverflow: true,
     town: decision.town,

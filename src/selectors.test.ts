@@ -8,8 +8,13 @@ import {
   categoryDonut,
   categoryTotals,
   dayGroups,
+  expGainFor,
+  expOf,
+  growCandidates,
   grownStructures,
+  growthScore,
   ladderFor,
+  levelOf,
   monthTotal,
   monthTotals,
   moodTier,
@@ -92,6 +97,75 @@ describe("tier", () => {
     expect(tier(29, thresholds)).toBe(1);
     expect(tier(200, thresholds)).toBe(4);
     expect(tier(9_999, thresholds)).toBe(4);
+  });
+});
+
+// ── ADDENDUM-04 — building EXP ──
+describe("expOf", () => {
+  it("reads 0 for a building with no exp field (the migration guarantee)", () => {
+    expect(expOf(makeBuilding(1))).toBe(0);
+  });
+  it("reads the stored value", () => {
+    expect(expOf({ ...makeBuilding(1), exp: 4 })).toBe(4);
+  });
+});
+
+describe("levelOf", () => {
+  it("is 1 at exp 0 — an unleveled building renders exactly as today", () => {
+    expect(levelOf(makeBuilding(1), 3, 5)).toBe(1);
+  });
+  it("increments every expPerLevel", () => {
+    expect(levelOf({ ...makeBuilding(1), exp: 2 }, 3, 5)).toBe(1);
+    expect(levelOf({ ...makeBuilding(1), exp: 3 }, 3, 5)).toBe(2);
+    expect(levelOf({ ...makeBuilding(1), exp: 6 }, 3, 5)).toBe(3);
+  });
+  it("caps at maxLevel — EXP past the cap is still counted elsewhere (growthScore), just not shown", () => {
+    expect(levelOf({ ...makeBuilding(1), exp: 999 }, 3, 5)).toBe(5);
+  });
+});
+
+describe("growthScore", () => {
+  it("equals buildings.length when every building has no exp field — the migration guarantee (an old save's tier does not change)", () => {
+    const buildings = [1, 2, 3].map((i) => makeBuilding(i));
+    expect(growthScore(buildings)).toBe(3);
+    expect(growthScore(buildings)).toBe(buildingCount(buildings));
+  });
+  it("adds every building's exp on top of the count", () => {
+    const buildings = [makeBuilding(1), { ...makeBuilding(2), exp: 5 }, { ...makeBuilding(3), exp: 2 }];
+    expect(growthScore(buildings)).toBe(3 + 5 + 2);
+  });
+});
+
+describe("expGainFor", () => {
+  it("returns 1 for every amount when tiers is null (the shipped default)", () => {
+    expect(expGainFor(100, null)).toBe(1);
+    expect(expGainFor(10_000_000, null)).toBe(1);
+  });
+  it("returns the first tier whose bound the amount falls strictly under", () => {
+    const tiers = [
+      [10_000, 1],
+      [50_000, 2],
+      [200_000, 3],
+      [Infinity, 5],
+    ] as const;
+    expect(expGainFor(5_000, tiers)).toBe(1);
+    expect(expGainFor(10_000, tiers)).toBe(2); // not strictly < 10_000 -> next tier
+    expect(expGainFor(49_999, tiers)).toBe(2);
+    expect(expGainFor(1_000_000, tiers)).toBe(5);
+  });
+});
+
+describe("growCandidates", () => {
+  it("returns live entry-founded buildings matching categoryId, sorted by createdAt ascending", () => {
+    const older = { ...makeBuilding(1), categoryId: "cafe" as const, createdAt: 100 };
+    const newer = { ...makeBuilding(2), categoryId: "cafe" as const, createdAt: 200 };
+    const otherCategory = { ...makeBuilding(3), categoryId: "food" as const };
+    expect(growCandidates([newer, otherCategory, older], "cafe")).toEqual([older, newer]);
+  });
+  it("excludes park tiles and monuments even when categoryId happens to match", () => {
+    const park: Building = { ...makeBuilding(4), source: { kind: "nospend", date: "2026-08-01" }, categoryId: "park" };
+    const monument: Building = { ...makeBuilding(5), source: { kind: "monument", period: "2026-08" }, categoryId: null };
+    expect(growCandidates([park, monument], "food")).toEqual([]);
   });
 });
 

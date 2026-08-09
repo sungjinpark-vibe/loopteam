@@ -17,6 +17,7 @@ import { act } from "react";
 import { TDSMobileProvider } from "@toss/tds-mobile";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { BALANCE } from "../balance.approved";
 import type { EntryDraft } from "../entryActions";
 import { setTimeTravelDate } from "../platform/clock";
 import { setRandomOverride } from "../platform/random";
@@ -158,5 +159,215 @@ describe("TownScreen — F6 sky mood, all 4 states verified in the mounted DOM",
     // across this whole run never removed, greyed, or downgraded a building —
     // both entries above still built normally.
     expect(latest?.buildingCount).toBe(2);
+  });
+});
+
+// ── ADDENDUM-04 §4 — the choice dialog / grid pick-mode. Unlike the mood
+// suite above (which drives `useTownStore.addEntry` directly), these tests
+// have to go through the REAL `EntrySheet` UI, because the dialog trigger
+// (`TownScreen.handleSave`) lives entirely inside `TownScreen`, with no store
+// method to call instead. `findButton`/the jsdom stubs above mirror
+// `EntrySheet.test.tsx`'s own proven pattern for driving TDS components.
+
+function findButton(text: string): HTMLButtonElement | undefined {
+  return [...document.body.querySelectorAll("button")].find((b) => b.textContent === text);
+}
+
+/**
+ * `NumberKeypad`'s digit cells fire `onKeyClick` from `onMouseDown` (TDS's
+ * own touch-vs-mouse press de-dupe), NOT from a "click" event — a plain
+ * `.click()` (which only ever synthesizes a "click" event, same in jsdom as
+ * in a real browser) never reaches it. `td[role="button"]`'s `textContent`
+ * is the digit itself (verified against the vendor bundle).
+ */
+function pressDigit(digit: string): void {
+  const key = [...document.body.querySelectorAll('td[role="button"]')].find((el) => el.textContent === digit);
+  if (!key) throw new Error(`digit key not found: ${digit}`);
+  act(() => {
+    key.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  });
+}
+
+/** `SegmentedControl.Item` renders a plain `<input value="...">` under the hood (TDS .d.ts). */
+function selectType(value: "income" | "saving"): void {
+  const input = document.body.querySelector<HTMLInputElement>(`input[value="${value}"]`);
+  if (!input) throw new Error(`type input not found: ${value}`);
+  act(() => {
+    input.click();
+  });
+}
+
+function openSheet(): void {
+  const fab = container.querySelector<HTMLElement>(".town-fab");
+  if (!fab) throw new Error("FAB not found — already in move/pick mode?");
+  act(() => {
+    fab.click();
+  });
+}
+
+/** Fills the minimum viable entry (amount 1) and taps 저장. */
+function fillAndSave(categoryLabel: string, type?: "income" | "saving"): void {
+  if (type) selectType(type);
+  pressDigit("1");
+  // ChipItem renders its icon (`left`) and label in the same button, so the
+  // rendered text is "☕카페", not "카페" — match by substring, not equality.
+  const categoryButton = [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes(categoryLabel));
+  if (!categoryButton) throw new Error(`category not found: ${categoryLabel}`);
+  act(() => {
+    categoryButton.click();
+  });
+  act(() => {
+    findButton("저장")!.click();
+  });
+}
+
+function tapTile(plotIndex: number): void {
+  const tile = container.querySelector(`[data-plot-index="${plotIndex}"]`) as HTMLElement;
+  act(() => {
+    tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+}
+
+function monthEntryCount(): number {
+  return latest!.getMonthEntries(TODAY.slice(0, 7)).length;
+}
+
+describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
+  it("saving into a category with NO existing building shows no dialog and saves directly", async () => {
+    await mountAndWaitForBoot();
+
+    openSheet();
+    fillAndSave("카페");
+
+    expect(findButton("키우기")).toBeUndefined();
+    expect(latest!.buildingCount).toBe(1);
+  });
+
+  it("saving into a category WITH one shows the dialog; 새로 짓기 builds a new building", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    expect(latest!.buildingCount).toBe(1);
+
+    openSheet();
+    fillAndSave("카페");
+    expect(findButton("키우기")).not.toBeUndefined(); // the dialog is up
+
+    act(() => {
+      findButton("새로 짓기")!.click();
+    });
+
+    expect(latest!.buildingCount).toBe(2);
+    expect(latest!.buildings.every((b) => (b.exp ?? 0) === 0)).toBe(true); // nothing grew
+  });
+
+  it("키우기 with exactly one candidate grows it immediately, no second step", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    const hostId = latest!.buildings[0].id;
+
+    openSheet();
+    fillAndSave("카페");
+    act(() => {
+      findButton("키우기")!.click();
+    });
+
+    // No pick-mode bar — a single candidate grows straight away.
+    expect(container.querySelector(".town-move-bar")).toBeNull();
+    expect(latest!.buildingCount).toBe(1); // still one building — grown, not built
+    expect(latest!.buildings.find((b) => b.id === hostId)!.exp).toBe(1);
+  });
+
+  it("2+ candidates enters pick mode; tapping a candidate grows exactly that building", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    act(() => {
+      latest!.addEntry(cafeExpense(2_000));
+    });
+    const [first, second] = latest!.buildings;
+    const entriesBefore = monthEntryCount();
+
+    openSheet();
+    fillAndSave("카페");
+    act(() => {
+      findButton("키우기")!.click();
+    });
+
+    expect(container.querySelector(".town-move-bar")?.textContent).toContain("키울 건물을 선택하세요");
+    expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(2);
+    expect(container.querySelector(".town-fab")).toBeNull(); // FAB hides during pick mode too
+
+    tapTile(second.plotIndex);
+
+    expect(container.querySelector(".town-move-bar")).toBeNull(); // pick mode exited
+    expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(0);
+    expect(latest!.buildingCount).toBe(2); // no new building — grew in place
+    expect(latest!.buildings.find((b) => b.id === second.id)!.exp).toBe(1);
+    expect(latest!.buildings.find((b) => b.id === first.id)!.exp ?? 0).toBe(0);
+    expect(monthEntryCount()).toBe(entriesBefore + 1);
+  });
+
+  it("cancelling pick mode (취소) saves nothing and leaves no state stuck", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    act(() => {
+      latest!.addEntry(cafeExpense(2_000));
+    });
+    const entriesBefore = monthEntryCount();
+
+    openSheet();
+    fillAndSave("카페");
+    act(() => {
+      findButton("키우기")!.click();
+    });
+    expect(container.querySelector(".town-move-bar")).not.toBeNull();
+
+    const cancelButton = [...container.querySelectorAll<HTMLButtonElement>(".town-move-bar button")].find(
+      (b) => b.textContent === "취소",
+    );
+    act(() => {
+      cancelButton!.click();
+    });
+
+    expect(container.querySelector(".town-move-bar")).toBeNull();
+    expect(latest!.buildingCount).toBe(2);
+    expect(latest!.buildings.every((b) => (b.exp ?? 0) === 0)).toBe(true); // nothing was saved
+    expect(monthEntryCount()).toBe(entriesBefore); // the entry itself was never saved
+    expect(container.querySelector(".town-fab")).not.toBeNull(); // FAB is back — no stuck mode
+  });
+
+  it("no dialog once today's build slots are exhausted — queues exactly as today (F14)", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      for (let i = 0; i < BALANCE.dailyBuildSlots; i++) latest!.addEntry(cafeExpense(1_000));
+    });
+    expect(latest!.slotsRemaining).toBe(0);
+
+    openSheet();
+    fillAndSave("카페");
+
+    expect(findButton("키우기")).toBeUndefined();
+    expect(latest!.queueLength).toBe(1);
+  });
+
+  it("no dialog for a 저축 entry, even into a category that already has ledger entries", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry({ type: "saving", amountKrw: 10_000, categoryId: "deposit", occurredOn: TODAY });
+    });
+    expect(latest!.buildingCount).toBe(0); // 저축 never builds (F13) — nothing to grow either
+
+    openSheet();
+    fillAndSave("예적금", "saving");
+
+    expect(findButton("키우기")).toBeUndefined();
+    expect(latest!.buildingCount).toBe(0);
   });
 });

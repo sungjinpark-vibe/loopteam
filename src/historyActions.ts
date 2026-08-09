@@ -22,11 +22,25 @@
  *    to the tower instead.
  */
 import { adjustSavings, decideBuildOrQueue } from "./entryActions";
+import { expGainFor, expOf, growthScore } from "./selectors";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
 /** Locates the building this entry produced, if any — the one place both delete and edit look this up (round-4 finding C3: was copy-pasted twice in `useTownStore.ts`). */
 export function buildingForEntry(buildings: readonly Building[], entryId: string): Building | undefined {
   return buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entryId);
+}
+
+/**
+ * ADDENDUM-04 §6 — a "grow contribution" entry: `buildingId` names a host,
+ * but that host's OWN founding entry is a DIFFERENT entry (`buildingForEntry`,
+ * keyed off `source.entryId`, finds nothing for THIS entry's id). No extra
+ * field marks this; it's inferred exactly as the spec names it. The
+ * `buildingId !== null` guard matters — a queued/overflowed/저축 entry also
+ * has no `buildingForEntry` match, but its `buildingId` is null, not a
+ * dangling host reference.
+ */
+function isGrowContribution(buildings: readonly Building[], entry: Pick<LedgerEntry, "id" | "buildingId">): boolean {
+  return entry.buildingId !== null && buildingForEntry(buildings, entry.id) === undefined;
 }
 
 /** Drops `entryId`'s pending material from the queue, if any — the F14 invariant "every queued material has a live entry" (round-4 finding C2), needed by both delete and an edit that moves the entry out of "still needs a building" state (saving -> already handled by never having queued; 저축 entries never queue). */
@@ -39,6 +53,8 @@ export interface DeleteEntryArgs {
   town: TownState;
   buildings: readonly Building[];
   entry: LedgerEntry;
+  /** ADDENDUM-04 §7 — the EXP-per-amount dial, passed in so this module stays balance-free like `tierThresholds` elsewhere; only consulted when `entry` is a grow contribution. */
+  expAmountTiers: readonly (readonly [number, number])[] | null;
 }
 
 export interface DeleteEntryResult {
@@ -46,6 +62,8 @@ export interface DeleteEntryResult {
   buildings: Building[];
   /** The removed building's id/`builtOn` month, for the caller to also drop it from that month's storage chunk — `null` when the entry never built one. */
   removedBuilding: { id: string; ym: string } | null;
+  /** ADDENDUM-04 §6 — set when `entry` was a grow contribution: the host with its EXP backed out (floored at 0, D-10: the slot is not refunded either way). The host is NOT removed; the caller persists this into ITS OWN `builtOn` month chunk (may differ from `entry`'s month). */
+  grownBuilding: Building | null;
 }
 
 /**
@@ -55,22 +73,40 @@ export interface DeleteEntryResult {
  * later drain never builds a ghost for an entry that no longer exists
  * (round-4 finding C2 — the fix this task's escalation named as highest
  * value). A deleted 저축 entry backs its amount out of the tower.
+ *
+ * ADDENDUM-04 §6: deleting a GROW CONTRIBUTION (see `isGrowContribution`)
+ * backs its EXP out of the host instead — the host is not removed, only its
+ * `exp` decreases. Deleting the FOUNDING entry of a grown building still
+ * removes the whole building, EXP included, same as any other building
+ * (unchanged) — a dangling `buildingId` on the contributor entries is an
+ * accepted ceiling, ADDENDUM-04 §6.
  */
-export function deleteEntryEffects({ town, buildings, entry }: DeleteEntryArgs): DeleteEntryResult {
+export function deleteEntryEffects({ town, buildings, entry, expAmountTiers }: DeleteEntryArgs): DeleteEntryResult {
   let nextTown = town;
   let nextBuildings = buildings as Building[];
   let removedBuilding: DeleteEntryResult["removedBuilding"] = null;
+  let grownBuilding: DeleteEntryResult["grownBuilding"] = null;
 
   const bound = buildingForEntry(buildings, entry.id);
   if (bound) {
     nextBuildings = buildings.filter((b) => b.id !== bound.id);
     removedBuilding = { id: bound.id, ym: bound.builtOn.slice(0, 7) };
+  } else if (isGrowContribution(buildings, entry)) {
+    const host = buildings.find((b) => b.id === entry.buildingId);
+    // `host` can be missing when the founding entry was deleted first (§6's
+    // accepted ceiling) — nothing left to back EXP out of.
+    if (host) {
+      const gain = expGainFor(entry.amountKrw, expAmountTiers);
+      const updated: Building = { ...host, exp: Math.max(0, expOf(host) - gain) };
+      grownBuilding = updated;
+      nextBuildings = buildings.map((b) => (b.id === host.id ? updated : b));
+    }
   }
 
   if (entry.queued) nextTown = dropFromQueue(nextTown, entry.id);
   if (entry.type === "saving") nextTown = adjustSavings(nextTown, entry.categoryId, -entry.amountKrw);
 
-  return { town: nextTown, buildings: nextBuildings, removedBuilding };
+  return { town: nextTown, buildings: nextBuildings, removedBuilding, grownBuilding };
 }
 
 /** F9 edit fields — `type` included (round-4 finding C1: was display-only). */
@@ -96,6 +132,8 @@ export interface EditEntryArgs {
   variantIndex: number;
   plotIndex: number;
   now: number;
+  /** ADDENDUM-04 §7 — same dial `deleteEntryEffects` takes; only consulted when `entry` is a grow contribution converting 지출/수입 -> 저축. */
+  expAmountTiers: readonly (readonly [number, number])[] | null;
 }
 
 export interface EditEntryResult {
@@ -105,10 +143,13 @@ export interface EditEntryResult {
   removedBuilding: { id: string; ym: string } | null;
   /** A building this edit newly placed (저축 -> 지출/수입 landing on an open slot) — the caller persists it into TODAY's month chunk, same as a fresh save. */
   newBuilding: Building | null;
+  /** ADDENDUM-04 §6 — set when a grow-contribution entry converted 지출/수입 -> 저축: the host with its EXP backed out (floored at 0). The host is NOT removed; the caller persists this into ITS OWN `builtOn` month chunk. */
+  grownBuilding: Building | null;
 }
 
 export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
-  const { entry: oldEntry, patch, today, dailyBuildSlots, materialQueueMax, tierThresholds, newBuildingId, variantIndex, plotIndex, now } = args;
+  const { entry: oldEntry, patch, today, dailyBuildSlots, materialQueueMax, tierThresholds, newBuildingId, variantIndex, plotIndex, now, expAmountTiers } =
+    args;
 
   const newType = patch.type ?? oldEntry.type;
   const newCategoryId = patch.categoryId ?? oldEntry.categoryId;
@@ -123,6 +164,7 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
   let buildings = args.buildings as Building[];
   let removedBuilding: EditEntryResult["removedBuilding"] = null;
   let newBuilding: Building | null = null;
+  let grownBuilding: EditEntryResult["grownBuilding"] = null;
   let buildingId = oldEntry.buildingId;
   let queued = oldEntry.queued;
 
@@ -168,7 +210,7 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     town = adjustSavings(town, oldEntry.categoryId, -oldEntry.amountKrw);
     const decision = decideBuildOrQueue({
       town,
-      buildingCountBeforeThis: buildings.length,
+      growthScoreBeforeThis: growthScore(buildings),
       today,
       dailyBuildSlots,
       materialQueueMax,
@@ -197,9 +239,19 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     }
   } else {
     // 지출/수입 -> 저축: loses its building/queued slot (D-10: not refunded), starts contributing to the tower.
+    // ADDENDUM-04 §6: a grow-contribution entry has no building of its own —
+    // back its EXP out of the host instead (host survives, not removed).
     if (bound) {
       buildings = buildings.filter((b) => b.id !== bound.id);
       removedBuilding = { id: bound.id, ym: bound.builtOn.slice(0, 7) };
+    } else if (isGrowContribution(buildings, oldEntry)) {
+      const host = buildings.find((b) => b.id === oldEntry.buildingId);
+      if (host) {
+        const gain = expGainFor(oldEntry.amountKrw, expAmountTiers);
+        const updated: Building = { ...host, exp: Math.max(0, expOf(host) - gain) };
+        grownBuilding = updated;
+        buildings = buildings.map((b) => (b.id === host.id ? updated : b));
+      }
     }
     if (queued) town = dropFromQueue(town, oldEntry.id);
     buildingId = null;
@@ -219,5 +271,5 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     queued,
   };
 
-  return { entry, town, buildings, removedBuilding, newBuilding };
+  return { entry, town, buildings, removedBuilding, newBuilding, grownBuilding };
 }

@@ -81,6 +81,61 @@ export function buildingCount(buildings: readonly Building[]): number {
   return buildings.length;
 }
 
+/** ADDENDUM-04 §2 — read discipline for `Building.exp`, the same rule `savingsOf` already sets for `TownState`: never open-code `?? 0` at a call site. */
+export function expOf(b: Pick<Building, "exp">): number {
+  return b.exp ?? 0;
+}
+
+/** ADDENDUM-04 §2/§8 — `1 + floor(exp / expPerLevel)`, capped at `maxLevel` (visual only; EXP past the cap still counts toward tier via `growthScore` below). */
+export function levelOf(b: Pick<Building, "exp">, expPerLevel: number, maxLevel: number): number {
+  return Math.min(maxLevel, 1 + Math.floor(expOf(b) / expPerLevel));
+}
+
+/**
+ * ADDENDUM-04 §3 — what every *tier* call site now feeds `tier()` instead of
+ * `buildings.length`. A new building and a grow each add exactly 1 (one via
+ * `.length`, one via `exp`), so tier pacing is byte-identical to today for a
+ * player who always builds, and an existing save (every building's `exp`
+ * absent -> `expOf` reads 0) reproduces the exact `buildings.length` score
+ * `tier()` was already getting. `buildingCount` above is unchanged and still
+ * used where a literal count is wanted (기록/UI).
+ */
+export function growthScore(buildings: readonly Building[]): number {
+  let score = buildings.length;
+  for (const b of buildings) score += expOf(b);
+  return score;
+}
+
+/**
+ * ADDENDUM-04 §7 — EXP earned by one logging act. `tiers === null` (the
+ * shipped default, `BALANCE.expAmountTiers`) is flat 1 EXP regardless of
+ * amount. A table of ascending `[maxAmountKrwExclusive, exp]` pairs returns
+ * the first tier `amountKrw` falls strictly under. A well-formed table ends
+ * with `Infinity` so every amount matches one; the last tier's exp is the
+ * fallback only so a malformed table degrades instead of returning
+ * `undefined`.
+ */
+export function expGainFor(amountKrw: number, tiers: readonly (readonly [number, number])[] | null): number {
+  if (tiers === null) return 1;
+  for (const [maxExclusive, exp] of tiers) {
+    if (amountKrw < maxExclusive) return exp;
+  }
+  return tiers.length > 0 ? tiers[tiers.length - 1][1] : 1;
+}
+
+/**
+ * ADDENDUM-04 §4 — candidate set for the grow dialog/pick-mode: live,
+ * entry-founded buildings sharing `categoryId`. Park tiles
+ * (`source.kind === "nospend"`) and monuments are never candidates. Sorted by
+ * `createdAt` ascending for a deterministic pick-mode order.
+ */
+export function growCandidates(buildings: readonly Building[], categoryId: CategoryId): Building[] {
+  return buildings
+    .filter((b) => b.source.kind === "entry" && b.categoryId === categoryId)
+    .slice()
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
 /** Largest i where buildingCount >= tierThresholds[i]; 0 if below every threshold. */
 export function tier(count: number, tierThresholds: readonly number[]): number {
   let result = 0;

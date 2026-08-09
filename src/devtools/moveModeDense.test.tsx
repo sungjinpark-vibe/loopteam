@@ -68,6 +68,8 @@ function renderGrid(fixture: ReturnType<(typeof FIXTURES)["dense"]>, overrides: 
       savingsByCategoryKrw={fixture.town.savingsByCategoryKrw}
       ladder={BALANCE.savingsTowerSegments}
       ladderOverrides={BALANCE.savingsStructureSegments}
+      expPerLevel={BALANCE.expPerLevel}
+      maxLevel={BALANCE.maxLevel}
       justGrew={null}
       onRiseSettled={() => {}}
       {...NOOP}

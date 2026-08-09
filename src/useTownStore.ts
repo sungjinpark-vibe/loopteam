@@ -39,12 +39,15 @@ import { BALANCE } from "./balance.approved";
 import {
   buildingCount as countBuildings,
   canClaimNoSpend as selectCanClaimNoSpend,
+  expGainFor,
+  growCandidates as selectGrowCandidates,
   grownStructures,
+  growthScore as computeGrowthScore,
   ladderFor,
   slotsRemainingToday,
 } from "./selectors";
 import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
-import type { Building, BudgetSetting, LedgerEntry, SavingCategoryId, TownState } from "./types";
+import type { Building, BudgetSetting, CategoryId, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
   town: TownState;
@@ -73,8 +76,10 @@ function entriesForMonth(
 }
 
 export interface AddEntryResult {
-  /** The building placed for this entry, or null when it queued, overflowed, or was a 저축 entry. */
+  /** The building placed for this entry, or null when it queued, overflowed, grew, or was a 저축 entry. */
   building: Building | null;
+  /** ADDENDUM-04 §5 — the host this save grew instead of building, EXP already added; null unless it actually grew. Lets the UI toast/animate the level-up. */
+  grew: Building | null;
   /** True when this save queued a material instead of building today (F14). */
   queued: boolean;
   /** True when the queue was already full — entry saved with no material at all (F14). */
@@ -180,7 +185,9 @@ async function drainQueueAndPersist(
 ): Promise<{ town: TownState; buildings: Building[]; celebrateTier: number | null; drainedCount: number }> {
   const result = drainQueue(
     town,
-    buildings.length,
+    // ADDENDUM-04 §3: the true growth score (not a raw count) — otherwise a
+    // town with any grown building would undercount its tier check here.
+    computeGrowthScore(buildings),
     today,
     BALANCE.dailyBuildSlots,
     BALANCE.tierThresholds,
@@ -503,9 +510,9 @@ export function useTownStore() {
 
   // NOTE (T003, still true): assumes addEntry/claimNoSpend are called once
   // and awaited (via the UI) before the next call.
-  const addEntry = useCallback((draft: EntryDraft): AddEntryResult => {
+  const addEntry = useCallback((draft: EntryDraft, growTargetId?: string): AddEntryResult => {
     const prev = stateRef.current;
-    if (prev === null) return { building: null, queued: false, queueOverflow: false, queueLength: 0 };
+    if (prev === null) return { building: null, grew: null, queued: false, queueOverflow: false, queueLength: 0 };
 
     const today = clock.today();
     const now = clock.now();
@@ -516,6 +523,11 @@ export function useTownStore() {
     // here exactly like `variantIndex` already is, and passed in — placement.ts
     // is the only module allowed to decide a plotIndex (rule R-4).
     const plotIndex = pickPlot(prev.town.nextPlotIndex, prev.buildings, random.next);
+    // ADDENDUM-04 §7 — only meaningful when `growTargetId` is set; computed
+    // here (the only place BALANCE.expAmountTiers is read) and passed down as
+    // a plain number, same as `variantIndex` above, so entryActions.ts stays
+    // balance-free.
+    const growExpGain = growTargetId ? expGainFor(draft.amountKrw, BALANCE.expAmountTiers) : undefined;
 
     const result = applyNewEntry({
       town: prev.town,
@@ -531,6 +543,8 @@ export function useTownStore() {
       noSpendDayCostsSlot: BALANCE.noSpendDayCostsSlot,
       variantIndex,
       plotIndex,
+      growTargetId,
+      growExpGain,
     });
 
     const storageClient = storageRef.current;
@@ -556,6 +570,14 @@ export function useTownStore() {
       const buildYm = newBuilding.builtOn.slice(0, 7);
       mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, newBuilding]);
       buildings = [...buildings, newBuilding];
+    } else if (result.grownBuilding) {
+      // ADDENDUM-04 §5/§6 — persist into the HOST's OWN builtOn month chunk,
+      // which may differ from this save's `entryYm` (the host can predate
+      // this month), so this is never lumped into the write above.
+      const grownBuilding = result.grownBuilding;
+      const grownYm = grownBuilding.builtOn.slice(0, 7);
+      mutateBuildingsForMonth(storageClient, grownYm, (existing) => existing.map((b) => (b.id === grownBuilding.id ? grownBuilding : b)));
+      buildings = buildings.map((b) => (b.id === grownBuilding.id ? grownBuilding : b));
     }
 
     const todayYm = today.slice(0, 7);
@@ -580,6 +602,7 @@ export function useTownStore() {
 
     return {
       building: result.building,
+      grew: result.grownBuilding,
       queued: result.queuedMaterial !== null,
       queueOverflow: result.queueOverflow,
       queueLength: result.town.queue.length,
@@ -598,7 +621,9 @@ export function useTownStore() {
 
     const result = claimNoSpendDay({
       town: prev.town,
-      existingBuildingCount: prev.buildings.length,
+      // ADDENDUM-04 §3: the true growth score, not a raw count — see
+      // `drainQueueAndPersist`'s identical fix above.
+      existingBuildingCount: computeGrowthScore(prev.buildings),
       entries: prev.entries,
       today,
       dailyBuildSlots: BALANCE.dailyBuildSlots,
@@ -710,11 +735,17 @@ export function useTownStore() {
     const entry = list?.find((e) => e.id === entryId);
     if (!entry) return;
 
-    const result = deleteEntryEffects({ town: prev.town, buildings: prev.buildings, entry });
+    const result = deleteEntryEffects({ town: prev.town, buildings: prev.buildings, entry, expAmountTiers: BALANCE.expAmountTiers });
     const storageClient = storageRef.current;
     if (result.removedBuilding) {
       const { id, ym: buildYm } = result.removedBuilding;
       mutateBuildingsForMonth(storageClient, buildYm, (existing) => existing.filter((b) => b.id !== id));
+    } else if (result.grownBuilding) {
+      // ADDENDUM-04 §6 — a grow-contribution delete backs EXP out of the
+      // host's OWN month chunk instead (may differ from `ym`).
+      const grownBuilding = result.grownBuilding;
+      const grownYm = grownBuilding.builtOn.slice(0, 7);
+      mutateBuildingsForMonth(storageClient, grownYm, (existing) => existing.map((b) => (b.id === grownBuilding.id ? grownBuilding : b)));
     }
 
     const newList = list!.filter((e) => e.id !== entryId);
@@ -767,6 +798,7 @@ export function useTownStore() {
       variantIndex,
       plotIndex,
       now,
+      expAmountTiers: BALANCE.expAmountTiers,
     });
 
     const storageClient = storageRef.current;
@@ -778,6 +810,12 @@ export function useTownStore() {
       const newBuilding = result.newBuilding;
       const buildYm = newBuilding.builtOn.slice(0, 7);
       mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, newBuilding]);
+    } else if (result.grownBuilding) {
+      // ADDENDUM-04 §6 — a grow-contribution's 지출/수입 -> 저축 edit backs EXP
+      // out of the host's OWN month chunk instead (may differ from `ym`/`newYm`).
+      const grownBuilding = result.grownBuilding;
+      const grownYm = grownBuilding.builtOn.slice(0, 7);
+      mutateBuildingsForMonth(storageClient, grownYm, (existing) => existing.map((b) => (b.id === grownBuilding.id ? grownBuilding : b)));
     } else if (oldBound) {
       // Same building, possibly re-skinned in place (category or 지출<->수입 type flip) — only re-persist its chunk when it actually changed.
       const stillBound = result.buildings.find((b) => b.id === oldBound.id);
@@ -939,6 +977,12 @@ export function useTownStore() {
     buildings: state?.buildings ?? [],
     nextPlotIndex: state?.town.nextPlotIndex ?? 0,
     buildingCount: state ? countBuildings(state.buildings) : 0,
+    // ADDENDUM-04 §3 — the tier-driving score (`buildings.length + Σexp`).
+    // `buildingCount` above is unchanged and still the literal count 기록/UI want.
+    growthScore: state ? computeGrowthScore(state.buildings) : 0,
+    // ADDENDUM-04 §4 — pure selector the UI calls to build the grow dialog's
+    // candidate set / pick-mode highlight.
+    growCandidates: (categoryId: CategoryId) => (state ? selectGrowCandidates(state.buildings, categoryId) : []),
     slotsRemaining: state ? slotsRemainingToday(state.town, today, BALANCE.dailyBuildSlots) : BALANCE.dailyBuildSlots,
     dailyBuildSlots: BALANCE.dailyBuildSlots,
     streakDays: state?.town.streakDays ?? 0,

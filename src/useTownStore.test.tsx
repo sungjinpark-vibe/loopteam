@@ -22,7 +22,7 @@ import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
 import { plotFromIndex } from "./selectors";
-import { useTownStore } from "./useTownStore";
+import { useTownStore, type AddEntryResult } from "./useTownStore";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -110,5 +110,45 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
     expect(latest?.buildings.map((b) => b.plotIndex).sort()).toEqual([0, 1]);
     expect(latest?.buildings.map((b) => b.categoryId).sort()).toEqual(["cafe", "food"]);
+  });
+});
+
+describe("useTownStore.addEntry — ADDENDUM-04 grow, then reload", () => {
+  it("grows an existing building instead of placing a new one, and the exp round-trips through storage", async () => {
+    await mountAndWaitForBoot();
+
+    const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
+    act(() => {
+      latest!.addEntry(coffee);
+    });
+    expect(latest?.buildingCount).toBe(1);
+    expect(latest?.growthScore).toBe(1); // migration guarantee: no exp yet -> same as buildingCount
+    const hostId = latest!.buildings[0].id;
+    expect(latest!.growCandidates("cafe")).toEqual([latest!.buildings[0]]);
+
+    const secondCoffee: EntryDraft = { type: "expense", amountKrw: 3_200, categoryId: "cafe", occurredOn: TODAY };
+    let addResult: AddEntryResult | undefined;
+    act(() => {
+      addResult = latest!.addEntry(secondCoffee, hostId);
+    });
+    expect(addResult?.building).toBeNull(); // grew, not built
+    expect(addResult?.grew?.id).toBe(hostId);
+    expect(addResult?.grew?.exp).toBe(1);
+    expect(latest?.buildingCount).toBe(1); // still one building
+    expect(latest?.growthScore).toBe(2); // 1 (length) + 1 (exp) — both acts add exactly 1
+    expect(latest?.nextPlotIndex).toBe(1); // unchanged — the grow opened no lot
+    expect(latest?.buildings[0].exp).toBe(1);
+
+    // Hard reload — the exp must round-trip through storage exactly like
+    // plotIndex/categoryId already do in the sibling test above.
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+      root.unmount();
+    });
+    await mountAndWaitForBoot();
+    expect(latest?.buildingCount).toBe(1);
+    expect(latest?.buildings[0]?.id).toBe(hostId);
+    expect(latest?.buildings[0]?.exp).toBe(1);
+    expect(latest?.growthScore).toBe(2);
   });
 });

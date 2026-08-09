@@ -306,6 +306,16 @@ button.town-fab {
   outline-offset: -2px;
 }
 
+/* ADDENDUM-04 §4 — grow-candidate highlight (grid pick-mode), same shape as
+ * .town-tile--droppable above but its own colour so the two mutually
+ * exclusive modes are never visually confusable. */
+.town-tile--grow-candidate {
+  outline: 2px dashed var(--town-orange400);
+  outline-offset: -2px;
+  background: rgba(255, 152, 0, 0.12);
+  border-radius: 12px;
+}
+
 /* ADDENDUM-02 §4.3 "Bar" — a fixed bottom bar, rendered in App.tsx OUTSIDE
  * `.town-grid` (AC-M7's direct-children guard). Sits above `.town-fab`. */
 .town-move-bar {
@@ -701,6 +711,32 @@ button.town-fab {
 .building-roof-flat {
   height: 6px;
   border-radius: 3px;
+}
+
+/* ADDENDUM-04 §8 — level growth. `bottom: 32px` is not a guess: it is
+ * `.building-icon`'s own rendered box (24px line-height + 8px padding-bottom),
+ * so the floor stack sits flush above the icon and below the roof with no
+ * overlap. Height is set inline per level (PlaceholderBuilding.tsx). */
+.building-floors {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  border-radius: 2px;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 6px);
+}
+
+.building-level-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 8px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
 }
 
 @keyframes building-rise {

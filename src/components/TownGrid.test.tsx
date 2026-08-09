@@ -67,6 +67,7 @@ function mountGrid(
   buildings: readonly Building[] = [],
   moveProps: Partial<MoveProps> = {},
   savingsProps: Partial<Pick<TownGridProps, "savingsByCategoryKrw" | "ladder" | "ladderOverrides" | "justGrew">> = {},
+  growCandidateIds?: TownGridProps["growCandidateIds"],
 ): HTMLElement {
   mounted = mountComponent(
     <TownGrid
@@ -76,11 +77,14 @@ function mountGrid(
       savingsByCategoryKrw={undefined}
       ladder={BALANCE.savingsTowerSegments}
       ladderOverrides={{}}
+      expPerLevel={BALANCE.expPerLevel}
+      maxLevel={BALANCE.maxLevel}
       justGrew={null}
       onRiseSettled={() => {}}
       {...NOOP_MOVE_PROPS}
       {...moveProps}
       {...savingsProps}
+      growCandidateIds={growCandidateIds}
     />,
   );
   return mounted.container;
@@ -520,6 +524,8 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
         savingsByCategoryKrw={undefined}
         ladder={BALANCE.savingsTowerSegments}
         ladderOverrides={{}}
+        expPerLevel={BALANCE.expPerLevel}
+        maxLevel={BALANCE.maxLevel}
         justGrew={null}
         onRiseSettled={() => {}}
         {...NOOP_MOVE_PROPS}
@@ -539,6 +545,8 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
           savingsByCategoryKrw={undefined}
           ladder={BALANCE.savingsTowerSegments}
           ladderOverrides={{}}
+          expPerLevel={BALANCE.expPerLevel}
+          maxLevel={BALANCE.maxLevel}
           justGrew={null}
           onRiseSettled={() => {}}
           {...NOOP_MOVE_PROPS}
@@ -583,5 +591,34 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TownGrid — ADDENDUM-04 §4/§8 (grow: level rendering, pick-mode highlight)", () => {
+  it("a level-1 building (no exp) renders with no floors/badge — level 2 (exp=4, expPerLevel=3) shows Lv.2", () => {
+    const grownBuilding: Building = { ...cafeBuilding, id: "b-grown", plotIndex: 1, exp: 4 };
+    const container = mountGrid(2, [cafeBuilding, grownBuilding]);
+
+    const level1Tile = container.querySelector(`[data-plot-index="${cafeBuilding.plotIndex}"] .building-tile`) as HTMLElement;
+    expect(level1Tile.querySelector(".building-level-badge")).toBeNull();
+
+    const level2Tile = container.querySelector(`[data-plot-index="${grownBuilding.plotIndex}"] .building-tile`) as HTMLElement;
+    expect(level2Tile.querySelector(".building-level-badge")?.textContent).toBe("Lv.2");
+  });
+
+  it("growCandidateIds highlights only the matching building tile with town-tile--grow-candidate, never an empty lot", () => {
+    const secondBuilding: Building = { ...cafeBuilding, id: "b2", plotIndex: 1 };
+    const container = mountGrid(2, [cafeBuilding, secondBuilding], {}, {}, new Set([cafeBuilding.id]));
+
+    const candidateTile = container.querySelector(`[data-plot-index="${cafeBuilding.plotIndex}"]`) as HTMLElement;
+    expect(candidateTile.classList.contains("town-tile--grow-candidate")).toBe(true);
+
+    const otherTile = container.querySelector(`[data-plot-index="${secondBuilding.plotIndex}"]`) as HTMLElement;
+    expect(otherTile.classList.contains("town-tile--grow-candidate")).toBe(false);
+
+    for (const tile of container.querySelectorAll(".town-tile")) {
+      if ((tile as HTMLElement).querySelector(".building-tile")) continue; // buildings checked above
+      expect(tile.classList.contains("town-tile--grow-candidate")).toBe(false);
+    }
   });
 });

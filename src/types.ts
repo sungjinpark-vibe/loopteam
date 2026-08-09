@@ -81,6 +81,13 @@ export interface Building {
   builtOn: string; // 'YYYY-MM-DD'
   createdAt: number;
   monumentSummary?: MonthSummary; // only when source.kind === 'monument'
+  // ADDENDUM-04 §2 (building EXP): OPTIONAL, absent === 0, NO migration/schema
+  // bump — same discipline `savingsByCategoryKrw` already sets on `TownState`
+  // below: an old chunk parses unchanged, an old building simply reads exp 0
+  // (via `expOf`, selectors.ts), so an existing town's tier is unchanged on
+  // first load. A "grow" act (§5) increments this instead of placing a new
+  // `Building`.
+  exp?: number;
 }
 
 /** Pending material — an over-cap entry waiting for tomorrow (F14). */
