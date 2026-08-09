@@ -21,7 +21,7 @@
  * existing player's data (including a corruption-recovered town, `storage.ts`)
  * already carries `onboarded: true` and never sees this again.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, TextField } from "@toss/tds-mobile";
 import { commaizeAmount, decommaizeAmount } from "../format";
 
@@ -37,6 +37,17 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
   const [step, setStep] = useState(0);
   const [budgetDigits, setBudgetDigits] = useState("");
 
+  // The overlay declares `aria-modal`, so focus must actually start inside it —
+  // without this a screen-reader user lands on the town header behind and can
+  // swipe straight past a screen that claims to be modal. Focus-moving only;
+  // no trap (the shell behind stays reachable by Tab).
+  // ponytail: no focus trap / no `inert` on the shell — add if this ever ships
+  // anywhere but a mobile WebView, where Tab navigation effectively doesn't exist.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    cardRef.current?.focus();
+  }, []);
+
   function finish() {
     const budget = budgetDigits === "" ? null : Number(budgetDigits);
     if (budget !== null) onSetBudget(budget);
@@ -45,7 +56,7 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
 
   return (
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="시작하기">
-      <div className="onboarding-card">
+      <div className="onboarding-card" ref={cardRef} tabIndex={-1}>
         <button type="button" className="onboarding-skip" onClick={finish}>
           건너뛰기
         </button>

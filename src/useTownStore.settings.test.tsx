@@ -269,6 +269,27 @@ describe("useTownStore — S6 설정 (setBudget / setTownName / resetAll)", () =
     expect(latest!.buildings).toBe(beforeBuildings);
   });
 
+  // S1 onboarding (F11): `completeOnboarding` is the one-shot that flips a
+  // genuinely fresh install past the cold-start overlay. Same persistence
+  // contract as setBudget/setTownName above — asserted directly here because
+  // the rescued WIP (commit 7ed237d) added it with no test.
+  it("a fresh install boots with onboarded=false; completeOnboarding flips it true and persists across reload", async () => {
+    await mountAndWaitForBoot();
+    expect(latest?.onboarded).toBe(false); // freshCore default — the overlay shows once
+
+    act(() => {
+      latest!.completeOnboarding();
+    });
+    expect(latest?.onboarded).toBe(true);
+
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+      root.unmount();
+    });
+    await mountAndWaitForBoot();
+    expect(latest?.onboarded).toBe(true); // never re-onboards an existing player
+  });
+
   it("F6 invariant: a budget edit that drives mood to the worst tier never touches buildingCount or the buildings array", async () => {
     await mountAndWaitForBoot();
     const coffee: EntryDraft = { type: "expense", amountKrw: 300_000, categoryId: "cafe", occurredOn: TODAY };
