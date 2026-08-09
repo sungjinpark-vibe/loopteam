@@ -25,6 +25,7 @@ import {
   slotsRemainingToday,
   tier,
   towerSegments,
+  unsettledPeriods,
 } from "./selectors";
 import { savingsBucketOf } from "./savingsBuckets";
 import type { Building, LedgerEntry, TownState } from "./types";
@@ -161,9 +162,10 @@ describe("growCandidates", () => {
     const otherCategory = { ...makeBuilding(3), categoryId: "food" as const };
     expect(growCandidates([newer, otherCategory, older], "cafe")).toEqual([older, newer]);
   });
-  it("excludes park tiles even when categoryId happens to match", () => {
+  it("excludes park tiles and monuments even when categoryId happens to match", () => {
     const park: Building = { ...makeBuilding(4), source: { kind: "nospend", date: "2026-08-01" }, categoryId: "park" };
-    expect(growCandidates([park], "food")).toEqual([]);
+    const monument: Building = { ...makeBuilding(5), source: { kind: "monument", period: "2026-08" }, categoryId: null };
+    expect(growCandidates([park, monument], "food")).toEqual([]);
   });
 });
 
@@ -350,6 +352,22 @@ describe("rebuildDerived", () => {
   it("never advances lastSettledPeriod past a month that still has entries (crosses a year boundary)", () => {
     const entries: LedgerEntry[] = [makeEntry("expense", 1_000, "2026-01-15")];
     expect(rebuildDerived(entries).lastSettledPeriod).toBe("2025-12");
+  });
+});
+
+// ── unsettledPeriods ──
+describe("unsettledPeriods", () => {
+  it("is empty when nothing was ever settled (fresh town)", () => {
+    expect(unsettledPeriods(null, "2026-08-02")).toEqual([]);
+  });
+  it("lists the months strictly between last-settled and current, exclusive of both", () => {
+    expect(unsettledPeriods("2026-04", "2026-08-02")).toEqual(["2026-05", "2026-06", "2026-07"]);
+  });
+  it("is empty when already settled through last month", () => {
+    expect(unsettledPeriods("2026-07", "2026-08-02")).toEqual([]);
+  });
+  it("crosses a year boundary correctly", () => {
+    expect(unsettledPeriods("2025-11", "2026-02-01")).toEqual(["2025-12", "2026-01"]);
   });
 });
 

@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BALANCE } from "./balance.approved";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
-import { createChunkedStorage } from "./storage";
+import { createChunkedStorage, defaultTownState, type CoreState } from "./storage";
+import type { LedgerEntry } from "./types";
 import { useTownStore } from "./useTownStore";
 
 let container: HTMLDivElement;
@@ -256,6 +257,83 @@ describe("F7 streak", () => {
     });
     expect(latest?.streakDays).toBe(1);
     expect(latest?.longestStreakDays).toBe(2);
+  });
+});
+
+// F16 — seeds a stale `lastSettledPeriod` (+ optional past-month entries)
+// straight into real storage with a throwaway client, flushed BEFORE the
+// harness's own boot ever reads it — same "write with one client, flush,
+// read with another" approach `useTownStore.reconcile.test.tsx` uses for its
+// own pre-boot fixtures. Must run before `mountAndWaitForBoot()`.
+function seedUnsettled(lastSettledPeriod: string, budgetKrw: number | null, entriesByMonth: Record<string, LedgerEntry[]> = {}): void {
+  const seeder = createChunkedStorage();
+  const core: CoreState = {
+    town: { ...defaultTownState(), lastSettledPeriod },
+    budget: { monthlyBudgetKrw: budgetKrw, updatedAt: 0 },
+    onboarded: true,
+  };
+  seeder.saveCore(core);
+  for (const [ym, entries] of Object.entries(entriesByMonth)) {
+    seeder.saveEntriesForMonth(ym, entries, core);
+  }
+  seeder.flush();
+}
+
+let seedSeq = 0;
+function pastEntry(occurredOn: string, amountKrw: number): LedgerEntry {
+  seedSeq++;
+  return {
+    id: `seed${seedSeq}`,
+    type: "expense",
+    amountKrw,
+    categoryId: "food",
+    occurredOn,
+    createdAt: 0,
+    updatedAt: 0,
+    buildingId: null,
+    queued: false,
+  };
+}
+
+describe("F16 monthly settlement, through the store", () => {
+  it("settles an unsettled 3-month gap into exactly 3 monuments (a zero-entry month landing in the 'no data' bucket, no crash), and reopening mints nothing further", async () => {
+    // lastSettledPeriod stale by 3 -> unsettled: 2026-05, 06, 07 (today, DAY1, is 2026-08-02).
+    // 2026-05 gets a real entry; 06/07 stay empty (the zero-entry AC).
+    seedUnsettled("2026-04", 300_000, { "2026-05": [pastEntry("2026-05-10", 50_000)] });
+    await mountAndWaitForBoot();
+
+    const monuments = latest!.buildings.filter((b) => b.source.kind === "monument");
+    expect(monuments).toHaveLength(3);
+    const byPeriod = new Map(monuments.map((b) => [(b.source as { period: string }).period, b]));
+    expect([...byPeriod.keys()].sort()).toEqual(["2026-05", "2026-06", "2026-07"]);
+    // Each monument lands on its own, distinct plot (allocatePlots' own
+    // no-collision contract — placement.test.ts covers the allocator itself,
+    // this only proves the F16 wiring actually threads a real allocator through).
+    expect(new Set(monuments.map((b) => b.plotIndex)).size).toBe(3);
+    expect(monuments.every((b) => b.categoryId === null)).toBe(true);
+    expect(monuments.every((b) => b.builtOn === DAY1)).toBe(true);
+
+    expect(byPeriod.get("2026-05")?.monumentSummary?.outcomeBucket).not.toBe(0); // has an entry + a budget
+    expect(byPeriod.get("2026-06")?.monumentSummary?.outcomeBucket).toBe(0); // zero entries — "no data", no crash
+    expect(byPeriod.get("2026-07")?.monumentSummary?.outcomeBucket).toBe(0);
+
+    // Idempotent: reopening the same day mints nothing further (this alone
+    // proves `lastSettledPeriod` actually advanced to 2026-07 — a re-run
+    // that hadn't would mint the same 3 months again).
+    await remount();
+    expect(latest?.buildings.filter((b) => b.source.kind === "monument")).toHaveLength(3);
+  });
+
+  it("shows a one-time 지난달 결산 card for the most recently settled month, which does not reappear after dismissal — even across a reload", async () => {
+    seedUnsettled("2026-06", 300_000); // one unsettled month: 2026-07
+    await mountAndWaitForBoot();
+
+    expect(latest?.notice).toMatchObject({ kind: "settlement", summary: { period: "2026-07" } });
+    act(() => latest!.dismissNotice());
+    expect(latest?.notice?.kind).not.toBe("settlement");
+
+    await remount(); // reload — settlement is idempotent, so nothing new to announce
+    expect(latest?.notice?.kind).not.toBe("settlement");
   });
 });
 

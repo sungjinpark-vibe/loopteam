@@ -192,6 +192,7 @@ function TownGridImpl({
               variantIndex={building.variantIndex}
               justBuilt={isNewest}
               level={levelOf(building, expPerLevel, maxLevel)}
+              monumentPeriod={building.source.kind === "monument" ? building.source.period : undefined}
             />
           ) : (
             <EmptyLot variant={decorVariant(row, col, 3) as 0 | 1 | 2} />

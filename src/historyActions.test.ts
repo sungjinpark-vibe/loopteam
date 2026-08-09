@@ -62,7 +62,7 @@ const tieredExpAmountTiers: readonly (readonly [number, number])[] = [
 ];
 
 describe("buildingForEntry", () => {
-  it("finds the one building whose source.entryId matches, ignoring nospend buildings", () => {
+  it("finds the one building whose source.entryId matches, ignoring nospend/monument buildings", () => {
     const b = building();
     const other: Building = { ...building({ id: "park" }), source: { kind: "nospend", date: "2026-08-15" } };
     expect(buildingForEntry([other, b], "e1")).toBe(b);

@@ -30,6 +30,7 @@ import { applyNewEntry, type EntryDraft } from "./entryActions";
 import { buildingForEntry, deleteEntryEffects, editEntryEffects, type EntryEditPatch } from "./historyActions";
 import { claimNoSpendDay } from "./noSpendActions";
 import { drainQueue } from "./queueActions";
+import { settleMonths } from "./settlementActions";
 import { allocatePlots, moveBuilding as movePlacement, pickPlot, reconcilePlacement, type MoveResult } from "./placement";
 import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
@@ -47,7 +48,7 @@ import {
   slotsRemainingToday,
 } from "./selectors";
 import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
-import type { Building, BudgetSetting, CategoryId, LedgerEntry, SavingCategoryId, TownState } from "./types";
+import type { Building, BudgetSetting, CategoryId, LedgerEntry, MonthSummary, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
   town: TownState;
@@ -100,9 +101,13 @@ export interface AddEntryResult {
 // reading it off `useTownStore`.
 export type { EntryEditPatch };
 
-function freshCore(now: number): LoadedState {
+function freshCore(now: number, today: string): LoadedState {
   return {
-    town: defaultTownState(),
+    // F16 (§ unsettledPeriods' own doc comment) — a genuinely fresh town has
+    // nothing retroactive to settle: seed `lastSettledPeriod` to THIS period
+    // so settlement only ever fires for a month that closes after this town
+    // existed, matching `devtools/fixtures.ts`'s own onboarding fixture.
+    town: { ...defaultTownState(), lastSettledPeriod: today.slice(0, 7) },
     buildings: [],
     entries: [],
     historyEntries: {},
@@ -139,7 +144,13 @@ export type Notice =
   | { kind: "moveHint" }
   // ADDENDUM-01 §2.6a — a savings structure just crossed a ladder threshold.
   // `App.tsx` renders it as a toast via `levelUpToastFor(id)`.
-  | { kind: "savings"; id: SavingCategoryId };
+  | { kind: "savings"; id: SavingCategoryId }
+  // F16 — at least one month was just settled on this boot; carries the MOST
+  // RECENTLY settled month's summary for the one-time "지난달 결산" card.
+  // Naturally never reappears on reload (idempotent settlement mints nothing
+  // further, so no notice is pushed on a later boot) — same reasoning
+  // "drained" already relies on.
+  | { kind: "settlement"; summary: MonthSummary };
 
 /**
  * Load-modify-save on one month's buildings chunk — the same three-line
@@ -157,8 +168,24 @@ function mutateBuildingsForMonth(
 }
 
 /**
- * F14 drain (pure `drainQueue`), persisted in ONE core write. Runs once,
- * right after boot, before the app is shown.
+ * F16 settlement (pure `settleMonths`) THEN F14 drain (pure `drainQueue`),
+ * persisted together in ONE core write. Runs once, right after boot, before
+ * the app is shown.
+ *
+ * Settlement runs first, in memory — its output `town` (`lastSettledPeriod`/
+ * `nextPlotIndex` already advanced) is what `drainQueue` mutates FURTHER, so
+ * whichever `saveCore` call fires below carries both advances at once: there
+ * is no intermediate state where settlement happened but the drain (or a
+ * crash/reload) could observe a stale `lastSettledPeriod`. Any minted
+ * monuments are folded into `buildingsWithMonuments` before the drain picks
+ * its own plots/tier score, so a same-boot drain can never collide with a
+ * monument's lot or undercount it for F5.
+ *
+ * Storage side effects (patching each drained material's own `LedgerEntry`,
+ * writing new buildings / updated core) mirror what F14 always needed;
+ * settlement adds no new write shape, only more buildings in the same
+ * `buildYm` chunk write (a monument's `builtOn` is `today`, same as every
+ * other building placed this boot, per `settlementActions.ts`).
  *
  * Async and yields to the main thread between chunk writes (§10.4 budget,
  * same discipline `storage.ts`'s `readBuildingChunksBatched` already uses)
@@ -172,7 +199,7 @@ function mutateBuildingsForMonth(
  * the same chunk when the entry wasn't backdated across a month boundary
  * before its slot ran out.
  */
-async function drainAndPersist(
+async function settleAndDrainAndPersist(
   storageClient: ReturnType<typeof createChunkedStorage>,
   town: TownState,
   buildings: readonly Building[],
@@ -185,12 +212,29 @@ async function drainAndPersist(
   buildings: Building[];
   celebrateTier: number | null;
   drainedCount: number;
+  /** F16 — one per settled month this boot, oldest first; empty when nothing was unsettled. */
+  monuments: Building[];
 }> {
-  const result = drainQueue(
+  const settled = settleMonths({
     town,
+    today,
+    entriesForPeriod: (period) => storageClient.loadEntriesForMonth(period).entries,
+    budgetKrw: budget.monthlyBudgetKrw,
+    moodPaceThresholds: BALANCE.moodPaceThresholds,
+    // Deterministic id per monument, keyed off its own index — same
+    // contract the drain's own id generator below already follows.
+    buildingIdFor: (i) => makeId("b", now + i),
+    createdAt: now,
+    allocatePlotIndices: (count) => allocatePlots(town.nextPlotIndex, buildings, count, random.next),
+  });
+  const buildingsWithMonuments = [...buildings, ...settled.monuments];
+
+  const result = drainQueue(
+    settled.town,
     // ADDENDUM-04 §3: the true growth score (not a raw count) — otherwise a
-    // town with any grown building would undercount its tier check here.
-    computeGrowthScore(buildings),
+    // town with any grown building (or a monument just minted above) would
+    // undercount its tier check here.
+    computeGrowthScore(buildingsWithMonuments),
     today,
     BALANCE.dailyBuildSlots,
     BALANCE.tierThresholds,
@@ -200,12 +244,13 @@ async function drainAndPersist(
     (i) => makeId("b", now + i),
     now,
     // ADDENDUM-02 §3.3/§3.5 (B18): N distinct random lots for this drain,
-    // drawn once so no two drained buildings can collide.
-    (count) => allocatePlots(town.nextPlotIndex, buildings, count, random.next),
+    // drawn once so no two drained buildings (or a monument just allocated
+    // above) can collide.
+    (count) => allocatePlots(settled.town.nextPlotIndex, buildingsWithMonuments, count, random.next),
     BALANCE.expAmountTiers, // ADDENDUM-04 §6/§7
   );
-  if (result.drained.length === 0) {
-    return { town: result.town, buildings: [...buildings], celebrateTier: null, drainedCount: 0 };
+  if (result.drained.length === 0 && settled.monuments.length === 0) {
+    return { town: result.town, buildings: [...buildings], celebrateTier: null, drainedCount: 0, monuments: [] };
   }
 
   const patchesByMonth = new Map<string, Map<string, string>>(); // ym -> entryId -> buildingId
@@ -237,14 +282,15 @@ async function drainAndPersist(
 
   const drainedBuildings = result.drained.map((d) => d.building);
   const buildYm = today.slice(0, 7);
-  mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, ...drainedBuildings]);
+  mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, ...settled.monuments, ...drainedBuildings]);
   storageClient.saveCore(core);
 
   return {
     town: result.town,
-    buildings: [...buildings, ...drainedBuildings],
+    buildings: [...buildings, ...settled.monuments, ...drainedBuildings],
     celebrateTier: result.celebrateTier,
     drainedCount: result.drained.length,
+    monuments: settled.monuments,
   };
 }
 
@@ -386,7 +432,7 @@ export function useTownStore() {
     void bootPromiseRef.current.then(async (boot) => {
       if (cancelled) return;
       const today = clock.today();
-      const core = boot.core ?? freshCore(clock.now());
+      const core = boot.core ?? freshCore(clock.now(), today);
       const storageClient = storageRef.current;
 
       // ADDENDUM-02 §3.6 — self-healing reconcile, BEFORE anything else
@@ -416,9 +462,10 @@ export function useTownStore() {
         storageClient.saveCore({ town: reconciledTown, budget: core.budget, onboarded: core.onboarded });
       }
 
-      // F14 queue drain, AFTER F4's slot reset (the reset is purely
-      // evaluated — slotsRemainingToday — at drain time).
-      const drainResult = await drainAndPersist(
+      // F16 settlement THEN F14 queue drain, both AFTER F4's slot reset (the
+      // reset is purely evaluated — slotsRemainingToday — at drain time) and
+      // persisted together in one write (see the function's own doc).
+      const settleDrain = await settleAndDrainAndPersist(
         storageClient,
         reconciledTown,
         reconciled.buildings,
@@ -432,8 +479,8 @@ export function useTownStore() {
       const { entries: currentMonthEntries } = storageClient.loadEntriesForMonth(today.slice(0, 7));
 
       setState({
-        town: drainResult.town,
-        buildings: drainResult.buildings,
+        town: settleDrain.town,
+        buildings: settleDrain.buildings,
         entries: currentMonthEntries,
         historyEntries: {},
         budget: core.budget,
@@ -441,9 +488,14 @@ export function useTownStore() {
       });
       const bootNotices: Notice[] = [];
       if (boot.corrupted.length > 0) bootNotices.push({ kind: "corruption", message: summarizeCorruption(boot.corrupted.length) });
-      if (drainResult.drainedCount > 0) bootNotices.push({ kind: "drained", count: drainResult.drainedCount });
-      if (drainResult.celebrateTier !== null) bootNotices.push({ kind: "tier", tier: drainResult.celebrateTier });
+      if (settleDrain.drainedCount > 0) bootNotices.push({ kind: "drained", count: settleDrain.drainedCount });
+      if (settleDrain.celebrateTier !== null) bootNotices.push({ kind: "tier", tier: settleDrain.celebrateTier });
       if (boot.relayout) bootNotices.push({ kind: "relayout" }); // ADDENDUM-01 §3.6
+      // F16 — one card for the MOST RECENTLY settled month, even when this
+      // boot settled several at once (a long absence never shows more than
+      // one 지난달 결산 card).
+      const latestMonument = settleDrain.monuments[settleDrain.monuments.length - 1];
+      if (latestMonument?.monumentSummary) bootNotices.push({ kind: "settlement", summary: latestMonument.monumentSummary });
       pushNotices(...bootNotices);
       // ADDENDUM-02 §4.5 is a STATE condition ("once the town has >= 2
       // buildings and the hint has not been seen, the town screen shows a
@@ -454,7 +506,7 @@ export function useTownStore() {
       // action (round-2 finding C1 #1). `maybeQueueMoveHint`'s own queue-order
       // guard (skip if the notice queue is already non-empty) means this
       // never races the boot notices just pushed above.
-      maybeQueueMoveHint(drainResult.town, countBuildings(drainResult.buildings));
+      maybeQueueMoveHint(settleDrain.town, countBuildings(settleDrain.buildings));
     });
     return () => {
       cancelled = true;
@@ -917,7 +969,7 @@ export function useTownStore() {
     const prev = stateRef.current;
     if (prev === null) return;
     storageRef.current.clearAll();
-    const next = freshCore(clock.now());
+    const next = freshCore(clock.now(), clock.today());
     stateRef.current = next;
     setState(next);
   }, []);
