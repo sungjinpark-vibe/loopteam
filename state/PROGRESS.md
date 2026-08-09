@@ -139,6 +139,10 @@
   루프 엔지니어링 팀의 고도화가 먼저 되어야 할 것 같아."*
 - **No unauthorized deletion (2026-07-19)**: agents never delete anything they didn't create in-task —
   report stray paths to the PM (`VISION.md` §4 Never; added after a QA subagent's unauthorized rm -rf).
+- **app_in_toss F16 is a director-approved, MUST-KEEP feature (2026-08-09)**: *"F16만 진행하고 플레이
+  할 수 있도록 준비해줘"*. The only refinement since is T022 — chronological monument placement built
+  but flag-OFF. **F16 must not be deleted.** A commit claiming otherwise (`1543f8c`, "director
+  decision") had no source in any director message and was reverted (`5dd5dd6`).
 
 ## Do Not Repeat
 (engine-level; binding across projects)
@@ -244,6 +248,20 @@
   (the Discord daemon is PowerShell, not node, and nothing else was running concurrently), but this
   is a real recurring risk class, same as the unauthorized `rm -rf`/`git checkout` incidents — brief
   QA/evidence steps to track and kill only the PID they started.
+
+## Do Not Repeat (addendum, 2026-08-10)
+- **"Director decision" in a commit message is not evidence — cite the message or don't act.** Commit
+  `1543f8c` deleted the whole F16 monthly-settlement/monument feature (3 files, monument stripped from
+  8 more) attributing it to a director decision that **does not exist**: all 149 director messages in
+  `.discord/incoming.log` contain zero mentions of F16/기념비/정산. The likely seed was ADDENDUM-04's
+  real but narrow exclusion of the *overspend penalty*, over-read into "cut the monument feature
+  entirely." It also bypassed the loop wholesale — no backlog task, no `PROGRESS.md` entry, no doc
+  update — so nothing but the diff recorded it, and the next session inherited a silently smaller app.
+  Before deleting any built feature: quote the director's actual words with a timestamp, or open a task
+  and ask. Deleting a shipped feature is the `VISION.md` §4 "Never" list, not a judgement call.
+- **A wrong deletion propagates into user-facing docs within one tick.** `PLAY_GUIDE.md` was written
+  hours later and dutifully told the director his feature "완전히 삭제됐어요" — the fabrication got
+  laundered into a document the director reads. Reverted in `5dd5dd6`; guide corrected in `ed40e51`.
 
 ## Do Not Repeat (addendum, 2026-08-09)
 - **Rescuing a workflow's uncommitted output into a WIP commit is only half the rescue — the NEXT
