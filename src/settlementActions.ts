@@ -42,6 +42,14 @@ function monthSummaryFor(
   return { period, expenseKrw, incomeKrw, savingKrw, budgetKrw, outcomeBucket, daysLogged: daysSeen.size };
 }
 
+/**
+ * F16 acceptance criterion ("3 monuments in chronological plot order") vs
+ * ADDENDUM-02 R-5 (plots are drawn randomly by `placement.allocatePlots`)
+ * conflict — director decision 2026-08-09: implement, ship OFF. Shipped
+ * build keeps today's random placement, byte-identical.
+ */
+export const MONUMENT_CHRONOLOGICAL_PLOTS = false;
+
 export interface SettleMonthsArgs {
   town: TownState;
   today: string;
@@ -55,6 +63,8 @@ export interface SettleMonthsArgs {
   createdAt: number;
   /** N distinct plot indices for this settlement run, called ONCE with the monument count — `placement.allocatePlots` (rule R-4). */
   allocatePlotIndices: (count: number) => number[];
+  /** Test-only override for `MONUMENT_CHRONOLOGICAL_PLOTS`; defaults to it. */
+  chronologicalPlots?: boolean;
 }
 
 export interface SettleMonthsResult {
@@ -70,12 +80,18 @@ export interface SettleMonthsResult {
  * the same `today` finds nothing unsettled and mints nothing further.
  */
 export function settleMonths(args: SettleMonthsArgs): SettleMonthsResult {
-  const { town, today, entriesForPeriod, budgetKrw, moodPaceThresholds, buildingIdFor, createdAt, allocatePlotIndices } = args;
+  const {
+    town, today, entriesForPeriod, budgetKrw, moodPaceThresholds, buildingIdFor, createdAt, allocatePlotIndices,
+    chronologicalPlots = MONUMENT_CHRONOLOGICAL_PLOTS,
+  } = args;
 
   const periods = unsettledPeriods(town.lastSettledPeriod, today);
   if (periods.length === 0) return { town, monuments: [] };
 
-  const plotIndices = allocatePlotIndices(periods.length);
+  const drawnPlotIndices = allocatePlotIndices(periods.length);
+  // ON: re-sort the same drawn set ascending so periods (already oldest-first)
+  // land in ascending plot order — chronological order visible on the grid.
+  const plotIndices = chronologicalPlots ? [...drawnPlotIndices].sort((a, b) => a - b) : drawnPlotIndices;
   const monuments = periods.map((period, i) => {
     const monumentSummary = monthSummaryFor(period, entriesForPeriod(period), budgetKrw, today, moodPaceThresholds);
     const building: Building = {

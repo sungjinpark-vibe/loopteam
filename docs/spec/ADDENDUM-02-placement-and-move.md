@@ -539,6 +539,7 @@ The empty state, header, dense-fixture budget and scroll preservation are unchan
 - **`src/types.ts:109`** — `// monotonic; deletion leaves a permanent empty lot` → `// opened-lot counter (growth frontier); +1 per placed building, never decremented. NOT the next building's position.`
 - **`MVP-SPEC.md:501` (§8.3 rule 1)** — `plotIndex is monotonic and never reused, so nothing reflows on delete` → `plotIndex is unique among live buildings and is written only by placement.ts (rule R-4). A deleted building's lot returns to the free pool; no existing building ever moves on delete.`
 - **`MVP-SPEC.md:297` (F16 AC, not yet built)** — *"exactly 3 monuments in chronological plot order"* → *"exactly 3 monuments, chronological by `createdAt`, each on its own random free lot, each engraved with its own `YYYY-MM`."* Flagged now so F16 is never written against the old sentence.
+- **Resolved (director, 2026-08-09), now that F16 is built:** chronological placement is implemented but NOT enabled; random placement (R-5 above) remains the shipped behaviour (`MONUMENT_CHRONOLOGICAL_PLOTS`, `settlementActions.ts`).
 
 ### 6.5 ADDENDUM-01 §7 D-31 and §3.1
 

@@ -3,6 +3,8 @@
 Status: **CLOSED — both dials director-confirmed, 2026-08-09** (§7, §8).
 Supersedes nothing. Amends MVP-SPEC.md F2 (building creation) and F5 (tier), ADDENDUM-02 (placement).
 F16/F17 untouched — still cut pending the director.
+F16 monument placement (director, 2026-08-09): chronological placement is implemented but NOT enabled;
+random placement (ADDENDUM-02 R-5) remains the shipped behaviour.
 
 ## 1. Why
 
@@ -154,10 +156,8 @@ mechanic before this addendum existed.
 **The caveat the director weighed, now an accepted and tracked risk, not an open question:** in a
 *budgeting* app, making a ₩2,000,000 splurge grow the town five times faster rewards the behaviour the
 app exists to discourage. Fortune City gets away with it because overspending has a separate, visible
-cost. This app currently has none — **Gate-3 finding #2 ("overspending has zero mechanical
-consequence") is now a required follow-up**, not a someday item: shipping the reward side (this
-addendum) without eventually shipping the penalty side lets the loop read as "spend more." Tracked, not
-blocking this ship.
+cost. This app currently has none — Gate-3 finding #2 ("overspending has zero mechanical consequence")
+is excluded by director decision, 2026-08-09.
 
 ## 8. Level and visuals
 

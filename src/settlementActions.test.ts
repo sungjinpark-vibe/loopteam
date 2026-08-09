@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { settleMonths } from "./settlementActions";
+import { MONUMENT_CHRONOLOGICAL_PLOTS, settleMonths } from "./settlementActions";
 import type { LedgerEntry, TownState } from "./types";
 
 function freshTown(overrides: Partial<TownState> = {}): TownState {
@@ -143,5 +143,39 @@ describe("settleMonths — F16", () => {
     expect(result.town.slotsUsedOn).toBe("2026-08-01"); // untouched
     expect(result.town.lastActOn).toBeNull(); // untouched
     expect(result.town.streakDays).toBe(0); // untouched
+  });
+});
+
+// MONUMENT_CHRONOLOGICAL_PLOTS (director decision, 2026-08-09) — MVP-SPEC F16 AC
+// ("chronological plot order") vs ADDENDUM-02 R-5 (random draw) conflict.
+// Implemented behind a flag, shipped OFF: ADDENDUM-02's random placement is
+// the shipped behaviour.
+describe("settleMonths — MONUMENT_CHRONOLOGICAL_PLOTS", () => {
+  it("defaults to off", () => {
+    expect(MONUMENT_CHRONOLOGICAL_PLOTS).toBe(false);
+  });
+
+  it("off (default): plot indices are used in exactly the order the allocator drew them — today's random placement, unchanged", () => {
+    const town = freshTown({ lastSettledPeriod: "2026-04", nextPlotIndex: 10 });
+    // A real allocator (placement.allocatePlots) can hand back indices out of
+    // ascending order — that's the bug report's 56/57/59 -> 05/07/06 case.
+    const shuffled = () => [59, 56, 57];
+    const result = settleMonths(baseArgs({ town, today: "2026-08-01", allocatePlotIndices: shuffled }));
+    expect(result.monuments.map((b) => b.plotIndex)).toEqual([59, 56, 57]);
+  });
+
+  it("on: monuments land on ascending plot indices in chronological (oldest-first) period order, regardless of draw order", () => {
+    const town = freshTown({ lastSettledPeriod: "2026-04", nextPlotIndex: 10 });
+    const shuffled = () => [59, 56, 57];
+    const result = settleMonths(
+      baseArgs({ town, today: "2026-08-01", allocatePlotIndices: shuffled, chronologicalPlots: true }),
+    );
+    expect(result.monuments.map((b) => b.source)).toEqual([
+      { kind: "monument", period: "2026-05" },
+      { kind: "monument", period: "2026-06" },
+      { kind: "monument", period: "2026-07" },
+    ]);
+    // ascending, and paired oldest-period-to-smallest-index
+    expect(result.monuments.map((b) => b.plotIndex)).toEqual([56, 57, 59]);
   });
 });
