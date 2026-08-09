@@ -51,8 +51,9 @@
 1. **T019 (Gate 3 failure) needs the director's direction — do not invent scope/priority calls here.**
    Report plainly what failed and why (full detail in `backlog/tasks/T019.md`), and ask specifically:
    (a) build F16/F17 now or leave them cut (spec's own cut-list already named them optional); (b) how
-   to prioritize the reward/money-decoupling and overspend-consequence design gaps — these are core-loop
-   design questions, not bugs. ~~(c) whether the rescued WIP is worth building on~~ — **answered
+   to prioritize the reward/money-decoupling design gap — a core-loop design question, not a bug.
+   ~~Overspend-consequence (finding #2)~~ — **excluded by director decision, 2026-08-09** (ADDENDUM-04
+   §7). ~~(c) whether the rescued WIP is worth building on~~ — **answered
    2026-08-09: yes. The WIP is verified** (app_in_toss `ab0f461`): Gate 1 full PASS, no regressions,
    the auto-fix did NOT weaken the two tests it edited, and live-browser evidence shows S1 onboarding
    and the now-non-blocking tier banner both working. It closes findings 3 and 5 only — findings 1, 2,
