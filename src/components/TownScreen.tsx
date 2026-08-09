@@ -14,7 +14,6 @@ import { Button, ConfirmDialog, useToast } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.approved";
 import { moodContentFor } from "../content.placeholder";
 import { EntrySheet } from "./EntrySheet";
-import { MonumentDetailSheet } from "./MonumentDetailSheet";
 import { TownGrid } from "./TownGrid";
 import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
@@ -39,9 +38,6 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   // for the duration of grid pick-mode when there are 2+ candidates. Non-null
   // for exactly the lifetime of "the ConfirmDialog OR pick mode is showing".
   const [growDraft, setGrowDraft] = useState<EntryDraft | null>(null);
-  // F16 — the monument detail popover's subject. Null closes the sheet
-  // (`MonumentDetailSheet` mirrors `EntryDetailSheet`'s own contract).
-  const [selectedMonumentId, setSelectedMonumentId] = useState<string | null>(null);
   const { openToast } = useToast();
   const move = useMoveMode(store.buildings, store.moveBuilding);
 
@@ -117,21 +113,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     setGrowDraft(null);
   }
 
-  // F16 — a plain tap on a monument (outside move/pick mode, where a plain
-  // tap otherwise does nothing — `useMoveMode.onPlotTap`'s own doc) opens the
-  // detail popover instead. Any other tap keeps going through move mode
-  // exactly as before this task.
   function handlePlotTap(plotIndex: number) {
     if (pickModeActive) {
       growPick.onPlotTap(plotIndex);
       return;
-    }
-    if (move.movingId === null) {
-      const building = store.buildings.find((b) => b.plotIndex === plotIndex);
-      if (building?.source.kind === "monument") {
-        setSelectedMonumentId(building.id);
-        return;
-      }
     }
     move.onPlotTap(plotIndex);
   }
@@ -282,12 +267,6 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       )}
 
       <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
-
-      <MonumentDetailSheet
-        open={selectedMonumentId !== null}
-        monument={store.buildings.find((b) => b.id === selectedMonumentId) ?? null}
-        onClose={() => setSelectedMonumentId(null)}
-      />
 
       {/* ADDENDUM-04 §4 — the choice dialog. Opens only after the entry
           sheet above has already closed (never nested inside it, see

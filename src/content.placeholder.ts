@@ -207,19 +207,3 @@ export const MOOD_NEUTRAL: MoodContent = {
 export function moodContentFor(tier: number): MoodContent {
   return tier === -1 ? MOOD_NEUTRAL : (MOOD_CONTENT[tier] ?? MOOD_NEUTRAL);
 }
-
-// ── F16 monument outcome (§6.1 art item 5: one variant per outcome bucket) ──
-
-/**
- * `MonthSummary.outcomeBucket`'s labels (0 = "no data", per
- * `settlementActions.ts`'s own convention; `1 + moodTier` otherwise) — a
- * past-tense reading of the same 3 `MOOD_CONTENT` buckets (best -> worst
- * pace), not a second balance dial. Placeholder content, freely renamable.
- */
-const MONUMENT_OUTCOME_LABEL = ["여유로웠어요", "적당했어요", "빠듯했어요"];
-
-/** `MonthSummary.outcomeBucket` -> a one-line Korean reading for the monument detail popover. */
-export function monumentOutcomeLabel(outcomeBucket: number): string {
-  if (outcomeBucket === 0) return "기록 없음";
-  return MONUMENT_OUTCOME_LABEL[outcomeBucket - 1] ?? "기록 없음";
-}

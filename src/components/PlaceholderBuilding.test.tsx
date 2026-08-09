@@ -71,22 +71,3 @@ describe("PlaceholderBuilding — level (ADDENDUM-04 §8)", () => {
     capped.unmount();
   });
 });
-
-describe("PlaceholderBuilding — F16 monument", () => {
-  it("shows the engraved YYYY-MM label, gets a distinct class, and never shows a Lv.N badge", () => {
-    mounted = mountComponent(
-      <PlaceholderBuilding categoryId={null} variantIndex={0} monumentPeriod="2026-07" level={1} />,
-    );
-    const tile = mounted.container.querySelector(".building-tile") as HTMLElement;
-    expect(tile.classList.contains("building-tile--monument")).toBe(true);
-    expect(mounted.container.querySelector(".building-monument-period")?.textContent).toBe("2026-07");
-    expect(mounted.container.querySelector(".building-level-badge")).toBeNull();
-    expect(tile.title).toBe("2026-07");
-  });
-
-  it("a non-monument null-categoryId tile (none exist today, but the fallback stays inert) renders no monument label or class", () => {
-    mounted = mountComponent(<PlaceholderBuilding categoryId={null} variantIndex={0} />);
-    expect(mounted.container.querySelector(".building-tile")!.classList.contains("building-tile--monument")).toBe(false);
-    expect(mounted.container.querySelector(".building-monument-period")).toBeNull();
-  });
-});

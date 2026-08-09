@@ -53,7 +53,6 @@ import type {
   ExpenseCategoryId,
   IncomeCategoryId,
   LedgerEntry,
-  MonthSummary,
   SavingCategoryId,
   TownState,
 } from "../types";
@@ -119,7 +118,6 @@ function makeBuilding(args: {
   plotIndex: number;
   builtOn: string;
   createdAt: number;
-  monumentSummary?: MonthSummary;
 }): Building {
   return { ...args };
 }
@@ -240,9 +238,9 @@ function generateMonth(opts: {
 }
 
 /**
- * ADDENDUM-01 §4.6 f4/f6 — the shared two-line derivation `oneMonth`/`unsettled`
- * both need: per-category buckets from entries, then their sum as the total.
- * Same arithmetic the real corrupt-core recovery path (storage.ts) runs.
+ * ADDENDUM-01 §4.6 f4 — the shared two-line derivation `oneMonth` needs:
+ * per-category buckets from entries, then their sum as the total. Same
+ * arithmetic the real corrupt-core recovery path (storage.ts) runs.
  */
 function deriveSavings(entries: readonly LedgerEntry[]): {
   savingsByCategoryKrw: Partial<Record<SavingCategoryId, number>>;
@@ -340,7 +338,7 @@ function oneMonth(): Fixture {
   };
 }
 
-/** 36 months, ~5,400 buildings, 36 monuments, full tower, one 300-entry month — F3/F8 dense ACs. */
+/** 36 months, ~5,400 buildings, full tower, one 300-entry month — F3/F8 dense ACs. */
 function dense(): Fixture {
   const rng = seededRandom(2);
   const seq = makeSequence();
@@ -360,30 +358,6 @@ function dense(): Fixture {
     entries = entries.concat(result.entries);
     buildings = buildings.concat(result.buildings);
     lastPeriod = ymOnly(y, m);
-
-    // One monument per month (F16) — no slot, no daily cap.
-    const outcomeBucket = result.monthExpenseKrw > 500_000 ? 2 : result.monthExpenseKrw > 200_000 ? 1 : 0;
-    const monumentSummary: MonthSummary = {
-      period: lastPeriod,
-      expenseKrw: result.monthExpenseKrw,
-      incomeKrw: result.monthIncomeKrw,
-      savingKrw: result.monthSavingKrw,
-      budgetKrw: 600_000,
-      outcomeBucket,
-      daysLogged: new Set(result.entries.map((e) => e.occurredOn)).size,
-    };
-    buildings.push(
-      makeBuilding({
-        id: seq.nextId("mon"),
-        source: { kind: "monument", period: lastPeriod },
-        categoryId: null,
-        variantIndex: outcomeBucket,
-        plotIndex: plotCursor.next++,
-        builtOn: ymd(y, m, daysInMonth(y, m)),
-        createdAt: seq.nextMs(),
-        monumentSummary,
-      }),
-    );
   }
 
   // ADDENDUM-01 §4.6 f5 — the fixture's job is to prove rendering at MAX
@@ -413,7 +387,7 @@ function dense(): Fixture {
 
   return {
     name: "dense",
-    description: "36 months, ~5,400 buildings, 36 monuments, full tower, one 300-entry month — F3/F8 dense ACs.",
+    description: "36 months, ~5,400 buildings, full tower, one 300-entry month — F3/F8 dense ACs.",
     today,
     entries,
     buildings,

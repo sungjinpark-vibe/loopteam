@@ -7,7 +7,7 @@
  * argument supplied by the caller from the clock port. That is what makes
  * every selector unit-testable with no React and fully time-travelable.
  */
-import { daysInMonth as daysInMonthOf, dayBefore, monthBefore, parseYm, shiftMonth, ymOnly } from "./calendar";
+import { daysInMonth as daysInMonthOf, dayBefore, monthBefore, parseYm } from "./calendar";
 import { savingsOf } from "./types";
 import type { Building, CategoryId, EntryType, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
@@ -52,14 +52,9 @@ function dayOfMonth(dateStr: string): number {
  * must never be overwritten by this function's output (storage.ts never
  * calls this when `core` survived).
  *
- * `lastSettledPeriod` is set to one month *before* the earliest `YYYY-MM`
- * touched by any entry, not the latest — the risk runs only one direction:
- * setting it too late would advance past a month that still has entries and
- * F16 would never mint that month's 기념비 again (permanent, since
- * `unsettledPeriods` is exclusive of `lastSettledPeriod`). Setting it too
- * early costs at most a re-run of F16 for already-settled zero-entry months,
- * which is idempotent and merely mints an extra (harmless) monument — a
- * correctness gap only reachable via storage corruption, not normal use.
+ * `lastSettledPeriod` is now an inert field (the F16 monument/settlement
+ * feature it backed was removed) — still rebuilt the same way so a corrupt
+ * `core` recovery keeps producing a deterministic value here.
  */
 export function rebuildDerived(
   entries: readonly LedgerEntry[],
@@ -126,8 +121,8 @@ export function expGainFor(amountKrw: number, tiers: readonly (readonly [number,
 /**
  * ADDENDUM-04 §4 — candidate set for the grow dialog/pick-mode: live,
  * entry-founded buildings sharing `categoryId`. Park tiles
- * (`source.kind === "nospend"`) and monuments are never candidates. Sorted by
- * `createdAt` ascending for a deterministic pick-mode order.
+ * (`source.kind === "nospend"`) are never candidates. Sorted by `createdAt`
+ * ascending for a deterministic pick-mode order.
  */
 export function growCandidates(buildings: readonly Building[], categoryId: CategoryId): Building[] {
   return buildings
@@ -243,7 +238,7 @@ export function categoryTotals(
     .sort((a, b) => b.totalKrw - a.totalKrw);
 }
 
-// ── 저축탑 / 무지출 데이 / 결산 selectors ──
+// ── 저축탑 / 무지출 데이 selectors ──
 
 /** Count of `savingsTowerSegments` thresholds `<= cumulativeSavingsKrw`. */
 export function towerSegments(cumulativeSavingsKrw: number, savingsTowerSegments: readonly number[]): number {
@@ -266,24 +261,6 @@ export function canClaimNoSpend(
   if (noSpendDayCostsSlot && slotsRemainingToday(town, today, dailyBuildSlots) <= 0) return false;
   if (town.noSpendDays.includes(today)) return false;
   return true;
-}
-
-/** Ordered 'YYYY-MM' list from `lastSettledPeriod` (exclusive) to the current period (exclusive). */
-export function unsettledPeriods(lastSettledPeriod: string | null, today: string): string[] {
-  const currentPeriod = ymOf(today);
-  // A town with no prior settlement (fresh onboarding) has nothing retroactive
-  // to settle — onboarding is expected to seed `lastSettledPeriod` to the
-  // current period so this never fires on day one.
-  if (lastSettledPeriod === null) return [];
-  const periods: string[] = [];
-  let { y, m } = parseYm(lastSettledPeriod);
-  for (;;) {
-    ({ y, m } = shiftMonth(y, m, 1));
-    const period = ymOnly(y, m);
-    if (period >= currentPeriod) break;
-    periods.push(period);
-  }
-  return periods;
 }
 
 /**

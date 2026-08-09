@@ -60,10 +60,8 @@ describe("fixture shapes match their spec §11 role", () => {
     expect(pace as number).toBeGreaterThan(0);
   });
 
-  it("dense has ~5,400 buildings, 36 monuments, and a full tower", () => {
+  it("dense has ~5,400 buildings and a full tower", () => {
     const f = FIXTURES.dense();
-    const monuments = f.buildings.filter((b) => b.source.kind === "monument");
-    expect(monuments).toHaveLength(36);
     expect(f.buildings.length).toBeGreaterThan(5_000);
     expect(f.town.cumulativeSavingsKrw).toBeGreaterThanOrEqual(
       BALANCE.savingsTowerSegments[BALANCE.savingsTowerSegments.length - 1],

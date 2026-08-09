@@ -40,10 +40,9 @@ export type CategoryId = ExpenseCategoryId | IncomeCategoryId | SavingCategoryId
 // F15 무지출 데이 park tile — a visual-only pseudo-category, never chosen on a
 // LedgerEntry (a claimed no-spend day has no ledger entry, only a Building
 // with `source.kind === 'nospend'`). Task-level deviation from the spec's
-// "categoryId: null for nospend/monument" note (§8.1): giving the park tile
-// its own category id lets it render through PlaceholderBuilding's existing
-// category-colour/icon/roof interface with no second component. Monument
-// buildings (F16, out of scope here) still use `categoryId: null`.
+// "categoryId: null for nospend" note (§8.1): giving the park tile its own
+// category id lets it render through PlaceholderBuilding's existing
+// category-colour/icon/roof interface with no second component.
 export type ParkCategoryId = "park";
 
 // Building-only widening — kept OUT of `CategoryId` (round-2 finding C3) so
@@ -69,18 +68,16 @@ export interface LedgerEntry {
 // ONLY ways a building can exist (design invariant 1, spec §7).
 export type BuildingSource =
   | { kind: "entry"; entryId: string }
-  | { kind: "nospend"; date: string } // 'YYYY-MM-DD'
-  | { kind: "monument"; period: string }; // 'YYYY-MM'
+  | { kind: "nospend"; date: string }; // 'YYYY-MM-DD'
 
 export interface Building {
   id: string;
   source: BuildingSource;
-  categoryId: BuildingCategoryId | null; // null for monument; 'park' only for nospend
-  variantIndex: number; // category variant, park variant 0, or monument outcome bucket
+  categoryId: BuildingCategoryId | null; // 'park' only for nospend
+  variantIndex: number; // category variant, or park variant 0
   plotIndex: number; // ADDENDUM-02 §6.4: position on the town grid, not identity — unique among live buildings, changed only by the player's move (F2b, follow-up task); written only by placement.ts (rule R-4)
   builtOn: string; // 'YYYY-MM-DD'
   createdAt: number;
-  monumentSummary?: MonthSummary; // only when source.kind === 'monument'
   // ADDENDUM-04 §2 (building EXP): OPTIONAL, absent === 0, NO migration/schema
   // bump — same discipline `savingsByCategoryKrw` already sets on `TownState`
   // below: an old chunk parses unchanged, an old building simply reads exp 0
@@ -110,17 +107,6 @@ export interface QueuedMaterial {
   entryYm: string;
 }
 
-/** Frozen at settlement; never recomputed (past months must not change retroactively). */
-export interface MonthSummary {
-  period: string; // 'YYYY-MM'
-  expenseKrw: number;
-  incomeKrw: number;
-  savingKrw: number;
-  budgetKrw: number | null;
-  outcomeBucket: number; // index into the mood/outcome buckets
-  daysLogged: number;
-}
-
 export interface TownState {
   townName: string;
   nextPlotIndex: number; // ADDENDUM-02 §6.4: opened-lot counter (growth frontier), +1 per placed building, never decremented — NOT the next building's position (that's placement.pickPlot, drawn uniformly at random over the open pool)
@@ -137,7 +123,8 @@ export interface TownState {
   // a `TownState` written before this change has none; every reader goes
   // through `savingsOf` below rather than open-coding `?? {}` / `?? 0`.
   savingsByCategoryKrw?: Partial<Record<SavingCategoryId, number>>;
-  lastSettledPeriod: string | null; // idempotency key for F16
+  // ponytail: retained inert — monument/settlement feature removed; kept to avoid a storage-schema migration
+  lastSettledPeriod: string | null;
   // ADDENDUM-02 §4.5 (D-36): optional, no migration — an old core reads
   // `undefined` -> falsy -> hint eligible. Set in memory on the first
   // successful move (or an explicit dismiss) and folded into whatever
