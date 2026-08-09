@@ -42,21 +42,23 @@ waited on. The loop always moves to the next `ready` task. It only goes idle whe
 | T016 | app_in_toss — balance pass (director-approved values, flip BALANCE_UNSET) | done | client-dev | build | 1 |
 | T017 | app_in_toss — harden EntrySheet backdrop fix (fix-forward round 2) | done | client-dev | build | 1 |
 | T018 | app_in_toss spec addendum — monetization (ads, paid extra builds, decoration shop) | awaiting-approval | planner | explore | 1 |
-| T019 | app_in_toss — Gate 3 FAILED (avg 64.4, all 5 experts below 80 floor) | blocked | N/A | N/A | 1 |
-| T020 | app_in_toss — building EXP (grow an existing building instead of always sprawling) | awaiting-approval | client-dev | build | 1 |
+| T019 | app_in_toss — Gate 3 findings worked back (verified S1 WIP + director scope decisions) | done | client-dev | build | 1 |
+| T020 | app_in_toss — building EXP (grow an existing building instead of always sprawling) | done | client-dev | build | 1 |
+| T021 | app_in_toss — amount-proportional building EXP (all types) + F16 monthly settlement/monuments | done | client-dev | build | 1 |
+| T022 | app_in_toss — monument chronological placement behind off-by-default flag; drop overspend penalty | done | client-dev | build | 1 |
 
-_T001-T017 all done, but **Gate 3 (the real completion gate) failed hard on its first run** — avg
-64.4/100, every expert below the 80 floor. Root cause: MVP-SPEC.md's build-order step 5 (F16 monthly
-settlement/monuments, S1 onboarding, F17 memo chips) was never actually built despite prior records
-claiming "F1-F17 all implemented" — nobody verified it. Plus real design gaps (reward decoupled from
-money amount, overspending has no consequence). See T019 for the full report. **T019 is `blocked` on
-director direction** — this needs scope/priority decisions, not more autonomous fix-forward rounds.
-T018 (monetization spec, 94/100) remains `awaiting-approval`, independent of T019._
-
-_**T020 (2026-08-09)** is the director's first answer to T019's finding #1: buildings gain EXP, and a
-save whose category already has a building asks whether to build new or grow an existing one. Design:
-`app_in_toss/docs/spec/ADDENDUM-04-building-exp.md`. **One dial is deliberately left off pending the
-director** — whether EXP should scale with the ₩ amount (ADDENDUM-04 §7). F16/F17 remain untouched._
+_T001-T018 done. **Gate 3 hard-failed on its first run (T019, avg 64.4/100)** — root cause: MVP-SPEC
+step 5 (F16 settlement/monuments, S1 onboarding, F17 memo chips) was never built, plus design gaps
+(reward decoupled from money; overspend had no consequence). **T019-T022 worked this back** with the
+director's 2026-08-09 in-session decisions (recorded in
+`app_in_toss/docs/spec/ADDENDUM-04-building-exp.md`): finding #1 → T021 amount-proportional EXP (a big
+entry founds a higher-level building); finding #3 → S1 onboarding built + verified (WIP `7ed237d`
+verified as T019, commit `ab0f461`); finding #4 → F16 settlement/monuments built (T021); finding #5
+(blocking tier modal) → rebuilt as a non-blocking auto-dismiss banner. Finding #2 (overspend penalty)
+**excluded by director decision** (T022). F17 stays cut. All on the `app_in_toss` branch, Gate 1 green
+(vitest 493/493, tsc/lint/build clean), pushed. **Remaining: the Gate 3 re-run** (5-expert playtest,
+the real MVP-completion gate) has not run since the 64.4 fail — that is the next milestone gate.
+T018 (monetization spec, 94/100) remains `awaiting-approval`._
 
 _touchRPG and Life Town remain paused; their full backlogs are archived at
 `<app>/docs/paused-state/backlog/`. Restore the relevant archive here when either resumes._

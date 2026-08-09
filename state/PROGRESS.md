@@ -5,28 +5,26 @@
 > 2026-07-19 restructure).
 
 ## Current State
-- **Status**: ⚠ ESCALATED — **app_in_toss's Gate 3 (the real MVP completion gate) FAILED HARD on
-  its first run** (2026-08-07): avg 64.4/100, every one of the 5 experts below the 80 floor
-  (60/67/70/72/53). Full report: `backlog/tasks/T019.md`. T001-T017 had all individually passed their
-  own gates (T015/T017 backdrop bugfix done at 93/100; T016 balance pass done at 90/100; T018
-  monetization spec passed 94/100, `awaiting-approval`), but **the "MVP feature-complete" claim in
-  this file was wrong** — MVP-SPEC.md's build-order step 5 (F16 monthly settlement/monuments, S1
-  onboarding, F17 memo chips) was never actually built and nobody checked before declaring it done.
-  Plus real design gaps the panel found: reward fully decoupled from money amount, overspending has no
-  mechanical consequence. **This needs the director's direction on scope/priority before any more
-  work** — see ▶ Next. T001-T014 scores: 90/91/92/95/89/96/[T007 reverted]/92/91/94/93/91/91/92.
-  Full narrative: `state/journal.md` → "2026-08-02 to 2026-08-05" and the "Tick 79" entries
-  (2026-08-05/07). Detail on any task: `backlog/tasks/T0##.md`.
-  **Where things stand**: ADDENDUM-01/02 and the full MVP build order (F1-F17) all implemented and
-  gated ≥90. Director approved balance values (`dailyBuildSlots` 5→10, rest default;
-  `materialQueueMax`/D-14 was accidentally left off the question, defaulted unchanged and flagged) —
-  T016 applies them, in flight now. Director also gave a monetization brief (ads via building
-  speech-bubbles + in-game currency, ₩1,000 for a build past the 10/day cap, a dual-currency ₩100–5,000
-  decoration shop) — an explicit, informed reversal of MVP-SPEC.md's original "no currency, no ads"
-  cut, flagged as such and proceeded since the request was concrete and deliberate. T018 designed it
-  against the existing platform-port pattern (browser/dev stub now, toss driver later, since real
-  ad/payment settlement needs Toss console/business-registration accounts not yet provided) — spec is
-  done and needs the director's sign-off before any build task starts on it.
+- **Status**: 🟢 Gate-3 findings worked back; awaiting a Gate 3 re-run. The original Gate 3 hard fail
+  (2026-08-07, avg 64.4/100, all 5 experts below the 80 floor) has been addressed across **T019-T022**
+  with the director's **2026-08-09 in-session decisions** (recorded in
+  `app_in_toss/docs/spec/ADDENDUM-04-building-exp.md`, not the Discord log — the director gave these
+  in-session this stretch): finding #1 (reward decoupled from money) → **T021** amount-proportional
+  building EXP, so a ₩10M entry founds a visibly higher-level building than a ₩1 one; finding #3 (no
+  onboarding) → **S1 built + live-verified** (the rescued WIP `7ed237d` verified as **T019**, commit
+  `ab0f461`); finding #4 (F16 monthly settlement + monuments) → **built in T021**; finding #5 (blocking
+  tier-celebration modal) → rebuilt as a **non-blocking auto-dismiss banner** (live-verified: the FAB
+  and entry sheet stay usable while it shows). Finding #2 (overspend penalty) was **excluded by director
+  decision** (**T022**); F17 stays cut; monument chronological placement is implemented but shipped
+  behind an off-by-default flag (T022). All landed on the `app_in_toss` branch and **pushed** (HEAD
+  `33b9a1b`, level with origin). **Gate 1 re-verified green on current HEAD** (2026-08-10, independent
+  re-run: install/typecheck/build/test/lint/gate:extra all PASS; vitest 493/493). Live-browser evidence
+  (25 screenshots + JSON verdict, all scenarios pass) at `C:\Users\user\AppData\Local\Temp\ait-evidence`
+  and `app_in_toss/docs/qa/F16-EXP-evidence.md`. T018 monetization spec (94/100) remains
+  `awaiting-approval`.
+  **Not done**: the **Gate 3 re-run** (5-expert playtest) has NOT run since the 64.4 fail — per the loop
+  rule, re-run it only now that real work has landed against the findings. That is the next milestone
+  gate and the honest "is the MVP complete?" answer is still pending it.
   Uses `gate/gate-node.ps1` (npm install → tsc --noEmit [per referenced project] → npm run build →
   test → lint → gate:extra — same contract as `gate.ps1`).
 - **Standing note**: Discord replies are only auto-drained during an autonomous tick's scout step —
@@ -44,28 +42,22 @@
   top picks Unity MCP, UniTask/PrimeTween, etc. — **adopt nothing without the director's pick**);
   rtk (✅ working) + ponytail (fixed, needed a session restart) subagent coverage; token-leak audit
   done. None of this blocks app_in_toss work.
-- **Last updated**: 2026-08-09 (in-session — WIP verification round; T019 sub-question (c) closed,
-  (a) and (b) still waiting on the director)
+- **Last updated**: 2026-08-10 (in-session — reconciled the cockpit with the branch: T019-T022 all
+  landed + pushed, Gate 1 re-verified green on HEAD `33b9a1b`, Gate 3 re-run is the next milestone gate)
 
 ## ▶ Next, in this order
-1. **T019 (Gate 3 failure) needs the director's direction — do not invent scope/priority calls here.**
-   Report plainly what failed and why (full detail in `backlog/tasks/T019.md`), and ask specifically:
-   (a) build F16/F17 now or leave them cut (spec's own cut-list already named them optional); (b) how
-   to prioritize the reward/money-decoupling design gap — a core-loop design question, not a bug.
-   ~~Overspend-consequence (finding #2)~~ — **excluded by director decision, 2026-08-09** (ADDENDUM-04
-   §7). ~~(c) whether the rescued WIP is worth building on~~ — **answered
-   2026-08-09: yes. The WIP is verified** (app_in_toss `ab0f461`): Gate 1 full PASS, no regressions,
-   the auto-fix did NOT weaken the two tests it edited, and live-browser evidence shows S1 onboarding
-   and the now-non-blocking tier banner both working. It closes findings 3 and 5 only — findings 1, 2,
-   4 remain untouched, so the escalation stands. Do not re-run Gate 3 until real work has landed
-   against these — a second bare-average-64 run wastes a full expert-panel pass for no new information.
-2. **Report T018's spec to the director for approval** (independent of T019 — document/decision output,
-   never auto-advance to a build task without sign-off, but don't block other work on it either).
-3. Once T019's direction is set: open the concrete follow-up tasks (likely: onboarding, reward-scaling,
-   mood consequences, F16/F17 if the director wants them) and work them normally through Gate 1/2
-   before attempting Gate 3 again.
-4. Real art order (D-12 still open) and other new feature requests remain queued behind the above.
-5. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
+1. **Re-run Gate 3** (5-expert playtest, `playtest.js`) — every finding from the 64.4 fail now has real
+   work landed against it (T019-T022): #1 reward/money-decoupling → T021 amount-proportional EXP; #3
+   onboarding → S1 built + verified; #4 F16 settlement/monuments → built T021; #5 blocking tier modal →
+   non-blocking banner. #2 overspend penalty was excluded by the director (2026-08-09, ADDENDUM-04 §7);
+   F17 stays cut. So the "do not re-run until real work lands" bar is met — Gate 3 is now the correct
+   next milestone gate. Use the Node/React overrides (`args.gateScript`/`args.runHint`, `gate-node.ps1`,
+   `-SkipTest` for the fix-round verify); the Unity-hardcoded-path bug that broke the first run is fixed
+   (engine `5e1b269`). Pre-write the rubric from `VISION.md` §3.2 and pass `appDir`.
+2. **Report T018's spec to the director for approval** (document/decision output — never auto-advance to
+   a build task without sign-off, but don't block other work on it either).
+3. Real art order (D-12 still open) and other new feature requests remain queued behind the above.
+4. Engine-improvement backlog (reported 2026-07-19, still awaiting the director's pick) — low
    priority while app_in_toss has momentum.
 
 ## Open Items
@@ -91,11 +83,12 @@
 - None.
 
 ## Needs Human Review
-- **ACTIVE — T019, app_in_toss Gate 3 failed hard** (2026-08-07): avg 64.4/100, all 5 experts below
-  the 80 floor. Root cause: MVP-SPEC.md build-order step 5 (F16/S1/F17) was never built despite prior
-  records claiming MVP feature-complete, plus real design gaps (reward decoupled from money,
-  overspending has no consequence). Needs director direction on scope/priority — see
-  `backlog/tasks/T019.md` and ▶ Next above. Not something to push through with more autonomous rounds.
+- **RESOLVED — T019, app_in_toss Gate 3 hard fail** (opened 2026-08-07, avg 64.4/100): the director's
+  2026-08-09 in-session decisions (ADDENDUM-04 §7) set scope/priority, and T019-T022 landed the work —
+  finding #1 (T021 amount-proportional EXP), #3 (S1 onboarding, verified), #4 (F16 settlement/monuments,
+  T021), #5 (non-blocking tier banner); #2 (overspend penalty) excluded by the director; F17 cut. Gate 1
+  re-verified green on HEAD `33b9a1b` (2026-08-10). The escalation is cleared; the only thing still open
+  is the **Gate 3 re-run** (▶ Next #1), which is a normal milestone gate, not a human-review escalation.
 - None else active — T012's escalation (2026-08-05, 5-round limit at 85/90) was resolved via one
   fix-forward round, final score 91/100. Full detail: `backlog/tasks/T012.md` Log.
 - T011's escalation (2026-08-05, no-progress brake at 81/100) was resolved via two
