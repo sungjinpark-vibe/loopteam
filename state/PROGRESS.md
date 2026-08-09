@@ -44,17 +44,20 @@
   top picks Unity MCP, UniTask/PrimeTween, etc. — **adopt nothing without the director's pick**);
   rtk (✅ working) + ponytail (fixed, needed a session restart) subagent coverage; token-leak audit
   done. None of this blocks app_in_toss work.
-- **Last updated**: 2026-08-07 (in-session — director asked to continue overnight work and have the
-  app playable when he's back)
+- **Last updated**: 2026-08-09 (in-session — WIP verification round; T019 sub-question (c) closed,
+  (a) and (b) still waiting on the director)
 
 ## ▶ Next, in this order
 1. **T019 (Gate 3 failure) needs the director's direction — do not invent scope/priority calls here.**
    Report plainly what failed and why (full detail in `backlog/tasks/T019.md`), and ask specifically:
    (a) build F16/F17 now or leave them cut (spec's own cut-list already named them optional); (b) how
    to prioritize the reward/money-decoupling and overspend-consequence design gaps — these are core-loop
-   design questions, not bugs; (c) whether the rescued, unverified Onboarding.tsx WIP (app_in_toss
-   commit `7ed237d`) is worth building on. Do not re-run Gate 3 until real work has landed against
-   these — a second bare-average-64 run wastes a full expert-panel pass for no new information.
+   design questions, not bugs. ~~(c) whether the rescued WIP is worth building on~~ — **answered
+   2026-08-09: yes. The WIP is verified** (app_in_toss `ab0f461`): Gate 1 full PASS, no regressions,
+   the auto-fix did NOT weaken the two tests it edited, and live-browser evidence shows S1 onboarding
+   and the now-non-blocking tier banner both working. It closes findings 3 and 5 only — findings 1, 2,
+   4 remain untouched, so the escalation stands. Do not re-run Gate 3 until real work has landed
+   against these — a second bare-average-64 run wastes a full expert-panel pass for no new information.
 2. **Report T018's spec to the director for approval** (independent of T019 — document/decision output,
    never auto-advance to a build task without sign-off, but don't block other work on it either).
 3. Once T019's direction is set: open the concrete follow-up tasks (likely: onboarding, reward-scaling,
@@ -247,6 +250,24 @@
   (the Discord daemon is PowerShell, not node, and nothing else was running concurrently), but this
   is a real recurring risk class, same as the unauthorized `rm -rf`/`git checkout` incidents — brief
   QA/evidence steps to track and kill only the PID they started.
+
+## Do Not Repeat (addendum, 2026-08-09)
+- **Rescuing a workflow's uncommitted output into a WIP commit is only half the rescue — the NEXT
+  session's follow-up work can go missing the same way.** T019 rescued `playtest.js`'s auto-fix into
+  `7ed237d`, but a later interrupted session then wrote three real test files plus a Playwright
+  evidence harness for that WIP and left them **uncommitted in the working tree for two days**, with
+  nothing in `PROGRESS.md` or the task file mentioning they existed. They were found only by reading
+  `git status` before starting. Anything a session produces that is worth keeping gets committed
+  before the session ends, even mid-task and even unverified — an honest WIP commit is cheap, an
+  invisible working tree is how work gets silently overwritten.
+- **An autonomous fix round that edits its own tests is the thing to check first, not last** — but it
+  is not automatically guilty. In this case both edits were legitimate (a real UI change forced them)
+  and no assertion was dropped. Quote the before/after of every test edit and judge each one; that
+  single check is what separates "verified" from "the suite is green because it was made green."
+- **A console error found by an LLM playtest panel may be an artifact of how the app was served, not
+  a defect.** app_in_toss's "two identical errors on every load" is one TDS provider error, doubled by
+  React StrictMode, thrown only because a Toss mini-app was dev-served in a plain browser with no
+  native host. Check where the evidence was gathered before opening a bug task on it.
 
 ## Do Not Repeat (addendum, 2026-08-04)
 - **For pure visual/taste changes, send a screenshot checkpoint EARLY, before investing multiple
