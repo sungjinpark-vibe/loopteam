@@ -45,13 +45,13 @@ describe("plotFromIndex", () => {
     }
   });
 
-  it("index 6 sits directly below index 5 (the spec's own worked example)", () => {
-    const five = plotFromIndex(5);
-    const six = plotFromIndex(6);
-    expect(five).toEqual({ row: 0, col: 5 });
-    expect(six).toEqual({ row: 1, col: 5 });
-    expect(six.col).toBe(five.col);
-    expect(six.row).toBe(five.row + 1);
+  it("the last index of row 0 sits directly above the first index of row 1 (the spec's own worked example, generalized to TOWN_COLUMNS)", () => {
+    const lastOfRow0 = plotFromIndex(TOWN_COLUMNS - 1);
+    const firstOfRow1 = plotFromIndex(TOWN_COLUMNS);
+    expect(lastOfRow0).toEqual({ row: 0, col: TOWN_COLUMNS - 1 });
+    expect(firstOfRow1).toEqual({ row: 1, col: TOWN_COLUMNS - 1 });
+    expect(firstOfRow1.col).toBe(lastOfRow0.col);
+    expect(firstOfRow1.row).toBe(lastOfRow0.row + 1);
   });
 
   it("i = 0..23 (four full rows) never collide and stay within the grid width", () => {

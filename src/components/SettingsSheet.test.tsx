@@ -56,6 +56,7 @@ function makeCalls() {
   const onClose = { count: 0 };
   const savedNames: string[] = [];
   const savedBudgets: (number | null)[] = [];
+  const bgmMutedCalls: boolean[] = [];
   let resetCount = 0;
   const exportCalls: number[] = [];
   const importCalls: string[] = [];
@@ -67,6 +68,8 @@ function makeCalls() {
     onClose: () => onClose.count++,
     onSaveTownName: (n) => savedNames.push(n),
     onSaveBudget: (b) => savedBudgets.push(b),
+    bgmMuted: false,
+    onSetBgmMuted: (m) => bgmMutedCalls.push(m),
     onResetAll: () => resetCount++,
     onExport: async () => {
       exportCalls.push(1);
@@ -82,6 +85,7 @@ function makeCalls() {
     onClose,
     savedNames,
     savedBudgets,
+    bgmMutedCalls,
     getResetCount: () => resetCount,
     exportCalls,
     importCalls,
@@ -185,6 +189,33 @@ describe("SettingsSheet — back guard (§10.4) + commit-on-dismiss", () => {
     // Back press #2 (confirm now closed) closes the sheet itself.
     popBack();
     expect(onClose.count).toBe(1);
+  });
+});
+
+describe("SettingsSheet — F-BGM row (ADDENDUM-05 §5)", () => {
+  it("unmuted: shows 켜짐 with aria-pressed=true", () => {
+    const { props } = makeCalls();
+    render({ ...props, bgmMuted: false });
+    const button = findButton("켜짐")!;
+    expect(button).toBeTruthy();
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("muted: shows 꺼짐 with aria-pressed=false", () => {
+    const { props } = makeCalls();
+    render({ ...props, bgmMuted: true });
+    const button = findButton("꺼짐")!;
+    expect(button).toBeTruthy();
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("tapping the row fires onSetBgmMuted immediately with the flipped value — no commit-on-blur dance", () => {
+    const { props, bgmMutedCalls } = makeCalls();
+    render({ ...props, bgmMuted: false });
+    act(() => {
+      findButton("켜짐")!.click();
+    });
+    expect(bgmMutedCalls).toEqual([true]);
   });
 });
 

@@ -28,12 +28,17 @@ export interface Cell {
 }
 
 /** Rule R-1 (ADDENDUM-01 §3.6): bumped whenever any constant below changes — every building relocates on screen. */
-export const LAYOUT_VERSION = 1;
+export const LAYOUT_VERSION = 2; // ADDENDUM-05 §2 (F-EXP): 1 -> 2, TOWN_COLUMNS 6 -> 8 relocates every building
 
 // ── §3.3 — grid shape ──
 
-export const GRID_COLUMNS = TOWN_COLUMNS + 1; // 7 = 6 plot columns + 1 street column
-export const ROAD_COLUMN = 3; // 0-based grid column of the main street
+export const GRID_COLUMNS = TOWN_COLUMNS + 1; // 9 = 8 plot columns + 1 street column
+
+// ADDENDUM-05 §2: ROAD_COLUMN/SERPENTINE_COLUMNS are literal constants, not
+// derived from TOWN_COLUMNS — bumping TOWN_COLUMNS does not recentre them by
+// itself. Hand-recomputed for 9 grid columns: ROAD_COLUMN is the exact
+// middle (4), SERPENTINE_COLUMNS is every column but the road.
+export const ROAD_COLUMN = 4; // 0-based grid column of the main street
 export const BLOCK_ROWS = 2; // plot rows per block — forced by the frontage invariant (§3.2)
 
 // Layout px (assumption; director may retune — none of these is a pacing dial).
@@ -41,6 +46,15 @@ export const TILE_HEIGHT_PX = 72; // unchanged from App.css's former grid-auto-r
 export const ROAD_WIDTH_PX = 22;
 export const ROAD_HEIGHT_PX = 22;
 export const GRID_GAP_PX = 6; // was 8 — recovers the width the street takes
+
+/**
+ * ADDENDUM-05 §2 (F-EXP): the floor `plotTileWidthPx` clamps to, so tiles
+ * stop shrinking to fit a narrow phone. Reaches the stylesheet as the lower
+ * bound of GRID_TEMPLATE_COLUMNS's `minmax()` tracks — a viewport too narrow
+ * for every column to be this wide overflows `.town-grid` natively, which is
+ * exactly what `.town-viewport`'s `overflow-x: auto` (TownGrid.tsx) is for.
+ */
+export const MIN_TILE_WIDTH_PX = 52;
 
 /**
  * .town-grid's horizontal padding. Reaches the stylesheet ONLY as
@@ -51,18 +65,24 @@ export const GRID_GAP_PX = 6; // was 8 — recovers the width the street takes
  */
 export const GRID_PADDING_X_PX = 16;
 
-/** Plot column (0..5, straight from `plotFromIndex`) -> grid column, skipping the street. */
-export const SERPENTINE_COLUMNS = [0, 1, 2, 4, 5, 6] as const;
+/** Plot column (0..7, straight from `plotFromIndex`) -> grid column, skipping the street. */
+export const SERPENTINE_COLUMNS = [0, 1, 2, 3, 5, 6, 7, 8] as const;
 
 // ── 저축 블록 (§2.4) — fixed cells, OUTSIDE plot-index space ──
 
 /**
- * Prominence rank -> grid column: street-front pair, middle pair, back pair.
- * Rank 0/1 are the two sub-types the director named, so 예적금 and 주식 투자
- * are the ones facing the main street. A CONTENT assumption (§7), not a
- * mechanic; one array to overturn.
+ * Prominence rank -> grid column: street-front pair, then each next-nearest
+ * pair out. Rank 0/1 are the two sub-types the director named, so 예적금 and
+ * 주식 투자 are the ones facing the main street. A CONTENT assumption (§7),
+ * not a mechanic; one array to overturn.
+ *
+ * ADDENDUM-05 §2: re-derived by hand for 9 grid columns (ROAD_COLUMN = 4) by
+ * the same rule that produced the old 7-column array — sort
+ * SERPENTINE_COLUMNS by ascending distance from ROAD_COLUMN, ties broken by
+ * ascending column: dist 1 -> [3,5], dist 2 -> [2,6], dist 3 -> [1,7],
+ * dist 4 -> [0,8].
  */
-export const SAVINGS_COLUMN_RANK = [2, 4, 1, 5, 0, 6] as const;
+export const SAVINGS_COLUMN_RANK = [3, 5, 2, 6, 1, 7, 0, 8] as const;
 
 /** Savings rows needed for the current sub-type list. 5 ids -> 1 row. Follows D-17 automatically. */
 export const SAVINGS_ROWS = Math.max(1, Math.ceil(SAVING_CATEGORY_IDS.length / TOWN_COLUMNS));
@@ -112,10 +132,10 @@ export const SAVINGS_ROW_ORDER: readonly SavingCategoryCellId[] = [...SAVING_CAT
 });
 
 /**
- * Savings-row cells with no structure on them. The first (in column-rank
- * order) renders the 마을 안내판 (`.savings-signpost`); any others render an
- * ordinary decorated 빈 터. With five sub-types this is exactly one cell,
- * grid col 6.
+ * Savings-row cells with no structure on them, in column-rank order.
+ * `SavingsRow.tsx` renders one 마을 안내판 (`.savings-signpost`) per cell
+ * here. ADDENDUM-05 §2: widening TOWN_COLUMNS to 8 grew this from one cell
+ * (6 columns - 5 sub-types) to three (8 - 5).
  */
 export function freeSavingsCells(): Cell[] {
   const taken = new Set(SAVING_CATEGORY_IDS.map((id) => `${savingsCellFor(id).row},${savingsCellFor(id).col}`));
@@ -213,22 +233,32 @@ export function roadSideOf(col: number): "left" | "right" {
 
 /**
  * The grid template, GENERATED from the constants above (rule R-3) — the
- * stylesheet must never hardcode "1fr 1fr 1fr 22px 1fr 1fr 1fr", because that
- * string silently encodes both GRID_COLUMNS and ROAD_COLUMN.
+ * stylesheet must never hardcode "1fr 1fr 1fr 1fr 22px 1fr 1fr 1fr 1fr",
+ * because that string silently encodes GRID_COLUMNS, ROAD_COLUMN AND
+ * MIN_TILE_WIDTH_PX. Each plot column is `minmax(MIN_TILE_WIDTH_PX, 1fr)` —
+ * ADDENDUM-05 §2's "tiles stop shrinking to fit the phone" — so a narrow
+ * viewport overflows the grid natively instead of the browser silently
+ * shrinking columns below the floor; `.town-viewport`'s `overflow-x: auto`
+ * (TownGrid.tsx) is what makes that overflow scrollable. No space after the
+ * comma inside minmax(): a space would split one column into two tokens for
+ * every consumer that does `GRID_TEMPLATE_COLUMNS.split(" ")` (own test below).
  */
 export const GRID_TEMPLATE_COLUMNS = Array.from({ length: GRID_COLUMNS }, (_, c) =>
-  c === ROAD_COLUMN ? `${ROAD_WIDTH_PX}px` : "1fr",
+  c === ROAD_COLUMN ? `${ROAD_WIDTH_PX}px` : `minmax(${MIN_TILE_WIDTH_PX}px,1fr)`,
 ).join(" ");
 
 /**
- * Plot tile width at a given viewport width. Also the width of one savings
- * lot (§2.5) and the width `PIPS_PER_ROW` is derived against — one width
- * function for the whole town.
+ * Plot tile width at a given viewport width, clamped to MIN_TILE_WIDTH_PX
+ * (ADDENDUM-05 §2) — the one width function the whole town derives from:
+ * `PIPS_PER_ROW` below, the savings-plot geometry (§2.5), and
+ * GRID_TEMPLATE_COLUMNS's `minmax()` floor above all trace back to this same
+ * clamp, so nothing hand-patches a second "at least 52px" rule.
  */
 export function plotTileWidthPx(viewportPx: number): number {
   const inner = viewportPx - GRID_PADDING_X_PX * 2;
   const gaps = (GRID_COLUMNS - 1) * GRID_GAP_PX;
-  return (inner - gaps - ROAD_WIDTH_PX) / TOWN_COLUMNS;
+  const derived = (inner - gaps - ROAD_WIDTH_PX) / TOWN_COLUMNS;
+  return Math.max(MIN_TILE_WIDTH_PX, derived);
 }
 
 // ── §2.5 — savings plot geometry (sizes the block even before the next task

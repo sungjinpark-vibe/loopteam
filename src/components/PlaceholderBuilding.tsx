@@ -1,16 +1,18 @@
 /**
- * PlaceholderBuilding — MVP-SPEC.md §6.1: "the MVP ships PlaceholderBuilding
- * (rounded rect in the category colour + category icon + a variant-driven
- * roof shape) behind the same interface as the final sprite component."
- *
- * `BuildingVisualProps` is that interface: swapping in real art later means
- * writing one new component with this same prop shape and changing one
- * import at the call site (`TownGrid.tsx`) — nothing else moves.
+ * PlaceholderBuilding — MVP-SPEC.md §6.1 named this "the MVP ships a
+ * rounded-rect placeholder behind the same interface as the final sprite
+ * component". ADDENDUM-05 §F-BLD is that swap: `BuildingArt` (buildingArt.tsx,
+ * ported from lifetown's `docs/design/building-props/building-props.html`)
+ * now draws a real category-specific isometric building. `BuildingVisualProps`
+ * keeps its exact prop shape unchanged, per that promise — nothing at the
+ * call site (`TownGrid.tsx`) moves.
  */
 import { memo } from "react";
 import { colors } from "@toss/tds-colors";
 import { CATEGORY_CONTENT } from "../content.placeholder";
+import { archetypeFor, BuildingArt, MAX_VISUAL_LEVEL } from "./buildingArt";
 import type { BuildingCategoryId } from "../types";
+import "../buildings.css";
 
 export interface BuildingVisualProps {
   categoryId: BuildingCategoryId | null;
@@ -33,30 +35,16 @@ export interface BuildingVisualProps {
   monumentPeriod?: string;
 }
 
-const ROOF_SHAPES = ["dome", "peak", "flat"] as const;
-
-// Cosmetic cap only (ADDENDUM-04 §8's maxLevel dial) — clamped here too so a
-// bad/future level value can never blow the fixed-height tile (defence in
-// depth; the real clamp lives upstream where level is computed).
-const MAX_VISUAL_LEVEL = 5;
-
-// Measured against App.css's fixed --town-tile-h (72px, townLayout.ts
-// TILE_HEIGHT_PX): roof is at most 14px (dome/peak) and .building-icon's box
-// is exactly 24px line-height + 8px padding-bottom = 32px, leaving a 26px gap
-// between them. MAX_VISUAL_LEVEL - 1 = 4 floors must fit that gap, so
-// 4 * FLOOR_HEIGHT_PX <= 26 — 6px (24px total) is the largest whole-pixel
-// step that clears it.
-const FLOOR_HEIGHT_PX = 6;
-
 function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 1, monumentPeriod }: BuildingVisualProps) {
   const content = categoryId ? CATEGORY_CONTENT[categoryId] : null;
   // F16 — a monument (categoryId === null) gets its own stone tone rather
   // than falling back to the same grey400 the "etc"/"other_saving" categories
-  // already use, so it never blends into an ordinary building on sight.
+  // already use, so it never blends into an ordinary building on sight. This
+  // colour is also asserted directly by TownGrid.test.tsx ("a real building's
+  // tile gets a non-empty inline background colour") — kept as a swatch
+  // behind the SVG art, not just a fallback.
   const color = content?.color ?? (monumentPeriod ? colors.grey600 : colors.grey400);
-  const icon = content?.icon ?? "🏛️";
   // variantIndex is always >= 0 (every producer is `Math.floor(random() * n)`) — plain modulo is enough.
-  const roof = ROOF_SHAPES[variantIndex % ROOF_SHAPES.length];
   const floors = Math.max(0, Math.min(level, MAX_VISUAL_LEVEL) - 1);
   const title = monumentPeriod ?? (floors > 0 ? [content?.label, `Lv.${level}`].filter(Boolean).join(" ") : content?.label);
 
@@ -65,14 +53,13 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 
     .join(" ");
 
   return (
-    <div className={classNames} style={{ backgroundColor: color }} title={title}>
-      <div className={`building-roof building-roof-${roof}`} />
-      {floors > 0 && (
-        <div className="building-floors" style={{ height: floors * FLOOR_HEIGHT_PX }} aria-hidden="true" />
-      )}
-      <span className="building-icon" aria-hidden="true">
-        {icon}
-      </span>
+    <div
+      className={classNames}
+      style={{ backgroundColor: color }}
+      title={title}
+      data-archetype={archetypeFor(categoryId, monumentPeriod)}
+    >
+      <BuildingArt categoryId={categoryId} variantIndex={variantIndex} level={level} monumentPeriod={monumentPeriod} />
       {floors > 0 && (
         <span className="building-level-badge" aria-hidden="true">
           {`Lv.${level}`}

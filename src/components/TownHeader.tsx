@@ -3,7 +3,14 @@
  * streak, slot counter, queue promise line." This task (build order step 3)
  * adds tier/streak/queue — the previous task shipped town name, building
  * count, and the slot counter.
+ *
+ * F-BGM (ADDENDUM-05 §5) adds a speaker toggle here — "a small speaker
+ * toggle button ... one tap, no menu diving; this is the one people actually
+ * use." Mirrors `settingsRow`'s toggle in `SettingsSheet.tsx`; both drive the
+ * same `bgmMuted` flag the parent owns.
  */
+import "../bgm.css";
+
 export interface TownHeaderProps {
   townName: string;
   buildingCount: number;
@@ -18,6 +25,10 @@ export interface TownHeaderProps {
   budgetUnset: boolean;
   /** S6 설정 is also reachable straight from the Town tab now, not only via 기록. */
   onOpenSettings: () => void;
+  /** F-BGM — current mute state, persisted on `core.budget.bgmMuted` by the parent. */
+  bgmMuted: boolean;
+  /** F-BGM — flips the shared mute flag; also driven from the settings-sheet row. */
+  onSetBgmMuted: (muted: boolean) => void;
 }
 
 export function TownHeader({
@@ -31,6 +42,8 @@ export function TownHeader({
   moodLabel,
   budgetUnset,
   onOpenSettings,
+  bgmMuted,
+  onSetBgmMuted,
 }: TownHeaderProps) {
   return (
     <header className="town-header">
@@ -39,6 +52,15 @@ export function TownHeader({
         <div className="town-header-top-right">
           {/* Game-side quantity, never rendered like money (design invariant 2, spec §7) — a plain "Tier N" label. */}
           <span className="town-header-tier-badge">Tier {tier + 1}</span>
+          <button
+            type="button"
+            className="town-header-bgm-toggle"
+            aria-label="배경음악 음소거"
+            aria-pressed={!bgmMuted}
+            onClick={() => onSetBgmMuted(!bgmMuted)}
+          >
+            {bgmMuted ? "🔇" : "🔊"}
+          </button>
           <button type="button" className="town-header-settings" aria-label="설정" onClick={onOpenSettings}>
             ⚙️
           </button>

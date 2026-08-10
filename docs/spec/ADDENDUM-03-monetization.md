@@ -1,4 +1,8 @@
-﻿# ADDENDUM-03 — 광고 말풍선 · 추가 건축 결제 · 꾸미기 상점 (the economy) · rev. 3
+﻿> **STATUS BANNER (2026-08-10):** This remains an **unapproved proposal**, never implemented.
+> `ADDENDUM-05-village-life.md` supersedes its currency/shop sections (§8 there has the full table).
+> F25 (ad bubble) and F26 (paid extra build) are **out of scope and unbuilt** — do not build them.
+
+# ADDENDUM-03 — 광고 말풍선 · 추가 건축 결제 · 꾸미기 상점 (the economy) · rev. 3
 
 > Proposed target path: `app_in_toss/docs/spec/ADDENDUM-03-monetization.md`
 > Status: **proposal, not approved.** `MVP-SPEC.md`, `ADDENDUM-01` and `ADDENDUM-02` are untouched; the PM merges after the director approves.

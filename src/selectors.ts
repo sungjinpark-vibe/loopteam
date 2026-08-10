@@ -13,8 +13,8 @@ import type { Building, CategoryId, EntryType, LedgerEntry, SavingCategoryId, To
 
 // ── Layout constant (not a balance dial, spec §9 / §13 trade-off 9) ──
 
-/** Town grid width. Kept out of balance.placeholder.ts: layout, not pacing. */
-export const TOWN_COLUMNS = 6;
+/** Town grid width. Kept out of balance.placeholder.ts: layout, not pacing. ADDENDUM-05 §2 (F-EXP): 6 -> 8. */
+export const TOWN_COLUMNS = 8;
 
 /** Serpentine row-major fill: the town reads as one street winding downward. */
 export function plotFromIndex(i: number): { col: number; row: number } {

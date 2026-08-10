@@ -1,0 +1,252 @@
+/**
+ * S8 상점/충전 stylesheet (W5-owned, CSS ownership rule — PM-DECISIONS "Work
+ * split"). Never edits App.css; reuses its shared `.entry-sheet-title`/
+ * `.entry-sheet-body` classes the way SettingsSheet/MonumentDetailSheet
+ * already do, everything else here is new and scoped under `.shop-*`/
+ * `.charge-*`.
+ *
+ * R-12 reminder for whoever wires the applied skins into the renderer later:
+ * nothing in THIS file touches `.town-screen--mood-*`/the sky/the pace bar —
+ * this stylesheet only ever reaches ground/street/prop/signage-level classes
+ * that don't exist yet outside this shop UI itself.
+ */
+
+/* ── mini-FAB entry point (ShopFab) — sits directly above `button.town-fab`
+ * (App.css: right 20px, bottom `tab-bar-h + 24px`, 56px). Smaller and
+ * centered on the same right edge so the pair reads as one stack. Element +
+ * class selector for the same TDS-cascade-ordering reason `button.town-fab`
+ * documents in App.css. ── */
+button.shop-fab {
+  position: fixed;
+  right: 26px;
+  bottom: calc(var(--tab-bar-h) + 24px + 56px + 12px);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  padding: 0;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  background: var(--town-white);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  z-index: 4;
+}
+
+.shop-fab-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--town-red500);
+}
+
+/* ── ShopSheet ── */
+
+.shop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* One of exactly two surfaces allowed to show the seed balance (PM-DECISIONS §F-ECON). */
+.shop-balance {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--town-grey700);
+}
+
+.shop-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 8px;
+}
+
+.shop-notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--town-grey100);
+  color: var(--town-grey800);
+  font-size: 13px;
+}
+
+.shop-section-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--town-grey900);
+}
+
+.shop-row-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shop-row {
+  border-radius: 10px;
+  background: var(--town-grey100);
+  padding: 10px 12px;
+}
+
+.shop-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.shop-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--town-grey900);
+}
+
+.shop-row-rarity {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--town-grey200);
+  color: var(--town-grey700);
+}
+
+.shop-row-rarity--rare {
+  background: var(--town-blue400);
+  color: var(--town-white);
+}
+
+.shop-row-rarity--epic {
+  background: var(--town-purple400);
+  color: var(--town-white);
+}
+
+.shop-row-buy,
+.shop-row-apply,
+.charge-buy-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--town-blue500);
+  color: var(--town-white);
+}
+
+.shop-row-buy--unaffordable {
+  background: var(--town-grey300);
+  color: var(--town-grey600);
+}
+
+.shop-row-owned,
+.shop-row-unaffordable {
+  font-size: 13px;
+  color: var(--town-grey600);
+}
+
+.shop-row-apply {
+  margin-top: 8px;
+  background: var(--town-grey200);
+  color: var(--town-grey800);
+}
+
+.shop-building-picker {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shop-building-picker-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--town-white);
+  color: var(--town-grey800);
+  font-size: 13px;
+}
+
+.shop-building-picker-item--applied {
+  background: var(--town-blue400);
+  color: var(--town-white);
+}
+
+.shop-building-picker-empty {
+  font-size: 13px;
+  color: var(--town-grey600);
+  padding: 4px 2px;
+}
+
+/* ── ChargeSheet (stub) ── */
+
+.charge-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.charge-stub-banner {
+  margin: 0;
+  font-size: 13px;
+  color: var(--town-grey600);
+}
+
+.charge-package-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.charge-package {
+  border-radius: 10px;
+  background: var(--town-grey100);
+  padding: 12px;
+}
+
+/* Package name — deliberately a different component/weight/grammar from the
+ * KRW price button below (spec: never typographically parallel to a price,
+ * so the pair never reads as a seed<->KRW rate). */
+.charge-package-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--town-grey900);
+}
+
+.charge-package-desc {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  color: var(--town-grey700);
+}
+
+/* "disabled-looking" per spec, but a real enabled <button> — tapping must
+ * still fire the stub message, so it is never the native `disabled` attribute. */
+.charge-buy-btn {
+  background: var(--town-grey300);
+  color: var(--town-grey700);
+}
+
+.charge-stub-notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--town-grey100);
+  color: var(--town-grey800);
+  font-size: 13px;
+}

@@ -14,6 +14,7 @@ import {
   GRID_COLUMNS,
   GRID_TEMPLATE_COLUMNS,
   LAYOUT_VERSION,
+  MIN_TILE_WIDTH_PX,
   MIN_VIEWPORT_PX,
   PIPS_PER_ROW,
   ROAD_COLUMN,
@@ -81,17 +82,17 @@ describe("cellFromIndex (§3.3)", () => {
     }
   });
 
-  it("worked values (ADDENDUM-01 §3.3)", () => {
+  it("worked values (ADDENDUM-01 §3.3, re-derived for ADDENDUM-05 §2's 8-column town)", () => {
     expect(cellFromIndex(0)).toEqual({ row: 3, col: 0 });
     expect(cellFromIndex(1)).toEqual({ row: 3, col: 1 });
     expect(cellFromIndex(2)).toEqual({ row: 3, col: 2 });
-    expect(cellFromIndex(3)).toEqual({ row: 3, col: 4 });
-    expect(cellFromIndex(5)).toEqual({ row: 3, col: 6 });
-    expect(cellFromIndex(6)).toEqual({ row: 4, col: 6 }); // directly below (5) — §3.9
-    expect(cellFromIndex(11)).toEqual({ row: 4, col: 0 });
-    expect(cellFromIndex(12)).toEqual({ row: 6, col: 0 });
-    expect(cellFromIndex(17)).toEqual({ row: 6, col: 6 });
-    expect(cellFromIndex(18)).toEqual({ row: 7, col: 6 });
+    expect(cellFromIndex(3)).toEqual({ row: 3, col: 3 });
+    expect(cellFromIndex(7)).toEqual({ row: 3, col: 8 });
+    expect(cellFromIndex(8)).toEqual({ row: 4, col: 8 }); // directly below (7) — §3.9
+    expect(cellFromIndex(15)).toEqual({ row: 4, col: 0 });
+    expect(cellFromIndex(16)).toEqual({ row: 6, col: 0 });
+    expect(cellFromIndex(23)).toEqual({ row: 6, col: 8 });
+    expect(cellFromIndex(24)).toEqual({ row: 7, col: 8 });
   });
 });
 
@@ -146,10 +147,14 @@ describe("frontage invariant — every rendered cell touches at least one road c
 });
 
 describe("column permutations", () => {
-  it("SERPENTINE_COLUMNS and SAVINGS_COLUMN_RANK are both permutations of the six non-road grid columns", () => {
-    const expected = [0, 1, 2, 4, 5, 6];
+  it("SERPENTINE_COLUMNS and SAVINGS_COLUMN_RANK are both permutations of the eight non-road grid columns", () => {
+    const expected = [0, 1, 2, 3, 5, 6, 7, 8];
+    expect(SERPENTINE_COLUMNS.length).toBe(TOWN_COLUMNS);
+    expect(SAVINGS_COLUMN_RANK.length).toBe(TOWN_COLUMNS);
     expect([...SERPENTINE_COLUMNS].sort((a, b) => a - b)).toEqual(expected);
     expect([...SAVINGS_COLUMN_RANK].sort((a, b) => a - b)).toEqual(expected);
+    expect(SERPENTINE_COLUMNS).not.toContain(ROAD_COLUMN);
+    expect(SAVINGS_COLUMN_RANK).not.toContain(ROAD_COLUMN);
   });
 });
 
@@ -166,14 +171,14 @@ describe("MVP-SPEC F2's AC in screen space (D-30 answered, §3.9)", () => {
     }
   });
 
-  it("spot check: index 6 renders directly below index 5 on screen", () => {
-    expect(cellFromIndex(5)).toEqual({ row: 3, col: 6 });
-    expect(cellFromIndex(6)).toEqual({ row: 4, col: 6 });
+  it("spot check: index 8 renders directly below index 7 on screen (last column of an 8-wide row)", () => {
+    expect(cellFromIndex(7)).toEqual({ row: 3, col: 8 });
+    expect(cellFromIndex(8)).toEqual({ row: 4, col: 8 });
   });
 
-  it("across a block boundary the column repeats and exactly one cross-street row lies between (11 -> 12)", () => {
-    const a = cellFromIndex(11);
-    const b = cellFromIndex(12);
+  it("across a block boundary the column repeats and exactly one cross-street row lies between (15 -> 16)", () => {
+    const a = cellFromIndex(15);
+    const b = cellFromIndex(16);
     expect(a).toEqual({ row: 4, col: 0 });
     expect(b).toEqual({ row: 6, col: 0 });
     expect(b.col).toBe(a.col);
@@ -200,12 +205,12 @@ describe("savingsCellFor / SAVINGS_ROW_ORDER / freeSavingsCells", () => {
     expect(savingsCellFor("stock").col).toBe(ROAD_COLUMN + 1);
   });
 
-  it("worked cells (ADDENDUM-01 §3.3)", () => {
-    expect(savingsCellFor("deposit")).toEqual({ row: 1, col: 2 });
-    expect(savingsCellFor("stock")).toEqual({ row: 1, col: 4 });
-    expect(savingsCellFor("emergency")).toEqual({ row: 1, col: 1 });
-    expect(savingsCellFor("goal")).toEqual({ row: 1, col: 5 });
-    expect(savingsCellFor("other_saving")).toEqual({ row: 1, col: 0 });
+  it("worked cells (ADDENDUM-01 §3.3, re-derived for ADDENDUM-05 §2's 8-column town)", () => {
+    expect(savingsCellFor("deposit")).toEqual({ row: 1, col: 3 });
+    expect(savingsCellFor("stock")).toEqual({ row: 1, col: 5 });
+    expect(savingsCellFor("emergency")).toEqual({ row: 1, col: 2 });
+    expect(savingsCellFor("goal")).toEqual({ row: 1, col: 6 });
+    expect(savingsCellFor("other_saving")).toEqual({ row: 1, col: 1 });
   });
 
   it("SAVINGS_ROW_ORDER is sorted by (row, col) and contains every id exactly once", () => {
@@ -222,7 +227,13 @@ describe("savingsCellFor / SAVINGS_ROW_ORDER / freeSavingsCells", () => {
   it("freeSavingsCells returns SAVINGS_ROWS*TOWN_COLUMNS - SAVING_CATEGORY_IDS.length cells, none on the road", () => {
     const cells = freeSavingsCells();
     expect(cells.length).toBe(SAVINGS_ROWS * TOWN_COLUMNS - SAVING_CATEGORY_IDS.length);
-    expect(cells).toEqual([{ row: 1, col: 6 }]);
+    // ADDENDUM-05 §2: 8 columns - 5 sub-types = 3 free cells now (was 1 at 6
+    // columns) — in SAVINGS_COLUMN_RANK's column-rank order, not sorted ascending.
+    expect(cells).toEqual([
+      { row: 1, col: 7 },
+      { row: 1, col: 0 },
+      { row: 1, col: 8 },
+    ]);
     for (const c of cells) expect(c.col).not.toBe(ROAD_COLUMN);
   });
 
@@ -236,16 +247,21 @@ describe("savingsCellFor / SAVINGS_ROW_ORDER / freeSavingsCells", () => {
 });
 
 describe("row/tile/cross-street counts and the grid template", () => {
-  it("worked values (ADDENDUM-01 §3.3)", () => {
+  it("worked values (ADDENDUM-01 §3.3, re-derived for ADDENDUM-05 §2's 8-column town — one block now holds 16 plots)", () => {
     expect(gridRowCount(0)).toBe(6);
-    expect(gridRowCount(12)).toBe(6);
-    expect(gridRowCount(13)).toBe(9);
+    expect(gridRowCount(16)).toBe(6);
+    expect(gridRowCount(17)).toBe(9);
     expect(crossStreetRowCount(0)).toBe(3);
-    expect(crossStreetRowCount(13)).toBe(4);
-    expect(renderedTileCount(13)).toBe(24);
-    expect(GRID_TEMPLATE_COLUMNS).toBe("1fr 1fr 1fr 22px 1fr 1fr 1fr");
-    expect(plotTileWidthPx(390)).toBe(50);
-    expect(plotTileWidthPx(320)).toBeCloseTo(38.33, 2);
+    expect(crossStreetRowCount(17)).toBe(4);
+    expect(renderedTileCount(17)).toBe(32);
+    expect(GRID_TEMPLATE_COLUMNS).toBe(
+      "minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr) 22px minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr)",
+    );
+    // ADDENDUM-05 §2: every phone-class viewport (320..~518px) clamps to
+    // MIN_TILE_WIDTH_PX now — the raw derived width (~27-47px here) is below
+    // the floor at every one of these, which is the whole point of the clamp.
+    expect(plotTileWidthPx(390)).toBe(52);
+    expect(plotTileWidthPx(320)).toBe(52);
   });
 
   it("the first and last grid row are always cross streets, and row 1 is always a savings row", () => {
@@ -257,17 +273,21 @@ describe("row/tile/cross-street counts and the grid template", () => {
     }
   });
 
-  it("GRID_TEMPLATE_COLUMNS has exactly GRID_COLUMNS tokens, with the road's px token at ROAD_COLUMN", () => {
+  it("GRID_TEMPLATE_COLUMNS has exactly GRID_COLUMNS tokens, with the road's px token at ROAD_COLUMN and every other a minmax(MIN_TILE_WIDTH_PX, 1fr)", () => {
     const tokens = GRID_TEMPLATE_COLUMNS.split(" ");
     expect(tokens.length).toBe(GRID_COLUMNS);
     expect(tokens[ROAD_COLUMN]).toBe(`${ROAD_WIDTH_PX}px`);
     tokens.forEach((token, i) => {
-      if (i !== ROAD_COLUMN) expect(token).toBe("1fr");
+      if (i !== ROAD_COLUMN) expect(token).toBe(`minmax(${MIN_TILE_WIDTH_PX}px,1fr)`);
     });
   });
 
-  it("plotTileWidthPx(390) >= 48", () => {
-    expect(plotTileWidthPx(390)).toBeGreaterThanOrEqual(48);
+  // Acceptance criterion #2 (ADDENDUM-05 §9): plotTileWidthPx clamps to the floor.
+  it("plotTileWidthPx never returns below MIN_TILE_WIDTH_PX, at any supported viewport", () => {
+    for (const v of [320, 360, 390, 430]) {
+      expect(plotTileWidthPx(v)).toBeGreaterThanOrEqual(MIN_TILE_WIDTH_PX);
+    }
+    expect(plotTileWidthPx(390)).toBe(MIN_TILE_WIDTH_PX); // the clamp is what wins at phone width, not the raw derivation
   });
 });
 
@@ -322,10 +342,61 @@ describe("districtLadderLength — sized to the longest ladder any structure res
   });
 });
 
+describe("ADDENDUM-05 §2 (F-EXP) — 8-column town expansion", () => {
+  it("TOWN_COLUMNS/GRID_COLUMNS/SERPENTINE_COLUMNS match the spec's worked numbers", () => {
+    expect(TOWN_COLUMNS).toBe(8);
+    expect(GRID_COLUMNS).toBe(9);
+    expect(SERPENTINE_COLUMNS.length).toBe(8);
+    expect(SERPENTINE_COLUMNS).not.toContain(ROAD_COLUMN);
+    expect(ROAD_COLUMN).toBe(4);
+  });
+
+  it("8-column serpentine round-trip: indexFromPlot(plotFromIndex(i)) === i, i = 0..600", () => {
+    for (let i = 0; i <= MAX_I; i++) {
+      expect(indexFromPlot(plotFromIndex(i))).toBe(i);
+    }
+  });
+
+  it("frontage invariant still holds at 8 columns: every plot cell has >= 1 road neighbor, i = 0..600", () => {
+    function roadNeighborCount(row: number, col: number): number {
+      return [isRoadCell(row - 1, col), isRoadCell(row + 1, col), isRoadCell(row, col - 1), isRoadCell(row, col + 1)].filter(
+        Boolean,
+      ).length;
+    }
+    for (let i = 0; i <= MAX_I; i++) {
+      const { row, col } = cellFromIndex(i);
+      expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("no plot index ever lands on a savings cell at 8 columns, i = 0..600", () => {
+    const savingsCells = new Set(
+      SAVING_CATEGORY_IDS.map((id) => {
+        const c = savingsCellFor(id);
+        return `${c.row},${c.col}`;
+      }),
+    );
+    for (let i = 0; i <= MAX_I; i++) {
+      const { row, col } = cellFromIndex(i);
+      expect(isSavingsRow(row)).toBe(false);
+      expect(savingsCells.has(`${row},${col}`)).toBe(false);
+    }
+  });
+
+  it("MIN_TILE_WIDTH_PX clamp: plotTileWidthPx never drops below it, and is exactly it at every supported phone viewport", () => {
+    expect(MIN_TILE_WIDTH_PX).toBe(52);
+    for (const v of [320, 360, 390, 430]) {
+      expect(plotTileWidthPx(v)).toBe(MIN_TILE_WIDTH_PX);
+    }
+    // Wide enough that 8 unclamped columns fit, the raw derivation wins instead.
+    expect(plotTileWidthPx(2000)).toBeGreaterThan(MIN_TILE_WIDTH_PX);
+  });
+});
+
 describe("LAYOUT_VERSION (rule R-1, §3.6)", () => {
-  it("is a stable integer constant", () => {
+  it("is a stable integer constant, bumped to 2 by ADDENDUM-05 §2's 8-column relayout", () => {
     expect(Number.isInteger(LAYOUT_VERSION)).toBe(true);
-    expect(LAYOUT_VERSION).toBeGreaterThanOrEqual(1);
+    expect(LAYOUT_VERSION).toBe(2);
   });
 });
 

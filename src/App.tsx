@@ -9,6 +9,7 @@ import { SettingsSheet } from "./components/SettingsSheet";
 import { SettlementCard } from "./components/SettlementCard";
 import { TierCelebration } from "./components/TierCelebration";
 import { TownScreen } from "./components/TownScreen";
+import { audio } from "./platform/audio";
 import { useTownStore, type Notice } from "./useTownStore";
 
 /**
@@ -55,6 +56,17 @@ type Tab = "town" | "history";
 function App() {
   const store = useTownStore();
   const { notice, dismissNotice } = store;
+  // F-BGM (ADDENDUM-05 §5) — start once for the app's lifetime. The port boots
+  // its AudioContext suspended and resumes it on the first user gesture, so
+  // this call is safe before any interaction and needs no gesture plumbing
+  // here; it degrades to a no-op driver wherever AudioContext is absent (jsdom).
+  useEffect(() => {
+    audio.start();
+    return () => audio.stop();
+  }, []);
+  useEffect(() => {
+    audio.setMuted(store.bgmMuted);
+  }, [store.bgmMuted]);
   const { openToast } = useToast();
   const [tab, setTab] = useState<Tab>("town");
   // S6 설정 — one instance for the whole shell (single `useTownStore()`,
@@ -161,6 +173,8 @@ function App() {
         onResetAll={store.resetAll}
         onExport={store.exportData}
         onImport={store.importData}
+        bgmMuted={store.bgmMuted}
+        onSetBgmMuted={store.setBgmMuted}
       />
 
       {/* S1 — fires once, only for a genuinely fresh install (`onboarded`

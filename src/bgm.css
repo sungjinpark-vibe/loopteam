@@ -1,0 +1,30 @@
+/* F-BGM — this worker's own stylesheet (CSS ownership rule, ADDENDUM-05 §10);
+   App.css stays W1-only. Reuses existing --town-* custom properties, no new
+   numeric constants (rule R-3). */
+
+.town-header-bgm-toggle {
+  border: none;
+  background: none;
+  padding: 4px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-row-bgm-toggle {
+  min-width: 52px;
+  padding: 6px 12px;
+  border: 1px solid var(--town-grey200);
+  border-radius: 999px;
+  background: var(--town-white);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--town-grey900);
+  cursor: pointer;
+}
+
+/* aria-pressed reflects "BGM is currently on" — false (muted) reads as a plain, unaccented row. */
+.settings-row-bgm-toggle[aria-pressed="true"] {
+  color: var(--town-blue500);
+  border-color: var(--town-blue500);
+}

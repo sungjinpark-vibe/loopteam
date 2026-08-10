@@ -15,8 +15,26 @@
  * only change when `useTownStore` actually mutates town state — a parent
  * re-render for unrelated reasons (e.g. the entry sheet opening/closing)
  * must not rebuild every tile.
+ *
+ * ADDENDUM-05 §2 (F-EXP): `.town-grid` is now wrapped in a `.town-viewport`
+ * (native `overflow-x: auto` — no gesture library, no pinch-zoom) plus a
+ * zoom-to-fit toggle button. The button is a SIBLING of `.town-grid`, never a
+ * child (AC-M7's direct-children guard is about `.town-grid` itself, not this
+ * wrapper). The zoom scale is a runtime DOM measurement (`scrollWidth` /
+ * `scrollHeight`), not a townLayout.ts constant, so rule R-3 doesn't apply to
+ * it — there is nothing to source from townLayout.ts because nothing here is
+ * a fixed pixel/grid metric.
+ *
+ * Gesture safety: `useTileGestures`'s long-press/tap resolution reads
+ * `event.target.closest("[data-plot-index]")` and raw `event.clientX/clientY`
+ * pointer deltas (LONG_PRESS_TOLERANCE_PX) — both are POST-transform browser
+ * values (DOM hit-testing and pointer coordinates already account for any
+ * CSS `transform: scale()` on an ancestor), so neither needs dividing by the
+ * zoom scale. Verified by mounting with the zoom toggle active and replaying
+ * the same long-press pointer sequence the un-zoomed suite already drives
+ * (`TownGrid.test.tsx`).
  */
-import { memo, useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTileGestures } from "../hooks/useTileGestures";
 import { openPlotCount } from "../placement";
 import { levelOf } from "../selectors";
@@ -43,6 +61,7 @@ import {
 } from "../townLayout";
 import type { Building, SavingCategoryId } from "../types";
 import { EmptyLot } from "./EmptyLot";
+import { NpcLayer } from "./NpcLayer";
 import { PlaceholderBuilding } from "./PlaceholderBuilding";
 import { SavingsRow } from "./SavingsRow";
 
@@ -70,6 +89,13 @@ export interface TownGridProps {
   movingId: string | null;
   /** Roving keyboard cursor (`aria-activedescendant`) — null until the first arrow key. */
   cursorIndex: number | null;
+  /**
+   * ADDENDUM-05 §3 (F-NPC) — how many animal NPCs to render. The store owns
+   * the rule (`min(1 + buildings.length + purchasedNpcSlots, NPC_MAX_VISIBLE)`)
+   * and this component only forwards it; neither the grid nor `NpcLayer`
+   * reimplements the count.
+   */
+  npcCount: number;
   /**
    * A building tile was long-pressed (or Enter'd while not in move mode).
    * Returns whether it actually grabbed a building — see
@@ -113,6 +139,7 @@ function TownGridImpl({
   onRiseSettled,
   movingId,
   cursorIndex,
+  npcCount,
   onPlotLongPress,
   onPlotTap,
   onCursorMove,
@@ -121,6 +148,14 @@ function TownGridImpl({
 }: TownGridProps) {
   const newestTileRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  // ADDENDUM-05 §2 — zoom-to-fit toggle. Default is 1:1 (`zoomedOut === false`,
+  // "크게 보기" view) per the spec: a first-time user should see readable
+  // buildings, not a shrunk town. `zoomScale` is null at 1:1 (no transform, no
+  // measuring needed) and only computed while zoomed out.
+  const [zoomedOut, setZoomedOut] = useState(false);
+  const [zoomScale, setZoomScale] = useState<{ scale: number; heightPx: number } | null>(null);
 
   const byPlotIndex = useMemo(() => {
     const map = new Map<number, Building>();
@@ -138,6 +173,32 @@ function TownGridImpl({
   // number of blocks.
   const tileCount = openPlotCount(nextPlotIndex, buildings);
   const rowCount = gridRowCount(tileCount);
+
+  // ADDENDUM-05 §2 — recompute the zoom scale whenever zoom is toggled on, or
+  // the town grows (tileCount) while it's already on. Measured off the live
+  // DOM (`scrollWidth`/`scrollHeight`), not townLayout.ts constants (rule R-3
+  // is about FIXED pixel/grid metrics, not a runtime layout measurement — the
+  // same category of value `scrollIntoView` above already reads).
+  // `scrollWidth`/`scrollHeight` reflect the grid's pre-transform box, so
+  // they're stable to read regardless of the CURRENT transform.
+  useEffect(() => {
+    if (!zoomedOut) return;
+    const grid = gridRef.current;
+    const viewport = viewportRef.current;
+    if (!grid || !viewport) return;
+    function recompute() {
+      const worldWidth = grid!.scrollWidth;
+      const worldHeight = grid!.scrollHeight;
+      const availableWidth = viewport!.clientWidth;
+      const scale = worldWidth > 0 ? Math.min(1, availableWidth / worldWidth) : 1;
+      setZoomScale({ scale, heightPx: worldHeight * scale });
+    }
+    recompute();
+    // Orientation change / window resize while zoomed out — native listener,
+    // no ResizeObserver dependency needed for a toggle this cheap to recompute.
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, [zoomedOut, tileCount]);
 
   const tiles = useMemo(() => {
     const result = [];
@@ -260,54 +321,86 @@ function TownGridImpl({
     newestTileRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [justBuiltId]);
 
+  // ADDENDUM-05 §2 — active only while zoomed out AND a measurement has
+  // landed; 1:1 renders with neither a transform nor an explicit wrapper
+  // height, i.e. exactly today's untouched layout.
+  const activeZoom = zoomedOut ? zoomScale : null;
+
   return (
-    <div
-      ref={gridRef}
-      className={`town-grid${movingId !== null ? " town-grid--moving" : ""}`}
-      // ADDENDUM-02 §4.3 — one tab stop for the whole town, at any size: no
-      // tile ever gets its own `tabIndex` (AC-K1). `aria-activedescendant`
-      // is the roving-cursor pattern that lets a single-tab-stop container
-      // still announce which lot is "focused".
-      tabIndex={0}
-      role="group"
-      aria-label="마을 지도"
-      aria-activedescendant={cursorIndex === null ? undefined : `plot-${cursorIndex}`}
-      style={
-        {
-          gridTemplateColumns: GRID_TEMPLATE_COLUMNS,
-          "--town-road-w": `${ROAD_WIDTH_PX}px`,
-          "--town-road-h": `${ROAD_HEIGHT_PX}px`,
-          "--town-tile-h": `${TILE_HEIGHT_PX}px`,
-          "--town-gap": `${GRID_GAP_PX}px`,
-          "--town-grid-pad-x": `${GRID_PADDING_X_PX}px`,
-          "--district-row-gap": `${DISTRICT_ROW_GAP_PX}px`,
-          "--pip-size": `${PIP_SIZE_PX}px`,
-          "--pip-gap": `${PIP_GAP_PX}px`,
-          "--pip-row-gap": `${PIP_ROW_GAP_PX}px`,
-        } as CSSProperties
-      }
-    >
-      <div className="town-main-street" style={{ gridColumn: ROAD_COLUMN + 1, gridRow: `1 / span ${rowCount}` }} />
-      {crossStreets.map((row) => {
-        // §3.7 checklist item 3: a 버스 정류장 on every second cross street —
-        // decorVariant(row, col) alone (rule R-2), never stored.
-        const hasBusStop = decorVariant(row, 0, 2) === 0;
-        return (
-          <div
-            key={`cross-${row}`}
-            className={`town-cross-street${hasBusStop ? " town-cross-street--busstop" : ""}`}
-            style={{ gridColumn: "1 / -1", gridRow: row + 1 }}
-          />
-        );
-      })}
-      <SavingsRow
-        ladder={ladder}
-        ladderOverrides={ladderOverrides}
-        savingsByCategoryKrw={savingsByCategoryKrw}
-        justGrew={justGrew}
-        onRiseSettled={onRiseSettled}
-      />
-      {tiles}
+    <div className="town-viewport" ref={viewportRef} style={activeZoom ? { height: `${activeZoom.heightPx}px` } : undefined}>
+      <div
+        ref={gridRef}
+        className={`town-grid${movingId !== null ? " town-grid--moving" : ""}`}
+        // ADDENDUM-02 §4.3 — one tab stop for the whole town, at any size: no
+        // tile ever gets its own `tabIndex` (AC-K1). `aria-activedescendant`
+        // is the roving-cursor pattern that lets a single-tab-stop container
+        // still announce which lot is "focused".
+        tabIndex={0}
+        role="group"
+        aria-label="마을 지도"
+        aria-activedescendant={cursorIndex === null ? undefined : `plot-${cursorIndex}`}
+        style={
+          {
+            gridTemplateColumns: GRID_TEMPLATE_COLUMNS,
+            "--town-road-w": `${ROAD_WIDTH_PX}px`,
+            "--town-road-h": `${ROAD_HEIGHT_PX}px`,
+            "--town-tile-h": `${TILE_HEIGHT_PX}px`,
+            "--town-gap": `${GRID_GAP_PX}px`,
+            "--town-grid-pad-x": `${GRID_PADDING_X_PX}px`,
+            "--district-row-gap": `${DISTRICT_ROW_GAP_PX}px`,
+            "--pip-size": `${PIP_SIZE_PX}px`,
+            "--pip-gap": `${PIP_GAP_PX}px`,
+            "--pip-row-gap": `${PIP_ROW_GAP_PX}px`,
+            // ADDENDUM-05 §2 — zoom-to-fit. A runtime-measured scale, not a
+            // townLayout.ts constant (see this file's header comment), so no
+            // custom property/rule R-3 concern here — a plain inline
+            // transform like `gridColumn`/`gridRow` already are above.
+            transform: activeZoom ? `scale(${activeZoom.scale})` : undefined,
+            transformOrigin: "top left",
+          } as CSSProperties
+        }
+      >
+        <div className="town-main-street" style={{ gridColumn: ROAD_COLUMN + 1, gridRow: `1 / span ${rowCount}` }} />
+        {crossStreets.map((row) => {
+          // §3.7 checklist item 3: a 버스 정류장 on every second cross street —
+          // decorVariant(row, col) alone (rule R-2), never stored.
+          const hasBusStop = decorVariant(row, 0, 2) === 0;
+          return (
+            <div
+              key={`cross-${row}`}
+              className={`town-cross-street${hasBusStop ? " town-cross-street--busstop" : ""}`}
+              style={{ gridColumn: "1 / -1", gridRow: row + 1 }}
+            />
+          );
+        })}
+        <SavingsRow
+          ladder={ladder}
+          ladderOverrides={ladderOverrides}
+          savingsByCategoryKrw={savingsByCategoryKrw}
+          justGrew={justGrew}
+          onRiseSettled={onRiseSettled}
+        />
+        {tiles}
+        {/* ADDENDUM-05 §3 (F-NPC): LAST child of `.town-grid` so it stacks above
+            every tile on DOM order alone (App.css deliberately gives `.town-tile`
+            no z-index). It is one real grid item spanning the whole grid and
+            positions its sprites absolutely inside itself, so AC-M7's
+            direct-children guard still holds, and it is `pointer-events: none`
+            so an NPC can never swallow a tile tap or a long-press. */}
+        <NpcLayer npcCount={npcCount} rowCount={rowCount} />
+      </div>
+      {/* Never a `.town-grid` child (AC-M7's direct-children guard) — a
+          sibling inside `.town-viewport` instead. Native <button>, not TDS's
+          `Button`: no bottom-sheet/emotion runtime needed for one toggle. */}
+      <button
+        type="button"
+        className="town-zoom-toggle"
+        aria-pressed={zoomedOut}
+        aria-label={zoomedOut ? "크게 보기로 전환" : "전체 보기로 전환"}
+        onClick={() => setZoomedOut((z) => !z)}
+      >
+        {zoomedOut ? "크게 보기" : "전체 보기"}
+      </button>
     </div>
   );
 }

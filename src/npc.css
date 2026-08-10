@@ -1,0 +1,67 @@
+/**
+ * NPC overlay styles — PM-DECISIONS §F-NPC / ADDENDUM-05 §3. Own stylesheet,
+ * imported only from `components/NpcLayer.tsx` (CSS ownership rule: only W1
+ * touches App.css).
+ *
+ * Positioning: `.npc-slot` is a ZERO-SIZE point placed with `left`/`top`
+ * percentages of `.npc-layer`, and `.npc-sprite` centers itself on that point
+ * via `translate(-50%, -50%)`.
+ *
+ * It deliberately does NOT use the earlier "layer-sized slot moved by
+ * `transform: translate(X%, Y%)`" trick. Translate percentages resolve against
+ * the element's OWN box, so a layer-sized slot pushed to 80% produced a box
+ * running from 80% to 180% of the layer — real overflow that inflated
+ * `.town-grid`'s `scrollWidth` (529px measured as 907px) and silently wrecked
+ * the zoom-to-fit scale, which divides by exactly that number. A zero-size
+ * point cannot overflow, so the grid's scroll box stays honest.
+ *
+ * ponytail: column positions treat all 9 grid columns as equal width, but the
+ * road column is 22px against the plots' 52px, so a walking NPC drifts up to
+ * ~half a column from the painted road. Acceptable for decoration; fix by
+ * reading the real track sizes off the grid if it ever reads as wrong.
+ */
+.npc-layer {
+  position: relative;
+}
+
+.npc-slot {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transition:
+    left 2.4s linear,
+    top 2.4s linear;
+}
+
+.npc-sprite {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+}
+
+.npc-sprite--flip {
+  transform: translate(-50%, -50%) scaleX(-1);
+}
+
+.npc-sprite svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .npc-slot {
+    transition: none;
+  }
+}
+
+/* The layer must never contribute to the grid's scrollable width — see the
+ * header note. A sprite is 26px wide and centred on its point, so it can hang
+ * 13px past the edge at column 0 / the last column; clipping that is cheaper
+ * than letting it reopen the scrollWidth bug. */
+.npc-layer {
+  overflow: hidden;
+}

@@ -139,7 +139,9 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
   });
 
   it("the main street spans the whole rendered town, not one row — regression for the '1 / -1' bug", () => {
-    for (const n of [0, 13]) {
+    // ADDENDUM-05 §2: at 8 columns a block holds 16 plots, so 17 (not 13) is
+    // the smallest plot count that spills into a second block.
+    for (const n of [0, 17]) {
       const container = mountGrid(n);
       const street = container.querySelector(".town-main-street") as HTMLElement;
       const raw = street.getAttribute("style") ?? "";
@@ -147,7 +149,7 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
       expect(raw).not.toMatch(/grid-row:\s*1\s*\/\s*-1/);
     }
     expect(gridRowCount(0)).toBe(6);
-    expect(gridRowCount(13)).toBe(9);
+    expect(gridRowCount(17)).toBe(9);
   });
 
   it("every tile and every savings plot carries town-tile--left/right matching roadSideOf(col)", () => {
@@ -196,22 +198,44 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
     expect(stock.classList.contains("savings-plot--empty")).toBe(true); // untouched bucket stays empty
   });
 
-  it("exactly one signpost, at freeSavingsCells()'s cell, never on the road", () => {
+  it("one signpost per freeSavingsCells() cell, never on the road", () => {
+    // ADDENDUM-05 §2: 8 columns - 5 sub-types = 3 free cells now (was 1 at 6 columns).
     const container = mountGrid(0);
     const signposts = [...container.querySelectorAll(".savings-signpost")] as HTMLElement[];
-    expect(signposts.length).toBe(1);
-    const free = freeSavingsCells()[0];
-    expect(Number(signposts[0].style.gridColumn)).toBe(free.col + 1);
-    expect(Number(signposts[0].style.gridRow)).toBe(free.row + 1);
-    expect(Number(signposts[0].style.gridColumn)).not.toBe(ROAD_COLUMN + 1);
+    const free = freeSavingsCells();
+    expect(signposts.length).toBe(free.length);
+    const signpostCells = new Set(signposts.map((s) => `${Number(s.style.gridRow) - 1},${Number(s.style.gridColumn) - 1}`));
+    for (const cell of free) {
+      expect(signpostCells.has(`${cell.row},${cell.col}`)).toBe(true);
+      expect(cell.col).not.toBe(ROAD_COLUMN);
+    }
   });
 
   it("the fragment trap: .town-grid's direct children count matches the exact formula (§2.4a's guard)", () => {
     const container = mountGrid(0);
     const grid = container.querySelector(".town-grid") as HTMLElement;
-    const expected = renderedTileCount(0) + 1 + crossStreetRowCount(0) + SAVING_CATEGORY_IDS.length + 1;
-    expect(expected).toBe(22);
+    // ADDENDUM-05 §2: the trailing term is one signpost PER free savings cell
+    // (freeSavingsCells().length), not a hardcoded 1 — that count grew from 1
+    // to 3 when TOWN_COLUMNS went 6 -> 8 (see freeSavingsCells' own test).
+    // ADDENDUM-05 §3: the final `+ 1` is the NPC layer (F-NPC). It is a real
+    // grid item spanning `1 / -1` that positions its sprites absolutely inside
+    // itself, so §2.4a's guard still means what it always meant — every direct
+    // child is a grid item and no fragment has leaked one in.
+    const expected =
+      renderedTileCount(0) + 1 + crossStreetRowCount(0) + SAVING_CATEGORY_IDS.length + freeSavingsCells().length + 1;
+    expect(expected).toBe(29);
     expect(grid.children.length).toBe(expected);
+  });
+
+  it("ADDENDUM-05 §3 — the NPC layer is the LAST direct child of .town-grid, and is not interactive", () => {
+    const container = mountGrid(0);
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const last = grid.lastElementChild as HTMLElement;
+    // DOM order alone decides stacking inside the grid (App.css gives
+    // `.town-tile` no z-index on purpose), so "last" is what puts NPCs above
+    // every tile. `pointer-events: none` is what stops one eating a tap.
+    expect(last.classList.contains("npc-layer")).toBe(true);
+    expect(last.style.pointerEvents).toBe("none");
   });
 
   it("GRID_COLUMNS matches the template's token count (sanity cross-check with townLayout.test.ts)", () => {
@@ -257,19 +281,22 @@ describe("TownGrid — ADDENDUM-02 §3.2/§8.3 AC-P9: random placement's on-scre
   });
 
   it("renders openPlotCount tiles (not the old renderedTileCount(nextPlotIndex)) once a building sits past the old tile boundary", () => {
-    // A building at index 14 with nextPlotIndex=1 could not have existed
+    // A building at index 20 with nextPlotIndex=1 could not have existed
     // pre-addendum (a sequential cursor never overshoots itself), but a
     // move/import/corrupt-recovery (this task's boot reconciler) can now hand
     // a live building an index anywhere in the open pool — B20's DE-2
     // latent-bug fix (§7.2): the old `renderedTileCount(nextPlotIndex)` would
-    // render only 12 tiles here and silently drop this building off-grid.
-    const buildings = scatteredBuildings([14]);
+    // render only 16 tiles here and silently drop this building off-grid.
+    // ADDENDUM-05 §2: 20 (not 14) — one 8-column block now covers 16 plots,
+    // so the building has to sit past a WHOLE block to force the pool wider
+    // than renderedTileCount(nextPlotIndex) alone.
+    const buildings = scatteredBuildings([20]);
     const nextPlotIndex = 1;
     const container = mountGrid(nextPlotIndex, buildings);
     const tiles = container.querySelectorAll(".town-tile");
     expect(tiles.length).toBe(openPlotCount(nextPlotIndex, buildings));
     expect(tiles.length).toBeGreaterThan(renderedTileCount(nextPlotIndex));
-    expect(container.querySelector('[data-plot-index="14"]')).not.toBeNull();
+    expect(container.querySelector('[data-plot-index="20"]')).not.toBeNull();
   });
 });
 
@@ -306,7 +333,9 @@ describe("TownGrid — ADDENDUM-02 §4.4 move-mode DOM contract (AC-M5/AC-M6/AC-
   it("AC-M7 — .town-grid's direct-children count is unchanged by move mode (the bar lives outside the grid, in App.tsx)", () => {
     const container = mountGrid(0, [], { movingId: "not-in-buildings" });
     const grid = container.querySelector(".town-grid") as HTMLElement;
-    const expected = renderedTileCount(0) + 1 + crossStreetRowCount(0) + SAVING_CATEGORY_IDS.length + 1;
+    // Trailing `+ 1` = the ADDENDUM-05 NPC layer, present in and out of move mode.
+    const expected =
+      renderedTileCount(0) + 1 + crossStreetRowCount(0) + SAVING_CATEGORY_IDS.length + freeSavingsCells().length + 1;
     expect(grid.children.length).toBe(expected);
   });
 });
@@ -477,23 +506,24 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
   // the serpentine inverse `plotFromIndex` -> `indexFromPlot` in
   // `useTileGestures.ts`'s `stepCursor` — round-2 finding C1 #4: only
   // ArrowRight was ever driven, leaving this the most error-prone,
-  // completely unguarded part of the cursor. Index 5 sits at the END of row
-  // 0 (a left-to-right row); row 1 runs right-to-left, so row 1's own index 0
-  // is the lot directly BELOW index 5 on screen — that is `6`, not `11`.
-  it("AC-K2 — ArrowDown crosses a serpentine row reversal correctly (index 5 -> 6)", () => {
+  // completely unguarded part of the cursor. ADDENDUM-05 §2: at 8 columns
+  // index 7 (not 5) sits at the END of row 0 (a left-to-right row); row 1
+  // runs right-to-left, so row 1's own index 0 is the lot directly BELOW
+  // index 7 on screen — that is `8`.
+  it("AC-K2 — ArrowDown crosses a serpentine row reversal correctly (index 7 -> 8)", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 5, onCursorMove });
+    const container = mountGrid(24, [], { cursorIndex: 7, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-    expect(onCursorMove).toHaveBeenCalledWith(6);
+    expect(onCursorMove).toHaveBeenCalledWith(8);
   });
 
-  it("AC-K2 — ArrowUp crosses the same serpentine reversal in reverse (index 6 -> 5)", () => {
+  it("AC-K2 — ArrowUp crosses the same serpentine reversal in reverse (index 8 -> 7)", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 6, onCursorMove });
+    const container = mountGrid(24, [], { cursorIndex: 8, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
-    expect(onCursorMove).toHaveBeenCalledWith(5);
+    expect(onCursorMove).toHaveBeenCalledWith(7);
   });
 
   it("AC-K2 — ArrowUp at the top row does not move the cursor", () => {
@@ -506,10 +536,11 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("AC-K2 — ArrowDown at the bottom row (past the last tile) does not move the cursor", () => {
     const onCursorMove = vi.fn();
-    // mountGrid(24, []) rounds up to a 36-tile (3-block) pool — rows 0..5,
-    // 6 columns each; index 33 sits in the LAST row (row 5), so ArrowDown's
-    // `stepCursor(6, col)` computes an index >= tileCount and returns null.
-    const container = mountGrid(24, [], { cursorIndex: 33, onCursorMove });
+    // ADDENDUM-05 §2: mountGrid(24, []) now rounds up to a 32-tile (2-block)
+    // pool — rows 0..3, 8 columns each; index 31 sits in the LAST row (row
+    // 3), so ArrowDown's `stepCursor(4, col)` computes an index >= tileCount
+    // and returns null.
+    const container = mountGrid(24, [], { cursorIndex: 31, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     expect(onCursorMove).not.toHaveBeenCalled();
@@ -619,6 +650,84 @@ describe("TownGrid — ADDENDUM-04 §4/§8 (grow: level rendering, pick-mode hig
     for (const tile of container.querySelectorAll(".town-tile")) {
       if ((tile as HTMLElement).querySelector(".building-tile")) continue; // buildings checked above
       expect(tile.classList.contains("town-tile--grow-candidate")).toBe(false);
+    }
+  });
+});
+
+describe("TownGrid — ADDENDUM-05 §2 zoom-to-fit toggle", () => {
+  it("defaults to 1:1 (크게 보기 view): no transform on .town-grid, button offers 전체 보기, aria-pressed=false", () => {
+    const container = mountGrid(0);
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const button = container.querySelector(".town-zoom-toggle") as HTMLButtonElement;
+    expect(grid.style.transform).toBe("");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(button.textContent).toBe("전체 보기");
+    expect(button.getAttribute("aria-label")).toBeTruthy();
+  });
+
+  it(".town-zoom-toggle sits inside .town-viewport as a sibling of .town-grid, never a .town-grid child (AC-M7's guard)", () => {
+    const container = mountGrid(0);
+    const viewport = container.querySelector(".town-viewport") as HTMLElement;
+    const grid = viewport.querySelector(".town-grid") as HTMLElement;
+    const button = viewport.querySelector(".town-zoom-toggle") as HTMLElement;
+    expect(viewport).not.toBeNull();
+    expect(grid.parentElement).toBe(viewport);
+    expect(button.parentElement).toBe(viewport);
+    expect([...grid.children]).not.toContain(button);
+  });
+
+  it("clicking the toggle flips to the zoomed-out view: aria-pressed=true, label flips to 크게 보기, applies a scale() transform to .town-grid", () => {
+    const container = mountGrid(0);
+    const button = container.querySelector(".town-zoom-toggle") as HTMLButtonElement;
+    act(() => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(button.textContent).toBe("크게 보기");
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    expect(grid.style.transform).toMatch(/^scale\(/);
+    expect(grid.style.transformOrigin).toBe("top left");
+  });
+
+  it("clicking a second time returns to 1:1 — no transform, wrapper height back to auto", () => {
+    const container = mountGrid(0);
+    const button = container.querySelector(".town-zoom-toggle") as HTMLButtonElement;
+    act(() => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    act(() => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const viewport = container.querySelector(".town-viewport") as HTMLElement;
+    expect(grid.style.transform).toBe("");
+    expect(viewport.style.height).toBe("");
+  });
+
+  // Proves the move gesture (long-press) still works while zoomed out — the
+  // exact scenario TownGrid.tsx's header comment reasons about: tap
+  // resolution (`element.closest`) and the pointer-tolerance check
+  // (raw `clientX`/`clientY` deltas) are both POST-transform, screen-space
+  // values, so entering zoom mode must not change whether this fires.
+  it("a long-press still fires onPlotLongPress after the zoom toggle is switched on", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const container = mountGrid(1, [cafeBuilding], { onPlotLongPress });
+      const button = container.querySelector(".town-zoom-toggle") as HTMLButtonElement;
+      act(() => {
+        button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect(button.getAttribute("aria-pressed")).toBe("true"); // zoom is actually active for this test
+
+      const tile = container.querySelector('[data-plot-index="0"]') as HTMLElement;
+      tile.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: 0, clientY: 0 }));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
+      expect(onPlotLongPress).toHaveBeenCalledWith(0);
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

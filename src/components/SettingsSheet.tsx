@@ -49,6 +49,7 @@
  */
 import { useRef, useState, type ChangeEvent } from "react";
 import { BottomSheet, Button, ConfirmDialog, TextField } from "@toss/tds-mobile";
+import "../bgm.css";
 import { commaizeAmount, decommaizeAmount } from "../format";
 import { useBackGuard } from "../hooks/useBackGuard";
 import { useConfirmDialogBackdropFix } from "../hooks/useConfirmDialogBackdropFix";
@@ -62,6 +63,9 @@ export interface SettingsSheetProps {
   onClose: () => void;
   onSaveTownName: (name: string) => void;
   onSaveBudget: (krw: number | null) => void;
+  /** F-BGM (ADDENDUM-05 §5) — current mute state and setter, mirrored in `TownHeader`'s speaker toggle. A boolean row: fires `onSetBgmMuted` immediately on tap, no commit-on-blur dance. */
+  bgmMuted: boolean;
+  onSetBgmMuted: (muted: boolean) => void;
   onResetAll: () => void;
   /** F12 — returns the file to download; this component owns triggering the actual browser download. */
   onExport: () => Promise<{ json: string; filename: string }>;
@@ -91,6 +95,8 @@ export function SettingsSheet({
   onClose,
   onSaveTownName,
   onSaveBudget,
+  bgmMuted,
+  onSetBgmMuted,
   onResetAll,
   onExport,
   onImport,
@@ -243,6 +249,18 @@ export function SettingsSheet({
           />
 
           <ul className="settings-row-list">
+            {/* F-BGM — boolean row, fires immediately on tap (no commit-on-blur; unlike the two TextFields above there's nothing to draft). Mirrors TownHeader's speaker toggle, same `bgmMuted` flag. */}
+            <li className="settings-row">
+              <span>배경음악</span>
+              <button
+                type="button"
+                className="settings-row-bgm-toggle"
+                aria-pressed={!bgmMuted}
+                onClick={() => onSetBgmMuted(!bgmMuted)}
+              >
+                {bgmMuted ? "꺼짐" : "켜짐"}
+              </button>
+            </li>
             {/* F12 — 내보내기: no confirm needed, non-destructive (just a download). Disabled + relabeled while in flight (round-1 finding C4 #2). */}
             <li>
               <button

@@ -263,6 +263,21 @@ button.town-fab {
  * add a fallback to a var() below (a fallback is a second source of truth
  * that silently wins if the custom property is ever unset). */
 
+/* ADDENDUM-05 §2 (F-EXP) — the scrolling wrapper around `.town-grid`. Native
+ * `overflow-x: auto`, no gesture library, no pinch-zoom: MIN_TILE_WIDTH_PX's
+ * `minmax()` floor (townLayout.ts) is what makes the grid overflow a narrow
+ * viewport in the first place, this is just where that overflow scrolls.
+ * `height` is set inline ONLY while the zoom-to-fit toggle is zoomed out
+ * (TownGrid.tsx) — CSS `transform: scale()` doesn't shrink the layout box it
+ * scales, so without this the page would grow a dead scroll region below the
+ * visually-shrunk grid. At 1:1 (the default) no inline height is set and
+ * this rule's `height: auto` is exactly today's untouched behaviour. */
+.town-viewport {
+  height: auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
 .town-grid {
   --town-asphalt: #b9bec6; /* pure paint — no coordinate, stays here */
   display: grid;
@@ -271,9 +286,30 @@ button.town-fab {
   padding: 8px var(--town-grid-pad-x) 24px; /* the middle 16 is GRID_PADDING_X_PX. No fallback. */
   /* ADDENDUM-02 §4.3 (break B23): a long-press must not fight the town's
    * vertical scroll — `pan-y` keeps vertical touch-scroll native while
-   * still letting the gesture hook see the pointer events it needs. */
+   * still letting the gesture hook see the pointer events it needs. Left
+   * untouched by ADDENDUM-05 §2 on purpose (see TownGrid.tsx's header
+   * comment) — the move gesture wins over horizontal touch-scroll, always. */
   touch-action: pan-y;
   outline: none; /* the roving `.town-tile--cursor` ring is the focus indicator, not the browser default outline on the container */
+}
+
+/* ADDENDUM-05 §2 — zoom-to-fit toggle. Fixed, like `.town-fab`/`.town-move-bar`
+ * (same file, below), so it stays reachable regardless of `.town-viewport`'s
+ * own scroll position; stacked a button-height above the FAB's own corner so
+ * the two never overlap. Never a `.town-grid` child — see TownGrid.tsx. */
+.town-zoom-toggle {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--tab-bar-h) + 24px + 48px);
+  z-index: 4;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--town-grey900);
+  color: var(--town-white);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
 .town-tile {
@@ -366,14 +402,10 @@ button.town-fab {
   content: "🌱";
 }
 
-/* §3.7 checklist item 1: buildings (and savings lots) face the street —
- * pure CSS on the wrapper; PlaceholderBuilding.tsx is not modified. */
-.town-tile--left .building-roof {
-  left: 62%;
-}
-.town-tile--right .building-roof {
-  left: 38%;
-}
+/* ADDENDUM-05 §4 (F-BLD): the street-facing offset that used to live here
+ * (`.town-tile--left/right .building-roof`) is gone with the CSS-shape roof it
+ * targeted. Buildings are inline SVG now (`buildingArt.tsx`) and carry their
+ * own isometric facing, so no wrapper rule nudges a roof sideways any more. */
 
 /* Main street — one continuous ribbon down the whole rendered town.
  * grid-column is set inline from ROAD_COLUMN, and grid-row inline as
@@ -676,56 +708,12 @@ button.town-fab {
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.08);
 }
 
-.building-icon {
-  font-size: 24px;
-  line-height: 1;
-  padding-bottom: 8px;
-}
-
-.building-roof {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  background: rgba(255, 255, 255, 0.55);
-}
-
-.building-roof-dome {
-  height: 14px;
-  border-radius: 0 0 999px 999px;
-}
-
-.building-roof-peak {
-  height: 0;
-  width: 0;
-  left: 0;
-  right: 0;
-  margin: 0 auto;
-  border-left: 18px solid transparent;
-  border-right: 18px solid transparent;
-  border-top: 14px solid rgba(255, 255, 255, 0.55);
-  background: none;
-}
-
-.building-roof-flat {
-  height: 6px;
-  border-radius: 3px;
-}
-
-/* ADDENDUM-04 §8 — level growth. `bottom: 32px` is not a guess: it is
- * `.building-icon`'s own rendered box (24px line-height + 8px padding-bottom),
- * so the floor stack sits flush above the icon and below the roof with no
- * overlap. Height is set inline per level (PlaceholderBuilding.tsx). */
-.building-floors {
-  position: absolute;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 70%;
-  border-radius: 2px;
-  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 6px);
-}
+/* ADDENDUM-05 §4 (F-BLD): `.building-icon` (the emoji), `.building-roof`
+ * (+ -dome/-peak/-flat) and `.building-floors` all died with the CSS-shape
+ * placeholder. Buildings are inline SVG now — the archetype, its roof and its
+ * per-level floor bands are drawn inside `buildingArt.tsx`, so none of those
+ * wrapper boxes has anything left to paint. `.building-tile`, its rise
+ * animation, the level badge and the monument label below are still live. */
 
 .building-level-badge {
   position: absolute;

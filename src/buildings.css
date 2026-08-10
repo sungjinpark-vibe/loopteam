@@ -1,0 +1,18 @@
+/**
+ * Styling for the illustrated buildings (ADDENDUM-05 §F-BLD). `.building-tile`,
+ * `.building-tile--monument`, `.building-tile-rise`, `.building-level-badge`,
+ * `.building-monument-period` are already fully styled in App.css (owned by
+ * W1) and kept unchanged here — this file only adds what's new: sizing the
+ * SVG art itself.
+ *
+ * The SVG is positioned absolutely inside `.building-tile` (which already
+ * carries `position: relative`) rather than relying on `.building-tile`'s
+ * flex layout, so this works regardless of CSS load order between this file
+ * and App.css. `inset: 0` + the SVG's own fixed viewBox with the default
+ * `preserveAspectRatio="xMidYMid meet"` means the whole building is always
+ * fully visible, letterboxed if needed — it never clips at any tile size.
+ */
+.building-tile > svg {
+  position: absolute;
+  inset: 0;
+}

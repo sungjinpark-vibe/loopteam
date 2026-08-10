@@ -9,11 +9,14 @@
  * fire regardless of which tab is showing; this component owns everything
  * S2/S4-specific.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, ConfirmDialog, useToast } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.approved";
 import { moodContentFor } from "../content.placeholder";
+import { formatSeeds } from "../economy/format";
+import { ChargeSheet } from "./ChargeSheet";
 import { EntrySheet } from "./EntrySheet";
+import { ShopFab, ShopSheet } from "./ShopSheet";
 import { MonumentDetailSheet } from "./MonumentDetailSheet";
 import { TownGrid } from "./TownGrid";
 import { TownHeader } from "./TownHeader";
@@ -34,6 +37,32 @@ const noopLongPress = () => false;
 
 export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  // ADDENDUM-05 §6 — the 상점 and the 충전소 stub. Mutually exclusive by
+  // construction (see `onOpenCharge` below), never stacked.
+  const [shopOpen, setShopOpen] = useState(false);
+  const [chargeOpen, setChargeOpen] = useState(false);
+  // 충전소 was requested from inside the shop, and the shop is still unwinding.
+  //
+  // Both sheets use `useBackGuard`, whose cleanup consumes its own history
+  // entry with `history.back()`. Opening the second sheet in the same tick as
+  // closing the first makes the new sheet's freshly-attached `popstate`
+  // listener catch the OLD sheet's teardown pop and close itself instantly.
+  // So the charge sheet opens only once the shop is actually closed.
+  //
+  // ponytail: scoped to this one hand-off. The general fix is to make
+  // `useBackGuard` ignore popstates that are not its own entry, but that hook
+  // backs every modal in the app (EntrySheet, settings, monument, charge) and
+  // is not worth re-cutting for one transition. Revisit if a second
+  // sheet-to-sheet hand-off ever appears.
+  const [chargePending, setChargePending] = useState(false);
+  useEffect(() => {
+    if (!chargePending || shopOpen) return;
+    const id = window.setTimeout(() => {
+      setChargePending(false);
+      setChargeOpen(true);
+    }, 250);
+    return () => window.clearTimeout(id);
+  }, [chargePending, shopOpen]);
   // ADDENDUM-04 §4 — the draft held between the entry sheet closing and the
   // grow choice being resolved (새 건물 세우기 / 기존 건물 키우기), and again
   // for the duration of grid pick-mode when there are 2+ candidates. Non-null
@@ -180,6 +209,8 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         moodLabel={moodContent.headerLabel}
         budgetUnset={mood === -1}
         onOpenSettings={onOpenSettings}
+        bgmMuted={store.bgmMuted}
+        onSetBgmMuted={store.setBgmMuted}
       />
 
       {store.canClaimNoSpend && (
@@ -219,6 +250,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         onRiseSettled={store.clearJustGrew}
         movingId={move.movingId}
         cursorIndex={move.cursorIndex}
+        npcCount={store.npcCount}
         // ADDENDUM-04 §4 — the two grid modes are mutually exclusive (see
         // this file's own state comments): while pick mode is active, a
         // long-press must not also start move mode, and a tap routes to the
@@ -281,7 +313,33 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         </Button>
       )}
 
+      {/* ADDENDUM-05 §6 (F-ECON) — the 꾸미기 mini-FAB sits directly above the ⊕
+          FAB and hides under exactly the same two conditions, so neither grid
+          mode ever has a second floating action competing with its status bar. */}
+      {move.movingId === null && !pickModeActive && (
+        <ShopFab onClick={() => setShopOpen(true)} economy={store.economy} npcCount={store.npcCount} />
+      )}
+
       <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
+
+      <ShopSheet
+        open={shopOpen}
+        onClose={() => setShopOpen(false)}
+        economy={store.economy}
+        buildings={store.buildings}
+        npcCount={store.npcCount}
+        purchaseSku={store.purchaseSku}
+        applyTownSku={store.applyTownSku}
+        applyBuildingSku={store.applyBuildingSku}
+        formatSeeds={formatSeeds}
+        onOpenCharge={() => {
+          // Never both at once — one dimmer, one back-guard entry.
+          setShopOpen(false);
+          setChargePending(true);
+        }}
+      />
+
+      <ChargeSheet open={chargeOpen} onClose={() => setChargeOpen(false)} />
 
       <MonumentDetailSheet
         open={selectedMonumentId !== null}
