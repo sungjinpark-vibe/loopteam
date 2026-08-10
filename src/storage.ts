@@ -18,6 +18,7 @@ import { storage as defaultStoragePort } from "./platform/storage";
 import { rebuildDerived, savingsByCategory } from "./selectors";
 import { savingsBucketOf } from "./savingsBuckets";
 import { LAYOUT_VERSION } from "./townLayout";
+import { defaultEconomyState, seeds as toSeedCount, GRANTED_EVENT_KEYS_CAP, type EconomyState } from "./economy/types";
 import type { Building, BudgetSetting, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
 export const SCHEMA_VERSION = 1;
@@ -25,6 +26,12 @@ export const SCHEMA_VERSION = 1;
 const KEY_PREFIX = "ait.v1";
 const INDEX_KEY = `${KEY_PREFIX}.index`;
 const CORE_KEY = `${KEY_PREFIX}.core`;
+// ADDENDUM-05 (F-ECON) — its own optional key, absent meaning "pre-economy
+// town" (PM-DECISIONS §F-ECON), never folded into CORE_KEY: a town's economy
+// slice has a different write cadence (shop taps, seed grants) than
+// town/budget/onboarded, so keeping it separate avoids re-serializing one on
+// every write to the other.
+const ECONOMY_KEY = `${KEY_PREFIX}.economy`;
 const entriesKey = (ym: string): string => `${KEY_PREFIX}.entries.${ym}`;
 const buildingsKey = (ym: string): string => `${KEY_PREFIX}.buildings.${ym}`;
 
@@ -74,6 +81,12 @@ export interface StorageExport {
   core: CoreState;
   entries: Record<string, LedgerEntry[]>;
   buildings: Record<string, Building[]>;
+  // ADDENDUM-05 (F-ECON) — OPTIONAL, absent for any export written before
+  // this shipped or for a town that never touched the shop. On import this
+  // is MERGED into the existing economy, never overwritten outright — see
+  // `mergeEconomyOnImport` below: an import must never be a way to lose a
+  // purchase.
+  economy?: EconomyState;
 }
 
 export type ImportResult = { ok: true } | { ok: false; error: string };
@@ -84,6 +97,37 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 function isChunkMap(v: unknown): v is Record<string, unknown[]> {
   return isPlainObject(v) && Object.values(v).every((x) => Array.isArray(x));
+}
+
+/** Loose shape check for an imported `economy` field — good enough to keep `JSON.parse`'s `any` from leaking further, not a full schema validator. */
+function isEconomyState(v: unknown): v is EconomyState {
+  return (
+    isPlainObject(v) &&
+    typeof v.seeds === "number" &&
+    Array.isArray(v.ownedSkus) &&
+    (v.appliedTownSku === null || typeof v.appliedTownSku === "string") &&
+    isPlainObject(v.appliedByBuildingId) &&
+    typeof v.purchasedNpcSlots === "number" &&
+    Array.isArray(v.grantedEventKeys)
+  );
+}
+
+/**
+ * F12 import merge for the economy slice (PM-DECISIONS §F-ECON): an import
+ * is not a way to LOSE a purchase, so seeds/owned SKUs/NPC slots only ever
+ * move up, never down, unlike `core`/`entries`/`buildings` which import
+ * fully replaces. `appliedTownSku`/`appliedByBuildingId` are preferences,
+ * not purchases — the imported file's choice wins when it names one.
+ */
+function mergeEconomyOnImport(existing: EconomyState, imported: EconomyState): EconomyState {
+  return {
+    seeds: toSeedCount(Math.max(existing.seeds, imported.seeds)),
+    ownedSkus: [...new Set([...existing.ownedSkus, ...imported.ownedSkus])],
+    appliedTownSku: imported.appliedTownSku ?? existing.appliedTownSku,
+    appliedByBuildingId: { ...existing.appliedByBuildingId, ...imported.appliedByBuildingId },
+    purchasedNpcSlots: Math.max(existing.purchasedNpcSlots, imported.purchasedNpcSlots),
+    grantedEventKeys: [...new Set([...existing.grantedEventKeys, ...imported.grantedEventKeys])].slice(-GRANTED_EVENT_KEYS_CAP),
+  };
 }
 
 /**
@@ -102,7 +146,7 @@ function parseStorageExport(rawJson: string): { ok: true; data: StorageExport } 
   if (!isPlainObject(parsed) || parsed.schemaVersion !== SCHEMA_VERSION) {
     return { ok: false, error: "지원하지 않는 데이터 버전이에요." };
   }
-  const { core, entries, buildings, layoutVersion } = parsed;
+  const { core, entries, buildings, layoutVersion, economy } = parsed;
   if (
     !isPlainObject(core) ||
     !isPlainObject(core.town) ||
@@ -110,7 +154,8 @@ function parseStorageExport(rawJson: string): { ok: true; data: StorageExport } 
     typeof core.onboarded !== "boolean" ||
     !isChunkMap(entries) ||
     !isChunkMap(buildings) ||
-    (layoutVersion !== undefined && typeof layoutVersion !== "number")
+    (layoutVersion !== undefined && typeof layoutVersion !== "number") ||
+    (economy !== undefined && !isEconomyState(economy))
   ) {
     return { ok: false, error: "파일 형식이 올바르지 않아요." };
   }
@@ -122,6 +167,7 @@ function parseStorageExport(rawJson: string): { ok: true; data: StorageExport } 
       core: core as unknown as CoreState,
       entries: entries as Record<string, LedgerEntry[]>,
       buildings: buildings as Record<string, Building[]>,
+      economy: economy as EconomyState | undefined,
     },
   };
 }
@@ -131,6 +177,8 @@ export interface BootState {
   core: CoreState | null;
   /** Every building across every month chunk — the town view needs all of them (§8.4). */
   buildings: Building[];
+  /** ADDENDUM-05 (F-ECON) — `null` for a pre-economy town (never played the shop), same absent-means-nothing-yet convention as `core`. */
+  economy: EconomyState | null;
   /** Quarantined/reset keys, for F10's "visible one-time notice, never a white screen". */
   corrupted: CorruptionNotice[];
   /**
@@ -323,8 +371,9 @@ export async function serializeExport(data: StorageExport): Promise<string> {
     buildingParts.push(`${JSON.stringify(ym)}:${JSON.stringify(data.buildings[ym])}`);
   });
   const layoutVersionField = data.layoutVersion === undefined ? "" : `,"layoutVersion":${data.layoutVersion}`;
+  const economyField = data.economy === undefined ? "" : `,"economy":${JSON.stringify(data.economy)}`;
   return (
-    `{"schemaVersion":${data.schemaVersion}${layoutVersionField},"core":${JSON.stringify(data.core)},` +
+    `{"schemaVersion":${data.schemaVersion}${layoutVersionField},"core":${JSON.stringify(data.core)}${economyField},` +
     `"entries":{${entryParts.join(",")}},"buildings":{${buildingParts.join(",")}}}`
   );
 }
@@ -418,11 +467,17 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     registerMonth("buildingMonths", ym);
   }
 
+  /** ADDENDUM-05 (F-ECON) — its own key, same debounced-write path every other save* function uses. Not folded into `saveCore` (see `ECONOMY_KEY`'s own doc comment). */
+  function saveEconomy(economy: EconomyState): void {
+    writeJson(bufferedPort, ECONOMY_KEY, economy);
+  }
+
   /** Wipes every known key — used by 데이터 초기화 (S6), fixture loading (§11), and F12 import (the old state must not linger under a key the imported file never touches). */
   function clearAll(): void {
     const { index } = readIndex();
     bufferedPort.remove(INDEX_KEY);
     bufferedPort.remove(CORE_KEY);
+    bufferedPort.remove(ECONOMY_KEY);
     for (const ym of index.entryMonths) bufferedPort.remove(entriesKey(ym));
     for (const ym of index.buildingMonths) bufferedPort.remove(buildingsKey(ym));
     // Drop anything still pending too — a flush after clearAll must never
@@ -457,7 +512,10 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     await forEachBatched(index.buildingMonths, (ym) => {
       buildings[ym] = readJson<Building[]>(bufferedPort, buildingsKey(ym)).value ?? [];
     });
-    return { schemaVersion: SCHEMA_VERSION, layoutVersion: index.layoutVersion, core, entries, buildings };
+    // Absent stays absent in the export too (undefined, not a minted default)
+    // — a pre-economy town's export should still read as pre-economy.
+    const economy = readJson<EconomyState>(bufferedPort, ECONOMY_KEY).value ?? undefined;
+    return { schemaVersion: SCHEMA_VERSION, layoutVersion: index.layoutVersion, core, entries, buildings, economy };
   }
 
   /**
@@ -481,7 +539,13 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
   function importAll(rawJson: string): ImportResult {
     const parsed = parseStorageExport(rawJson);
     if (!parsed.ok) return parsed;
-    const { core, entries, buildings, layoutVersion } = parsed.data;
+    const { core, entries, buildings, layoutVersion, economy: importedEconomy } = parsed.data;
+    // Read BEFORE `clearAll()` wipes ECONOMY_KEY — this is the "existing"
+    // half of the merge (PM-DECISIONS §F-ECON: import must never decrease
+    // owned SKUs or seeds, so the pre-import economy has to survive to be
+    // merged against, not just discarded like `core`/`entries`/`buildings`).
+    const existingEconomyResult = readJson<EconomyState>(bufferedPort, ECONOMY_KEY);
+    const existingEconomy = existingEconomyResult.corrupt ? null : existingEconomyResult.value;
     clearAll();
     const index: StorageIndex = {
       schemaVersion: SCHEMA_VERSION,
@@ -493,6 +557,12 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     saveCore(core);
     for (const [ym, monthEntries] of Object.entries(entries)) saveEntriesForMonth(ym, monthEntries, core);
     for (const [ym, monthBuildings] of Object.entries(buildings)) saveBuildingsForMonth(ym, monthBuildings);
+    // Only write an economy key at all when either side actually has one —
+    // an import of two pre-economy towns should stay pre-economy, not mint
+    // a fresh default economy neither side asked for.
+    if (existingEconomy || importedEconomy) {
+      saveEconomy(mergeEconomyOnImport(existingEconomy ?? defaultEconomyState(), importedEconomy ?? defaultEconomyState()));
+    }
     return { ok: true };
   }
 
@@ -512,6 +582,17 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       if (coreResult.corrupt) {
         corrupted.push({ key: CORE_KEY, reason: "unparseable core — recovered from surviving entries/buildings" });
       }
+
+      // ADDENDUM-05 (F-ECON) — a corrupt economy chunk resets to null (the
+      // same "pre-economy town" default `boot.core === null` already uses
+      // for a fresh install) rather than blocking boot; seeds are a game
+      // count, not the ledger, so losing one corrupted read is not a §8.3
+      // "recover from surviving entries" situation.
+      const economyResult = readJson<EconomyState>(bufferedPort, ECONOMY_KEY);
+      if (economyResult.corrupt) {
+        corrupted.push({ key: ECONOMY_KEY, reason: "unparseable economy — reset to default" });
+      }
+      const economy = economyResult.corrupt ? null : economyResult.value;
 
       const buildings = await readBuildingChunksBatched(bufferedPort, index.buildingMonths, corrupted);
 
@@ -591,7 +672,7 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       const finalIndex = relayout ? { ...index, layoutVersion: LAYOUT_VERSION } : index;
       if (relayout) writeJson(bufferedPort, INDEX_KEY, finalIndex);
 
-      return { index: finalIndex, core, buildings, corrupted, relayout };
+      return { index: finalIndex, core, buildings, economy, corrupted, relayout };
     },
 
     /** Lazily loaded — the current month at boot, others on demand (기록 navigation). */
@@ -610,6 +691,7 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
     saveCore,
     saveEntriesForMonth,
     saveBuildingsForMonth,
+    saveEconomy,
 
     /**
      * Forces any debounced writes to the raw port immediately — call before

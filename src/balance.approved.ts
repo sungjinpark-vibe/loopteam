@@ -51,4 +51,23 @@ export const BALANCE = {
     [200_000, 3],
     [Infinity, 5],
   ] as readonly (readonly [number, number])[] | null,
+
+  // --- ADDENDUM-05 (F-ECON earn loop). PM-DECISIONS §F-ECON, 2026-08-10. ---
+  // Sane starting values, NOT director-confirmed — tunable dials, same
+  // discipline as `balance.placeholder.ts`'s own values before D-3 etc.
+  // Pacing target from the spec: a normal user (a few entries/day, an
+  // occasional 무지출 day) affords a first cosmetic within about a week, and
+  // the catalogue (priced by W5, not fixed here) doesn't exhaust in under
+  // about two months. At these dials a ~3 build/day + ~2 no-spend/week user
+  // earns roughly 70-90 seeds/week, ~500-600/month.
+  seedAwards: {
+    build: 3, // per entry-sourced build, including a queue drain (§F-ECON table row 1)
+    nospend: 8, // larger than a build — the behaviour the app most wants to reward
+    tier: 25, // reuses the existing streak-tier threshold crossing, no new counter
+    // Indexed by `MonthSummary.outcomeBucket` (settlementActions.ts's own
+    // convention: 0 = no data, 1 = best pace .. 3 = worst pace). Scales DOWN
+    // as the outcome worsens — a below-budget month is rewarded more than an
+    // over-budget one, but every REAL month (bucket > 0) still earns something.
+    settlementByOutcomeBucket: [0, 20, 12, 6],
+  },
 } as const;

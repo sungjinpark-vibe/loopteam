@@ -155,4 +155,12 @@ export function savingsOf(town: Pick<TownState, "savingsByCategoryKrw">, id: Sav
 export interface BudgetSetting {
   monthlyBudgetKrw: number | null;
   updatedAt: number;
+  // ADDENDUM-05 (F-BGM) — OPTIONAL, no migration, same discipline
+  // `savingsByCategoryKrw`/`moveHintSeen` already set: an app-level setting
+  // (not per-town), so it rides here rather than on `TownState`. `BudgetSetting`
+  // is the one settings-shaped struct `CoreState` already carries straight
+  // through `saveCore`/export/import, so piggybacking here means bgmMuted
+  // needs no new storage key of its own. Absent === unmuted (F-BGM's
+  // "default: ON").
+  bgmMuted?: boolean;
 }

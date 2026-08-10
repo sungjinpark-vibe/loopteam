@@ -48,6 +48,8 @@ import {
   slotsRemainingToday,
 } from "./selectors";
 import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
+import { applyAward, awardFor, type AwardEvent } from "./economy/awards";
+import { defaultEconomyState, NPC_MAX_VISIBLE, seeds as seedCount, type EconomyState } from "./economy/types";
 import type { Building, BudgetSetting, CategoryId, LedgerEntry, MonthSummary, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
@@ -65,6 +67,11 @@ interface LoadedState {
   historyEntries: Record<string, LedgerEntry[]>;
   budget: BudgetSetting;
   onboarded: boolean;
+  // ADDENDUM-05 (F-ECON / F-BGM) — economy is its own storage key (absent
+  // for a pre-economy town, defaulted here at read); `bgmMuted` rides on
+  // `budget` (`BudgetSetting`'s own doc comment explains why) rather than
+  // getting a field of its own here.
+  economy: EconomyState;
 }
 
 /** `ym`'s entries from whichever of `entries`/`historyEntries` holds them — `undefined` if that month hasn't been loaded yet (F8's "only the viewed chunk loads"). */
@@ -101,6 +108,9 @@ export interface AddEntryResult {
 // reading it off `useTownStore`.
 export type { EntryEditPatch };
 
+/** `purchaseSku`'s outcome (ADDENDUM-05 §F-ECON shop). */
+export type PurchaseSkuResult = "ok" | "insufficient" | "alreadyOwned";
+
 function freshCore(now: number, today: string): LoadedState {
   return {
     // F16 (§ unsettledPeriods' own doc comment) — a genuinely fresh town has
@@ -111,8 +121,9 @@ function freshCore(now: number, today: string): LoadedState {
     buildings: [],
     entries: [],
     historyEntries: {},
-    budget: { monthlyBudgetKrw: null, updatedAt: now },
+    budget: { monthlyBudgetKrw: null, updatedAt: now, bgmMuted: false }, // F-BGM — "default: ON" (unmuted)
     onboarded: false, // F11 — a genuinely fresh install (boot.core === null) sees the onboarding overlay once
+    economy: defaultEconomyState(),
   };
 }
 
@@ -214,6 +225,8 @@ async function settleAndDrainAndPersist(
   drainedCount: number;
   /** F16 — one per settled month this boot, oldest first; empty when nothing was unsettled. */
   monuments: Building[];
+  /** ADDENDUM-05 (F-ECON) — the buildings actually drained this boot (entry-sourced, so each earns a build award); distinct from `monuments`, which are F16-sourced and earn a settlement award instead. */
+  drained: Building[];
 }> {
   const settled = settleMonths({
     town,
@@ -250,7 +263,7 @@ async function settleAndDrainAndPersist(
     BALANCE.expAmountTiers, // ADDENDUM-04 §6/§7
   );
   if (result.drained.length === 0 && settled.monuments.length === 0) {
-    return { town: result.town, buildings: [...buildings], celebrateTier: null, drainedCount: 0, monuments: [] };
+    return { town: result.town, buildings: [...buildings], celebrateTier: null, drainedCount: 0, monuments: [], drained: [] };
   }
 
   const patchesByMonth = new Map<string, Map<string, string>>(); // ym -> entryId -> buildingId
@@ -291,6 +304,7 @@ async function settleAndDrainAndPersist(
     celebrateTier: result.celebrateTier,
     drainedCount: result.drained.length,
     monuments: settled.monuments,
+    drained: drainedBuildings,
   };
 }
 
@@ -478,6 +492,28 @@ export function useTownStore() {
       entriesYmRef.current = today.slice(0, 7);
       const { entries: currentMonthEntries } = storageClient.loadEntriesForMonth(today.slice(0, 7));
 
+      // ADDENDUM-05 (F-ECON) — grant seeds for whatever this boot's
+      // settlement/drain just produced (PM-DECISIONS §F-ECON table rows 1/4:
+      // "any entry-sourced build, including a queue drain" and "monthly
+      // settlement completes"), plus a tier bonus if the drain crossed one.
+      // `applyAward` is idempotent and a no-op returns the SAME reference, so
+      // `economy` only actually changes (and only then gets persisted) when
+      // this boot minted something new — a reload of an already-settled town
+      // never re-grants.
+      const bootEconomySeed = boot.economy ?? defaultEconomyState();
+      let economy = bootEconomySeed;
+      for (const b of settleDrain.drained) economy = applyAward(economy, awardFor({ kind: "build", buildingId: b.id }));
+      for (const m of settleDrain.monuments) {
+        if (m.monumentSummary) {
+          economy = applyAward(
+            economy,
+            awardFor({ kind: "settlement", period: m.monumentSummary.period, outcomeBucket: m.monumentSummary.outcomeBucket }),
+          );
+        }
+      }
+      if (settleDrain.celebrateTier !== null) economy = applyAward(economy, awardFor({ kind: "tier", tier: settleDrain.celebrateTier }));
+      if (economy !== bootEconomySeed) storageClient.saveEconomy(economy);
+
       setState({
         town: settleDrain.town,
         buildings: settleDrain.buildings,
@@ -485,6 +521,7 @@ export function useTownStore() {
         historyEntries: {},
         budget: core.budget,
         onboarded: core.onboarded,
+        economy,
       });
       const bootNotices: Notice[] = [];
       if (boot.corrupted.length > 0) bootNotices.push({ kind: "corruption", message: summarizeCorruption(boot.corrupted.length) });
@@ -562,6 +599,28 @@ export function useTownStore() {
       window.removeEventListener("pagehide", flushNow);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
+  }, []);
+
+  /**
+   * ADDENDUM-05 (F-ECON) — the one write path every seed grant goes through
+   * (`addEntry`/`claimNoSpend` below call this, nothing else mutates
+   * `economy.seeds` upward). Idempotent via `applyAward` (economy/awards.ts):
+   * a no-op award returns the exact same object reference, which is how this
+   * tells "nothing to persist" apart from "granted" without a second check.
+   * Returns whether it actually paid — callers don't currently use the
+   * return value, but `purchaseSku`'s sibling actions below do use their own
+   * result unions, so this matches that shape rather than returning void.
+   */
+  const grantSeeds = useCallback((event: AwardEvent): boolean => {
+    const prev = stateRef.current;
+    if (prev === null) return false;
+    const economy = applyAward(prev.economy, awardFor(event));
+    if (economy === prev.economy) return false;
+    storageRef.current.saveEconomy(economy);
+    const next: LoadedState = { ...prev, economy };
+    stateRef.current = next;
+    setState(next);
+    return true;
   }, []);
 
   // NOTE (T003, still true): assumes addEntry/claimNoSpend are called once
@@ -645,8 +704,14 @@ export function useTownStore() {
     const next: LoadedState = { ...prev, town: result.town, buildings, entries };
     stateRef.current = next;
     setState(next);
-    if (result.building) setJustBuiltId(result.building.id);
-    if (result.celebrateTier !== null) pushNotices({ kind: "tier", tier: result.celebrateTier });
+    if (result.building) {
+      setJustBuiltId(result.building.id);
+      grantSeeds({ kind: "build", buildingId: result.building.id }); // ADDENDUM-05 — entry-sourced build, § F-ECON table row 1
+    }
+    if (result.celebrateTier !== null) {
+      pushNotices({ kind: "tier", tier: result.celebrateTier });
+      grantSeeds({ kind: "tier", tier: result.celebrateTier }); // ADDENDUM-05 — § F-ECON table row 3
+    }
     // ADDENDUM-01 §2.6a — detect a savings level-up by comparing the town
     // BEFORE/AFTER this save (both already in hand: `prev.town`/`result.town`).
     // By construction `grownStructures` returns at most one id for a normal
@@ -666,7 +731,7 @@ export function useTownStore() {
       queueOverflow: result.queueOverflow,
       queueLength: result.town.queue.length,
     };
-  }, [pushNotices, maybeQueueMoveHint]);
+  }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
 
   /** F15: claim [오늘 무지출!]. Returns false when the domain function rejected the claim (already claimed, an expense exists today, or no slots). */
   const claimNoSpend = useCallback((): boolean => {
@@ -705,10 +770,14 @@ export function useTownStore() {
     stateRef.current = next;
     setState(next);
     setJustBuiltId(result.building.id);
-    if (result.celebrateTier !== null) pushNotices({ kind: "tier", tier: result.celebrateTier });
+    grantSeeds({ kind: "nospend", date: today }); // ADDENDUM-05 — § F-ECON table row 2
+    if (result.celebrateTier !== null) {
+      pushNotices({ kind: "tier", tier: result.celebrateTier });
+      grantSeeds({ kind: "tier", tier: result.celebrateTier }); // ADDENDUM-05 — § F-ECON table row 3
+    }
     maybeQueueMoveHint(result.town, countBuildings(next.buildings));
     return true;
-  }, [pushNotices, maybeQueueMoveHint]);
+  }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
 
   /**
    * ADDENDUM-02 §4.2/§4.5 — the ONLY store action that mutates a building's
@@ -956,6 +1025,62 @@ export function useTownStore() {
     setState(next);
   }, []);
 
+  // ── ADDENDUM-05 (F-BGM / F-ECON) ──
+
+  /** F-BGM mute toggle — lives on `budget` (see `BudgetSetting.bgmMuted`'s own doc comment), same write shape as `setBudget`/`setTownName` above. */
+  const setBgmMuted = useCallback((muted: boolean) => {
+    const prev = stateRef.current;
+    if (prev === null) return;
+    const budget: BudgetSetting = { ...prev.budget, bgmMuted: muted };
+    storageRef.current.saveCore({ town: prev.town, budget, onboarded: prev.onboarded });
+    const next: LoadedState = { ...prev, budget };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  /** S8 shop — buys `sku` for `priceSeeds`. Never goes negative (checked before deducting); ownership is permanent (ADDENDUM-03 DE-9 rule 4 — deleting a building never revokes a purchase, since ownership lives here, not on the building). */
+  const purchaseSku = useCallback((sku: string, priceSeeds: number): PurchaseSkuResult => {
+    const prev = stateRef.current;
+    if (prev === null) return "insufficient";
+    if (prev.economy.ownedSkus.includes(sku)) return "alreadyOwned";
+    if (prev.economy.seeds < priceSeeds) return "insufficient";
+    const economy: EconomyState = {
+      ...prev.economy,
+      seeds: seedCount(prev.economy.seeds - priceSeeds),
+      ownedSkus: [...prev.economy.ownedSkus, sku],
+    };
+    storageRef.current.saveEconomy(economy);
+    const next: LoadedState = { ...prev, economy };
+    stateRef.current = next;
+    setState(next);
+    return "ok";
+  }, []);
+
+  /** S8 — selects (or clears, `sku: null`) the town-wide 마을 꾸미기 skin. A no-op when `sku` isn't owned (defensive; the shop UI should never offer an unowned sku here). */
+  const applyTownSku = useCallback((sku: string | null) => {
+    const prev = stateRef.current;
+    if (prev === null || (sku !== null && !prev.economy.ownedSkus.includes(sku))) return;
+    const economy: EconomyState = { ...prev.economy, appliedTownSku: sku };
+    storageRef.current.saveEconomy(economy);
+    const next: LoadedState = { ...prev, economy };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  /** S8 — selects (or clears) a per-building 건물 꾸미기 cosmetic. Same ownership guard as `applyTownSku`. */
+  const applyBuildingSku = useCallback((buildingId: string, sku: string | null) => {
+    const prev = stateRef.current;
+    if (prev === null || (sku !== null && !prev.economy.ownedSkus.includes(sku))) return;
+    const appliedByBuildingId = { ...prev.economy.appliedByBuildingId };
+    if (sku === null) delete appliedByBuildingId[buildingId];
+    else appliedByBuildingId[buildingId] = sku;
+    const economy: EconomyState = { ...prev.economy, appliedByBuildingId };
+    storageRef.current.saveEconomy(economy);
+    const next: LoadedState = { ...prev, economy };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
   /**
    * 데이터 초기화 (S6) — wipes every stored chunk (`storage.ts`'s `clearAll`,
    * written for exactly this call site — see its own doc comment) and resets
@@ -1023,6 +1148,7 @@ export function useTownStore() {
       historyEntries: {},
       budget: boot.core.budget,
       onboarded: boot.core.onboarded,
+      economy: boot.economy ?? defaultEconomyState(),
     };
     stateRef.current = next;
     setState(next);
@@ -1077,6 +1203,17 @@ export function useTownStore() {
     resetAll,
     exportData,
     importData,
+    // ── ADDENDUM-05 (F-BGM / F-ECON) ──
+    bgmMuted: state?.budget.bgmMuted ?? false,
+    setBgmMuted,
+    economy: state?.economy ?? defaultEconomyState(),
+    grantSeeds,
+    purchaseSku,
+    applyTownSku,
+    applyBuildingSku,
+    // F-NPC count rule: 1 base + 1 per building + purchased slots, capped at
+    // NPC_MAX_VISIBLE (a render-perf ceiling — see that const's own comment).
+    npcCount: state ? Math.min(1 + countBuildings(state.buildings) + state.economy.purchasedNpcSlots, NPC_MAX_VISIBLE) : 1,
   };
 }
 

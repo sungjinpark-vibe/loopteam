@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createChunkedStorage, serializeExport } from "./storage";
 import { LAYOUT_VERSION } from "./townLayout";
+import { defaultEconomyState, seeds, type EconomyState } from "./economy/types";
 import type { StoragePort } from "./platform/storage";
 import type { Building, BudgetSetting, LedgerEntry, TownState } from "./types";
 
@@ -443,5 +444,134 @@ describe("F12 export/import", () => {
 
     expect(result.ok).toBe(false);
     expect(port.dump()).toEqual(before);
+  });
+});
+
+describe("ADDENDUM-05 (F-ECON) economy persistence", () => {
+  it("absent by default — a pre-economy town's boot has economy: null", async () => {
+    const client = createChunkedStorage(makeFakePort());
+    seedTwoMonths(client);
+    const boot = await client.loadBoot();
+    expect(boot.economy).toBeNull();
+  });
+
+  it("saveEconomy round-trips through loadBoot", async () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    const economy: EconomyState = { ...defaultEconomyState(), seeds: seeds(12), ownedSkus: ["deco.town.sakura.v1"] };
+    client.saveEconomy(economy);
+    client.flush();
+
+    const boot = await client.loadBoot();
+    expect(boot.economy).toEqual(economy);
+  });
+
+  it("clearAll wipes the economy key too", async () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    client.saveEconomy({ ...defaultEconomyState(), seeds: seeds(5) });
+    client.flush();
+    expect(port.dump()["ait.v1.economy"]).toBeTruthy();
+
+    client.clearAll();
+    client.flush();
+    expect(port.dump()["ait.v1.economy"]).toBeUndefined();
+  });
+
+  it("a corrupt economy chunk is quarantined and boots to null, not a crash", async () => {
+    const port = makeFakePort();
+    port.set("ait.v1.economy", "{not valid json");
+    const client = createChunkedStorage(port);
+
+    const boot = await client.loadBoot();
+    expect(boot.economy).toBeNull();
+    expect(boot.corrupted.some((c) => c.key === "ait.v1.economy")).toBe(true);
+  });
+
+  it("export omits economy for a pre-economy town, includes it once the shop has been touched", async () => {
+    const port = makeFakePort();
+    const client = createChunkedStorage(port);
+    seedTwoMonths(client);
+
+    const exportedBefore = await client.exportAll();
+    expect(exportedBefore.economy).toBeUndefined();
+
+    client.saveEconomy({ ...defaultEconomyState(), seeds: seeds(7) });
+    client.flush();
+    const exportedAfter = await client.exportAll();
+    expect(exportedAfter.economy).toEqual({ ...defaultEconomyState(), seeds: seeds(7) });
+  });
+
+  it("import MERGES economy instead of overwriting — seeds and owned SKUs only ever move up, never lose a purchase", async () => {
+    const sourcePort = makeFakePort();
+    const source = createChunkedStorage(sourcePort);
+    seedTwoMonths(source);
+    source.saveEconomy({
+      seeds: seeds(50),
+      ownedSkus: ["deco.town.sakura.v1"],
+      appliedTownSku: "deco.town.sakura.v1",
+      appliedByBuildingId: {},
+      purchasedNpcSlots: 1,
+      grantedEventKeys: ["seed:build:b0"],
+    });
+    source.flush();
+    const json = await serializeExport(await source.exportAll());
+
+    // The TARGET already has its own, richer economy — a higher seed
+    // balance and a different owned SKU. Importing the source file above
+    // must never take either of those away (PM-DECISIONS §F-ECON: "an
+    // import is not a way to lose a purchase").
+    const targetPort = makeFakePort();
+    const target = createChunkedStorage(targetPort);
+    target.saveEconomy({
+      seeds: seeds(80),
+      ownedSkus: ["deco.building.flowerbed.v1"],
+      appliedTownSku: null,
+      appliedByBuildingId: { b9: "deco.building.flowerbed.v1" },
+      purchasedNpcSlots: 3,
+      grantedEventKeys: ["seed:nospend:2026-08-01"],
+    });
+    target.flush();
+
+    expect(target.importAll(json)).toEqual({ ok: true });
+    const boot = await target.loadBoot();
+
+    expect(boot.economy?.seeds).toBe(80); // max(50, 80) — the import never decreases the balance
+    expect(boot.economy?.ownedSkus.sort()).toEqual(["deco.building.flowerbed.v1", "deco.town.sakura.v1"].sort()); // union, nothing dropped
+    expect(boot.economy?.purchasedNpcSlots).toBe(3); // max(1, 3)
+    expect(boot.economy?.appliedByBuildingId).toEqual({ b9: "deco.building.flowerbed.v1" }); // preserved
+    expect(boot.economy?.grantedEventKeys.sort()).toEqual(["seed:build:b0", "seed:nospend:2026-08-01"].sort());
+  });
+
+  it("import of a pre-economy export into a town that already has an economy keeps the existing economy untouched", async () => {
+    const sourcePort = makeFakePort();
+    const source = createChunkedStorage(sourcePort);
+    seedTwoMonths(source); // no saveEconomy call — this source town never touched the shop
+    const json = await serializeExport(await source.exportAll());
+
+    const targetPort = makeFakePort();
+    const target = createChunkedStorage(targetPort);
+    const existing: EconomyState = { ...defaultEconomyState(), seeds: seeds(30), ownedSkus: ["deco.town.sakura.v1"], appliedTownSku: "deco.town.sakura.v1" };
+    target.saveEconomy(existing);
+    target.flush();
+
+    expect(target.importAll(json)).toEqual({ ok: true });
+    const boot = await target.loadBoot();
+    expect(boot.economy).toEqual(existing);
+  });
+
+  it("import of two pre-economy towns stays pre-economy — no default economy minted from nothing", async () => {
+    const sourcePort = makeFakePort();
+    const source = createChunkedStorage(sourcePort);
+    seedTwoMonths(source);
+    const json = await serializeExport(await source.exportAll());
+
+    const targetPort = makeFakePort();
+    const target = createChunkedStorage(targetPort);
+    seedTwoMonths(target);
+
+    expect(target.importAll(json)).toEqual({ ok: true });
+    const boot = await target.loadBoot();
+    expect(boot.economy).toBeNull();
   });
 });

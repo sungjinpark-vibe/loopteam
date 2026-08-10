@@ -59,6 +59,46 @@ export default tseslint.config(
     },
   },
   {
+    // ADDENDUM-05 rule R-7: `src/economy/**` may never reach for the KRW
+    // formatter (`../format`, `src/format.ts`'s `formatKrw`) — 씨앗 is a game
+    // count, not money, and `economy/format.ts`'s `formatSeeds` is the only
+    // display path. This is the IMPORT half of R-7 only; the other half (no
+    // literal KRW character in a non-test economy file) can't be expressed
+    // as an import restriction and is instead enforced by
+    // `economy/ruleR7.test.ts`'s source-scan test.
+    //
+    // A self-contained block (repeats the two bans above) rather than adding
+    // a pattern to that earlier `no-restricted-imports` block: per that
+    // block's own comment, two separate blocks for the same rule key on
+    // overlapping `files` don't merge in ESLint's flat config — the later
+    // block's rule value replaces the earlier one's for any file both match.
+    // `src/economy/**` matches both, so this one restates the @apps-in-toss/
+    // devtools bans rather than silently losing them here.
+    files: ["src/economy/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@apps-in-toss/*", "@apps-in-toss/**"],
+              message: "Import @apps-in-toss/* only inside src/platform/** (MVP-SPEC §10.2 port layer).",
+            },
+            {
+              group: ["**/devtools/*", "**/devtools/**"],
+              message:
+                "Import src/devtools/** only via a dynamic import() gated by import.meta.env.DEV (MVP-SPEC §11).",
+            },
+            {
+              group: ["../format"],
+              message: "src/economy/** may not import the KRW formatter (rule R-7) — use economy/format.ts's formatSeeds instead.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // MVP-SPEC §10.2: `new Date()` / `Date.now()` are banned outside the clock
     // port — that's what makes the whole app time-travelable (§11 TimeTravel).
     // clock.test.ts is exempt too: asserting the port's own behavior legitimately
