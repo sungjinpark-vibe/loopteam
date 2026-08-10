@@ -49,7 +49,7 @@ import {
 } from "./selectors";
 import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
 import { applyAward, awardFor, type AwardEvent } from "./economy/awards";
-import { defaultEconomyState, NPC_MAX_VISIBLE, seeds as seedCount, type EconomyState } from "./economy/types";
+import { defaultEconomyState, NPC_MAX_VISIBLE, NPC_SLOT_SKU, seeds as seedCount, type EconomyState } from "./economy/types";
 import type { Building, BudgetSetting, CategoryId, LedgerEntry, MonthSummary, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
@@ -108,8 +108,8 @@ export interface AddEntryResult {
 // reading it off `useTownStore`.
 export type { EntryEditPatch };
 
-/** `purchaseSku`'s outcome (ADDENDUM-05 §F-ECON shop). */
-export type PurchaseSkuResult = "ok" | "insufficient" | "alreadyOwned";
+/** `purchaseSku`'s outcome (ADDENDUM-05 §F-ECON shop). `"maxed"` — NPC_SLOT_SKU only: buildings.length + purchasedNpcSlots already saturates NPC_MAX_VISIBLE, so the slot would buy nothing (checked BEFORE any seed deduction). */
+export type PurchaseSkuResult = "ok" | "insufficient" | "alreadyOwned" | "maxed";
 
 function freshCore(now: number, today: string): LoadedState {
   return {
@@ -1038,10 +1038,39 @@ export function useTownStore() {
     setState(next);
   }, []);
 
-  /** S8 shop — buys `sku` for `priceSeeds`. Never goes negative (checked before deducting); ownership is permanent (ADDENDUM-03 DE-9 rule 4 — deleting a building never revokes a purchase, since ownership lives here, not on the building). */
+  /**
+   * S8 shop — buys `sku` for `priceSeeds`. Never goes negative (checked
+   * before deducting). Two shapes, per the frozen SKU convention
+   * (economy/types.ts's `NPC_SLOT_SKU` doc comment):
+   *  - `NPC_SLOT_SKU` — repeatable, bumps `purchasedNpcSlots`, never touches
+   *    `ownedSkus` (so it can never return `"alreadyOwned"`). Refused with
+   *    `"maxed"`, seeds untouched, once another slot would buy nothing
+   *    visible (`npcCount` already at `NPC_MAX_VISIBLE`).
+   *  - everything else (`deco.*`, `npc.species.*`) — one-time, appends to
+   *    `ownedSkus`; ownership is permanent (ADDENDUM-03 DE-9 rule 4 —
+   *    deleting a building never revokes a purchase, since ownership lives
+   *    here, not on the building).
+   */
   const purchaseSku = useCallback((sku: string, priceSeeds: number): PurchaseSkuResult => {
     const prev = stateRef.current;
     if (prev === null) return "insufficient";
+
+    if (sku === NPC_SLOT_SKU) {
+      const npcCountNow = 1 + countBuildings(prev.buildings) + prev.economy.purchasedNpcSlots;
+      if (npcCountNow >= NPC_MAX_VISIBLE) return "maxed";
+      if (prev.economy.seeds < priceSeeds) return "insufficient";
+      const economy: EconomyState = {
+        ...prev.economy,
+        seeds: seedCount(prev.economy.seeds - priceSeeds),
+        purchasedNpcSlots: prev.economy.purchasedNpcSlots + 1,
+      };
+      storageRef.current.saveEconomy(economy);
+      const next: LoadedState = { ...prev, economy };
+      stateRef.current = next;
+      setState(next);
+      return "ok";
+    }
+
     if (prev.economy.ownedSkus.includes(sku)) return "alreadyOwned";
     if (prev.economy.seeds < priceSeeds) return "insufficient";
     const economy: EconomyState = {

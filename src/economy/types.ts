@@ -30,6 +30,13 @@ export function seeds(n: number): SeedCount {
 // concurrent sprites.
 export const NPC_MAX_VISIBLE = 12;
 
+// The one repeatable shop SKU (S8 §3 NPC section) — every OTHER sku
+// (deco.*, npc.species.*) is a one-time purchase tracked in `ownedSkus`.
+// Named here, not a string literal at any call site, so the store
+// (`useTownStore.ts`'s `purchaseSku`) and W5's shop catalogue can never
+// drift apart on the id.
+export const NPC_SLOT_SKU = "npc.slot.v1";
+
 // Bounds `EconomyState.grantedEventKeys` so a long-lived town's idempotency
 // ledger cannot grow forever — a ring buffer (oldest key drops first once
 // full), not a full history. A key that ages out of the ring becomes

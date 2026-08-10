@@ -9,7 +9,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BALANCE } from "./balance.approved";
-import { NPC_MAX_VISIBLE } from "./economy/types";
+import { NPC_MAX_VISIBLE, NPC_SLOT_SKU } from "./economy/types";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
@@ -189,6 +189,70 @@ describe("shop actions", () => {
       latest!.applyBuildingSku("b2", "deco.building.unowned.v1"); // never purchased — no-op
     });
     expect(latest?.economy.appliedByBuildingId).toEqual({});
+  });
+});
+
+describe("NPC_SLOT_SKU — repeatable purchase", () => {
+  async function withSeeds(n: number): Promise<void> {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.grantSeeds({ kind: "tier", tier: n });
+    });
+  }
+
+  it("increments purchasedNpcSlots and never touches ownedSkus", async () => {
+    await withSeeds(1);
+    let result;
+    act(() => {
+      result = latest!.purchaseSku(NPC_SLOT_SKU, BALANCE.seedAwards.tier);
+    });
+    expect(result).toBe("ok");
+    expect(latest?.economy.purchasedNpcSlots).toBe(1);
+    expect(latest?.economy.ownedSkus).toEqual([]);
+  });
+
+  it("stacks across repeated purchases and never returns alreadyOwned", async () => {
+    await withSeeds(1);
+    act(() => {
+      latest!.purchaseSku(NPC_SLOT_SKU, 0);
+      latest!.purchaseSku(NPC_SLOT_SKU, 0);
+    });
+    let third;
+    act(() => {
+      third = latest!.purchaseSku(NPC_SLOT_SKU, 0);
+    });
+    expect(third).toBe("ok"); // not "alreadyOwned" — repeatable
+    expect(latest?.economy.purchasedNpcSlots).toBe(3);
+  });
+
+  it("is refused with 'maxed' at the NPC_MAX_VISIBLE ceiling, with no seed deduction", async () => {
+    await withSeeds(1);
+    act(() => {
+      // npcCount = 1 (base) + 0 buildings + purchasedNpcSlots — buy up to one below the cap.
+      for (let i = 0; i < NPC_MAX_VISIBLE - 1; i++) latest!.purchaseSku(NPC_SLOT_SKU, 0);
+    });
+    expect(latest?.npcCount).toBe(NPC_MAX_VISIBLE);
+    const seedsAtCap = latest!.economy.seeds;
+
+    let result;
+    act(() => {
+      result = latest!.purchaseSku(NPC_SLOT_SKU, BALANCE.seedAwards.tier);
+    });
+    expect(result).toBe("maxed");
+    expect(latest?.economy.seeds).toBe(seedsAtCap); // refused BEFORE any deduction
+    expect(latest?.economy.purchasedNpcSlots).toBe(NPC_MAX_VISIBLE - 1);
+  });
+
+  it("a one-time SKU still returns alreadyOwned on a repeat purchase (unchanged by the slot-SKU branch)", async () => {
+    await withSeeds(1);
+    act(() => {
+      latest!.purchaseSku("deco.town.sakura.v1", BALANCE.seedAwards.tier);
+    });
+    let result;
+    act(() => {
+      result = latest!.purchaseSku("deco.town.sakura.v1", BALANCE.seedAwards.tier);
+    });
+    expect(result).toBe("alreadyOwned");
   });
 });
 

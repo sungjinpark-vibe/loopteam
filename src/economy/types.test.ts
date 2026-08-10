@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRANTED_EVENT_KEYS_CAP, NPC_MAX_VISIBLE, defaultEconomyState, seeds } from "./types";
+import { GRANTED_EVENT_KEYS_CAP, NPC_MAX_VISIBLE, NPC_SLOT_SKU, defaultEconomyState, seeds } from "./types";
 
 describe("seeds()", () => {
   it("brands a non-negative integer", () => {
@@ -36,5 +36,9 @@ describe("constants", () => {
 
   it("GRANTED_EVENT_KEYS_CAP bounds the idempotency ledger", () => {
     expect(GRANTED_EVENT_KEYS_CAP).toBeGreaterThan(0);
+  });
+
+  it("NPC_SLOT_SKU is the one frozen, repeatable slot sku id", () => {
+    expect(NPC_SLOT_SKU).toBe("npc.slot.v1");
   });
 });
