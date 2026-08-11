@@ -28,7 +28,7 @@ export interface Cell {
 }
 
 /** Rule R-1 (ADDENDUM-01 §3.6): bumped whenever any constant below changes — every building relocates on screen. */
-export const LAYOUT_VERSION = 2; // ADDENDUM-05 §2 (F-EXP): 1 -> 2, TOWN_COLUMNS 6 -> 8 relocates every building
+export const LAYOUT_VERSION = 3; // ADDENDUM-07 (silhouette): 2 -> 3, block-edge masking relocates every building
 
 // ── §3.3 — grid shape ──
 
@@ -184,9 +184,20 @@ export function isCrossStreetRow(row: number): boolean {
   return (row - TOWN_HEAD_ROWS) % (BLOCK_ROWS + 1) === 0; // r2, r5, r8, …
 }
 
-/** True for any road cell — used by the frontage test and by decoration. */
+/**
+ * True for any road cell — used by the frontage test, by decoration, and by
+ * NPC walkability (`NpcLayer`). A cross-street row is only road WITHIN the
+ * span `crossStreetColumnRange` (below) actually paints — ADDENDUM-07's
+ * block-edge masking means that span is not always the full grid, and this
+ * is the ONE function both TownGrid (the street's own `gridColumn`) and NPC
+ * movement read, so the two can never disagree about where the ground is.
+ */
 export function isRoadCell(row: number, col: number): boolean {
-  return row >= 0 && (col === ROAD_COLUMN || isCrossStreetRow(row));
+  if (row < 0) return false;
+  if (col === ROAD_COLUMN) return true;
+  if (!isCrossStreetRow(row)) return false;
+  const { start, end } = crossStreetColumnRange(row);
+  return col >= start && col <= end;
 }
 
 /** True for a grid column immediately beside the main street — the street-front lots. */
@@ -436,4 +447,116 @@ export function isPrimeLot(row: number, col: number): boolean {
 export function isPrimePlotIndex(i: number): boolean {
   const { row, col } = cellFromIndex(i);
   return isPrimeLot(row, col);
+}
+
+// ── ADDENDUM-07 — block-edge masking: the outer silhouette. The terrace edge
+// bleed above is a soft finish; THIS is the mechanism. Each block masks
+// 0..MAX_EDGE_INSET whole plot columns off ITS OWN outer edges (never off the
+// street-front columns), so blocks along the main street genuinely differ in
+// width — that is what breaks the rectangle. Masked cells are void: no
+// terrain, no tile, no placement (TownGrid.tsx / placement.ts).
+
+/**
+ * Columns a block can lose off ONE outer edge, capped well short of the
+ * street-front columns (plot cols 3/4, i.e. grid cols ROAD_COLUMN±1) so a
+ * 명당 can never be masked: with TOWN_COLUMNS = 8 and MAX_EDGE_INSET = 2, the
+ * worst case masks plot cols {0,1} on the left and {6,7} on the right,
+ * leaving cols 2..5 — including 3/4 — always live. Asserted directly in
+ * townLayout.test.ts, not just implied by this comment.
+ */
+export const MAX_EDGE_INSET = 2;
+
+/**
+ * Columns masked off block `b`'s outer edge, `side` 0 = left / 1 = right.
+ * Reuses `decorVariant` (rule R-2): pure function of the block index alone,
+ * never stored, never `Math.random`. `kinds = MAX_EDGE_INSET + 1` gives 0, 1,
+ * or 2, so the cap above is structural, not just the hash's typical range.
+ */
+export function blockColumnInset(b: number, side: 0 | 1): number {
+  return decorVariant(b, side + 1, MAX_EDGE_INSET + 1);
+}
+
+/** True when plot column `plotCol` (0..TOWN_COLUMNS-1) is masked for block `b`. */
+export function isMaskedPlotCol(b: number, plotCol: number): boolean {
+  return plotCol < blockColumnInset(b, 0) || plotCol >= TOWN_COLUMNS - blockColumnInset(b, 1);
+}
+
+/**
+ * True for a grid (row, col) that falls inside a plot block's masked outer
+ * columns. False for every road/savings/head cell — those are never masked.
+ */
+export function isMaskedCell(row: number, col: number): boolean {
+  if (row <= TOWN_HEAD_ROWS || isCrossStreetRow(row)) return false;
+  const plotCol = SERPENTINE_COLUMNS.indexOf(col);
+  if (plotCol < 0) return false; // the road column itself
+  return isMaskedPlotCol(blockIndexOf(row), plotCol);
+}
+
+/** Same predicate in plot-index space — what `placement.ts` uses. */
+export function isMaskedPlotIndex(i: number): boolean {
+  const { row, col } = cellFromIndex(i);
+  return isMaskedCell(row, col);
+}
+
+/**
+ * Live (unmasked) grid-column span of block `b`, inclusive — the actual
+ * silhouette TownGrid paints for its terrace/tiles. `SERPENTINE_COLUMNS` is
+ * monotonic in plot-column order (asserted in townLayout.test.ts's "column
+ * permutations" describe block), so the first/last UNMASKED plot column map
+ * straight to the block's leftmost/rightmost live grid column.
+ */
+export function blockGridColumnStart(b: number): number {
+  return SERPENTINE_COLUMNS[blockColumnInset(b, 0)];
+}
+export function blockGridColumnEnd(b: number): number {
+  return SERPENTINE_COLUMNS[TOWN_COLUMNS - 1 - blockColumnInset(b, 1)];
+}
+
+/**
+ * Guaranteed floor of unmasked (buildable) lots ANY block contributes,
+ * independent of the specific `decorVariant` hash — MAX_EDGE_INSET caps each
+ * side at 2, so a block can lose at most 4 of its TOWN_COLUMNS columns,
+ * leaving >= 4 columns * BLOCK_ROWS rows. `placement.ts`'s G2 proof leans on
+ * this floor, not on today's hash's actual (higher) yield, so it stays true
+ * even if the hash changes.
+ */
+export const MIN_UNMASKED_LOTS_PER_BLOCK = (TOWN_COLUMNS - 2 * MAX_EDGE_INSET) * BLOCK_ROWS;
+
+/** Actual unmasked (buildable) lot count of block `b` — always >= MIN_UNMASKED_LOTS_PER_BLOCK. */
+export function unmaskedLotsInBlock(b: number): number {
+  return (TOWN_COLUMNS - blockColumnInset(b, 0) - blockColumnInset(b, 1)) * BLOCK_ROWS;
+}
+
+/** Raw plot slots ("lots") one whole block spans — named so placement.ts never re-derives TOWN_COLUMNS * BLOCK_ROWS by hand. */
+export const LOTS_PER_BLOCK = TOWN_COLUMNS * BLOCK_ROWS;
+
+/** Cumulative unmasked (buildable) lot count across the first `blocks` blocks (0-indexed) — the actual capacity a `blocks`-block-deep pool provides. Pure geometry; `placement.ts`'s growth policy decides WHEN to add another block. */
+export function unmaskedCapacity(blocks: number): number {
+  let total = 0;
+  for (let b = 0; b < blocks; b++) total += unmaskedLotsInBlock(b);
+  return total;
+}
+
+/**
+ * Inclusive grid-column span [start, end] a cross-street row covers — the
+ * UNION of the two plot blocks it sits between, never narrower (spec §3.2's
+ * frontage invariant: a lot may never lose its road frontage to masking).
+ * Defined for ANY row for which `isCrossStreetRow(row)` is true, exactly
+ * like `isCrossStreetRow`/`blockIndexOf` themselves — unbounded by any
+ * particular town size, so this is the ONE thing both TownGrid (the street's
+ * own `gridColumn`) and `isRoadCell` (NPC walkability) read; there is no
+ * "current town size" parameter for the two to disagree over.
+ *
+ * The entrance row (0) and the savings block's own closing row
+ * (TOWN_HEAD_ROWS) have no plot block adjacent yet, so both span the full grid.
+ */
+export function crossStreetColumnRange(row: number): { start: number; end: number } {
+  if (row <= TOWN_HEAD_ROWS) return { start: 0, end: GRID_COLUMNS - 1 };
+  const k = (row - TOWN_HEAD_ROWS) / (BLOCK_ROWS + 1);
+  const above = k - 1;
+  const below = k;
+  return {
+    start: Math.min(blockGridColumnStart(above), blockGridColumnStart(below)),
+    end: Math.max(blockGridColumnEnd(above), blockGridColumnEnd(below)),
+  };
 }

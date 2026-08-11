@@ -67,11 +67,14 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
   it("changes only the moved building's plotIndex, writes exactly one storage key, and survives a reload", async () => {
     await mountAndWaitForBoot();
     act(() => {
-      latest!.addEntry(COFFEE); // building at plot 0
-      latest!.addEntry({ ...COFFEE, categoryId: "food" }); // building at plot 1
+      // rng() = 0 -> pool[0] -> the lowest free UNMASKED lot each time.
+      // ADDENDUM-07 masks plots 0/1 of block 0, so the first two buildings
+      // land at 2 and 3, not 0 and 1.
+      latest!.addEntry(COFFEE); // building at plot 2
+      latest!.addEntry({ ...COFFEE, categoryId: "food" }); // building at plot 3
     });
     flush();
-    const moving = latest!.buildings.find((b) => b.plotIndex === 0)!;
+    const moving = latest!.buildings.find((b) => b.plotIndex === 2)!;
     const nextPlotIndexBefore = latest!.nextPlotIndex;
     const queueLengthBefore = latest!.queueLength;
     const slotsRemainingBefore = latest!.slotsRemaining;
@@ -85,7 +88,7 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
 
     expect(result?.ok).toBe(true);
     expect(latest!.buildings.find((b) => b.id === moving.id)?.plotIndex).toBe(5);
-    expect(latest!.buildings.find((b) => b.plotIndex === 1)).toBeDefined(); // the other building untouched
+    expect(latest!.buildings.find((b) => b.plotIndex === 3)).toBeDefined(); // the other building untouched
 
     // AC-M4 — no OTHER TownState field moved (checked through the store's own
     // public surface, which mirrors each TownState field 1:1).
@@ -119,7 +122,7 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
       latest!.addEntry({ ...COFFEE, categoryId: "food" });
     });
     flush(); // settle the two builds above before isolating the move's own write
-    const moving = latest!.buildings.find((b) => b.plotIndex === 0)!;
+    const moving = latest!.buildings.find((b) => b.plotIndex === 2)!; // ADDENDUM-07: plot 0 is masked, first build lands at 2
 
     const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     act(() => {
@@ -189,12 +192,12 @@ describe("useTownStore — AC-H1: the move-discoverability hint", () => {
 
     // A successful move dismisses it FOREVER (in-memory immediately, and
     // persisted the next time core is saved for any other reason). 3
-    // buildings occupy plots 0/1/2 (rng pinned to 0 -> sequential) inside a
-    // 12-lot pool — plot 3 is guaranteed free and in-bounds.
+    // buildings occupy plots 2/3/4 (rng pinned to 0 -> the lowest free
+    // UNMASKED lot each time, ADDENDUM-07) — plot 5 is guaranteed free and in-bounds.
     const moving = latest!.buildings[0];
     let moveResult: MoveResult | undefined;
     act(() => {
-      moveResult = latest!.moveBuilding(moving.id, 3);
+      moveResult = latest!.moveBuilding(moving.id, 5);
     });
     expect(moveResult?.ok).toBe(true);
 

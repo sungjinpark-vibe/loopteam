@@ -11,10 +11,11 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BALANCE } from "../balance.approved";
 import { LONG_PRESS_MS, LONG_PRESS_TOLERANCE_PX } from "../hooks/useTileGestures";
-import { openPlotCount } from "../placement";
+import { freePlots, openPlotCount } from "../placement";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import {
+  BLOCK_ROWS,
   GRID_COLUMNS,
   GRID_GAP_PX,
   GRID_PADDING_X_PX,
@@ -23,12 +24,19 @@ import {
   PIP_SIZE_PX,
   ROAD_COLUMN,
   ROAD_WIDTH_PX,
+  TOWN_HEAD_ROWS,
   blockCount,
+  blockFirstRow,
+  blockGridColumnEnd,
+  blockGridColumnStart,
+  crossStreetColumnRange,
   crossStreetRowCount,
   freeSavingsCells,
   gridRowCount,
   isCrossStreetRow,
+  isMaskedPlotIndex,
   isPrimeLot,
+  isRoadCell,
   renderedTileCount,
   roadSideOf,
   savingsCellFor,
@@ -37,6 +45,14 @@ import type { Building } from "../types";
 import { TownGrid, type TownGridProps } from "./TownGrid";
 
 let mounted: MountedComponent | null = null;
+
+/** Rendered `.town-tile` count for a plot pool of `pool` raw indices with `buildings` occupying some of them — masked-but-unoccupied cells render no tile at all (ADDENDUM-07), masked-but-occupied ones still do (DE-2/G1). */
+function expectedTileCount(pool: number, buildings: readonly Building[]): number {
+  const occupied = new Set(buildings.map((b) => b.plotIndex));
+  let count = 0;
+  for (let i = 0; i < pool; i++) if (occupied.has(i) || !isMaskedPlotIndex(i)) count++;
+  return count;
+}
 
 afterEach(() => {
   mounted?.unmount();
@@ -117,10 +133,15 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
     expect(swatch.style.backgroundColor).not.toBe("");
   });
 
-  it("exactly one .town-main-street node, and crossStreetRowCount(n) .town-cross-street nodes", () => {
+  it("exactly one .town-main-street node, and crossStreetRowCount(pool) .town-cross-street nodes", () => {
     const container = mountGrid(13);
     expect(container.querySelectorAll(".town-main-street").length).toBe(1);
-    expect(container.querySelectorAll(".town-cross-street").length).toBe(crossStreetRowCount(13));
+    // ADDENDUM-07: TownGrid renders off the masking-aware POOL
+    // (`openPlotCount`), not the raw `nextPlotIndex` — the two used to
+    // coincide almost everywhere (both round up to the same block boundary),
+    // but block-edge masking can now need an extra block that 13 alone
+    // wouldn't ask for.
+    expect(container.querySelectorAll(".town-cross-street").length).toBe(crossStreetRowCount(openPlotCount(13, [])));
   });
 
   it("no tile ever sits on the road column or a cross-street/savings row (read from the inline style)", () => {
@@ -227,15 +248,18 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
     // ADDENDUM-06 §2/§9 (WP-A): `+ blockCount(0)` is one `.town-terrace` per
     // plot block, emitted before `.town-main-street` — also a real direct
     // grid item (T-R1/AC-2), so the guard's shape is unchanged, just one more term.
+    // ADDENDUM-07: the tile term is `expectedTileCount(...)`, not
+    // `renderedTileCount(0)` — a masked, unoccupied cell renders no
+    // `.town-tile` node at all (block 0 alone voids 6 of its 16 raw lots).
     const expected =
-      renderedTileCount(0) +
+      expectedTileCount(openPlotCount(0, []), []) +
       1 +
       crossStreetRowCount(0) +
       SAVING_CATEGORY_IDS.length +
       freeSavingsCells().length +
       1 +
       blockCount(0);
-    expect(expected).toBe(30);
+    expect(expected).toBe(24);
     expect(grid.children.length).toBe(expected);
   });
 
@@ -252,6 +276,75 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
 
   it("GRID_COLUMNS matches the template's token count (sanity cross-check with townLayout.test.ts)", () => {
     expect(GRID_TEMPLATE_COLUMNS.split(" ").length).toBe(GRID_COLUMNS);
+  });
+});
+
+describe("TownGrid — ADDENDUM-07 block-edge masking: the outer silhouette is no longer a rectangle", () => {
+  it("a masked, unoccupied cell renders no .town-tile node at all", () => {
+    // block 0 masks plot indices {0, 1, 7, 8, 14, 15} (insetL=2, insetR=1) —
+    // pick a comfortably large pool (20) with no buildings so every one of
+    // them is unoccupied and therefore void.
+    const container = mountGrid(20, []);
+    for (const i of [0, 1, 7, 8, 14, 15]) {
+      expect(isMaskedPlotIndex(i)).toBe(true); // sanity — this IS the masked set
+      expect(container.querySelector(`[data-plot-index="${i}"]`)).toBeNull();
+    }
+    // its unmasked neighbor renders normally
+    expect(container.querySelector('[data-plot-index="2"]')).not.toBeNull();
+  });
+
+  it("DE-2/G1 exception: a building that occupies a masked index still renders, never invisible", () => {
+    const onMasked: Building = { ...cafeBuilding, plotIndex: 0 };
+    const container = mountGrid(20, [onMasked]);
+    const tile = container.querySelector('[data-plot-index="0"]') as HTMLElement;
+    expect(tile).not.toBeNull();
+    expect(tile.querySelector(".building-tile")).not.toBeNull();
+  });
+
+  it("terrace slabs span each block's OWN live column range, never the old full-width '1 / -1'", () => {
+    const container = mountGrid(20, []); // 2 blocks
+    const terraces = [...container.querySelectorAll<HTMLElement>(".town-terrace")];
+    expect(terraces.length).toBe(2);
+    for (let b = 0; b < terraces.length; b++) {
+      const expectedCol = `${blockGridColumnStart(b) + 1} / ${blockGridColumnEnd(b) + 2}`;
+      expect(terraces[b].style.gridColumn).toBe(expectedCol);
+      expect(terraces[b].style.gridColumn).not.toBe("1 / -1");
+    }
+    // The two blocks genuinely differ (this is what makes the silhouette ragged).
+    expect(terraces[0].style.gridColumn).not.toBe(terraces[1].style.gridColumn);
+  });
+
+  it("an inter-block cross street spans the union of its two neighbors (narrower than full width here), while the entrance/savings-closer stay full width", () => {
+    const container = mountGrid(20, []); // 2 blocks
+    const crossStreets = [...container.querySelectorAll<HTMLElement>(".town-cross-street")];
+    const byRow = new Map(crossStreets.map((el) => [Number(el.style.gridRow) - 1, el]));
+
+    const entranceRow = 0;
+    const closerRow = TOWN_HEAD_ROWS;
+    const interBlockRow = blockFirstRow(0) + BLOCK_ROWS;
+
+    expect(byRow.get(entranceRow)!.style.gridColumn).toBe(`1 / ${GRID_COLUMNS + 1}`);
+    expect(byRow.get(closerRow)!.style.gridColumn).toBe(`1 / ${GRID_COLUMNS + 1}`);
+
+    const { start, end } = crossStreetColumnRange(interBlockRow);
+    const interBlockEl = byRow.get(interBlockRow)!;
+    expect(interBlockEl.style.gridColumn).toBe(`${start + 1} / ${end + 2}`);
+    expect(interBlockEl.style.gridColumn).not.toBe(`1 / ${GRID_COLUMNS + 1}`); // genuinely narrower
+  });
+
+  it("isRoadCell and the rendered cross-street span agree — no NPC can ever be seeded onto a void column", () => {
+    const container = mountGrid(20, []);
+    const rowCount = gridRowCount(openPlotCount(20, []));
+    const crossStreets = [...container.querySelectorAll<HTMLElement>(".town-cross-street")];
+    const byRow = new Map(crossStreets.map((el) => [Number(el.style.gridRow) - 1, el]));
+    for (let row = 0; row < rowCount; row++) {
+      if (!isCrossStreetRow(row)) continue;
+      const el = byRow.get(row)!;
+      const [startTok, endTok] = el.style.gridColumn.split(" / ").map(Number);
+      for (let col = 0; col < GRID_COLUMNS; col++) {
+        expect(isRoadCell(row, col)).toBe(col >= startTok - 1 && col <= endTok - 2);
+      }
+    }
   });
 });
 
@@ -346,13 +439,15 @@ describe("TownGrid — ADDENDUM-02 §3.2/§8.3 AC-P9: random placement's on-scre
     }));
   }
 
-  it("renders each building at data-plot-index matching its plotIndex, no lot rendered twice, exactly openPlotCount tiles", () => {
+  it("renders each building at data-plot-index matching its plotIndex, no lot rendered twice, exactly the expected tile count", () => {
+    // index 0 is masked (block 0) but occupied — DE-2/G1 still renders it
+    // (see expectedTileCount's own doc); the others are all unmasked.
     const buildings = scatteredBuildings([0, 5, 11, 2]);
     const nextPlotIndex = 12;
     const container = mountGrid(nextPlotIndex, buildings);
     const tiles = [...container.querySelectorAll(".town-tile")] as HTMLElement[];
 
-    expect(tiles.length).toBe(openPlotCount(nextPlotIndex, buildings));
+    expect(tiles.length).toBe(expectedTileCount(openPlotCount(nextPlotIndex, buildings), buildings));
 
     const seen = new Set<number>();
     for (const tile of tiles) {
@@ -384,7 +479,7 @@ describe("TownGrid — ADDENDUM-02 §3.2/§8.3 AC-P9: random placement's on-scre
     const nextPlotIndex = 1;
     const container = mountGrid(nextPlotIndex, buildings);
     const tiles = container.querySelectorAll(".town-tile");
-    expect(tiles.length).toBe(openPlotCount(nextPlotIndex, buildings));
+    expect(tiles.length).toBe(expectedTileCount(openPlotCount(nextPlotIndex, buildings), buildings));
     expect(tiles.length).toBeGreaterThan(renderedTileCount(nextPlotIndex));
     expect(container.querySelector('[data-plot-index="20"]')).not.toBeNull();
   });
@@ -404,14 +499,17 @@ describe("TownGrid — ADDENDUM-02 §4.4 move-mode DOM contract (AC-M5/AC-M6/AC-
     expect(other.classList.contains("town-tile--moving")).toBe(false);
   });
 
-  it("AC-M6 — droppable count === free-lot count (>= 1), no droppable tile holds a building, none on the road/savings row", () => {
+  it("AC-M6 — droppable count === free-UNMASKED-lot count (>= 1), no droppable tile holds a building, none on the road/savings row", () => {
     const nextPlotIndex = 2;
     const buildings = [cafeBuilding, secondBuilding];
     const container = mountGrid(nextPlotIndex, buildings, { movingId: cafeBuilding.id });
     const droppable = [...container.querySelectorAll(".town-tile--droppable")] as HTMLElement[];
-    const pool = openPlotCount(nextPlotIndex, buildings);
+    // ADDENDUM-07: `pool - buildings.length` counted every unoccupied RAW
+    // index, including masked (void, never rendered) ones — `freePlots` is
+    // the same masked-aware pool `placement.ts` itself uses (rule R-5).
+    const expectedFree = freePlots(nextPlotIndex, buildings).length;
 
-    expect(droppable.length).toBe(pool - buildings.length);
+    expect(droppable.length).toBe(expectedFree);
     expect(droppable.length).toBeGreaterThanOrEqual(1); // G2 (§3.2) — always at least one free lot
     for (const tile of droppable) {
       expect(tile.querySelector(".building-tile")).toBeNull(); // no droppable tile holds a building
@@ -425,8 +523,9 @@ describe("TownGrid — ADDENDUM-02 §4.4 move-mode DOM contract (AC-M5/AC-M6/AC-
     const grid = container.querySelector(".town-grid") as HTMLElement;
     // Trailing `+ 1` = the ADDENDUM-05 NPC layer, present in and out of move mode.
     // ADDENDUM-06 §2/§9 (WP-A): `+ blockCount(0)` = the terrace layer, also present in and out of move mode.
+    // ADDENDUM-07: the tile term is `expectedTileCount(...)`, see the fragment-trap test above.
     const expected =
-      renderedTileCount(0) +
+      expectedTileCount(openPlotCount(0, []), []) +
       1 +
       crossStreetRowCount(0) +
       SAVING_CATEGORY_IDS.length +
@@ -530,14 +629,16 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 long-press gesture (AC-M8/AC-M9)"
       const onPlotLongPress = vi.fn(() => false); // empty lot — useMoveMode's own no-op contract
       const onPlotTap = vi.fn();
       const container = mountGrid(2, [cafeBuilding], { movingId: cafeBuilding.id, onPlotLongPress, onPlotTap });
-      const tile = container.querySelector('[data-plot-index="1"]') as HTMLElement; // the empty, droppable lot
+      // plot 1 is MASKED (block 0, ADDENDUM-07) and unoccupied — void, never
+      // rendered — so plot 2 (unmasked, empty) is the droppable lot here.
+      const tile = container.querySelector('[data-plot-index="2"]') as HTMLElement; // the empty, droppable lot
 
       pointerDown(tile);
       vi.advanceTimersByTime(LONG_PRESS_MS);
       expect(onPlotLongPress).toHaveBeenCalledTimes(1);
       tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       expect(onPlotTap).toHaveBeenCalledTimes(1);
-      expect(onPlotTap).toHaveBeenCalledWith(1);
+      expect(onPlotTap).toHaveBeenCalledWith(2);
     } finally {
       vi.useRealTimers();
     }
@@ -577,7 +678,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("AC-K2 — a subsequent arrow key moves the cursor by one adjacent lot in index space", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 5, onCursorMove });
+    const container = mountGrid(20, [], { cursorIndex: 5, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     expect(onCursorMove).toHaveBeenCalledWith(6);
@@ -585,7 +686,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("AC-K2 — ArrowLeft moves the cursor back by one adjacent lot", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 6, onCursorMove });
+    const container = mountGrid(20, [], { cursorIndex: 6, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
     expect(onCursorMove).toHaveBeenCalledWith(5);
@@ -593,7 +694,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("AC-K2 — ArrowLeft at the first lot (index 0) does not move the cursor", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 0, onCursorMove });
+    const container = mountGrid(20, [], { cursorIndex: 0, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
     expect(onCursorMove).not.toHaveBeenCalled();
@@ -609,7 +710,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
   // index 7 on screen — that is `8`.
   it("AC-K2 — ArrowDown crosses a serpentine row reversal correctly (index 7 -> 8)", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 7, onCursorMove });
+    const container = mountGrid(20, [], { cursorIndex: 7, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     expect(onCursorMove).toHaveBeenCalledWith(8);
@@ -617,7 +718,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("AC-K2 — ArrowUp crosses the same serpentine reversal in reverse (index 8 -> 7)", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 8, onCursorMove });
+    const container = mountGrid(20, [], { cursorIndex: 8, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
     expect(onCursorMove).toHaveBeenCalledWith(7);
@@ -625,7 +726,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("AC-K2 — ArrowUp at the top row does not move the cursor", () => {
     const onCursorMove = vi.fn();
-    const container = mountGrid(24, [], { cursorIndex: 2, onCursorMove }); // row 0
+    const container = mountGrid(20, [], { cursorIndex: 2, onCursorMove }); // row 0
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
     expect(onCursorMove).not.toHaveBeenCalled();
@@ -633,11 +734,12 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
 
   it("AC-K2 — ArrowDown at the bottom row (past the last tile) does not move the cursor", () => {
     const onCursorMove = vi.fn();
-    // ADDENDUM-05 §2: mountGrid(24, []) now rounds up to a 32-tile (2-block)
-    // pool — rows 0..3, 8 columns each; index 31 sits in the LAST row (row
-    // 3), so ArrowDown's `stepCursor(4, col)` computes an index >= tileCount
-    // and returns null.
-    const container = mountGrid(24, [], { cursorIndex: 31, onCursorMove });
+    // ADDENDUM-05 §2 / ADDENDUM-07: mountGrid(20, []) rounds up to a 32-tile
+    // (2-block) pool — rows 0..3, 8 columns each; index 31 sits in the LAST
+    // row (row 3), so ArrowDown's `stepCursor(4, col)` computes an index >=
+    // tileCount and returns null. (20, not 24, keeps this a 2-block pool
+    // under ADDENDUM-07's masking-aware pool growth — see placement.test.ts.)
+    const container = mountGrid(20, [], { cursorIndex: 31, onCursorMove });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     grid.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     expect(onCursorMove).not.toHaveBeenCalled();
@@ -680,13 +782,16 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
           onRiseSettled={() => {}}
           npcCount={0}
           {...NOOP_MOVE_PROPS}
-          cursorIndex={1}
+          cursorIndex={2}
         />,
       );
     });
+    // plot 2, not 1 — ADDENDUM-07 masks plot 1 of block 0 (unoccupied, so it
+    // renders no `.town-tile` node at all; the cursor highlight is applied
+    // to a real DOM node, so it needs a rendered one to land on).
     cursored = mounted.container.querySelectorAll(".town-tile--cursor");
     expect(cursored.length).toBe(1); // moved, not duplicated
-    expect((cursored[0] as HTMLElement).dataset.plotIndex).toBe("1");
+    expect((cursored[0] as HTMLElement).dataset.plotIndex).toBe("2");
   });
 
   it("AC-K2 — Enter on a building (cursor sitting on it) enters move mode via onPlotLongPress", () => {

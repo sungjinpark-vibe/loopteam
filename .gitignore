@@ -11,3 +11,6 @@ dist/
 Thumbs.db
 .DS_Store
 *.log
+
+# transient dev-server capture (PID-scoped runs, see evidence-silhouette.mjs)
+.devserver.*

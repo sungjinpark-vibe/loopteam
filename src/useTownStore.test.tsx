@@ -76,13 +76,15 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     });
     expect(latest?.buildingCount).toBe(1);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 1);
-    expect(latest?.buildings[0]?.plotIndex).toBe(0);
+    // ADDENDUM-07 masks plot 0 of block 0 — rng() = 0 -> pool[0] -> the
+    // lowest free UNMASKED lot, which is 2.
+    expect(latest?.buildings[0]?.plotIndex).toBe(2);
 
     // The second save in the same session — the path never exercised before:
     // it must append to the SAME month's entries chunk (loadEntriesForMonth
     // -> [...existing, entry] -> saveEntriesForMonth), not overwrite it, and
-    // plotFromIndex(1) must actually differ from plotFromIndex(0) (both would
-    // otherwise alias to row 0/col 0 and this bug would be invisible).
+    // plotFromIndex(3) must actually differ from plotFromIndex(2) (both would
+    // otherwise alias to the same row/col and this bug would be invisible).
     const secondCoffee: EntryDraft = { type: "expense", amountKrw: 3_200, categoryId: "food", occurredOn: TODAY };
     act(() => {
       latest!.addEntry(secondCoffee);
@@ -90,10 +92,10 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     expect(latest?.buildingCount).toBe(2);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
     expect(latest?.nextPlotIndex).toBe(2);
-    const secondBuilding = latest!.buildings.find((b) => b.plotIndex === 1);
+    const secondBuilding = latest!.buildings.find((b) => b.plotIndex === 3);
     expect(secondBuilding).toBeDefined();
-    expect(plotFromIndex(secondBuilding!.plotIndex)).toEqual({ row: 0, col: 1 });
-    expect(plotFromIndex(0)).not.toEqual(plotFromIndex(1)); // guards against the row0/col0 alias above
+    expect(plotFromIndex(secondBuilding!.plotIndex)).toEqual({ row: 0, col: 3 });
+    expect(plotFromIndex(2)).not.toEqual(plotFromIndex(3)); // guards against a row/col alias
 
     // Hard reload: a brand-new hook instance (fresh storage client) must read
     // back BOTH entries/buildings — not just the first one saved. Writes are
@@ -108,7 +110,7 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     await mountAndWaitForBoot();
     expect(latest?.buildingCount).toBe(2);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
-    expect(latest?.buildings.map((b) => b.plotIndex).sort()).toEqual([0, 1]);
+    expect(latest?.buildings.map((b) => b.plotIndex).sort()).toEqual([2, 3]);
     expect(latest?.buildings.map((b) => b.categoryId).sort()).toEqual(["cafe", "food"]);
   });
 });

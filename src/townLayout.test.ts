@@ -15,7 +15,10 @@ import {
   GRID_PADDING_X_PX,
   GRID_TEMPLATE_COLUMNS,
   LAYOUT_VERSION,
+  LOTS_PER_BLOCK,
+  MAX_EDGE_INSET,
   MIN_TILE_WIDTH_PX,
+  MIN_UNMASKED_LOTS_PER_BLOCK,
   MIN_VIEWPORT_PX,
   PIPS_PER_ROW,
   ROAD_COLUMN,
@@ -28,9 +31,13 @@ import {
   TERRACE_BLEED_PX,
   TERRACE_TINTS,
   TOWN_HEAD_ROWS,
+  blockColumnInset,
   blockFirstRow,
+  blockGridColumnEnd,
+  blockGridColumnStart,
   blockIndexOf,
   cellFromIndex,
+  crossStreetColumnRange,
   crossStreetRowCount,
   districtLadderLength,
   freeSavingsCells,
@@ -38,6 +45,9 @@ import {
   indexFromPlot,
   isBlockFirstRow,
   isCrossStreetRow,
+  isMaskedCell,
+  isMaskedPlotCol,
+  isMaskedPlotIndex,
   isPrimeLot,
   isPrimePlotIndex,
   isRoadCell,
@@ -53,6 +63,7 @@ import {
   structureHeightPx,
   terraceEdgeInsetPx,
   terraceTintOf,
+  unmaskedLotsInBlock,
 } from "./townLayout";
 import type { SavingCategoryId } from "./types";
 
@@ -141,8 +152,15 @@ describe("frontage invariant — every rendered cell touches at least one road c
       .filter(Boolean).length;
   }
 
-  it("every plot cell has >= 1 road neighbor, i = 0..600", () => {
+  // ADDENDUM-07: scoped to UNMASKED (rendered) lots, i = 0..600 — a masked
+  // index is void, never rendered, never buildable (`isMaskedPlotIndex`), so
+  // the invariant this describe block is named for simply does not apply to
+  // it. `crossStreetColumnRange`'s union rule is what makes this hold BY
+  // CONSTRUCTION for every unmasked lot: see the block-edge masking describe
+  // block below for the proof-shaped tests.
+  it("every UNMASKED plot cell has >= 1 road neighbor, i = 0..600", () => {
     for (let i = 0; i <= MAX_I; i++) {
+      if (isMaskedPlotIndex(i)) continue;
       const { row, col } = cellFromIndex(i);
       expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(1);
     }
@@ -165,6 +183,16 @@ describe("column permutations", () => {
     expect([...SAVINGS_COLUMN_RANK].sort((a, b) => a - b)).toEqual(expected);
     expect(SERPENTINE_COLUMNS).not.toContain(ROAD_COLUMN);
     expect(SAVINGS_COLUMN_RANK).not.toContain(ROAD_COLUMN);
+  });
+
+  // ADDENDUM-07's `blockGridColumnStart`/`blockGridColumnEnd` (block-edge
+  // masking) assume this monotonicity to turn "the first/last UNMASKED plot
+  // column" straight into "the leftmost/rightmost live grid column" — a
+  // permutation alone would not be enough.
+  it("SERPENTINE_COLUMNS is monotonically increasing in plot-column order", () => {
+    for (let i = 1; i < SERPENTINE_COLUMNS.length; i++) {
+      expect(SERPENTINE_COLUMNS[i]).toBeGreaterThan(SERPENTINE_COLUMNS[i - 1]);
+    }
   });
 });
 
@@ -367,13 +395,14 @@ describe("ADDENDUM-05 §2 (F-EXP) — 8-column town expansion", () => {
     }
   });
 
-  it("frontage invariant still holds at 8 columns: every plot cell has >= 1 road neighbor, i = 0..600", () => {
+  it("frontage invariant still holds at 8 columns for every UNMASKED cell: >= 1 road neighbor, i = 0..600", () => {
     function roadNeighborCount(row: number, col: number): number {
       return [isRoadCell(row - 1, col), isRoadCell(row + 1, col), isRoadCell(row, col - 1), isRoadCell(row, col + 1)].filter(
         Boolean,
       ).length;
     }
     for (let i = 0; i <= MAX_I; i++) {
+      if (isMaskedPlotIndex(i)) continue; // ADDENDUM-07 — void, never a rendered lot
       const { row, col } = cellFromIndex(i);
       expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(1);
     }
@@ -404,9 +433,9 @@ describe("ADDENDUM-05 §2 (F-EXP) — 8-column town expansion", () => {
 });
 
 describe("LAYOUT_VERSION (rule R-1, §3.6)", () => {
-  it("is a stable integer constant, bumped to 2 by ADDENDUM-05 §2's 8-column relayout", () => {
+  it("is a stable integer constant, bumped to 3 by ADDENDUM-07's block-edge masking", () => {
     expect(Number.isInteger(LAYOUT_VERSION)).toBe(true);
-    expect(LAYOUT_VERSION).toBe(2);
+    expect(LAYOUT_VERSION).toBe(3);
   });
 });
 
@@ -523,5 +552,139 @@ describe("isPrimeLot / isPrimePlotIndex — 명당 (ADDENDUM-06 §2, AC-5)", () 
       const { row, col } = cellFromIndex(i);
       expect(isPrimePlotIndex(i)).toBe(isPrimeLot(row, col));
     }
+  });
+});
+
+// ── ADDENDUM-07 — block-edge masking, the outer silhouette ──
+
+describe("blockColumnInset — capped, deterministic, never Math.random (R-2)", () => {
+  it("is always in [0, MAX_EDGE_INSET], b = 0..200, both sides", () => {
+    expect(MAX_EDGE_INSET).toBe(2);
+    for (let b = 0; b <= 200; b++) {
+      for (const side of [0, 1] as const) {
+        const inset = blockColumnInset(b, side);
+        expect(Number.isInteger(inset)).toBe(true);
+        expect(inset).toBeGreaterThanOrEqual(0);
+        expect(inset).toBeLessThanOrEqual(MAX_EDGE_INSET);
+      }
+    }
+  });
+
+  it("is a pure function of (b, side) alone — calling it twice never drifts", () => {
+    for (let b = 0; b <= 20; b++) {
+      expect(blockColumnInset(b, 0)).toBe(blockColumnInset(b, 0));
+      expect(blockColumnInset(b, 1)).toBe(blockColumnInset(b, 1));
+    }
+  });
+});
+
+describe("street-front / 명당 plot columns (3, 4) can NEVER be masked", () => {
+  it("isMaskedPlotCol(b, 3) and isMaskedPlotCol(b, 4) are always false, b = 0..200", () => {
+    // Structural, not incidental: MAX_EDGE_INSET = 2 caps the left mask at
+    // plot cols {0,1} and the right mask at plot cols {6,7} — cols 2..5 are
+    // outside either range for ANY inset value <= MAX_EDGE_INSET, so this
+    // holds regardless of what `decorVariant` returns.
+    for (let b = 0; b <= 200; b++) {
+      expect(isMaskedPlotCol(b, 3)).toBe(false);
+      expect(isMaskedPlotCol(b, 4)).toBe(false);
+    }
+  });
+
+  it("every 명당 (isPrimeLot) cell is therefore never masked, i = 0..600", () => {
+    for (let i = 0; i <= MAX_I; i++) {
+      if (!isPrimePlotIndex(i)) continue;
+      expect(isMaskedPlotIndex(i)).toBe(false);
+    }
+  });
+});
+
+describe("block widths genuinely differ — the outline is no longer a rectangle", () => {
+  function widthOf(b: number): number {
+    return TOWN_COLUMNS - blockColumnInset(b, 0) - blockColumnInset(b, 1);
+  }
+
+  it("blocks 0..4 are [5, 6, 7, 5, 6] plot columns wide — the director's own worked example", () => {
+    const widths = [0, 1, 2, 3, 4].map(widthOf);
+    expect(widths).toEqual([5, 6, 7, 5, 6]);
+  });
+
+  it("widths vary by >= 2 plot columns across the first 5 blocks (a 74-building town's worth)", () => {
+    const widths = [0, 1, 2, 3, 4].map(widthOf);
+    expect(Math.max(...widths) - Math.min(...widths)).toBeGreaterThanOrEqual(2);
+    // No two ADJACENT blocks share a width either — the silhouette actually
+    // steps in/out at every block boundary, not just "differs somewhere".
+    for (let b = 1; b < widths.length; b++) expect(widths[b]).not.toBe(widths[b - 1]);
+  });
+
+  it("unmaskedLotsInBlock never drops below MIN_UNMASKED_LOTS_PER_BLOCK (the G2 floor), b = 0..200", () => {
+    expect(MIN_UNMASKED_LOTS_PER_BLOCK).toBe(8);
+    for (let b = 0; b <= 200; b++) {
+      expect(unmaskedLotsInBlock(b)).toBeGreaterThanOrEqual(MIN_UNMASKED_LOTS_PER_BLOCK);
+      expect(unmaskedLotsInBlock(b)).toBeLessThanOrEqual(LOTS_PER_BLOCK);
+    }
+  });
+});
+
+describe("isMaskedCell / isMaskedPlotIndex — grid space and plot-index space agree", () => {
+  it("isMaskedPlotIndex(i) === isMaskedCell(cellFromIndex(i)), i = 0..600", () => {
+    for (let i = 0; i <= MAX_I; i++) {
+      const { row, col } = cellFromIndex(i);
+      expect(isMaskedPlotIndex(i)).toBe(isMaskedCell(row, col));
+    }
+  });
+
+  it("never masks the road column, any savings row, or the entrance/head rows", () => {
+    for (let row = 0; row <= 10; row++) {
+      expect(isMaskedCell(row, ROAD_COLUMN)).toBe(false);
+    }
+    for (let row = 0; row <= TOWN_HEAD_ROWS; row++) {
+      for (let col = 0; col < GRID_COLUMNS; col++) expect(isMaskedCell(row, col)).toBe(false);
+    }
+  });
+
+  it("some plot cells ARE masked (the mechanism actually fires, not a no-op)", () => {
+    let maskedCount = 0;
+    for (let i = 0; i <= MAX_I; i++) if (isMaskedPlotIndex(i)) maskedCount++;
+    expect(maskedCount).toBeGreaterThan(0);
+  });
+});
+
+describe("crossStreetColumnRange — the union rule (spec §3.2's frontage invariant)", () => {
+  it("the entrance row (0) and the savings closing row (TOWN_HEAD_ROWS) always span the full grid", () => {
+    expect(crossStreetColumnRange(0)).toEqual({ start: 0, end: GRID_COLUMNS - 1 });
+    expect(crossStreetColumnRange(TOWN_HEAD_ROWS)).toEqual({ start: 0, end: GRID_COLUMNS - 1 });
+  });
+
+  it("an inter-block cross street is NEVER narrower than either adjacent block's own span, b = 0..50", () => {
+    for (let b = 0; b <= 50; b++) {
+      const row = blockFirstRow(b) + BLOCK_ROWS; // the closer directly below block b
+      const { start, end } = crossStreetColumnRange(row);
+      expect(start).toBeLessThanOrEqual(blockGridColumnStart(b));
+      expect(end).toBeGreaterThanOrEqual(blockGridColumnEnd(b));
+      expect(start).toBeLessThanOrEqual(blockGridColumnStart(b + 1));
+      expect(end).toBeGreaterThanOrEqual(blockGridColumnEnd(b + 1));
+    }
+  });
+
+  it("isRoadCell agrees with crossStreetColumnRange on every cross-street row — the ONE thing NPC walkability and rendering both read", () => {
+    for (let row = 0; row <= gridRowCount(600); row++) {
+      if (!isCrossStreetRow(row)) continue;
+      const { start, end } = crossStreetColumnRange(row);
+      for (let col = 0; col < GRID_COLUMNS; col++) {
+        expect(isRoadCell(row, col)).toBe(col >= start && col <= end);
+      }
+    }
+  });
+
+  it("NPC walkability regression: a column outside a narrow cross street's union is NOT a road cell", () => {
+    // block 0 (width 5, plot cols masked {0,1,7}) meets block 1 (width 6,
+    // masked {6,7}) at row blockFirstRow(0) + BLOCK_ROWS. Their union leaves
+    // grid col 8 uncovered (neither block reaches it) — this is a concrete,
+    // pinned regression for the general property the test above already
+    // proves in general.
+    const row = blockFirstRow(0) + BLOCK_ROWS;
+    expect(crossStreetColumnRange(row).end).toBeLessThan(GRID_COLUMNS - 1);
+    expect(isRoadCell(row, GRID_COLUMNS - 1)).toBe(false);
+    expect(isRoadCell(row, ROAD_COLUMN)).toBe(true); // the main street itself is unaffected
   });
 });

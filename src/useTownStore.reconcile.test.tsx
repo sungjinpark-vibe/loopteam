@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { daysInMonth, shiftMonth, ymd } from "./calendar";
 import { analytics } from "./platform/analytics";
 import { setTimeTravelDate } from "./platform/clock";
+import { pickPlot } from "./placement";
 import { seededRandom, setRandomOverride } from "./platform/random";
 import { plotFromIndex } from "./selectors";
 import { LAYOUT_VERSION } from "./townLayout";
@@ -128,11 +129,19 @@ afterEach(() => {
 
 describe("useTownStore boot — AC-R2/AC-R3: a valid pre-change town needs no repair", () => {
   it("boots with every building at its original ON-SCREEN cell (not just the same index) and issues zero storage writes", async () => {
-    // A larger, multi-block town (47 spans past the first two 12-lot blocks)
-    // — round-3 finding: a 5-building fixture never leaves the first block,
-    // so it couldn't have caught a bug in block-boundary geometry.
+    // A larger, multi-block town (47 spans past the first two blocks) —
+    // round-3 finding: a 5-building fixture never leaves the first block, so
+    // it couldn't have caught a bug in block-boundary geometry.
+    //
+    // ADDENDUM-07: "valid" no longer means dense indices 0..N-1 — block-edge
+    // masking means most such runs include a void cell, which now correctly
+    // NEEDS repair (see placement.test.ts's own dedicated describe block for
+    // that case). The town a real player boots with zero writes is one built
+    // through the REAL placement pipeline instead.
     const N = 47;
-    const buildings = Array.from({ length: N }, (_, i) => building(`b${i}`, i, i, TODAY));
+    const rng = seededRandom(5);
+    const buildings: Building[] = [];
+    for (let i = 0; i < N; i++) buildings.push(building(`b${i}`, pickPlot(i, buildings, rng), i, TODAY));
 
     // The BEFORE picture — exactly what the pre-change (sequential-placement)
     // app would have rendered for this town, computed the same way TownGrid
@@ -253,13 +262,14 @@ describe("useTownStore boot — AC-R1 (boot level): duplicates across multiple m
     // 30 (must NEVER be repaired or written — it has no collision). August:
     // duplicate at plot 4 (repaired). `reconcilePlacement` operates over the
     // GLOBAL flattened occupancy, so June's loser and August's loser both
-    // land in the lowest globally-free lots (0, then 1).
+    // land in the lowest globally-free UNMASKED lots — 0 and 1 are MASKED
+    // (ADDENDUM-07, block 0), so that's 2, then 3.
     const buildings = [
       building("j0", 20, 100, "2026-06-01"), // June — keeps 20
       building("c0", 30, 150, "2026-07-01"), // July — untouched, never repaired
-      building("j1", 20, 200, "2026-06-02"), // June — loses, re-seated to 0
+      building("j1", 20, 200, "2026-06-02"), // June — loses, re-seated to 2
       building("a0", 4, 300, "2026-08-01"), // August — keeps 4
-      building("a1", 4, 400, "2026-08-02"), // August — loses, re-seated to 1
+      building("a1", 4, 400, "2026-08-02"), // August — loses, re-seated to 3
     ];
     writeIndex(["2026-06", "2026-07", "2026-08"]);
     writeCore(3); // mismatched — forces the coreNeedsWrite branch
@@ -277,8 +287,8 @@ describe("useTownStore boot — AC-R1 (boot level): duplicates across multiple m
     expect(july?.plotIndex).toBe(30); // untouched building, untouched value
     const june1 = latest!.buildings.find((b) => b.id === "j1");
     const aug1 = latest!.buildings.find((b) => b.id === "a1");
-    expect(june1?.plotIndex).toBe(0);
-    expect(aug1?.plotIndex).toBe(1);
+    expect(june1?.plotIndex).toBe(2);
+    expect(aug1?.plotIndex).toBe(3);
     // highest occupied index after repair is 30 (July) -> requiredLots = 31.
     expect(latest?.nextPlotIndex).toBe(31);
     expect(latest?.notice).toBeNull();

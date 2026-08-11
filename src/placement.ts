@@ -12,8 +12,28 @@
  * (townLayout.ts) are read-only here (rule R-5) — this module only decides
  * WHICH index a building holds, never what an index means on screen.
  */
-import { renderedTileCount } from "./townLayout";
+import { isMaskedPlotIndex, LOTS_PER_BLOCK, unmaskedLotsInBlock } from "./townLayout";
 import type { Building } from "./types";
+
+/**
+ * Minimal whole-block count whose cumulative UNMASKED capacity (sum of
+ * townLayout.ts's `unmaskedLotsInBlock` over blocks 0..blocks-1) exceeds
+ * `need` — ADDENDUM-07's block-edge masking means a raw block no longer
+ * always holds LOTS_PER_BLOCK buildable lots, so `poolSize` below grows the
+ * pool in units of "enough blocks that the UNMASKED count clears `need`",
+ * not "enough blocks that the RAW count clears `need`" (the pre-masking
+ * rule). O(blocks) — always terminates, since `unmaskedLotsInBlock` is > 0
+ * every iteration (townLayout.ts's `MIN_UNMASKED_LOTS_PER_BLOCK` floor).
+ */
+function blocksForUnmaskedCapacity(need: number): number {
+  let blocks = 0;
+  let capacity = 0;
+  do {
+    capacity += unmaskedLotsInBlock(blocks);
+    blocks++;
+  } while (capacity <= need);
+  return blocks;
+}
 
 /**
  * The lot count the growth pool must cover, for a given growth frontier
@@ -43,15 +63,29 @@ import type { Building } from "./types";
  * enlarge (`plotsOpened` only ever grows by exactly `+ 1` per placed
  * building — the producer call sites, ADDENDUM-02 §3.5), so by induction
  * `taken.size <= plotsOpened` and every occupied index is already
- * `< renderedTileCount(plotsOpened + 1)` before this function is asked. It
- * exists to protect the one case that genuinely needs it: a `plotIndex` that
- * did NOT come from this pipeline — an F12 import, hand-edited storage, or a
- * corrupt-recovery survivor `reconcilePlacement` chose not to re-seat because
- * it was a valid, unique, non-negative integer (just an implausibly large one).
+ * `< blocksForUnmaskedCapacity(plotsOpened) * LOTS_PER_BLOCK` before this
+ * function is asked. It exists to protect the one case that genuinely needs
+ * it: a `plotIndex` that did NOT come from this pipeline — an F12 import,
+ * hand-edited storage, or a corrupt-recovery survivor `reconcilePlacement`
+ * chose not to re-seat because it was a valid, unique, non-negative integer
+ * (just an implausibly large one).
+ *
+ * ADDENDUM-07 correction: `framedPool` here MUST be the same masking-aware
+ * bound `poolSize` itself uses (`blocksForUnmaskedCapacity(frontier) *
+ * LOTS_PER_BLOCK`), not the pre-masking `renderedTileCount(frontier + 1)`.
+ * The raw pool is now wider than `renderedTileCount` alone accounts for
+ * (block-edge masking needs MORE raw blocks per unit of buildable capacity),
+ * so a `renderedTileCount`-based threshold is too tight: an ordinary,
+ * perfectly legitimate `pickPlot` draw routinely lands past it, which fires
+ * the "corrupt data" escape valve on completely normal input — and since the
+ * valve's own effect is to WIDEN the pool further (raising the threshold
+ * every subsequent call must also clear), this compounds every draw into an
+ * unbounded runaway (caught empirically: AC-P1's 1,000-placement trial blew
+ * `pool` past 100,000 by build ~200 before this fix).
  */
 export function requiredLots(plotsOpened: number, taken: ReadonlySet<number>): number {
   const frontier = Math.max(plotsOpened, 0);
-  const framedPool = renderedTileCount(frontier + 1);
+  const framedPool = blocksForUnmaskedCapacity(frontier) * LOTS_PER_BLOCK;
   let highest = 0;
   for (const i of taken) if (Number.isInteger(i) && i >= 0) highest = Math.max(highest, i + 1);
   if (highest > framedPool || taken.size >= framedPool) return Math.max(highest, taken.size);
@@ -61,32 +95,51 @@ export function requiredLots(plotsOpened: number, taken: ReadonlySet<number>): n
 /**
  * Every plot index the town currently shows — the single pool used by
  *   (a) a new building's random landing spot,
- *   (b) a move's legal destinations (follow-up task), and
+ *   (b) a move's legal destinations, and
  *   (c) TownGrid's tile count.
  * One definition, three consumers (rule R-5).
  *
- * The `+ 1` is not a tunable and not a "spare lots" pacing dial (DE-4). With
- * need = requiredLots(...), `poolSize = renderedTileCount(need + 1)`, so
- * `poolSize >= need + 1`. `requiredLots` returns one of two values, and both
- * make the two guarantees below hold for ANY `(plotsOpened, taken)` pair —
- * not just ones a real game session could produce:
+ * `poolSize = blocksForUnmaskedCapacity(need) * LOTS_PER_BLOCK`, need =
+ * `requiredLots(...)` — now ITSELF masking-aware (see its doc), so both
+ * functions size the pool by the same "add whole blocks until their
+ * UNMASKED capacity clears the target" rule; ADDENDUM-07's block-edge
+ * masking means a raw block no longer always holds `LOTS_PER_BLOCK`
+ * BUILDABLE lots, so this is stricter than the pre-masking rule
+ * (`renderedTileCount`, RAW capacity only).
  *
- *   - the escape valve fired: need = max(highest, taken.size), so
- *     poolSize >= need + 1 > highest > every occupied index (G1), and
- *     poolSize >= need + 1 > taken.size (G2).
+ * `requiredLots` returns one of two values, and both make the two guarantees
+ * below hold for ANY `(plotsOpened, taken)` pair — not just ones a real game
+ * session could produce:
+ *
+ *   - the escape valve fired: need = max(highest, taken.size). By
+ *     `blocksForUnmaskedCapacity`'s own loop condition,
+ *     `unmaskedCapacity(blocks) > need >= highest > every occupied index`
+ *     (G1) and `unmaskedCapacity(blocks) > need >= taken.size` (G2). Since
+ *     `poolSize = blocks * LOTS_PER_BLOCK >= unmaskedCapacity(blocks)` (a
+ *     block's raw lot count is never less than its unmasked one), both
+ *     bounds carry through to `poolSize`.
  *   - it didn't: need = plotsOpened, and by the valve's own NOT-firing
- *     condition, highest <= renderedTileCount(need + 1) = poolSize and
- *     taken.size < poolSize — G1 and G2 again, and `poolSize` is then
- *     EXACTLY `renderedTileCount(plotsOpened + 1)`, which is what makes town
- *     area a pure function of the growth frontier alone (§3.4, AC-P4).
+ *     condition (now itself stated in `blocksForUnmaskedCapacity` terms),
+ *     `highest <= framedPool` and `taken.size < framedPool` where
+ *     `framedPool = blocksForUnmaskedCapacity(need) * LOTS_PER_BLOCK =
+ *     poolSize` exactly — G1 and G2 again, with no gap between the bound
+ *     `requiredLots` checked and the pool `poolSize` actually returns (this
+ *     is what closes the runaway: the NEXT call's threshold is derived from
+ *     the SAME formula the previous call's pool was sized by, so a
+ *     legitimate draw can never exceed it).
  *
  * G1 (DE-2, nothing invisible): no building can ever sit outside the
  * rendered grid. G2 (there is ALWAYS somewhere to put a building): the
- * free-lot count is >= 1 at EVERY town size, forever — this is what deletes
- * the "block is exactly full" dead end (§3.4), by arithmetic, not a message.
+ * free-lot count is >= 1 at EVERY town size, forever — and since
+ * `freePlots`/`pickPlotIn` (below) additionally exclude every MASKED index,
+ * G2 here means a free UNMASKED lot, the guarantee that actually matters (a
+ * masked index was never buildable). `unmaskedLotsInBlock`'s floor
+ * (`MIN_UNMASKED_LOTS_PER_BLOCK` = 8, townLayout.ts) is what makes growing
+ * the pool by one block always restore G2, independent of the specific
+ * `decorVariant` hash: >= 8 fresh unmasked lots land every time it widens.
  */
 export function poolSize(plotsOpened: number, taken: ReadonlySet<number>): number {
-  return renderedTileCount(requiredLots(plotsOpened, taken) + 1);
+  return blocksForUnmaskedCapacity(requiredLots(plotsOpened, taken)) * LOTS_PER_BLOCK;
 }
 
 /** Fresh, mutable Set — callers may add to it (`allocatePlots` does). */
@@ -100,30 +153,35 @@ export function openPlotCount(plotsOpened: number, buildings: readonly Building[
   return poolSize(plotsOpened, occupiedPlots(buildings));
 }
 
-/** Free lots, ascending. Bounded by the pool, so O(open lots) — one pass per save. */
+/**
+ * Free UNMASKED lots, ascending. Bounded by the pool, so O(open lots) — one
+ * pass per save. A masked index is never free — it was never buildable
+ * (ADDENDUM-07) — so it is excluded here exactly like an occupied one.
+ */
 export function freePlots(plotsOpened: number, buildings: readonly Building[]): number[] {
   const taken = occupiedPlots(buildings);
   const limit = poolSize(plotsOpened, taken);
   const out: number[] = [];
-  for (let i = 0; i < limit; i++) if (!taken.has(i)) out.push(i);
+  for (let i = 0; i < limit; i++) if (!taken.has(i) && !isMaskedPlotIndex(i)) out.push(i);
   return out;
 }
 
 /**
- * Where a NEWLY CONSTRUCTED building lands: a uniformly random free lot in
- * the open pool (the SAME pool `poolSize`/`openPlotCount` report — R-5).
- * `taken` is the occupancy BEFORE this building.
+ * Where a NEWLY CONSTRUCTED building lands: a uniformly random free UNMASKED
+ * lot in the open pool (the SAME pool `poolSize`/`openPlotCount` report —
+ * R-5). `taken` is the occupancy BEFORE this building. A masked index is
+ * excluded exactly like an occupied one — it was never buildable (ADDENDUM-07).
  *
- * By G2 (`poolSize`'s doc) `poolSize > taken.size` for ANY `(plotsOpened,
- * taken)` pair, so the fallback below is provably unreachable, not merely
- * unreachable for well-formed input. It exists only so a save can NEVER
- * throw on pathological input: a throw here loses a real ledger entry, the
- * one failure this app may not have.
+ * By G2 (`poolSize`'s doc, masking-aware) the free-UNMASKED-lot count is >= 1
+ * for ANY `(plotsOpened, taken)` pair, so the fallback below is provably
+ * unreachable, not merely unreachable for well-formed input. It exists only
+ * so a save can NEVER throw on pathological input: a throw here loses a real
+ * ledger entry, the one failure this app may not have.
  */
 export function pickPlotIn(plotsOpened: number, taken: ReadonlySet<number>, rng: () => number): number {
   const limit = poolSize(plotsOpened, taken);
   const pool: number[] = [];
-  for (let i = 0; i < limit; i++) if (!taken.has(i)) pool.push(i);
+  for (let i = 0; i < limit; i++) if (!taken.has(i) && !isMaskedPlotIndex(i)) pool.push(i);
   if (pool.length === 0) return requiredLots(plotsOpened, taken);
   const r = Math.min(Math.max(rng(), 0), 0.999_999_999); // rng() === 1 must not index past the end
   return pool[Math.floor(r * pool.length)];
@@ -173,8 +231,12 @@ export type MoveResult =
  *   V1 the building must exist                      -> "not-found"
  *   V2 `to === building.plotIndex`                   -> "same-plot" (UI treats this as cancel, not an error)
  *   V3 `to` must be a non-negative integer inside the CURRENT open pool
- *      (`openPlotCount` over the pre-move occupancy) -> "out-of-town" (D-37:
- *      a building may only move among lots the town has already grown into)
+ *      (`openPlotCount` over the pre-move occupancy) AND not a MASKED index
+ *      (ADDENDUM-07 — a void cell was never a lot)  -> "out-of-town" (D-37:
+ *      a building may only move among lots the town has already grown into;
+ *      reuses this same reason code rather than inventing a new one, since a
+ *      masked cell is exactly as "not in the town" to a mover as one past the
+ *      pool boundary)
  *   V4 no other LIVE building may already hold `to`  -> "occupied" (D-34:
  *      rejected, not swapped)
  *
@@ -195,7 +257,12 @@ export function moveBuilding(
 
   const building = buildings[index];
   if (toPlotIndex === building.plotIndex) return { ok: false, reason: "same-plot" };
-  if (!Number.isInteger(toPlotIndex) || toPlotIndex < 0 || toPlotIndex >= openPlotCount(plotsOpened, buildings)) {
+  if (
+    !Number.isInteger(toPlotIndex) ||
+    toPlotIndex < 0 ||
+    toPlotIndex >= openPlotCount(plotsOpened, buildings) ||
+    isMaskedPlotIndex(toPlotIndex)
+  ) {
     return { ok: false, reason: "out-of-town" };
   }
   if (buildings.some((b) => b.plotIndex === toPlotIndex)) return { ok: false, reason: "occupied" };
@@ -228,6 +295,13 @@ export interface ReconcileResult {
  * id, so duplicate ids cannot collapse two buildings into one.
  * O(n log n) for the sort + O(n) passes — microseconds even on the ~5,400
  * building dense fixture, inside the <1s first-paint budget (MVP-SPEC §10.4).
+ *
+ * ADDENDUM-07: a building sitting on a MASKED index is ALSO a loser, exactly
+ * like a duplicate/NaN/negative/fractional one — a masked cell is void and
+ * was never a legal lot, so a legacy save built before block-edge masking
+ * (or any save with a hand-edited/imported plotIndex) deterministically
+ * re-seats onto an unmasked lot at boot, the same self-healing story §3.6
+ * already tells for every other corrupt shape.
  */
 export function reconcilePlacement(plotsOpened: number, buildings: readonly Building[]): ReconcileResult {
   const order = buildings.map((_, pos) => pos).sort((x, y) => {
@@ -239,15 +313,15 @@ export function reconcilePlacement(plotsOpened: number, buildings: readonly Buil
   const losers: number[] = [];
   for (const pos of order) {
     const i = buildings[pos].plotIndex;
-    if (Number.isInteger(i) && i >= 0 && !taken.has(i)) taken.add(i); // earliest claimant keeps the lot
-    else losers.push(pos); // duplicate, NaN, negative, fractional
+    if (Number.isInteger(i) && i >= 0 && !taken.has(i) && !isMaskedPlotIndex(i)) taken.add(i); // earliest claimant keeps the lot
+    else losers.push(pos); // duplicate, NaN, negative, fractional, or masked
   }
 
   let repaired = 0;
   const fixed = buildings.slice() as Building[];
   let cursor = 0;
   for (const pos of losers) {
-    while (taken.has(cursor)) cursor++;
+    while (taken.has(cursor) || isMaskedPlotIndex(cursor)) cursor++; // never re-seat onto a masked cell either
     taken.add(cursor);
     fixed[pos] = { ...buildings[pos], plotIndex: cursor };
     repaired++;

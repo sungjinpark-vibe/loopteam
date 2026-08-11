@@ -56,10 +56,14 @@ import {
   TILE_HEIGHT_PX,
   blockCount,
   blockFirstRow,
+  blockGridColumnEnd,
+  blockGridColumnStart,
   cellFromIndex,
+  crossStreetColumnRange,
   decorVariant,
   gridRowCount,
   isCrossStreetRow,
+  isMaskedPlotIndex,
   isPrimeLot,
   roadSideOf,
   terraceEdgeInsetPx,
@@ -209,8 +213,15 @@ function TownGridImpl({
   const tiles = useMemo(() => {
     const result = [];
     for (let i = 0; i < tileCount; i++) {
-      const { row, col } = cellFromIndex(i);
       const building = byPlotIndex.get(i);
+      // ADDENDUM-07 — a masked cell is void: no terrain, no tile, no
+      // placement. EXCEPTION (DE-2/G1, nothing may ever be invisible): a
+      // building that somehow occupies a masked index (legacy save not yet
+      // reconciled, hand-edited/imported data) still renders — placement.ts's
+      // pickPlot/moveBuilding never produce this going forward, but a stray
+      // one must never simply vanish off screen.
+      if (building === undefined && isMaskedPlotIndex(i)) continue;
+      const { row, col } = cellFromIndex(i);
       const isNewest = building?.id === justBuiltId;
       const side = roadSideOf(col);
       // ADDENDUM-06 §2.2/§3.3: a 명당 (prime lot) is one of the two
@@ -395,7 +406,9 @@ function TownGridImpl({
             aria-hidden="true"
             style={
               {
-                gridColumn: "1 / -1",
+                // ADDENDUM-07: the block's own live column span, not "1 / -1"
+                // — THIS is what makes the outline ragged, block to block.
+                gridColumn: `${blockGridColumnStart(b) + 1} / ${blockGridColumnEnd(b) + 2}`,
                 gridRow: `${blockFirstRow(b) + 1} / span ${BLOCK_ROWS}`,
                 // T-R3, set inline (not just in App.css) so it holds even if
                 // the stylesheet is ever unavailable — same belt-and-braces
@@ -414,11 +427,17 @@ function TownGridImpl({
           // §3.7 checklist item 3: a 버스 정류장 on every second cross street —
           // decorVariant(row, col) alone (rule R-2), never stored.
           const hasBusStop = decorVariant(row, 0, 2) === 0;
+          // ADDENDUM-07: the UNION of the two adjacent blocks' live column
+          // spans, not "1 / -1" — never narrower than either neighbor (spec
+          // §3.2's frontage invariant), so this is the same function
+          // `isRoadCell` (NPC walkability, townLayout.ts) reads — the two can
+          // never disagree about where the ground is.
+          const { start, end } = crossStreetColumnRange(row);
           return (
             <div
               key={`cross-${row}`}
               className={`town-cross-street${hasBusStop ? " town-cross-street--busstop" : ""}`}
-              style={{ gridColumn: "1 / -1", gridRow: row + 1 }}
+              style={{ gridColumn: `${start + 1} / ${end + 2}`, gridRow: row + 1 }}
             />
           );
         })}

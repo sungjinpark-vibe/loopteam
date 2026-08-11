@@ -40,6 +40,7 @@ export const DEVTOOLS_FIXTURES_BUNDLE_MARKER = "__AIT_DEVTOOLS_FIXTURES_MARKER__
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
 import { seededRandom } from "../platform/random";
+import { pickPlotIn } from "../placement";
 import { BALANCE } from "../balance.approved";
 import { daysInMonth, shiftMonth, ymOnly, ymd } from "../calendar";
 import { savingsByCategory } from "../selectors";
@@ -156,6 +157,44 @@ function makeSequence() {
   };
 }
 
+interface PlotAllocator {
+  next(): number;
+  readonly frontier: number;
+}
+
+/**
+ * Assigns each new building's plotIndex through the REAL placement pipeline
+ * (`pickPlotIn`, placement.ts) instead of a raw incrementing counter.
+ * ADDENDUM-07's block-edge masking means a raw sequential counter (the
+ * pre-ADDENDUM-07 `plotCursor.next++`) regularly lands on a masked (void)
+ * cell — a fixture built that way would need boot-time repair, the opposite
+ * of what these fixtures are for (§11.A: `dense`'s own tests assert
+ * `repaired: 0` on the untouched fixture). `frontier` grows by exactly 1 per
+ * placement, mirroring how `useTownStore` threads `nextPlotIndex` in real
+ * gameplay, so `poolSize`'s pacing proof (placement.ts) applies unchanged.
+ *
+ * Its own RNG stream (a seed distinct from the fixture's entry-generation
+ * `rng`) means WHICH plot a building lands on never perturbs the
+ * amounts/categories/variants a fixture generates — every existing
+ * byte-identical-output assertion (fixtures.test.ts) stays true.
+ */
+function makePlotAllocator(seed: number): PlotAllocator {
+  const rng = seededRandom(seed);
+  const taken = new Set<number>();
+  let frontier = 0;
+  return {
+    next(): number {
+      const idx = pickPlotIn(frontier, taken, rng);
+      taken.add(idx);
+      frontier += 1;
+      return idx;
+    },
+    get frontier() {
+      return frontier;
+    },
+  };
+}
+
 interface MonthGenResult {
   entries: LedgerEntry[];
   buildings: Building[];
@@ -177,9 +216,9 @@ function generateMonth(opts: {
   dailyCap: number;
   rng: () => number;
   seq: ReturnType<typeof makeSequence>;
-  plotCursor: { next: number };
+  plotAllocator: PlotAllocator;
 }): MonthGenResult {
-  const { year, month, targetEntries, dailyCap, rng, seq, plotCursor } = opts;
+  const { year, month, targetEntries, dailyCap, rng, seq, plotAllocator } = opts;
   const dim = daysInMonth(year, month);
   const entries: LedgerEntry[] = [];
   const buildings: Building[] = [];
@@ -217,7 +256,7 @@ function generateMonth(opts: {
     if (dayBuildingsSoFar < dailyCap) {
       const buildingId = seq.nextId("b");
       const variantIndex = Math.floor(rng() * BALANCE.variantsPerCategory);
-      const plotIndex = plotCursor.next++;
+      const plotIndex = plotAllocator.next();
       buildings.push(
         makeBuilding({
           id: buildingId,
@@ -284,7 +323,7 @@ function empty(): Fixture {
 function oneMonth(): Fixture {
   const rng = seededRandom(1);
   const seq = makeSequence();
-  const plotCursor = { next: 0 };
+  const plotAllocator = makePlotAllocator(1001);
   const { entries, buildings } = generateMonth({
     year: 2026,
     month: 7,
@@ -292,7 +331,7 @@ function oneMonth(): Fixture {
     dailyCap: BALANCE.dailyBuildSlots,
     rng,
     seq,
-    plotCursor,
+    plotAllocator,
   });
   // `today` must fall inside the generated month (2026-07) — otherwise the
   // current month has zero entries and monthTotal/budgetPace are both 0,
@@ -321,7 +360,7 @@ function oneMonth(): Fixture {
   const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(entries);
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotCursor.next,
+    nextPlotIndex: plotAllocator.frontier,
     streakDays: 5,
     longestStreakDays: 12,
     lastActOn: "2026-07-31",
@@ -344,7 +383,7 @@ function oneMonth(): Fixture {
 function dense(): Fixture {
   const rng = seededRandom(2);
   const seq = makeSequence();
-  const plotCursor = { next: 0 };
+  const plotAllocator = makePlotAllocator(1002);
   const MONTHS = 36;
   const START = { y: 2023, m: 9 };
   const HEAVY_MONTH_INDEX = 17; // the one 300-entry month
@@ -356,7 +395,7 @@ function dense(): Fixture {
   for (let i = 0; i < MONTHS; i++) {
     const { y, m } = shiftMonth(START.y, START.m, i);
     const targetEntries = i === HEAVY_MONTH_INDEX ? 300 : 150;
-    const result = generateMonth({ year: y, month: m, targetEntries, dailyCap: BALANCE.dailyBuildSlots, rng, seq, plotCursor });
+    const result = generateMonth({ year: y, month: m, targetEntries, dailyCap: BALANCE.dailyBuildSlots, rng, seq, plotAllocator });
     entries = entries.concat(result.entries);
     buildings = buildings.concat(result.buildings);
     lastPeriod = ymOnly(y, m);
@@ -378,7 +417,7 @@ function dense(): Fixture {
         source: { kind: "monument", period: lastPeriod },
         categoryId: null,
         variantIndex: outcomeBucket,
-        plotIndex: plotCursor.next++,
+        plotIndex: plotAllocator.next(),
         builtOn: ymd(y, m, daysInMonth(y, m)),
         createdAt: seq.nextMs(),
         monumentSummary,
@@ -402,7 +441,7 @@ function dense(): Fixture {
   const today = ymd(lastMonth.y, lastMonth.m, daysInMonth(lastMonth.y, lastMonth.m));
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotCursor.next,
+    nextPlotIndex: plotAllocator.frontier,
     streakDays: 24,
     longestStreakDays: 180,
     lastActOn: today,
@@ -426,7 +465,7 @@ function dense(): Fixture {
 function capExceeded(): Fixture {
   const rng = seededRandom(3);
   const seq = makeSequence();
-  const plotCursor = { next: 0 };
+  const plotAllocator = makePlotAllocator(1003);
   const today = "2026-08-02";
   const cap = BALANCE.dailyBuildSlots;
   const overBy = 3;
@@ -443,7 +482,7 @@ function capExceeded(): Fixture {
     if (i < cap) {
       const buildingId = seq.nextId("b");
       buildings.push(
-        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex: plotCursor.next++, builtOn: today, createdAt }),
+        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex: plotAllocator.next(), builtOn: today, createdAt }),
       );
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId }));
     } else {
@@ -454,7 +493,7 @@ function capExceeded(): Fixture {
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotCursor.next,
+    nextPlotIndex: plotAllocator.frontier,
     slotsUsedToday: cap,
     streakDays: 1,
     longestStreakDays: 1,
@@ -476,7 +515,7 @@ function capExceeded(): Fixture {
 function queueFull(): Fixture {
   const rng = seededRandom(4);
   const seq = makeSequence();
-  const plotCursor = { next: 0 };
+  const plotAllocator = makePlotAllocator(1004);
   const today = "2026-08-02";
   const cap = BALANCE.dailyBuildSlots;
   const queueMax = BALANCE.materialQueueMax;
@@ -493,7 +532,7 @@ function queueFull(): Fixture {
     if (i < cap) {
       const buildingId = seq.nextId("b");
       buildings.push(
-        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex: plotCursor.next++, builtOn: today, createdAt }),
+        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex: plotAllocator.next(), builtOn: today, createdAt }),
       );
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId }));
     } else if (queue.length < queueMax) {
@@ -507,7 +546,7 @@ function queueFull(): Fixture {
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotCursor.next,
+    nextPlotIndex: plotAllocator.frontier,
     slotsUsedToday: cap,
     streakDays: 1,
     longestStreakDays: 1,
@@ -528,7 +567,7 @@ function queueFull(): Fixture {
 /** Pace ≈ 2.0 mid-month — F6 worst mood, and proof that no building is harmed by it. */
 function budgetBlown(): Fixture {
   const seq = makeSequence();
-  const plotCursor = { next: 0 };
+  const plotAllocator = makePlotAllocator(1005);
   const year = 2026;
   const month = 6; // June — 30 days, matches spec §5 F6's worked example shape
   const today = ymd(year, month, 15); // day 15 of a 30-day month
@@ -545,14 +584,14 @@ function budgetBlown(): Fixture {
     const buildingId = seq.nextId("b");
     const categoryId = EXPENSE_CATEGORIES[i % EXPENSE_CATEGORIES.length];
     buildings.push(
-      makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex: 0, plotIndex: plotCursor.next++, builtOn: occurredOn, createdAt }),
+      makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex: 0, plotIndex: plotAllocator.next(), builtOn: occurredOn, createdAt }),
     );
     entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn, createdAt, buildingId }));
   });
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotCursor.next,
+    nextPlotIndex: plotAllocator.frontier,
     streakDays: 10,
     longestStreakDays: 10,
     lastActOn: today,
@@ -571,7 +610,7 @@ function budgetBlown(): Fixture {
 /** 5 claimed no-spend days, one of them ready to be revoked by logging an expense on that date. */
 function noSpendStreak(): Fixture {
   const seq = makeSequence();
-  const plotCursor = { next: 0 };
+  const plotAllocator = makePlotAllocator(1006);
   const claimedDays = ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05"];
   const today = "2026-08-06";
   const buildings: Building[] = claimedDays.map((date) =>
@@ -580,7 +619,7 @@ function noSpendStreak(): Fixture {
       source: { kind: "nospend", date },
       categoryId: null,
       variantIndex: 0,
-      plotIndex: plotCursor.next++,
+      plotIndex: plotAllocator.next(),
       builtOn: date,
       createdAt: seq.nextMs(),
     }),
@@ -588,7 +627,7 @@ function noSpendStreak(): Fixture {
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotCursor.next,
+    nextPlotIndex: plotAllocator.frontier,
     streakDays: claimedDays.length,
     longestStreakDays: claimedDays.length,
     lastActOn: claimedDays[claimedDays.length - 1],
@@ -611,13 +650,13 @@ function noSpendStreak(): Fixture {
 function unsettled(): Fixture {
   const rng = seededRandom(6);
   const seq = makeSequence();
-  const plotCursor = { next: 0 };
+  const plotAllocator = makePlotAllocator(1007);
   const today = "2026-08-02";
   let entries: LedgerEntry[] = [];
   let buildings: Building[] = [];
   // 3 stale months: 2026-05, 06, 07 (current period is 2026-08).
   for (const month of [5, 6, 7]) {
-    const result = generateMonth({ year: 2026, month, targetEntries: 20, dailyCap: BALANCE.dailyBuildSlots, rng, seq, plotCursor });
+    const result = generateMonth({ year: 2026, month, targetEntries: 20, dailyCap: BALANCE.dailyBuildSlots, rng, seq, plotAllocator });
     entries = entries.concat(result.entries);
     buildings = buildings.concat(result.buildings);
   }
@@ -628,7 +667,7 @@ function unsettled(): Fixture {
   const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(entries);
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotCursor.next,
+    nextPlotIndex: plotAllocator.frontier,
     streakDays: 0,
     longestStreakDays: 6,
     lastActOn: "2026-07-20",

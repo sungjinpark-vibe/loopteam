@@ -50,7 +50,15 @@ afterEach(() => {
   mounted = null;
 });
 
-const NOOP: Pick<TownGridProps, "movingId" | "cursorIndex" | "onPlotLongPress" | "onPlotTap" | "onCursorMove" | "onCancel"> = {
+const NOOP: Pick<
+  TownGridProps,
+  | "movingId"
+  | "cursorIndex"
+  | "onPlotLongPress"
+  | "onPlotTap"
+  | "onCursorMove"
+  | "onCancel"
+> = {
   movingId: null,
   cursorIndex: null,
   onPlotLongPress: () => false,
@@ -59,7 +67,10 @@ const NOOP: Pick<TownGridProps, "movingId" | "cursorIndex" | "onPlotLongPress" |
   onCancel: () => {},
 };
 
-function renderGrid(fixture: ReturnType<(typeof FIXTURES)["dense"]>, overrides: Partial<TownGridProps> = {}) {
+function renderGrid(
+  fixture: ReturnType<(typeof FIXTURES)["dense"]>,
+  overrides: Partial<TownGridProps> = {},
+) {
   return (
     <TownGrid
       nextPlotIndex={fixture.town.nextPlotIndex}
@@ -80,15 +91,26 @@ function renderGrid(fixture: ReturnType<(typeof FIXTURES)["dense"]>, overrides: 
 }
 
 describe("TownGrid over the dense fixture (~5,400 tiles) — AC-R4's move-mode half", () => {
+  // ADDENDUM-07: fixture generation itself now routes every plot assignment
+  // through the real `pickPlotIn` pipeline (devtools/fixtures.ts) instead of
+  // a raw counter, so building the ~5,400-building `dense` fixture costs a
+  // real (measured: ~300ms) fraction of a second on top of the mount itself
+  // (already the suite's single most expensive render, ~4s on a loaded
+  // machine) — vitest's 5000ms default leaves too little headroom under
+  // parallel test-file load. An explicit, still-generous bound, not a
+  // performance target (that's the internal ms assertions below).
   it("mounts, enters move mode, and moves the keyboard cursor, each within a generous smoke budget — numbers logged", () => {
     const fixture = FIXTURES.dense();
 
     const mountStart = performance.now();
     mounted = mountComponent(renderGrid(fixture));
     const mountElapsedMs = performance.now() - mountStart;
-    console.info(`[AC-R4] dense TownGrid initial mount elapsedMs=${mountElapsedMs.toFixed(1)}`);
+    console.info(
+      `[AC-R4] dense TownGrid initial mount elapsedMs=${mountElapsedMs.toFixed(1)}`,
+    );
 
-    const tileCountBefore = mounted.container.querySelectorAll(".town-tile").length;
+    const tileCountBefore =
+      mounted.container.querySelectorAll(".town-tile").length;
     expect(tileCountBefore).toBeGreaterThan(5_000);
 
     // Entering move mode: the movingId flip is exactly the unmeasured risk
@@ -104,11 +126,19 @@ describe("TownGrid over the dense fixture (~5,400 tiles) — AC-R4's move-mode h
       mounted!.root.render(renderGrid(fixture, { movingId: firstBuildingId }));
     });
     const moveModeElapsedMs = performance.now() - moveModeStart;
-    console.info(`[AC-R4] dense TownGrid entering move mode elapsedMs=${moveModeElapsedMs.toFixed(1)}`);
+    console.info(
+      `[AC-R4] dense TownGrid entering move mode elapsedMs=${moveModeElapsedMs.toFixed(1)}`,
+    );
 
-    expect(mounted.container.querySelectorAll(".town-tile--moving").length).toBe(1);
-    const droppableCount = mounted.container.querySelectorAll(".town-tile--droppable").length;
-    console.info(`[AC-R4] dense TownGrid free (droppable) lot count=${droppableCount}`);
+    expect(
+      mounted.container.querySelectorAll(".town-tile--moving").length,
+    ).toBe(1);
+    const droppableCount = mounted.container.querySelectorAll(
+      ".town-tile--droppable",
+    ).length;
+    console.info(
+      `[AC-R4] dense TownGrid free (droppable) lot count=${droppableCount}`,
+    );
     expect(droppableCount).toBeGreaterThanOrEqual(1); // G2 — always at least one, even on a nearly-full town
     // AC-R4's own literal boot budget (§10.4) re-used here as the smoke bound
     // for this render — generous headroom on any real machine; the point is
@@ -118,17 +148,25 @@ describe("TownGrid over the dense fixture (~5,400 tiles) — AC-R4's move-mode h
     // A pure cursor move (arrow key) must stay cheap even here — this is the
     // regression guard for the C4 #7 fix (`TownGrid.tsx`'s imperative cursor
     // highlight, NOT a `tiles` memo dependency).
+    // plot 2, not 0 — ADDENDUM-07 masks plot 0 of block 0, so it renders no
+    // `.town-tile` node to attach the cursor highlight to unless occupied.
     const cursorMoveStart = performance.now();
     act(() => {
-      mounted!.root.render(renderGrid(fixture, { movingId: firstBuildingId, cursorIndex: 0 }));
+      mounted!.root.render(
+        renderGrid(fixture, { movingId: firstBuildingId, cursorIndex: 2 }),
+      );
     });
     const cursorMoveElapsedMs = performance.now() - cursorMoveStart;
-    console.info(`[AC-R4] dense TownGrid cursor-only arrow-key move elapsedMs=${cursorMoveElapsedMs.toFixed(1)}`);
+    console.info(
+      `[AC-R4] dense TownGrid cursor-only arrow-key move elapsedMs=${cursorMoveElapsedMs.toFixed(1)}`,
+    );
 
-    expect(mounted.container.querySelectorAll(".town-tile--cursor").length).toBe(1);
+    expect(
+      mounted.container.querySelectorAll(".town-tile--cursor").length,
+    ).toBe(1);
     // Tight guard, not the 1s formality above: a cursor move only touches at
     // most two DOM nodes imperatively, so it should be an order of magnitude
     // cheaper than the movingId flip that just rebuilt ~5,400 tiles.
     expect(cursorMoveElapsedMs).toBeLessThan(200);
-  });
+  }, 15_000);
 });
