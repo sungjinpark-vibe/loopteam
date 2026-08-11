@@ -22,14 +22,31 @@ describe("awardFor", () => {
   });
 
   it("keys a settlement award by period, scaled by outcomeBucket", () => {
-    expect(awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 1 })).toEqual({
+    expect(awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 1, primeLotCount: 0 })).toEqual({
       eventKey: "seed:settlement:2026-07",
       amount: BALANCE.seedAwards.settlementByOutcomeBucket[1],
     });
   });
 
-  it("a settlement with outcomeBucket 0 (no data) earns nothing", () => {
-    expect(awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 0 }).amount).toBe(0);
+  it("a settlement with outcomeBucket 0 (no data) earns nothing when no prime lots are held", () => {
+    expect(awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 0, primeLotCount: 0 }).amount).toBe(0);
+  });
+
+  // ADDENDUM-06 §3.2 / AC-11 — 명당 (prime lot) standing bonus.
+  it("adds primeLot * count to the settlement amount, same eventKey", () => {
+    const award = awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 1, primeLotCount: 4 });
+    expect(award.eventKey).toBe("seed:settlement:2026-07");
+    expect(award.amount).toBe(BALANCE.seedAwards.settlementByOutcomeBucket[1] + 4 * BALANCE.seedAwards.primeLot);
+  });
+
+  it("caps the prime-lot bonus at primeLotMax for a very large count", () => {
+    const award = awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 1, primeLotCount: 999 });
+    expect(award.amount).toBe(BALANCE.seedAwards.settlementByOutcomeBucket[1] + BALANCE.seedAwards.primeLotMax);
+  });
+
+  it("a negative primeLotCount contributes nothing (clamped to 0)", () => {
+    const award = awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 1, primeLotCount: -3 });
+    expect(award.amount).toBe(BALANCE.seedAwards.settlementByOutcomeBucket[1]);
   });
 
   it("the same event always produces the same key (idempotency contract)", () => {
@@ -57,6 +74,17 @@ describe("applyAward", () => {
     const economy = defaultEconomyState();
     const next = applyAward(economy, { eventKey: "seed:settlement:2026-07", amount: 0 });
     expect(next).toBe(economy);
+  });
+
+  // ADDENDUM-06 §3.2 / AC-12 — settlement stays idempotent with the prime-lot bonus folded in.
+  it("a settlement award with a prime-lot bonus is credited once even if the award path runs twice", () => {
+    const economy = defaultEconomyState();
+    const event = { kind: "settlement" as const, period: "2026-07", outcomeBucket: 1, primeLotCount: 4 };
+    const once = applyAward(economy, awardFor(event));
+    const twice = applyAward(once, awardFor(event));
+    expect(twice).toBe(once); // same reference — second call was a no-op
+    expect(twice.seeds).toBe(BALANCE.seedAwards.settlementByOutcomeBucket[1] + 4 * BALANCE.seedAwards.primeLot);
+    expect(twice.grantedEventKeys).toEqual(["seed:settlement:2026-07"]); // key unchanged, recorded once
   });
 
   it("bounds grantedEventKeys at the ring-buffer cap", () => {

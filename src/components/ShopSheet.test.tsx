@@ -79,6 +79,7 @@ function makeProps(overrides: Partial<ShopSheetProps> = {}, purchaseResult: Purc
     applyTownSku: (sku) => townCalls.push(sku),
     applyBuildingSku: (buildingId, sku) => buildingCalls.push({ buildingId, sku }),
     formatSeeds,
+    onOpenCharge: () => {},
     ...overrides,
   };
   return { props, purchaseCalls, townCalls, buildingCalls };

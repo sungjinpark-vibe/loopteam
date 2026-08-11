@@ -18,7 +18,7 @@ export type AwardEvent =
   | { kind: "build"; buildingId: string }
   | { kind: "nospend"; date: string }
   | { kind: "tier"; tier: number }
-  | { kind: "settlement"; period: string; outcomeBucket: number };
+  | { kind: "settlement"; period: string; outcomeBucket: number; primeLotCount: number };
 
 export interface SeedAward {
   eventKey: string;
@@ -36,8 +36,11 @@ export function awardFor(event: AwardEvent): SeedAward {
       return { eventKey: `seed:tier:${event.tier}`, amount: BALANCE.seedAwards.tier };
     case "settlement":
       return {
-        eventKey: `seed:settlement:${event.period}`,
-        amount: BALANCE.seedAwards.settlementByOutcomeBucket[event.outcomeBucket] ?? 0,
+        eventKey: `seed:settlement:${event.period}`, // UNCHANGED — same idempotency key
+        amount:
+          (BALANCE.seedAwards.settlementByOutcomeBucket[event.outcomeBucket] ?? 0) +
+          // ADDENDUM-06 §3.2 — 명당 standing bonus: 3 seeds per building on a prime lot, capped at 30.
+          Math.min(BALANCE.seedAwards.primeLotMax, BALANCE.seedAwards.primeLot * Math.max(0, event.primeLotCount)),
       };
   }
 }

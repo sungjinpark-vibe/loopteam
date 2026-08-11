@@ -14,6 +14,20 @@ import { archetypeFor, BuildingArt, MAX_VISUAL_LEVEL } from "./buildingArt";
 import type { BuildingCategoryId } from "../types";
 import "../buildings.css";
 
+/**
+ * §4.4 — a 10%-alpha tint of the category colour, not the raw token. Keeps
+ * `style.backgroundColor` a non-empty string (the load-bearing proof that
+ * `@toss/tds-colors` resolves under Vitest, `TownGrid.test.tsx`) while no
+ * longer painting a full-bleed flat-grid swatch behind the SVG art.
+ */
+function tintOf(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, 0.1)`;
+}
+
 export interface BuildingVisualProps {
   categoryId: BuildingCategoryId | null;
   variantIndex: number;
@@ -55,7 +69,7 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 
   return (
     <div
       className={classNames}
-      style={{ backgroundColor: color }}
+      style={{ backgroundColor: tintOf(color) }}
       title={title}
       data-archetype={archetypeFor(categoryId, monumentPeriod)}
     >

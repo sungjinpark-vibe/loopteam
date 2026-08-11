@@ -31,6 +31,7 @@ import { buildingForEntry, deleteEntryEffects, editEntryEffects, type EntryEditP
 import { claimNoSpendDay } from "./noSpendActions";
 import { drainQueue } from "./queueActions";
 import { settleMonths } from "./settlementActions";
+import { isPrimePlotIndex } from "./townLayout";
 import { allocatePlots, moveBuilding as movePlacement, pickPlot, reconcilePlacement, type MoveResult } from "./placement";
 import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
@@ -507,7 +508,7 @@ export function useTownStore() {
         if (m.monumentSummary) {
           economy = applyAward(
             economy,
-            awardFor({ kind: "settlement", period: m.monumentSummary.period, outcomeBucket: m.monumentSummary.outcomeBucket }),
+            awardFor({ kind: "settlement", period: m.monumentSummary.period, outcomeBucket: m.monumentSummary.outcomeBucket, primeLotCount: settleDrain.buildings.filter((b) => isPrimePlotIndex(b.plotIndex)).length }),
           );
         }
       }

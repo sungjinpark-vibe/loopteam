@@ -1,0 +1,255 @@
+{
+  "verifications": {
+    "primeLotVisibleOnPopulatedTown": true,
+    "atLeastOneLandmarkLevel4Plus": true,
+    "allNpcsOnRoad": true,
+    "allNpcsInsideGrid": true,
+    "plainTapOnBuildingIsNoop": true,
+    "longPressEnteredMoveMode": true,
+    "moveCompleted": true,
+    "tallTownAllNpcsOnRoad": true,
+    "tallTownAllNpcsInsideGrid": true,
+    "afterDepthFixTallTownAllNpcsOnRoad": true,
+    "afterDepthFixTallTownAllNpcsInsideGrid": true
+  },
+  "afterDepthFixVisualJudgement": {
+    "comparedTo": "docs/qa/evidence-addendum06/07-town-tall-zoomed-out.png (before) vs 09/10 (after)",
+    "screenshotsReviewed": [
+      "docs/qa/evidence-addendum06/09-town-tall-after-depth.png",
+      "docs/qa/evidence-addendum06/10-terrace-edges-after-depth.png"
+    ],
+    "sameSeeding": "Same script, same recipe: 74 buildings, 5 terrace blocks (blockCount=5), rerun end-to-end after the CSS-only depth fix (dev-team confirmed no grid-track/layout change, 103 tests still pass).",
+    "steppedVsFlatVerdict": "Real improvement, now reads as stepped, not just flat-with-tint. 09 shows 5 clearly distinct plateau tones block-to-block (pale pink -> warm tan/gold -> deeper gold -> peach -> pale mint), not the near-identical cream-on-cream of 07. 10 (1:1 closeup) shows a genuinely visible dark brown earth band between the upper plateau and the road — that band was nearly invisible in 08. This is the missing elevation cue named in the prior verdict; it now reads.",
+    "toneCheck": "Still pastel, not muddy. The added brown is confined to the earth strip at each terrace boundary — it doesn't spread into the plateau body or the buildings, and the buildings themselves (blue/purple/orange/teal/pink) keep the frame dominantly bright/pastel. Would flag as a concern only if the earth band creeps wider than one road row or the plateau tints keep pushing warmer — not the case here.",
+    "roadAndNpcCheck": "Road reads as a continuous grey ribbon with an unbroken dashed centerline in both 09 and 10 — the deeper (20px) earth band is not visibly painting over or breaking the road, consistent with TownGrid.tsx's DOM-order guarantee (cross-street renders after the terrace, road always on top). tallTown NPC placement check (checkNpcPlacement, same bbox-overlap method) rerun after the fix: all 12 NPCs still onRoad and insideGrid at 5-block scale (see afterDepthFixTallTownAllNpcsOnRoad/InsideGrid above) — no regression from the deeper earth band.",
+    "remainingGap": "Not re-litigating the props-layer gap (§5, already flagged as deliberately deferred, not blocking) — this judgement is scoped to the terrain-depth question only."
+  },
+  "terraceCountEmptyTown": 1,
+  "primeLotCountEmptyTown": 2,
+  "timeTravelledTo": "2026-08-12",
+  "buildingCount": 14,
+  "archetypes": [
+    "restaurant",
+    "workshop",
+    "cottage",
+    "gift",
+    "cottage",
+    "transport",
+    "school",
+    "clinic",
+    "cinema",
+    "shop",
+    "hall",
+    "office",
+    "cafe",
+    "townhouse"
+  ],
+  "distinctArchetypes": 13,
+  "levelledBuildingId": "b_msnyz9ic_b6k2em_2",
+  "landmarkBadgeCount": 5,
+  "badgeLevels": [
+    5,
+    2,
+    2,
+    2,
+    2
+  ],
+  "levelledBuildingLevel": "Lv.5",
+  "npcCount": 12,
+  "npcPlacement": [
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 95,
+      "cy": 132
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 211,
+      "cy": 132
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 259,
+      "cy": 225
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 413,
+      "cy": 132
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 423,
+      "cy": 132
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 42,
+      "cy": 336
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 105,
+      "cy": 336
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 298,
+      "cy": 336
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 307,
+      "cy": 336
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 423,
+      "cy": 336
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 259,
+      "cy": 515
+    },
+    {
+      "onRoad": true,
+      "insideGrid": true,
+      "cx": 100,
+      "cy": 520
+    }
+  ],
+  "movePlotIndex": "0",
+  "dropPlotIndex": "1",
+  "performance": {
+    "terraceCountBeforeRemoval": 1,
+    "terraceCountAfterRemoval": 0,
+    "npcTickGapsMsWithTerraces": [
+      871,
+      2567,
+      2428
+    ],
+    "npcTickGapsMsWithoutTerraces": [
+      330,
+      2499,
+      2535,
+      2489
+    ],
+    "avgTickGapMsWithTerraces": 1955.3333333333333,
+    "avgTickGapMsWithoutTerraces": 1963.25,
+    "note": "Gap = wall-clock ms between detected npc-slot style changes, 100ms poll granularity, STEP_INTERVAL_MS=2500 is the expected floor. Terraces removed mid-run (DOM node reduction only, not a re-mount) to isolate terrain's paint/layout cost from the fixed 2500ms tick.",
+    "ratio": 0.9959675707797444
+  },
+  "tallTown": {
+    "buildingCount": 74,
+    "terraceCount": 5,
+    "terraceTints": [
+      "town-terrace--t0",
+      "town-terrace--t1",
+      "town-terrace--t2",
+      "town-terrace--t0",
+      "town-terrace--t1"
+    ],
+    "npcPlacement": [
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 344,
+        "cy": -58
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 404,
+        "cy": 146
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 404,
+        "cy": 146
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 346,
+        "cy": -58
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 243,
+        "cy": 385
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 286,
+        "cy": -58
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 342,
+        "cy": 514
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 201,
+        "cy": 698
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 346,
+        "cy": 882
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 243,
+        "cy": 1013
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 140,
+        "cy": 882
+      },
+      {
+        "onRoad": true,
+        "insideGrid": true,
+        "cx": 458,
+        "cy": 1066
+      }
+    ]
+  },
+  "consoleErrors": [
+    "[error] SafeAreaInsets를 가져오는 중 에러가 발생했습니다: Error: getSafeAreaInsets is not a constant handler\n    at NativeWindow2.getConstant (http://localhost:5173/node_modules/.vite/deps/chunk-ZCLPAZCO.js?v=c50d73ee:274:11)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-ZCLPAZCO.js?v=c50d73ee:349:26\n    at getSafeAreaInsets (http://localhost:5173/node_modules/.vite/deps/chunk-ZCLPAZCO.js?v=c50d73ee:747:10)\n    at http://localhost:5173/node_modules/.vite/deps/@toss_tds-mobile-ait.js?v=c50d73ee:693:35\n    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:16963:34)\n    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:18206:19)\n    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:18179:17)\n    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:18169:15)\n    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:18159:11)\n    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:19543:11)",
+    "[warning] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio",
+    "[error] SafeAreaInsets를 가져오는 중 에러가 발생했습니다: Error: getSafeAreaInsets is not a constant handler\n    at NativeWindow2.getConstant (http://localhost:5173/node_modules/.vite/deps/chunk-ZCLPAZCO.js?v=c50d73ee:274:11)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-ZCLPAZCO.js?v=c50d73ee:349:26\n    at getSafeAreaInsets (http://localhost:5173/node_modules/.vite/deps/chunk-ZCLPAZCO.js?v=c50d73ee:747:10)\n    at http://localhost:5173/node_modules/.vite/deps/@toss_tds-mobile-ait.js?v=c50d73ee:693:35\n    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:16963:34)\n    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:18374:19)\n    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:19754:19)\n    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:19739:15)\n    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:19556:13)\n    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-VIJJTZRL.js?v=c50d73ee:19500:22)"
+  ],
+  "tallTownVisualJudgement": {
+    "screenshotsReviewed": [
+      "docs/qa/evidence-addendum06/07-town-tall-zoomed-out.png",
+      "docs/qa/evidence-addendum06/08-terrace-edges-closeup.png"
+    ],
+    "townSize": "74 buildings, 5 terrace blocks (blockCount = ceil(ceil(74/8)/2))",
+    "verdict": "flat",
+    "verdictDetail": "At 07 (full-width, zoomed to fit, 5 blocks stacked), the town reads as tinted horizontal color bands separated by grey cross-streets — NOT as Fortune City-style stepped multi-level terrain. The tint does rotate across blocks (t0/t1/t2/t0/t1, confirmed in tallTown.terraceTints) and is visible as a color-temperature shift block to block, but nothing in the silhouette reads as elevation/height. 08 (1:1 close-up on the block0/block1 boundary) confirms why: the earth cross-section is present but reads as a thin, low-contrast strip right against the road bar, easy to miss and not readable as a cliff face. The silhouette edge-cut (up to 12px bleed) is too small relative to tile size (52px) to register as an irregular block outline at either zoom level.",
+    "highestLeverageFix": "Deepen and darken the earth cross-section — TERRACE_EARTH_PX (currently 10px, townLayout.ts) is the ONE element that specifically encodes 'this is a vertical drop' rather than just 'this is a different color zone'; the tint rotation alone reads as zoning, not elevation. Roughly double the height and increase the --terrace-earth/--terrace-earth-dk contrast against the plateau tints (App.css) before touching tint contrast or silhouette-cut magnitude — those help but don't fix the core 'no visible height change' read on their own.",
+    "notImplemented": "Diagnosis only, per instruction — no CSS/townLayout.ts changes made."
+  }
+}

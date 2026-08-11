@@ -365,3 +365,75 @@ export function districtLadderLength(
 export function decorVariant(row: number, col: number, kinds: number): number {
   return (((row * 31 + col * 17) % kinds) + kinds) % kinds;
 }
+
+// ── ADDENDUM-06 §2 — terrain. Render-time only, never persisted (C-2), pure
+// functions of the grid row alone (C-3). No new state, no new storage key.
+
+/**
+ * Height of the earth cross-section hanging below a terrace slab.
+ *
+ * ponytail: capped at the cross-street row (ROAD_HEIGHT_PX = 22). The slab's
+ * earth is absolutely positioned at `top: 100%`, and the NEXT block's slab is a
+ * later DOM sibling that paints over it — so anything past ~22px is drawn but
+ * invisible. 10px was too shallow to read as a wall at all (evidence 07);
+ * 20px fills the available gap. Going deeper than this means taller row gaps,
+ * which changes `grid-template-rows` and moves every NPC off the road
+ * (NpcLayer measures resolved tracks off the live DOM, C-7) — that is a
+ * layout task with a LAYOUT_VERSION bump, not a paint tweak.
+ */
+export const TERRACE_EARTH_PX = 20;
+/** How far one terrace's shadow falls onto the ramp below it. */
+export const TERRACE_DROP_PX = 6;
+/**
+ * Max horizontal bleed of a terrace slab past the plot columns, into
+ * `.town-grid`'s own padding. MUST stay <= GRID_PADDING_X_PX (16) — a larger
+ * value would push the slab under the viewport edge and reintroduce the
+ * horizontal overflow `.town-viewport` exists to scroll. Asserted.
+ */
+export const TERRACE_BLEED_PX = 12;
+/** Number of ground tints in the elevation ramp. */
+export const TERRACE_TINTS = 3;
+/** Number of distinct silhouette cuts a terrace edge can take. */
+export const TERRACE_EDGE_CUTS = 3;
+
+/** Grid row of block `b`'s FIRST plot row. Inverse of `blockIndexOf` on its first row. */
+export function blockFirstRow(b: number): number {
+  return TOWN_HEAD_ROWS + 1 + b * (BLOCK_ROWS + 1);
+}
+
+/** Elevation tint step for a terrace, 0..TERRACE_TINTS-1. Decoration only (R-2). */
+export function terraceTintOf(b: number): number {
+  return decorVariant(b, 0, TERRACE_TINTS);
+}
+
+/**
+ * Silhouette inset, in px, of one terrace's left (side 0) / right (side 1)
+ * edge — this is what makes the town outline irregular instead of a
+ * rectangle. Reuses `decorVariant` (R-2): deterministic, never stored, never
+ * `Math.random` (R-6). Always in [0, TERRACE_BLEED_PX].
+ */
+export function terraceEdgeInsetPx(b: number, side: 0 | 1): number {
+  const cut = decorVariant(b, side + 1, TERRACE_EDGE_CUTS); // 0 | 1 | 2
+  return Math.round((cut * TERRACE_BLEED_PX) / (TERRACE_EDGE_CUTS - 1)); // 0 | 6 | 12
+}
+
+/**
+ * A 명당 (prime lot): the two street-front lots on a block's FIRST plot row —
+ * the corner of the plaza where the cross street meets the main street, and
+ * the lot that overlooks the terrace edge. Exactly 2 per block, at every town
+ * size, forever.
+ *
+ * TRAP, do not drop the first clause: `isBlockFirstRow(0)` is `true`
+ * (`(0 - 2 - 1) % 3 === 0` in JS's signed modulo), and row 0 is the entrance
+ * CROSS STREET, not a plot row. `row > TOWN_HEAD_ROWS` is what excludes it —
+ * and excludes the savings rows with it.
+ */
+export function isPrimeLot(row: number, col: number): boolean {
+  return row > TOWN_HEAD_ROWS && isBlockFirstRow(row) && isStreetFrontCol(col);
+}
+
+/** The same predicate in plot-index space — what non-render callers (economy) use. */
+export function isPrimePlotIndex(i: number): boolean {
+  const { row, col } = cellFromIndex(i);
+  return isPrimeLot(row, col);
+}

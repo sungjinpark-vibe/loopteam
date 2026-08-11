@@ -14,7 +14,23 @@
  */
 import type { ReactNode } from "react";
 import { colors } from "@toss/tds-colors";
-import type { BuildingCategoryId } from "../types";
+import type { BuildingCategoryId, SavingCategoryId } from "../types";
+import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
+
+/**
+ * The categories that actually own building art. Savings are excluded on purpose:
+ * a saving entry raises one of the five fixed savings structures (`SavingsRow`) and
+ * never becomes a `Building`, so there is no archetype for it. `park` and monuments
+ * have their own renderers. Keeping the key type honest is what makes the two
+ * `ARCHETYPES[...]` lookups below provably total instead of possibly-`undefined`.
+ */
+type ArchetypeCategoryId = Exclude<BuildingCategoryId, "park" | SavingCategoryId>;
+
+const SAVING_ID_SET: ReadonlySet<string> = new Set<string>(SAVING_CATEGORY_IDS);
+
+function hasArchetype(categoryId: BuildingCategoryId): categoryId is ArchetypeCategoryId {
+  return categoryId !== "park" && !SAVING_ID_SET.has(categoryId);
+}
 
 // ── shared geometry (ported 1:1 from building-props.html's bilinear-quad approach) ──
 
@@ -70,6 +86,7 @@ interface Palette {
   roofDark: string;
   door: string;
   win: string;
+  winDark: string;
 }
 
 /**
@@ -91,7 +108,10 @@ function paletteFor(hue: Hue, variantIndex: number, whiteWalls?: boolean): Palet
     roofMid: shade(hue, base),
     roofDark: shade(hue, base + 200),
     door: shade(hue, Math.min(base + 300, 800)),
-    win: colors.grey50,
+    // §7: lit/unlit window panes are universal tokens, not hue-derived — every
+    // building's windows read the same warm-vs-dark, regardless of category colour.
+    win: colors.yellow100,
+    winDark: colors.grey200,
   };
 }
 
@@ -123,6 +143,8 @@ interface ArchetypeSpec {
   hBase: number;
   whiteWalls?: boolean;
   decor?: Decor;
+  /** A wide, low landmark: broader footprint + an oversized roof ornament (§4.2). */
+  landmark?: true;
 }
 
 const DEFAULT_HW = 32;
@@ -130,18 +152,18 @@ const DEFAULT_H = 54;
 
 // Category -> archetype (ADDENDUM-05 §F-BLD table). This mapping is ours —
 // lifetown's own categories (reading/study/work/exercise) do not apply.
-const ARCHETYPES: Record<Exclude<BuildingCategoryId, "park">, ArchetypeSpec> = {
+const ARCHETYPES: Record<ArchetypeCategoryId, ArchetypeSpec> = {
   food: { archetype: "restaurant", hue: "orange", roof: "flat", sign: "🍚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true } },
   cafe: { archetype: "cafe", hue: "orange", roof: "pyramid", sign: "☕", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { parasol: true } },
-  transport: { archetype: "transport", hue: "blue", roof: "flat", sign: "🚌", hw: 42, hBase: 32, decor: { routeStripe: true } },
+  transport: { archetype: "transport", hue: "blue", roof: "flat", sign: "🚌", hw: 42, hBase: 32, decor: { routeStripe: true }, landmark: true },
   shopping: { archetype: "shop", hue: "purple", roof: "flat", sign: "🛍️", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true } },
   living: { archetype: "townhouse", hue: "teal", roof: "pyramid", sign: "🏠", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { chimney: "back", windowBoxes: true } },
   health: { archetype: "clinic", hue: "red", roof: "flat", sign: "✚", hw: DEFAULT_HW, hBase: DEFAULT_H, whiteWalls: true },
-  culture: { archetype: "cinema", hue: "purple", roof: "flat", sign: "🎬", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { marquee: true, ticketWindow: true } },
+  culture: { archetype: "cinema", hue: "purple", roof: "flat", sign: "🎬", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { marquee: true, ticketWindow: true }, landmark: true },
   education: { archetype: "school", hue: "blue", roof: "pyramid", sign: "📚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { clock: true, flag: true } },
-  social: { archetype: "hall", hue: "yellow", roof: "flat", sign: "🎁", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { bunting: true, wideDoor: true } },
+  social: { archetype: "hall", hue: "yellow", roof: "flat", sign: "🎁", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { bunting: true, wideDoor: true }, landmark: true },
   etc: { archetype: "cottage", hue: "grey", roof: "pyramid", sign: "✳️", hw: DEFAULT_HW, hBase: DEFAULT_H },
-  salary: { archetype: "office", hue: "green", roof: "flat", sign: "💼", hw: 24, hBase: 66 },
+  salary: { archetype: "office", hue: "green", roof: "flat", sign: "💼", hw: 24, hBase: 66, landmark: true },
   sidejob: { archetype: "workshop", hue: "green", roof: "pyramid", sign: "🔧", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { chimney: "side" } },
   bonus: { archetype: "gift", hue: "yellow", roof: "flat", sign: "🎀", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { ribbon: true } },
   other_income: { archetype: "cottage", hue: "teal", roof: "pyramid", sign: "💰", hw: DEFAULT_HW, hBase: DEFAULT_H },
@@ -159,9 +181,56 @@ function floorsFor(level: number): number {
   return Math.max(0, Math.min(level, MAX_VISUAL_LEVEL) - 1);
 }
 
+/**
+ * `cols × rows` window quads on one wall face — the "buildings look lived-in" fix
+ * (§4.1). Replaces the old single flat-colour window quad per face. One pane in
+ * three is unlit, chosen by `(r*3 + c + variantIndex) % 3 === 0` — deterministic,
+ * seeded from the building's own variantIndex, never `Math.random`.
+ */
+function windowGrid(
+  A: Vec,
+  B: Vec,
+  C: Vec,
+  D: Vec,
+  cols: number,
+  rows: number,
+  uBase: number,
+  uSpan: number,
+  vBase: number,
+  vSpan: number,
+  palette: Palette,
+  variantIndex: number,
+  key: string,
+): ReactNode[] {
+  const out: ReactNode[] = [];
+  const cellU = uSpan / cols;
+  const cellV = vSpan / rows;
+  const paneU = cellU * 0.625; // pane narrower than its cell — leaves a mullion gap
+  const paneV = cellV * 0.6364;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const u0 = uBase + c * cellU;
+      const v0 = vBase + r * cellV;
+      const unlit = (r * 3 + c + variantIndex) % 3 === 0;
+      out.push(
+        <polygon
+          key={`${key}-${r}-${c}`}
+          data-part="window"
+          points={pointsAttr(quadPts(A, B, C, D, u0, u0 + paneU, v0, v0 + paneV))}
+          fill={unlit ? palette.winDark : palette.win}
+        />,
+      );
+    }
+  }
+  return out;
+}
+
 /** The isometric wall-cube skeleton, shared by every category archetype. */
-function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number) {
-  const { hw, hBase, roof } = spec;
+function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, variantIndex: number, isLandmark: boolean) {
+  const { roof } = spec;
+  // §4.2: a landmark is broader + squatter than its neighbours inside the same tile.
+  const hw = isLandmark ? spec.hw * 1.3 : spec.hw;
+  const hBase = isLandmark ? spec.hBase * 0.82 : spec.hBase;
   const h = hBase + floors * FLOOR_STEP;
   const hh = hw / 2;
   const cx = CX;
@@ -210,10 +279,9 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number) {
     );
   }
 
-  // windows (left face)
-  parts.push(
-    <polygon key="win-l" points={pointsAttr(quadPts(FB, LB, LT, FT, 0.3, 0.6, 0.42, 0.72))} fill={palette.win} />,
-  );
+  // windows (left face) — cols x rows grid, rows scale with level (§4.1)
+  const winRows = Math.min(4, 1 + floors);
+  parts.push(...windowGrid(FB, LB, LT, FT, 2, winRows, 0.18, 0.64, 0.34, 0.44, palette, variantIndex, "win-l"));
 
   // door + door windows (right face) — wideDoor widens the door quad
   const doorU1 = spec.decor?.wideDoor ? 0.48 : 0.4;
@@ -223,8 +291,10 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number) {
   parts.push(
     <polygon key="lintel" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.2, 0.34, 0.55, 0.6))} fill={colors.yellow200} />,
   );
+  // right-face window grid starts clear of the door quad (doorU1 max is 0.48)
+  const rightWinBase = doorU1 + 0.12;
   parts.push(
-    <polygon key="win-r" points={pointsAttr(quadPts(FB, RB, RT, FT, doorU1 + 0.14, doorU1 + 0.4, 0.3, 0.55))} fill={palette.win} />,
+    ...windowGrid(FB, RB, RT, FT, 2, winRows, rightWinBase, 0.9 - rightWinBase, 0.3, 0.44, palette, variantIndex, "win-r"),
   );
 
   // roof
@@ -333,6 +403,45 @@ function decorParts(spec: ArchetypeSpec, geo: ReturnType<typeof buildingCube>): 
   return out;
 }
 
+/**
+ * Two posts + a rounded plate + the archetype's glyph at 22px — the oversized
+ * roof ornament landmarks get instead of the bare emoji (§4.3). Applied
+ * uniformly to every landmark archetype and to any building promoted to
+ * landmark rendering by level.
+ */
+function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeof buildingCube>): ReactNode[] {
+  const { signAnchor } = geo;
+  const plateW = 44;
+  const plateH = 18;
+  const plateCx = signAnchor.x;
+  const plateCy = signAnchor.y - 14;
+  const plateTop = plateCy - plateH / 2;
+  const plateBottom = plateCy + plateH / 2;
+  const out: ReactNode[] = [
+    <line key="post-l" x1={plateCx - 10} y1={plateBottom} x2={plateCx - 10} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
+    <line key="post-r" x1={plateCx + 10} y1={plateBottom} x2={plateCx + 10} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
+    <rect
+      key="plate"
+      data-part="signboard"
+      x={plateCx - plateW / 2}
+      y={plateTop}
+      width={plateW}
+      height={plateH}
+      rx={3}
+      fill={palette.roofLite}
+      stroke={palette.roofDark}
+    />,
+    <text key="plate-sign" x={plateCx} y={plateCy + 7} fontSize={22} textAnchor="middle">
+      {spec.sign}
+    </text>,
+  ];
+  // three marquee bulbs along the plate's bottom edge — the same trick d.marquee already uses
+  for (let i = 0; i < 3; i++) {
+    out.push(<circle key={`bulb-${i}`} cx={plateCx - 12 + i * 12} cy={plateBottom} r={1.2} fill={colors.white} />);
+  }
+  return out;
+}
+
 /** F15 무지출 데이 — a park, not a building: trees + a bench. Kept the most distinct tile. */
 function ParkArt({ variantIndex }: { variantIndex: number }) {
   const treeCount = 2 + (variantIndex % 2); // 2 or 3 trees for a little variety
@@ -407,6 +516,9 @@ export function archetypeFor(categoryId: BuildingCategoryId | null, monumentPeri
   if (monumentPeriod) return "monument";
   if (categoryId === "park") return "park";
   if (categoryId === null) return "monument";
+  // Savings never reach here (they raise a SavingsRow structure, not a Building);
+  // the guard is what proves the lookup below is total.
+  if (!hasArchetype(categoryId)) return "monument";
   return ARCHETYPES[categoryId].archetype;
 }
 
@@ -420,20 +532,30 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod }:
   if (categoryId === "park") {
     return <ParkArt variantIndex={variantIndex} />;
   }
+  if (!hasArchetype(categoryId)) {
+    return <MonumentArt monumentPeriod={monumentPeriod} />;
+  }
 
   const spec = ARCHETYPES[categoryId];
   const palette = paletteFor(spec.hue, variantIndex, spec.whiteWalls);
   const floors = floorsFor(level);
-  const geo = buildingCube(spec, palette, floors);
+  // §4.2: landmark archetypes render wide/squat always; any building also gets
+  // promoted at level >= 4 — "placement + growth reads on screen".
+  const isLandmark = !!spec.landmark || level >= 4;
+  const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark);
   const decor = decorParts(spec, geo);
 
   return (
     <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" height="100%" data-archetype={spec.archetype} aria-hidden="true">
       {geo.parts}
       {decor}
-      <text x={geo.signAnchor.x} y={geo.signAnchor.y + 8} fontSize={16} textAnchor="middle">
-        {spec.sign}
-      </text>
+      {isLandmark ? (
+        roofSignboard(spec, palette, geo)
+      ) : (
+        <text x={geo.signAnchor.x} y={geo.signAnchor.y + 8} fontSize={16} textAnchor="middle">
+          {spec.sign}
+        </text>
+      )}
     </svg>
   );
 }

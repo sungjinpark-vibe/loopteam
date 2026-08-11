@@ -1,0 +1,49 @@
+﻿{
+    "pass":  true,
+    "appDir":  "C:\\Users\\user\\loop_engine\\app_in_toss",
+    "checks":  [
+                   {
+                       "name":  "project-exists",
+                       "pass":  true,
+                       "detail":  "Node project: app_in_toss"
+                   },
+                   {
+                       "name":  "npm-available",
+                       "pass":  true,
+                       "detail":  "11.13.0"
+                   },
+                   {
+                       "name":  "install",
+                       "pass":  true,
+                       "detail":  "exit=0"
+                   },
+                   {
+                       "name":  "typecheck",
+                       "pass":  true,
+                       "detail":  "project references: ./tsconfig.app.json -\u003e exit=0 | ./tsconfig.node.json -\u003e exit=0"
+                   },
+                   {
+                       "name":  "build",
+                       "pass":  true,
+                       "detail":  "exit=0"
+                   },
+                   {
+                       "name":  "test",
+                       "pass":  true,
+                       "detail":  "exit=0"
+                   },
+                   {
+                       "name":  "lint",
+                       "pass":  true,
+                       "detail":  "exit=0"
+                   },
+                   {
+                       "name":  "gate:extra",
+                       "pass":  true,
+                       "detail":  "exit=0"
+                   }
+               ],
+    "failed":  [
+
+               ]
+}

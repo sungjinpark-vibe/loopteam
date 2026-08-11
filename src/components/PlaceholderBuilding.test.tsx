@@ -193,3 +193,56 @@ describe("PlaceholderBuilding — archetype per category (ADDENDUM-05 §F-BLD)",
     }
   });
 });
+
+// ── ADDENDUM-06 §4.1/§4.4 — window grid + the swatch-tint AC (AC-10) ──
+
+describe("PlaceholderBuilding — window grid (§4.1, AC-10)", () => {
+  it("a level 1 building emits at least 4 window quads (today: 2)", () => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={1} />);
+    const windows = mounted.container.querySelectorAll('[data-part="window"]');
+    expect(windows.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("a level 4 building emits strictly more window quads than a level 1 building of the same category", () => {
+    const level1 = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={1} />);
+    const level4 = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={4} />);
+    const count1 = level1.container.querySelectorAll('[data-part="window"]').length;
+    const count4 = level4.container.querySelectorAll('[data-part="window"]').length;
+    expect(count4).toBeGreaterThan(count1);
+    level1.unmount();
+    level4.unmount();
+  });
+
+  it("the tile's inline background colour is still a non-empty string (the derived tint, ADDENDUM-06 §4.4)", () => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} />);
+    const tile = mounted.container.querySelector(".building-tile") as HTMLElement;
+    expect(tile.style.backgroundColor).not.toBe("");
+  });
+});
+
+// ── ADDENDUM-06 §4.2/§4.3 — landmark roof signboard (AC-9) ──
+
+describe("PlaceholderBuilding — landmark roof signboard (§4.2-4.3, AC-9)", () => {
+  const LANDMARK_CATEGORIES: BuildingCategoryId[] = ["culture", "social", "transport", "salary"];
+
+  it.each(LANDMARK_CATEGORIES)("%s (a landmark archetype) emits a [data-part=signboard] node", (categoryId) => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={1} />);
+    expect(mounted.container.querySelector('[data-part="signboard"]')).not.toBeNull();
+    mounted.unmount();
+    mounted = null;
+  });
+
+  it("every other category at level <= 3 does not emit a signboard", () => {
+    const nonLandmark = SAMPLE_CATEGORIES.filter((c) => !LANDMARK_CATEGORIES.includes(c));
+    for (const categoryId of nonLandmark) {
+      const m = mountComponent(<PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={3} />);
+      expect(m.container.querySelector('[data-part="signboard"]')).toBeNull();
+      m.unmount();
+    }
+  });
+
+  it("a non-landmark category promoted by level >= 4 also emits a signboard", () => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={4} />);
+    expect(mounted.container.querySelector('[data-part="signboard"]')).not.toBeNull();
+  });
+});

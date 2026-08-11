@@ -12,6 +12,7 @@ import {
   BLOCK_ROWS,
   DISTRICT_ROW_GAP_PX,
   GRID_COLUMNS,
+  GRID_PADDING_X_PX,
   GRID_TEMPLATE_COLUMNS,
   LAYOUT_VERSION,
   MIN_TILE_WIDTH_PX,
@@ -24,14 +25,21 @@ import {
   SAVINGS_ROW_ORDER,
   SEG_STEP_PX,
   SERPENTINE_COLUMNS,
+  TERRACE_BLEED_PX,
+  TERRACE_TINTS,
   TOWN_HEAD_ROWS,
+  blockFirstRow,
+  blockIndexOf,
   cellFromIndex,
   crossStreetRowCount,
   districtLadderLength,
   freeSavingsCells,
   gridRowCount,
   indexFromPlot,
+  isBlockFirstRow,
   isCrossStreetRow,
+  isPrimeLot,
+  isPrimePlotIndex,
   isRoadCell,
   isSavingsRow,
   pipBlockHeightPx,
@@ -43,6 +51,8 @@ import {
   savingsPlotHeightPx,
   savingsPlotTemplateRows,
   structureHeightPx,
+  terraceEdgeInsetPx,
+  terraceTintOf,
 } from "./townLayout";
 import type { SavingCategoryId } from "./types";
 
@@ -444,5 +454,74 @@ describe("rule R-3 — App.css never places or measures a townLayout.ts coordina
     const body = ruleBodyOf(appCss, ".town-grid");
     expect(body).toMatch(/padding:\s*8px\s+var\(--town-grid-pad-x\)\s+24px/);
     expect(body).toMatch(/grid-auto-rows:\s*auto/);
+  });
+});
+
+describe("terrain — terraceEdgeInsetPx / terraceTintOf (ADDENDUM-06 §2, AC-1)", () => {
+  it("TERRACE_BLEED_PX stays inside GRID_PADDING_X_PX, so a slab never overflows the viewport", () => {
+    expect(TERRACE_BLEED_PX).toBeLessThanOrEqual(GRID_PADDING_X_PX);
+  });
+
+  it("terraceEdgeInsetPx is always in [0, TERRACE_BLEED_PX], b = 0..200, both sides", () => {
+    for (let b = 0; b <= 200; b++) {
+      for (const side of [0, 1] as const) {
+        const inset = terraceEdgeInsetPx(b, side);
+        expect(inset).toBeGreaterThanOrEqual(0);
+        expect(inset).toBeLessThanOrEqual(TERRACE_BLEED_PX);
+      }
+    }
+  });
+
+  it("terraceTintOf is always in [0, TERRACE_TINTS), b = 0..200", () => {
+    for (let b = 0; b <= 200; b++) {
+      const tint = terraceTintOf(b);
+      expect(tint).toBeGreaterThanOrEqual(0);
+      expect(tint).toBeLessThan(TERRACE_TINTS);
+    }
+  });
+});
+
+describe("blockFirstRow (ADDENDUM-06 §2, AC-4)", () => {
+  it("blockFirstRow(0) is the first plot row right after the town head", () => {
+    expect(blockFirstRow(0)).toBe(TOWN_HEAD_ROWS + 1);
+  });
+
+  it("blockFirstRow(b) is <= every row blockIndexOf resolves back to block b, and is itself a block-first row, b = 0..200", () => {
+    for (let b = 0; b <= 200; b++) {
+      const firstRow = blockFirstRow(b);
+      expect(blockIndexOf(firstRow)).toBeLessThanOrEqual(firstRow);
+      expect(isBlockFirstRow(firstRow)).toBe(true);
+    }
+  });
+});
+
+describe("isPrimeLot / isPrimePlotIndex — 명당 (ADDENDUM-06 §2, AC-5)", () => {
+  it("exactly 2 prime cells per block's first row, b = 0..50", () => {
+    for (let b = 0; b <= 50; b++) {
+      const row = blockFirstRow(b);
+      let count = 0;
+      for (let col = 0; col < GRID_COLUMNS; col++) {
+        if (isPrimeLot(row, col)) count++;
+      }
+      expect(count).toBe(2);
+    }
+  });
+
+  it("row 0 (entrance cross street) is never a prime lot despite the signed-modulo trap", () => {
+    expect(isPrimeLot(0, ROAD_COLUMN - 1)).toBe(false);
+    expect(isPrimeLot(0, ROAD_COLUMN + 1)).toBe(false);
+  });
+
+  it("the road column itself is never a prime lot, for any row", () => {
+    for (let row = 0; row <= 30; row++) {
+      expect(isPrimeLot(row, ROAD_COLUMN)).toBe(false);
+    }
+  });
+
+  it("isPrimePlotIndex agrees with isPrimeLot(cellFromIndex(i)), i = 0..600", () => {
+    for (let i = 0; i <= MAX_I; i++) {
+      const { row, col } = cellFromIndex(i);
+      expect(isPrimePlotIndex(i)).toBe(isPrimeLot(row, col));
+    }
   });
 });

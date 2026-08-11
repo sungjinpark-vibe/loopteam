@@ -72,6 +72,7 @@ function renderGrid(fixture: ReturnType<(typeof FIXTURES)["dense"]>, overrides: 
       maxLevel={BALANCE.maxLevel}
       justGrew={null}
       onRiseSettled={() => {}}
+      npcCount={0}
       {...NOOP}
       {...overrides}
     />

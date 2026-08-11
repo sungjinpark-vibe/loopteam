@@ -280,6 +280,28 @@ button.town-fab {
 
 .town-grid {
   --town-asphalt: #b9bec6; /* pure paint — no coordinate, stays here */
+  /* ADDENDUM-06 §7 — terrain palette. Pure paint (C-4): no townLayout.ts
+   * arithmetic reads these hex values (unlike --terrace-earth-h /
+   * --terrace-drop / --terrace-bleed / --terrace-inset-* below, which are
+   * pixel constants townLayout.ts owns and which arrive inline from
+   * TownGrid.tsx with no fallback here, same rule as --town-road-w etc). */
+  /* Value SPREAD is what sells elevation, not hue. The first cut of these three
+   * tints sat inside 3% luminance of each other, so five stacked terraces read as
+   * one flat sheet in the 74-building evidence shot (docs/qa/evidence-addendum06/
+   * 07). Adjacent blocks always differ by one step (`terraceTintOf` is b % 3), so
+   * the steps below are ~8% luminance apart — still cream, now legible. */
+  --terrace-a: #fdf7ec; /* plateau, tint 0 — highest/lightest */
+  --terrace-b: #f2e2cd; /* plateau, tint 1 */
+  --terrace-c: #e4cbaf; /* plateau, tint 2 — lowest/warmest */
+  /* A LIT top edge. The first cut was darker than every plateau, so it read as a
+   * seam between blocks; a bright rim above a dark earth wall is the whole
+   * elevation cue. */
+  --terrace-rim: #fffdf7; /* 1px plateau rim highlight */
+  --terrace-earth: #96694c; /* earth cross-section, top band */
+  --terrace-earth-dk: #5d3826; /* earth cross-section, shadow band */
+  --terrace-shadow: rgba(93, 56, 38, 0.34); /* the step one terrace casts on the ramp below */
+  --plaza-paving: #fde7ef; /* 명당 paving */
+  --prime-marker: #ec6a9c; /* 명당 ring — the ONLY saturated hue in the terrain set */
   display: grid;
   gap: var(--town-gap); /* was 8px, now GRID_GAP_PX from townLayout.ts */
   grid-auto-rows: auto; /* was 72px — road rows are shorter, the savings row is taller */
@@ -291,6 +313,67 @@ button.town-fab {
    * comment) — the move gesture wins over horizontal touch-scroll, always. */
   touch-action: pan-y;
   outline: none; /* the roving `.town-tile--cursor` ring is the focus indicator, not the browser default outline on the container */
+}
+
+/* ADDENDUM-06 §2.3 — terraces. One `.town-terrace` per plot block, emitted
+ * BEFORE `.town-main-street` (TownGrid.tsx) so DOM order alone keeps it
+ * behind every tile/road/NPC (T-R1) — this file has no z-index anywhere
+ * (C-8). T-R2: neither this rule nor its pseudo-elements set a `height`,
+ * `width` or `padding` that could grow a grid track (`NpcLayer` measures the
+ * resolved `grid-template-*` off the live DOM, C-7 — AC-6 asserts those
+ * strings are byte-identical with and without this layer). The slab fills
+ * its grid area by default `stretch`; nothing here sizes it. The only
+ * geometry is a negative margin, bleeding each edge outward by
+ * `--terrace-inset-l`/`-r` (0..TERRACE_BLEED_PX, asserted <= the grid's own
+ * GRID_PADDING_X_PX — AC-1) into `.town-grid`'s padding — never past it. */
+.town-terrace {
+  position: relative;
+  pointer-events: none; /* T-R3 — ground never wins a hit-test */
+  margin: 0 calc(-1 * var(--terrace-inset-r)) 0 calc(-1 * var(--terrace-inset-l));
+  box-shadow: inset 0 1px 0 var(--terrace-rim);
+}
+.town-terrace--t0 {
+  background: var(--terrace-a);
+}
+.town-terrace--t1 {
+  background: var(--terrace-b);
+}
+.town-terrace--t2 {
+  background: var(--terrace-c);
+}
+
+/* The dark earth cross-section — an absolutely-positioned pseudo-element, so
+ * it costs the slab's own box nothing (T-R2). T-R5: `top: 100%` hangs it INTO
+ * the cross-street row below, never over it; the cross street is a later DOM
+ * sibling with no z-index, so the road always paints on top and stays a
+ * continuous ribbon across every terrace. The box-shadow riding along is the
+ * drop shadow the terrace casts on the ramp below it (`--terrace-drop`). */
+.town-terrace::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: var(--terrace-earth-h);
+  background: linear-gradient(180deg, var(--terrace-earth) 0%, var(--terrace-earth-dk) 100%);
+  box-shadow: 0 var(--terrace-drop) var(--terrace-drop) -2px var(--terrace-shadow);
+}
+
+/* ADDENDUM-06 §3.3 — 명당 (prime lot) marker. Always-visible pink paving +
+ * ring on the tile itself (`.town-tile` already has `position: relative`,
+ * ADDENDUM-02 §4.4), stacked with whatever move-mode state class is also
+ * present — the perk is never colour-only (the aria-label change, TownGrid.tsx,
+ * carries the same information for assistive tech). */
+.town-tile--prime {
+  background: var(--plaza-paving);
+}
+.town-tile--prime::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 999px;
+  border: 2px solid var(--prime-marker);
+  pointer-events: none;
 }
 
 /* ADDENDUM-05 §2 — zoom-to-fit toggle. Fixed, like `.town-fab`/`.town-move-bar`
@@ -372,12 +455,15 @@ button.town-fab {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
 
+/* ADDENDUM-06 §8 "Empty lots" — the dashed border + faint tint used to be the
+ * only ground an unbuilt lot had; now the terrace underneath is the ground,
+ * so this is transparent and lets it show through. `EmptyLotProps` is
+ * unchanged (WP-A owns this CSS, not the component) — the 🌳/🌱 variant glyphs
+ * below are untouched. */
 .empty-lot {
   width: 100%;
   height: 100%;
-  border: 1px dashed var(--town-grey300);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.02);
+  background: transparent;
 }
 
 /* §3.7 checklist item 2: unbuilt lots are countryside, not construction

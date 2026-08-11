@@ -69,5 +69,8 @@ export const BALANCE = {
     // as the outcome worsens — a below-budget month is rewarded more than an
     // over-budget one, but every REAL month (bucket > 0) still earns something.
     settlementByOutcomeBucket: [0, 20, 12, 6],
+    // --- ADDENDUM-06 §3.2 (명당 prime-lot standing bonus). Not director-confirmed yet — tunable dial. ---
+    primeLot: 3, // seeds per building standing on a prime lot, per settlement
+    primeLotMax: 30, // ceiling, so a very large town cannot farm this into the shop's price floor
   },
 } as const;

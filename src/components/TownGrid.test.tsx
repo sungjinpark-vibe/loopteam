@@ -23,10 +23,12 @@ import {
   PIP_SIZE_PX,
   ROAD_COLUMN,
   ROAD_WIDTH_PX,
+  blockCount,
   crossStreetRowCount,
   freeSavingsCells,
   gridRowCount,
   isCrossStreetRow,
+  isPrimeLot,
   renderedTileCount,
   roadSideOf,
   savingsCellFor,
@@ -81,6 +83,7 @@ function mountGrid(
       maxLevel={BALANCE.maxLevel}
       justGrew={null}
       onRiseSettled={() => {}}
+      npcCount={0}
       {...NOOP_MOVE_PROPS}
       {...moveProps}
       {...savingsProps}
@@ -221,9 +224,18 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
     // grid item spanning `1 / -1` that positions its sprites absolutely inside
     // itself, so §2.4a's guard still means what it always meant — every direct
     // child is a grid item and no fragment has leaked one in.
+    // ADDENDUM-06 §2/§9 (WP-A): `+ blockCount(0)` is one `.town-terrace` per
+    // plot block, emitted before `.town-main-street` — also a real direct
+    // grid item (T-R1/AC-2), so the guard's shape is unchanged, just one more term.
     const expected =
-      renderedTileCount(0) + 1 + crossStreetRowCount(0) + SAVING_CATEGORY_IDS.length + freeSavingsCells().length + 1;
-    expect(expected).toBe(29);
+      renderedTileCount(0) +
+      1 +
+      crossStreetRowCount(0) +
+      SAVING_CATEGORY_IDS.length +
+      freeSavingsCells().length +
+      1 +
+      blockCount(0);
+    expect(expected).toBe(30);
     expect(grid.children.length).toBe(expected);
   });
 
@@ -240,6 +252,84 @@ describe("TownGrid — road layout placement (ADDENDUM-01 §3.4/§3.8)", () => {
 
   it("GRID_COLUMNS matches the template's token count (sanity cross-check with townLayout.test.ts)", () => {
     expect(GRID_TEMPLATE_COLUMNS.split(" ").length).toBe(GRID_COLUMNS);
+  });
+});
+
+describe("TownGrid — ADDENDUM-06 §2 terrain / §3.3 명당 marker (AC-2/AC-3/AC-6)", () => {
+  it("AC-2 — one .town-terrace per block: count === blockCount(openPlotCount(...)) at plotCount 0/12/13/100, exactly 1 at plotCount 0", () => {
+    for (const nextPlotIndex of [0, 12, 13, 100]) {
+      const container = mountGrid(nextPlotIndex);
+      expect(container.querySelectorAll(".town-terrace").length).toBe(blockCount(openPlotCount(nextPlotIndex, [])));
+    }
+    expect(mountGrid(0).querySelectorAll(".town-terrace").length).toBe(1);
+  });
+
+  it("AC-3 — every .town-terrace is inert ground (aria-hidden, no role, no data-plot-index, no z-index, pointer-events none), emitted before .town-main-street, and .npc-layer stays the LAST child", () => {
+    const container = mountGrid(24);
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const children = [...grid.children];
+    const terraceIdxs: number[] = [];
+    let streetIdx = -1;
+    children.forEach((c, i) => {
+      if (c.classList.contains("town-terrace")) terraceIdxs.push(i);
+      if (streetIdx === -1 && c.classList.contains("town-main-street")) streetIdx = i;
+    });
+    expect(terraceIdxs.length).toBe(blockCount(openPlotCount(24, [])));
+    expect(streetIdx).toBeGreaterThan(-1);
+    expect(Math.max(...terraceIdxs)).toBeLessThan(streetIdx); // T-R1: every terrace before the street
+
+    for (const i of terraceIdxs) {
+      const t = children[i] as HTMLElement;
+      expect(t.getAttribute("aria-hidden")).toBe("true"); // T-R4
+      expect(t.getAttribute("role")).toBeNull(); // T-R4
+      expect(t.hasAttribute("data-plot-index")).toBe(false); // never a gesture-hit-testable tile
+      expect(t.style.zIndex).toBe(""); // T-R1 — no z-index, ever
+      expect(t.style.pointerEvents).toBe("none"); // T-R3
+    }
+    expect(grid.lastElementChild!.classList.contains("npc-layer")).toBe(true);
+  });
+
+  it("AC-6 — the NPC-safety AC: terraces change no grid track. .town-grid's gridTemplateColumns is identical regardless of terrace count, it never carries an inline gridTemplateRows, and no .town-terrace sets height/width/padding or a grid-template-* property (T-R2)", () => {
+    const bareGrid = mountGrid(0).querySelector(".town-grid") as HTMLElement; // blockCount(0) === 1 terrace
+    const grownGrid = mountGrid(100).querySelector(".town-grid") as HTMLElement; // several terraces
+
+    expect(bareGrid.style.gridTemplateColumns).toBe(GRID_TEMPLATE_COLUMNS);
+    expect(grownGrid.style.gridTemplateColumns).toBe(GRID_TEMPLATE_COLUMNS);
+    expect(bareGrid.style.gridTemplateRows).toBe(""); // rows come from App.css's grid-auto-rows, never inline (R-3)
+    expect(grownGrid.style.gridTemplateRows).toBe("");
+
+    for (const grid of [bareGrid, grownGrid]) {
+      for (const terrace of grid.querySelectorAll<HTMLElement>(".town-terrace")) {
+        expect(terrace.style.height).toBe("");
+        expect(terrace.style.width).toBe("");
+        expect(terrace.style.padding).toBe("");
+        expect(terrace.style.gridTemplateRows).toBe("");
+        expect(terrace.style.gridTemplateColumns).toBe("");
+      }
+    }
+  });
+
+  it("AC-3.3 — a droppable 명당 gets .town-tile--droppable.town-tile--prime and the '명당 빈 터' aria-label; an ordinary droppable lot does not", () => {
+    const container = mountGrid(2, [], { movingId: "not-in-buildings" });
+    const droppable = [...container.querySelectorAll(".town-tile--droppable")] as HTMLElement[];
+    expect(droppable.length).toBeGreaterThan(0);
+    const primeDroppable = droppable.filter((t) => t.classList.contains("town-tile--prime"));
+    const plainDroppable = droppable.filter((t) => !t.classList.contains("town-tile--prime"));
+    expect(primeDroppable.length).toBeGreaterThan(0);
+    expect(plainDroppable.length).toBeGreaterThan(0);
+    for (const t of primeDroppable) expect(t.getAttribute("aria-label")).toBe("명당 빈 터, 여기로 옮기기");
+    for (const t of plainDroppable) expect(t.getAttribute("aria-label")).toBe("빈 터, 여기로 옮기기");
+
+    // Cross-check against the pure predicate: every .town-tile--prime tile's
+    // (row, col) — read back from its own inline grid-column/grid-row — agrees
+    // with isPrimeLot, and there are exactly the 2-per-block count on screen.
+    const primeTiles = [...container.querySelectorAll(".town-tile--prime")] as HTMLElement[];
+    for (const t of primeTiles) {
+      const col = Number(t.style.gridColumn) - 1;
+      const row = Number(t.style.gridRow) - 1;
+      expect(isPrimeLot(row, col)).toBe(true);
+    }
+    expect(primeTiles.length).toBe(2 * blockCount(openPlotCount(2, [])));
   });
 });
 
@@ -334,8 +424,15 @@ describe("TownGrid — ADDENDUM-02 §4.4 move-mode DOM contract (AC-M5/AC-M6/AC-
     const container = mountGrid(0, [], { movingId: "not-in-buildings" });
     const grid = container.querySelector(".town-grid") as HTMLElement;
     // Trailing `+ 1` = the ADDENDUM-05 NPC layer, present in and out of move mode.
+    // ADDENDUM-06 §2/§9 (WP-A): `+ blockCount(0)` = the terrace layer, also present in and out of move mode.
     const expected =
-      renderedTileCount(0) + 1 + crossStreetRowCount(0) + SAVING_CATEGORY_IDS.length + freeSavingsCells().length + 1;
+      renderedTileCount(0) +
+      1 +
+      crossStreetRowCount(0) +
+      SAVING_CATEGORY_IDS.length +
+      freeSavingsCells().length +
+      1 +
+      blockCount(0);
     expect(grid.children.length).toBe(expected);
   });
 });
@@ -559,6 +656,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
         maxLevel={BALANCE.maxLevel}
         justGrew={null}
         onRiseSettled={() => {}}
+        npcCount={0}
         {...NOOP_MOVE_PROPS}
         cursorIndex={0}
       />,
@@ -580,6 +678,7 @@ describe("TownGrid — ADDENDUM-02 §4.3/§8.3 keyboard / a11y (AC-K1/AC-K2)", (
           maxLevel={BALANCE.maxLevel}
           justGrew={null}
           onRiseSettled={() => {}}
+          npcCount={0}
           {...NOOP_MOVE_PROPS}
           cursorIndex={1}
         />,

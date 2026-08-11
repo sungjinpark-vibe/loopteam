@@ -1,9 +1,11 @@
 /**
- * Styling for the illustrated buildings (ADDENDUM-05 §F-BLD). `.building-tile`,
- * `.building-tile--monument`, `.building-tile-rise`, `.building-level-badge`,
- * `.building-monument-period` are already fully styled in App.css (owned by
- * W1) and kept unchanged here — this file only adds what's new: sizing the
- * SVG art itself.
+ * Styling for the illustrated buildings (ADDENDUM-05 §F-BLD, ADDENDUM-06 §4.4).
+ * `.building-tile`'s base rules, `.building-tile--monument`, `.building-tile-rise`,
+ * `.building-level-badge`, `.building-monument-period` are still defined in
+ * App.css (owned by another worker, not touched here) — this file sizes the
+ * SVG art and overrides the tile-paint fields ADDENDUM-06 §4.4 calls out
+ * (border-radius / overflow / box-shadow), via specificity rather than
+ * editing that file.
  *
  * The SVG is positioned absolutely inside `.building-tile` (which already
  * carries `position: relative`) rather than relying on `.building-tile`'s
@@ -15,4 +17,28 @@
 .building-tile > svg {
   position: absolute;
   inset: 0;
+}
+
+/*
+ * §4.4 — kill the "grid of coloured squares" look. `.building-tile`'s base
+ * rounded-card paint (border-radius, overflow:hidden, inset box-shadow) lives
+ * in App.css (owned by another worker this addendum does not touch), so this
+ * overrides it with a higher-specificity selector instead of editing that
+ * file — `[data-archetype]` is always present on the tile, so specificity
+ * (not import order, which this file cannot control) decides the winner.
+ * Losing overflow:hidden also means each archetype's own SVG-drawn
+ * elliptical ground shadow (buildingArt.tsx's `buildingCube`/`ParkArt`/
+ * `MonumentArt`) is no longer clipped — that becomes the "soft elliptical
+ * ground shade" the building now visibly sits on, instead of a second shadow
+ * layered on top.
+ */
+.building-tile[data-archetype] {
+  border-radius: 0;
+  overflow: visible;
+}
+
+/* F16: the monument's plaque-ring box-shadow (App.css `.building-tile--monument`)
+ * must stay pixel-identical — only the plain inset bottom-shadow is replaced. */
+.building-tile[data-archetype]:not(.building-tile--monument) {
+  box-shadow: none;
 }

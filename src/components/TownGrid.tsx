@@ -39,6 +39,7 @@ import { useTileGestures } from "../hooks/useTileGestures";
 import { openPlotCount } from "../placement";
 import { levelOf } from "../selectors";
 import {
+  BLOCK_ROWS,
   DISTRICT_ROW_GAP_PX,
   GRID_GAP_PX,
   GRID_PADDING_X_PX,
@@ -49,15 +50,20 @@ import {
   ROAD_COLUMN,
   ROAD_HEIGHT_PX,
   ROAD_WIDTH_PX,
+  TERRACE_BLEED_PX,
+  TERRACE_DROP_PX,
+  TERRACE_EARTH_PX,
   TILE_HEIGHT_PX,
-  blockIndexOf,
+  blockCount,
+  blockFirstRow,
   cellFromIndex,
   decorVariant,
   gridRowCount,
-  isBlockFirstRow,
   isCrossStreetRow,
-  isStreetFrontCol,
+  isPrimeLot,
   roadSideOf,
+  terraceEdgeInsetPx,
+  terraceTintOf,
 } from "../townLayout";
 import type { Building, SavingCategoryId } from "../types";
 import { EmptyLot } from "./EmptyLot";
@@ -207,10 +213,12 @@ function TownGridImpl({
       const building = byPlotIndex.get(i);
       const isNewest = building?.id === justBuiltId;
       const side = roadSideOf(col);
-      // §3.7 checklist item 3: street furniture, zero data — a streetlight on
-      // every second block's street-front tile, keyed off decorVariant(row,
-      // col) alone (rule R-2). Never stored.
-      const hasStreetlight = isStreetFrontCol(col) && isBlockFirstRow(row) && decorVariant(blockIndexOf(row), 0, 2) === 0;
+      // ADDENDUM-06 §2.2/§3.3: a 명당 (prime lot) is one of the two
+      // street-front tiles on a block's first plot row. The streetlight used
+      // to mark every SECOND block (decorVariant filter); that filter is
+      // dropped here — the lamp now marks every 명당, so it means something.
+      const isPrime = isPrimeLot(row, col);
+      const hasStreetlight = isPrime;
 
       // ADDENDUM-02 §4.3/§4.4 — move mode state, primitives only (movingId)
       // so this memo's dep list stays cheap even on the dense fixture (§4.3's
@@ -226,15 +234,17 @@ function TownGridImpl({
       const stateClasses =
         (isMoving ? " town-tile--moving" : "") +
         (isDroppable ? " town-tile--droppable" : "") +
-        (isGrowCandidate ? " town-tile--grow-candidate" : "");
+        (isGrowCandidate ? " town-tile--grow-candidate" : "") +
+        (isPrime ? " town-tile--prime" : "");
 
       // §4.4 DOM contract: role="button" + aria-label on building tiles
       // always, and on an empty tile only while droppable — never on inert
-      // ground.
+      // ground. ADDENDUM-06 §3.3: a droppable 명당 gets its own label — the
+      // perk must never be conveyed by colour (the paving/ring) alone.
       const a11yProps = building
         ? { role: "button" as const, "aria-label": "건물, 길게 눌러 옮기기", "aria-selected": isMoving ? ("true" as const) : undefined }
         : isDroppable
-          ? { role: "button" as const, "aria-label": "빈 터, 여기로 옮기기" }
+          ? { role: "button" as const, "aria-label": isPrime ? "명당 빈 터, 여기로 옮기기" : "빈 터, 여기로 옮기기" }
           : {};
 
       result.push(
@@ -307,6 +317,12 @@ function TownGridImpl({
     onEscape: onCancel,
   });
 
+  // ADDENDUM-06 §2.3 — one terrace slab per plot block, rebuilt only when the
+  // town actually grows (P-2): must NOT depend on `buildings`, `movingId`,
+  // `cursorIndex`, `npcCount`, `justBuiltId` or `growCandidateIds` — an NPC
+  // tick or a keyboard cursor move must not rebuild a single terrace node.
+  const terraces = useMemo(() => Array.from({ length: blockCount(tileCount) }, (_, b) => b), [tileCount]);
+
   const crossStreets = useMemo(() => {
     const rows = [];
     for (let row = 0; row < rowCount; row++) {
@@ -351,6 +367,11 @@ function TownGridImpl({
             "--pip-size": `${PIP_SIZE_PX}px`,
             "--pip-gap": `${PIP_GAP_PX}px`,
             "--pip-row-gap": `${PIP_ROW_GAP_PX}px`,
+            // ADDENDUM-06 §2.3 (C-4/R-3) — the terrace metrics App.css reads
+            // with no fallback, exactly like the nine properties above.
+            "--terrace-earth-h": `${TERRACE_EARTH_PX}px`,
+            "--terrace-drop": `${TERRACE_DROP_PX}px`,
+            "--terrace-bleed": `${TERRACE_BLEED_PX}px`,
             // ADDENDUM-05 §2 — zoom-to-fit. A runtime-measured scale, not a
             // townLayout.ts constant (see this file's header comment), so no
             // custom property/rule R-3 concern here — a plain inline
@@ -360,6 +381,34 @@ function TownGridImpl({
           } as CSSProperties
         }
       >
+        {/* ADDENDUM-06 §2.3 — one terrace slab per plot block, emitted FIRST
+            so DOM order alone keeps it behind every tile/road/NPC (T-R1; this
+            file adds no z-index anywhere, C-8). T-R2: no height/width/padding
+            here — the slab fills its grid area by default stretch, and the
+            earth band + edge bleed below are pseudo-elements / negative
+            margins into `.town-grid`'s own padding, so no grid track size
+            changes (AC-6 asserts the resolved tracks are byte-identical). */}
+        {terraces.map((b) => (
+          <div
+            key={`terrace-${b}`}
+            className={`town-terrace town-terrace--t${terraceTintOf(b)}`}
+            aria-hidden="true"
+            style={
+              {
+                gridColumn: "1 / -1",
+                gridRow: `${blockFirstRow(b) + 1} / span ${BLOCK_ROWS}`,
+                // T-R3, set inline (not just in App.css) so it holds even if
+                // the stylesheet is ever unavailable — same belt-and-braces
+                // NpcLayer already uses for its own pointer-events: none.
+                pointerEvents: "none",
+                // R-3 (C-4): per-instance values arrive inline, exactly like
+                // the nine (now twelve) custom properties on `.town-grid`.
+                "--terrace-inset-l": `${terraceEdgeInsetPx(b, 0)}px`,
+                "--terrace-inset-r": `${terraceEdgeInsetPx(b, 1)}px`,
+              } as CSSProperties
+            }
+          />
+        ))}
         <div className="town-main-street" style={{ gridColumn: ROAD_COLUMN + 1, gridRow: `1 / span ${rowCount}` }} />
         {crossStreets.map((row) => {
           // §3.7 checklist item 3: a 버스 정류장 on every second cross street —
