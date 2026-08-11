@@ -264,15 +264,22 @@ button.town-fab {
  * that silently wins if the custom property is ever unset). */
 
 /* ADDENDUM-08 §7 — the scrolling wrapper around `.town-grid`. Native
- * `overflow-x`/`overflow-y: auto`, no gesture library, no pinch-zoom: the
- * fixed 20x20 map at MIN_TILE_WIDTH_PX (townLayout.ts) is wider AND taller
- * than a phone, so the player pans by native scroll in both axes. A bounded
- * `max-height` is what makes `overflow-y` meaningful (an unbounded viewport
- * never overflows vertically) and gives the zoom-to-fit measurement a real
- * `clientHeight` to fit against. `height` is set inline ONLY while the
- * zoom-to-fit toggle is zoomed out (TownGrid.tsx) — CSS `transform: scale()`
- * doesn't shrink the layout box it scales, so without this the page would
- * grow a dead scroll region below the visually-shrunk grid. */
+ * `overflow-x`/`overflow-y: auto`: the fixed 20x20 map at MIN_TILE_WIDTH_PX
+ * (townLayout.ts) is wider AND taller than a phone, so at/below fit scale
+ * the player pans by native scroll in both axes. A bounded `max-height` is
+ * what makes `overflow-y` meaningful (an unbounded viewport never overflows
+ * vertically) and gives the zoom-to-fit measurement a real `clientHeight` to
+ * fit against. `height` is set inline ONLY while the zoom-to-fit toggle is
+ * zoomed out (TownGrid.tsx) — CSS `transform: scale()` doesn't shrink the
+ * layout box it scales, so without this the page would grow a dead scroll
+ * region below the visually-shrunk grid.
+ *
+ * ADDENDUM-09 §3.3 — above fit scale, a 2-pointer pinch/pan gesture owns
+ * panning via `transform: translate()` on `.town-grid` instead (still hand-
+ * rolled Pointer Events, no gesture library): `useTileGestures.ts` calls
+ * `preventDefault()` on pinch pointermoves so this native overflow scroll
+ * never ALSO reacts to the same 2-finger drag (the double-handling risk) —
+ * exactly one owner per zoom state, chosen by which system sees the event. */
 .town-viewport {
   height: auto;
   max-height: min(70vh, 640px);

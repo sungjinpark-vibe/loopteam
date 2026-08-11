@@ -22,16 +22,26 @@
  * the entry sheet opening/closing) must not rebuild the ground layer either.
  *
  * ADDENDUM-05 §2 / ADDENDUM-08 §7 (F-EXP): `.town-grid` sits inside a
- * `.town-viewport` with native `overflow-x`/`overflow-y: auto` (no gesture
- * library, no pinch-zoom) plus a zoom-to-fit toggle that now fits BOTH axes
- * and opens fit-to-whole-map on first launch (§7). The button is a SIBLING
- * of `.town-grid`, never a child (the direct-children guard below is about
- * `.town-grid` itself, not this wrapper).
+ * `.town-viewport` with native `overflow-x`/`overflow-y: auto` plus a
+ * zoom-to-fit toggle that fits BOTH axes and opens fit-to-whole-map on first
+ * launch (§7). The button is a SIBLING of `.town-grid`, never a child (the
+ * direct-children guard below is about `.town-grid` itself, not this
+ * wrapper).
+ *
+ * ADDENDUM-09 §3.2/§3.3 — pinch zoom + pan reuse this SAME transform (no
+ * wrapper element, no relayout): `scale(k) translate(tx, ty)`, hand-rolled
+ * Pointer Events via `useTileGestures`'s 2-pointer arbitration, no gesture
+ * library. Pan is transform-owned only above `fitScale`; at or below it,
+ * native `.town-viewport` overflow scrolling is the sole owner (§3.3's
+ * double-handling guard — see `useTileGestures.ts`'s `onPinchMove`
+ * `preventDefault()`).
  *
  * Gesture safety: `useTileGestures`'s long-press/tap resolution reads
  * `event.target.closest("[data-plot-index]")` and raw `event.clientX/clientY`
  * pointer deltas — both are POST-transform browser values, so neither needs
- * dividing by the zoom scale.
+ * dividing by the zoom scale. The pinch math in this file (`handlePinchMove`)
+ * relies on the same property: `getBoundingClientRect()` and `clientX/Y` are
+ * both in post-transform viewport space, so they compose directly.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { colors } from "@toss/tds-colors";
@@ -372,6 +382,35 @@ const TownTerrain = memo(function TownTerrain() {
   );
 });
 
+// ADDENDUM-09 §3.2 — the pinch scale ceiling. The floor is `fitScale`
+// (runtime-measured, per-map), so it isn't a constant here.
+const MAX_PINCH_SCALE = 2.5;
+
+/**
+ * ADDENDUM-09 §3.3 — keeps a proposed local-space translate from dragging the
+ * map fully off-screen: each axis is bounded so the far edge of the world
+ * can be pulled at most to the near edge of the viewport, never past it.
+ * Returns the translate UNCLAMPED when either measurement is 0 (jsdom does
+ * no layout, same guard the fit-scale measurement below already needs) —
+ * there is nothing sane to clamp against without a real box.
+ */
+function clampTranslate(
+  tx: number,
+  ty: number,
+  scale: number,
+  worldWidth: number,
+  worldHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): { tx: number; ty: number } {
+  if (worldWidth <= 0 || worldHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) return { tx, ty };
+  const visibleWidth = viewportWidth / scale;
+  const visibleHeight = viewportHeight / scale;
+  const minTx = Math.min(0, visibleWidth - worldWidth);
+  const minTy = Math.min(0, visibleHeight - worldHeight);
+  return { tx: Math.min(0, Math.max(minTx, tx)), ty: Math.min(0, Math.max(minTy, ty)) };
+}
+
 function TownGridImpl({
   buildings,
   justBuiltId,
@@ -398,10 +437,23 @@ function TownGridImpl({
   // ADDENDUM-08 §7 — the map is always visible on day one, at full size: the
   // player's first impression must be the whole town, not a corner of it.
   const [zoomedOut, setZoomedOut] = useState(true);
-  const [zoomScale, setZoomScale] = useState<{ scale: number; heightPx: number } | null>(null);
+  const [fit, setFit] = useState<{ scale: number; heightPx: number } | null>(null);
+  // ADDENDUM-09 §3.2 — the pinch-owned scale/translate. `null` means "not
+  // pinch-controlled": the effective scale/translate fall back to the
+  // zoomedOut/fit-vs-100% pair below. Non-null persists across renders once
+  // a pinch has happened, until the 전체 보기 toggle resets it (D2).
+  const [pinch, setPinch] = useState<{ scale: number; tx: number; ty: number } | null>(null);
+  const pinchSampleRef = useRef<{ midX: number; midY: number; distance: number } | null>(null);
+
+  const fitScale = fit?.scale ?? 1;
+  const scale = pinch ? pinch.scale : zoomedOut ? fitScale : 1;
+  const tx = pinch ? pinch.tx : 0;
+  const ty = pinch ? pinch.ty : 0;
 
   useEffect(() => {
-    if (!zoomedOut) return;
+    // ADDENDUM-09 §3.2/3.3 — measured unconditionally (not just while
+    // zoomedOut): `fitScale` is also the pinch clamp floor and the pan gate,
+    // needed regardless of which zoom state is active.
     const grid = gridRef.current;
     const viewport = viewportRef.current;
     if (!grid || !viewport) return;
@@ -413,12 +465,77 @@ function TownGridImpl({
       // §7: fit BOTH axes — "전체 보기" must genuinely show all 400 cells at once.
       const scale =
         worldWidth > 0 && worldHeight > 0 ? Math.min(1, availableWidth / worldWidth, availableHeight / worldHeight) : 1;
-      setZoomScale({ scale, heightPx: worldHeight * scale });
+      setFit({ scale, heightPx: worldHeight * scale });
     }
     recompute();
     window.addEventListener("resize", recompute);
     return () => window.removeEventListener("resize", recompute);
-  }, [zoomedOut]);
+  }, []);
+
+  // ADDENDUM-09 §3.1/§3.2 — a pinch sample from `useTileGestures`. The first
+  // sample of a new pinch only establishes the baseline (no prior sample to
+  // diff against); every sample after that derives the new scale (ratio of
+  // consecutive pinch distances) and an anchor-preserving translate (the
+  // local point under the PREVIOUS midpoint stays under the NEW one).
+  //
+  // Uses the FUNCTIONAL `setPinch` form, not the `scale`/`tx`/`ty` render
+  // closure: two fingers moving independently can each fire a pointermove
+  // — and therefore this handler — within the same synchronous tick, before
+  // React commits either update. Reading the render closure in that case
+  // means the SECOND call sees pre-first-call values (a real bug, not just
+  // a test artifact: React batches same-tick state updates regardless of
+  // environment). The functional updater form chains correctly instead —
+  // React applies queued updaters in order, each seeing the prior one's result.
+  const handlePinchMove = (midX: number, midY: number, distance: number) => {
+    const prevSample = pinchSampleRef.current;
+    pinchSampleRef.current = { midX, midY, distance };
+    if (!prevSample) return;
+
+    const grid = gridRef.current;
+    const viewport = viewportRef.current;
+    if (!grid) return;
+
+    setZoomedOut(false); // D1/D2/D4 — a pinch takes ownership of scale away from the toggle
+    setPinch((prevPinch) => {
+      const scale0 = prevPinch ? prevPinch.scale : zoomedOut ? fitScale : 1;
+      const tx0 = prevPinch?.tx ?? 0;
+      const ty0 = prevPinch?.ty ?? 0;
+
+      const rawScale = scale0 * (distance / prevSample.distance);
+      const nextScale = Math.min(MAX_PINCH_SCALE, Math.max(fitScale, rawScale));
+      if (nextScale <= fitScale) {
+        // D1: pinned at the floor — the whole map is on screen, pan is inert.
+        return { scale: fitScale, tx: 0, ty: 0 };
+      }
+
+      // transform-origin is top-left and the string is `scale(k) translate(tx,
+      // ty)`, so a client point's local (pre-transform) coordinate is
+      // `(client - rect.left) / k`, and `rect.left = layoutLeft + k * tx`
+      // (layoutLeft is the element's transform-independent layout position).
+      const rect = grid.getBoundingClientRect();
+      const layoutLeft = rect.left - scale0 * tx0;
+      const layoutTop = rect.top - scale0 * ty0;
+      const anchorLocalX = (prevSample.midX - rect.left) / scale0;
+      const anchorLocalY = (prevSample.midY - rect.top) / scale0;
+      const rawTx = (midX - layoutLeft) / nextScale - anchorLocalX;
+      const rawTy = (midY - layoutTop) / nextScale - anchorLocalY;
+
+      const clamped = clampTranslate(
+        rawTx,
+        rawTy,
+        nextScale,
+        grid.scrollWidth,
+        grid.scrollHeight,
+        viewport?.clientWidth ?? 0,
+        viewport?.clientHeight ?? 0,
+      );
+      return { scale: nextScale, tx: clamped.tx, ty: clamped.ty };
+    });
+  };
+
+  const handlePinchEnd = () => {
+    pinchSampleRef.current = null;
+  };
 
   // ADDENDUM-08 §3/§7 — the ground layer: one element per empty lot, one
   // element per building spanning its whole footprint. The ONLY part of the
@@ -552,6 +669,8 @@ function TownGridImpl({
     onCursorMove,
     onActivate: handleActivate,
     onEscape: onCancel,
+    onPinchMove: handlePinchMove,
+    onPinchEnd: handlePinchEnd,
   });
 
   // F3: "New buildings animate in; the view auto-scrolls to the newest."
@@ -560,10 +679,17 @@ function TownGridImpl({
     newestTileRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [justBuiltId]);
 
-  const activeZoom = zoomedOut ? zoomScale : null;
+  // Inline viewport height is a fit-to-screen concern only (§7). A pinch
+  // always sets `zoomedOut` false in the same update as `pinch` becomes
+  // non-null (`handlePinchMove` above), so this stays in sync with §3.2.
+  const activeFit = zoomedOut ? fit : null;
+  // ADDENDUM-09 §3.2 — the transform is shown whenever EITHER zoom mechanism
+  // is active; at scale 1 / translate 0 (100% view, no pinch) it stays
+  // `undefined` so `grid.style.transform` reads "" (existing toggle test).
+  const showTransform = zoomedOut || pinch !== null;
 
   return (
-    <div className="town-viewport" ref={viewportRef} style={activeZoom ? { height: `${activeZoom.heightPx}px` } : undefined}>
+    <div className="town-viewport" ref={viewportRef} style={activeFit ? { height: `${activeFit.heightPx}px` } : undefined}>
       <div
         ref={gridRef}
         className={`town-grid${movingId !== null ? " town-grid--moving" : ""}`}
@@ -587,10 +713,12 @@ function TownGridImpl({
             "--pip-row-gap": `${PIP_ROW_GAP_PX}px`,
             "--terrace-earth-h": `${TERRACE_EARTH_PX}px`,
             "--terrace-drop": `${TERRACE_DROP_PX}px`,
-            // ADDENDUM-05 §2 / ADDENDUM-08 §7 — zoom-to-fit. A runtime-measured
-            // scale, not a townLayout.ts constant, so rule R-3 doesn't reach
-            // it — a plain inline transform like `gridColumn`/`gridRow` already are above.
-            transform: activeZoom ? `scale(${activeZoom.scale})` : undefined,
+            // ADDENDUM-05 §2 / ADDENDUM-08 §7 / ADDENDUM-09 §3.2 — zoom-to-fit
+            // and pinch zoom/pan share this ONE transform (no wrapper, D4):
+            // runtime-measured/gesture-driven values, not townLayout.ts
+            // constants, so rule R-3 doesn't reach them — a plain inline
+            // transform like `gridColumn`/`gridRow` already are above.
+            transform: showTransform ? `scale(${scale}) translate(${tx}px, ${ty}px)` : undefined,
             transformOrigin: "top left",
           } as CSSProperties
         }
@@ -614,7 +742,13 @@ function TownGridImpl({
         className="town-zoom-toggle"
         aria-pressed={zoomedOut}
         aria-label={zoomedOut ? "크게 보기로 전환" : "전체 보기로 전환"}
-        onClick={() => setZoomedOut((z) => !z)}
+        onClick={() => {
+          // D2 — one-tap return to the whole map. Also the pinch-ownership
+          // reset (§3.2): flipping either direction clears any pinch scale
+          // so `zoomedOut`/100% take back sole ownership of the transform.
+          setZoomedOut((z) => !z);
+          setPinch(null);
+        }}
       >
         {zoomedOut ? "크게 보기" : "전체 보기"}
       </button>

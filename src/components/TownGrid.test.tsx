@@ -684,6 +684,182 @@ describe("TownGrid — zoom-to-fit toggle (ADDENDUM-08 §7)", () => {
   });
 });
 
+// ── ADDENDUM-09 — pinch zoom & pan ──
+function pointerDownAt(el: HTMLElement, pointerId: number, x: number, y: number) {
+  el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId, clientX: x, clientY: y }));
+}
+function pointerMoveAt(el: HTMLElement, pointerId: number, x: number, y: number, cancelable = false) {
+  el.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, cancelable, pointerId, clientX: x, clientY: y }));
+}
+function pointerUpAt(el: HTMLElement, pointerId: number) {
+  el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId }));
+}
+/** Parses `scale(k) translate(txpx, typx)` back into numbers for assertions
+ * that need to tolerate floating-point pinch math instead of matching an
+ * exact string. */
+function parseTransform(transform: string): { scale: number; tx: number; ty: number } {
+  const m = transform.match(/^scale\(([^)]+)\) translate\(([-\d.]+)px, ([-\d.]+)px\)$/);
+  if (!m) throw new Error(`not a scale+translate transform: "${transform}"`);
+  return { scale: Number(m[1]), tx: Number(m[2]), ty: Number(m[3]) };
+}
+
+describe("TownGrid — gesture arbitration, 1 finger vs 2 fingers (ADDENDUM-09 §1.1/§3.1)", () => {
+  it("a 2nd pointer landing on a DIFFERENT tile during a long-press cancels it cleanly — no hijack of the 2nd tile's press, no resurrection once the pinch ends (regression: old code reassigned pressPointerId to the 2nd finger and restarted the timer against ITS tile)", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const container = mountGrid([building()], { onPlotLongPress });
+      const tileA = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+      const tileB = container.querySelector(`[data-plot-index="${GROUND_B}"]`) as HTMLElement;
+
+      pointerDownAt(tileA, 1, 0, 0); // finger 1 starts a long-press on GROUND_A
+      vi.advanceTimersByTime(200); // timer in flight, has NOT fired yet
+      pointerDownAt(tileB, 2, 0, 0); // finger 2 lands on a DIFFERENT tile — old code would hijack to GROUND_B here
+
+      vi.advanceTimersByTime(LONG_PRESS_MS); // plenty of time for either the original OR a hijacked timer to fire
+      expect(onPlotLongPress).not.toHaveBeenCalled(); // neither GROUND_A nor GROUND_B fired — abandoned cleanly, no hijack
+
+      pointerUpAt(tileB, 2); // pinch ends, back to 1 pointer (finger 1 still down)
+      pointerMoveAt(tileA, 1, 3, 0); // finger 1 stirring must not be read as a live press either
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).not.toHaveBeenCalled(); // no phantom move, no resurrected press
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("after a pinch fully ends (0 pointers), a genuinely NEW pointerdown starts a normal long-press — arbitration doesn't wedge the recognizer", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const container = mountGrid([building()], { onPlotLongPress });
+      const tileA = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+
+      pointerDownAt(tileA, 1, 0, 0);
+      pointerDownAt(tileA, 2, 0, 0); // pinch starts
+      pointerUpAt(tileA, 1);
+      pointerUpAt(tileA, 2); // pinch fully ends
+
+      pointerDownAt(tileA, 3, 0, 0); // a fresh, unrelated touch
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
+      expect(onPlotLongPress).toHaveBeenCalledWith(GROUND_A);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("TownGrid — pinch zoom & pan (ADDENDUM-09 §3.2/§3.3)", () => {
+  it(".town-grid's direct-child count is unchanged after a pinch (no wrapper, no new child)", () => {
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const before = grid.children.length;
+
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+      pointerMoveAt(grid, 1, 0, 0);
+    });
+    act(() => {
+      pointerMoveAt(grid, 1, -50, 0); // spread apart -> zoom in
+    });
+
+    expect(grid.children.length).toBe(before);
+  });
+
+  it("pan is inert at fit scale (translate pinned to 0) and becomes active once a pinch pushes scale above fitScale", () => {
+    const container = mountGrid(); // default: zoomedOut=true, scale === fitScale (1 in this jsdom harness)
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+      pointerMoveAt(grid, 1, 0, 0); // seeds the pinch baseline — no scale/translate change yet
+    });
+    act(() => {
+      // Fingers pinch slightly INWARD — the resulting scale clamps to the
+      // floor, so any accompanying midpoint shift must not leak into pan.
+      pointerMoveAt(grid, 1, 20, 0);
+    });
+    // D1: at fit scale the whole map is already on screen — pan is a no-op,
+    // exactly `scale(1) translate(0px, 0px)`, no float drift possible since
+    // this branch hard-codes {tx:0, ty:0}.
+    expect(grid.style.transform).toBe("scale(1) translate(0px, 0px)");
+
+    act(() => {
+      pointerMoveAt(grid, 1, -50, 0); // fingers spread apart -> distance grows -> scale climbs above fitScale
+    });
+    const zoomedIn = parseTransform(grid.style.transform);
+    expect(zoomedIn.scale).toBeGreaterThan(1); // above fitScale now
+    expect(zoomedIn.tx !== 0 || zoomedIn.ty !== 0).toBe(true); // translate is live, not pinned
+
+    act(() => {
+      pointerMoveAt(grid, 2, 230, 0); // fingers keep moving — translate must keep tracking them
+    });
+    const panned = parseTransform(grid.style.transform);
+    expect(panned.tx !== zoomedIn.tx || panned.ty !== zoomedIn.ty).toBe(true); // pan moved further — the gesture owns it
+  });
+
+  it("a pinch pointermove suppresses the native scroll (preventDefault) — the single-owner guard against doubled travel", () => {
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+    });
+    const pinchMove = new PointerEvent("pointermove", { bubbles: true, cancelable: true, pointerId: 1, clientX: 10, clientY: 0 });
+    act(() => {
+      grid.dispatchEvent(pinchMove);
+    });
+    expect(pinchMove.defaultPrevented).toBe(true); // native `.town-viewport` scroll is suppressed for this gesture
+
+    act(() => {
+      pointerUpAt(grid, 1);
+      pointerUpAt(grid, 2);
+    });
+    const singleFingerMove = new PointerEvent("pointermove", { bubbles: true, cancelable: true, pointerId: 3, clientX: 10, clientY: 0 });
+    grid.dispatchEvent(singleFingerMove);
+    expect(singleFingerMove.defaultPrevented).toBe(false); // 1-finger scroll-through-a-building stays untouched (§4.3)
+  });
+
+  it("전체 보기 resets both scale and translate after a pinch (D2)", () => {
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const toggle = container.querySelector(".town-zoom-toggle") as HTMLButtonElement;
+
+    act(() => {
+      toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })); // flip to 100%
+    });
+    expect(grid.style.transform).toBe("");
+
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+      pointerMoveAt(grid, 1, 0, 0);
+    });
+    act(() => {
+      pointerMoveAt(grid, 1, -50, 0); // pinch-zoom in
+    });
+    expect(grid.style.transform).not.toBe(""); // sanity: the pinch actually changed the transform
+
+    act(() => {
+      pointerUpAt(grid, 1);
+      pointerUpAt(grid, 2);
+    });
+    act(() => {
+      toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })); // back to 전체 보기
+    });
+
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(toggle.textContent).toBe("크게 보기");
+    // fitScale in this jsdom harness measures to 1 (no real layout) — the
+    // reset lands exactly on scale 1, translate zero.
+    expect(grid.style.transform).toBe("scale(1) translate(0px, 0px)");
+  });
+});
+
 describe("TownGrid — savings block (ADDENDUM-08 §1.1)", () => {
   it("the five savings plots sit exactly at savingsCells(), rendered on top of the terrain layer's savings cells", () => {
     const container = mountGrid();

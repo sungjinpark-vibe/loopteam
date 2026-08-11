@@ -34,6 +34,18 @@ export interface TileGestureCallbacks {
   /** Enter/Space fired while the roving cursor sits on `plotIndex`. */
   onActivate: (plotIndex: number) => void;
   onEscape: () => void;
+  /**
+   * ADDENDUM-09 §3.1 — fires on every `pointermove` while exactly 2+ pointers
+   * are down (a pinch/pan gesture in progress). Reports the two tracked
+   * pointers' midpoint and separation in client-space pixels; the caller
+   * (TownGrid) derives scale/translate deltas from consecutive calls — this
+   * hook only resolves WHAT happened (a pinch sample), never what it means.
+   * Never fires with 0 or 1 pointer down. Optional: callers that don't zoom
+   * (e.g. tests exercising only long-press/tap) can omit it.
+   */
+  onPinchMove?: (midX: number, midY: number, distance: number) => void;
+  /** Fires once when the gesture drops back below 2 pointers (pinch ended). */
+  onPinchEnd?: () => void;
 }
 
 function closestPlotIndex(target: EventTarget | null): number | null {
@@ -76,6 +88,14 @@ export function useTileGestures(
     let startY = 0;
     let suppressNextClick = false;
 
+    // ADDENDUM-09 §3.1 — live pointer tracking for gesture arbitration
+    // (1-finger long-press/tap vs 2-finger pinch/pan). `pinchActive` is the
+    // ownership flag: once true, no new press may start, and it is never
+    // cleared back to a resurrected press — a gesture that became a pinch
+    // never retroactively becomes a long-press.
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinchActive = false;
+
     function clearPress() {
       if (pressTimer !== null) {
         clearTimeout(pressTimer);
@@ -85,6 +105,22 @@ export function useTileGestures(
     }
 
     function onPointerDown(e: PointerEvent) {
+      // Populated BEFORE the existing press logic (§3.1) — a 2nd pointer
+      // must be seen and act on the press timer before anything else runs.
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointers.size >= 2) {
+        // A second finger landed: this is now a pinch, not a one-finger
+        // press. Abandon any in-flight press DELIBERATELY here (unlike the
+        // pre-fix bug this replaces, where the abandonment was silent and
+        // the second pointer then hijacked `pressPointerId`) — clearPress()
+        // sets `pressPointerId = null`, so this pointer never takes it over.
+        clearPress();
+        pinchActive = true;
+        return;
+      }
+      if (pinchActive) return; // still mid-pinch settling toward 1 pointer — no new press
+
       const plotIndex = closestPlotIndex(e.target);
       if (plotIndex === null) return;
       clearPress();
@@ -106,6 +142,25 @@ export function useTileGestures(
     }
 
     function onPointerMove(e: PointerEvent) {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pinchActive && pointers.size >= 2) {
+        // Only the first two tracked pointers drive the pinch — a stray 3rd
+        // touch is ignored rather than fought over (out of scope, §3.4).
+        const [a, b] = pointers.values();
+        const midX = (a.x + b.x) / 2;
+        const midY = (a.y + b.y) / 2;
+        const distance = Math.hypot(a.x - b.x, a.y - b.y);
+        // Own the gesture: without this, native `.town-viewport` overflow
+        // scroll can ALSO respond to the same touch movement, doubling
+        // travel against the transform-driven pan (§3.3's double-handling
+        // risk). Non-passive listener (only `scroll` below is passive), so
+        // preventDefault() here is effective.
+        e.preventDefault();
+        latest.current.callbacks.onPinchMove?.(midX, midY, distance);
+        return; // a pinch never also runs single-finger press/move logic
+      }
+
       if (pressTimer === null || e.pointerId !== pressPointerId) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
@@ -113,11 +168,25 @@ export function useTileGestures(
     }
 
     function onPointerEnd(e: PointerEvent) {
+      pointers.delete(e.pointerId);
+      if (pinchActive && pointers.size < 2) {
+        // Back to <2 pointers — clear ownership, do NOT resurrect the press
+        // that was abandoned when the pinch started (§3.1).
+        pinchActive = false;
+        latest.current.callbacks.onPinchEnd?.();
+      }
       if (e.pointerId === pressPointerId) clearPress();
     }
 
     function onScrollOrBlur() {
       clearPress();
+      // Escape valve for a hung multi-touch gesture too (e.g. the app loses
+      // focus mid-pinch and pointerup never fires for one of the fingers).
+      if (pinchActive) {
+        pinchActive = false;
+        latest.current.callbacks.onPinchEnd?.();
+      }
+      pointers.clear();
     }
 
     function onContextMenu(e: MouseEvent) {
