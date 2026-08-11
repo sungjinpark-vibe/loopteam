@@ -19,8 +19,10 @@ import {
   GRID_TEMPLATE_COLUMNS,
   cellFromIndex,
   indexFromCell,
+  isBuildable,
   isPrimeCell,
   isRoadCell,
+  terrainAt,
   terrainAtIndex,
 } from "../townLayout";
 import type { Building } from "../types";
@@ -193,6 +195,102 @@ describe("TownGrid — the fixed 20x20 map (ADDENDUM-08 §1/§7)", () => {
         expect(c.style.marginBottom).toBe("");
       }
     }
+  });
+
+  it("street props (ADDENDUM-10) are sparse on road/park, absent on every buildable cell", () => {
+    const container = mountGrid();
+    // (b) hard constraint: props never occupy a buildable (ground) cell.
+    for (let i = 0; i < CELL_COUNT; i++) {
+      const { row, col } = cellFromIndex(i);
+      if (!isBuildable(row, col)) continue;
+      const cell = [...container.querySelectorAll<HTMLElement>(".town-cell")].find(
+        (c) => Number(c.style.gridColumn) - 1 === col && Number(c.style.gridRow) - 1 === row,
+      );
+      expect(cell).not.toBeUndefined();
+      expect(cell?.querySelector(".town-prop")).toBeNull();
+    }
+
+    // sparse, not every road/park cell, and never more than one per cell.
+    const roadCells = [...container.querySelectorAll<HTMLElement>(".town-cell--road")];
+    const parkCells = [...container.querySelectorAll<HTMLElement>(".town-cell--park")];
+    const roadWithProp = roadCells.filter((c) => c.querySelector(".town-prop"));
+    const parkWithProp = parkCells.filter((c) => c.querySelector(".town-prop"));
+    expect(roadWithProp.length).toBeGreaterThan(0);
+    expect(roadWithProp.length).toBeLessThan(roadCells.length);
+    expect(parkWithProp.length).toBeGreaterThan(0);
+    expect(parkWithProp.length).toBeLessThan(parkCells.length);
+    for (const c of [...roadCells, ...parkCells]) expect(c.querySelectorAll(".town-prop").length).toBeLessThanOrEqual(1);
+
+    // lake/savings/ground never carry a prop — road/park only.
+    for (const kind of ["lake", "savings", "ground"]) {
+      for (const c of container.querySelectorAll<HTMLElement>(`.town-cell--${kind}`)) {
+        expect(c.querySelector(".town-prop")).toBeNull();
+      }
+    }
+  });
+
+  it("street props are deterministic — identical across two independent mounts of the same map", () => {
+    const a = mountGrid();
+    const b = mountGrid();
+    const propsOf = (container: HTMLElement) =>
+      [...container.querySelectorAll<HTMLElement>(".town-cell")]
+        .map((c) => `${c.style.gridRow},${c.style.gridColumn}:${c.querySelector(".town-prop svg")?.outerHTML ?? ""}`)
+        .join("|");
+    expect(propsOf(a)).toBe(propsOf(b));
+  });
+
+  it("every park body has exactly one fountain, seated deterministically (regression: the seat could previously lose the scatter lottery and leave 0 fountains on the whole map)", () => {
+    const container = mountGrid();
+
+    // Flood-fill park bodies straight off the map — independent of the
+    // component's own grouping, so this isn't just re-asserting the impl.
+    const visited = new Set<number>();
+    const bodies: number[][] = [];
+    for (let i = 0; i < CELL_COUNT; i++) {
+      if (terrainAtIndex(i) !== "park" || visited.has(i)) continue;
+      const body: number[] = [];
+      const stack = [i];
+      visited.add(i);
+      while (stack.length > 0) {
+        const idx = stack.pop() as number;
+        body.push(idx);
+        const { row, col } = cellFromIndex(idx);
+        for (const [r, c] of [
+          [row - 1, col],
+          [row + 1, col],
+          [row, col - 1],
+          [row, col + 1],
+        ] as const) {
+          if (terrainAt(r, c) !== "park") continue;
+          const ni = indexFromCell({ row: r, col: c });
+          if (!visited.has(ni)) {
+            visited.add(ni);
+            stack.push(ni);
+          }
+        }
+      }
+      bodies.push(body);
+    }
+    expect(bodies.length).toBeGreaterThan(0); // sanity: the fixed map does have park bodies
+
+    const cellAt = (row: number, col: number) =>
+      [...container.querySelectorAll<HTMLElement>(".town-cell")].find(
+        (c) => Number(c.style.gridColumn) - 1 === col && Number(c.style.gridRow) - 1 === row,
+      );
+    // The fountain SVG is the only prop icon with a `fill="none"` circle.
+    const isFountain = (el: HTMLElement | undefined) => !!el?.querySelector('.town-prop svg circle[fill="none"]');
+
+    let totalFountains = 0;
+    for (const body of bodies) {
+      const fountainCells = body.filter((i) => {
+        const { row, col } = cellFromIndex(i);
+        return isFountain(cellAt(row, col));
+      });
+      expect(fountainCells.length).toBe(1); // never 0, never more than 1
+      totalFountains += fountainCells.length;
+    }
+    expect(totalFountains).toBe(bodies.length);
+    expect(totalFountains).toBeGreaterThan(0); // at least one fountain exists on the real map
   });
 
   it("명당 (prime) ground cells are permanently highlighted in the static terrain layer", () => {

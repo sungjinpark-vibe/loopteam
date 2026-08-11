@@ -549,6 +549,21 @@ button.town-fab {
   border-radius: 50%;
 }
 
+/* Street props (ADDENDUM-10) — streetlamp/bench/cart on road, tree/bench/
+ * fountain in parks, one inline SVG per cell in the same slot as
+ * `.town-park-glyph`/`.town-lake-ripple` above. Centered and inert like its
+ * siblings; `line-height: 0` drops the inline-SVG baseline gap so the icon
+ * doesn't sit off-center. Every icon's own viewBox/width/height keeps it
+ * well inside the 40x40 cell. */
+.town-prop {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 0;
+  pointer-events: none;
+}
+
 /* 저축 블록 (ADDENDUM-01 §2.4a/§3.5). Each .savings-plot is a DIRECT grid item
  * of .town-grid, placed and sized inline. `align-self`/`flex-wrap` are
  * alignment/flow keywords, not coordinates and not metrics, so R-3 does not

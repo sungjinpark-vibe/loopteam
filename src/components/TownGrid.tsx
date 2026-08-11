@@ -34,6 +34,7 @@
  * dividing by the zoom scale.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { colors } from "@toss/tds-colors";
 import { useTileGestures } from "../hooks/useTileGestures";
 import { anchorsFor, footprintOf, occupiedCells } from "../placement";
 import { levelOf } from "../selectors";
@@ -54,6 +55,7 @@ import {
   decorVariant,
   elevationBandOf,
   footprintCells,
+  indexFromCell,
   isPrimeCell,
   isPrimePlotIndex,
   terrainAt,
@@ -129,7 +131,109 @@ interface TerrainCell {
   glyph: string | null;
   /** Ripple, at most 2 per lake total (one body of water, not one puddle per cell). */
   ripple: boolean;
+  /** Street furniture — ADDENDUM-10. Sparse, road/park only, never on a cell that already carries `glyph`. */
+  prop: PropKind | null;
 }
+
+/** ADDENDUM-10 §2.1 — road gets streetlamp/bench/cart, park gets tree/bench/fountain. */
+type PropKind = "lamp" | "bench" | "cart" | "tree" | "fountain";
+
+const ROAD_PROP_KINDS: readonly PropKind[] = ["lamp", "bench", "cart"];
+const PARK_PROP_KINDS: readonly PropKind[] = ["tree", "bench", "fountain"];
+
+/**
+ * Inline SVGs, one per kind, built ONCE at module load (same discipline as
+ * `TERRAIN_CELLS` below) and reused by reference across every cell that
+ * shares a kind — `TownTerrain` never re-renders, so this is the entire
+ * per-element cost, paid once. `@toss/tds-colors` tokens only (rule: no
+ * hand-picked hex), pastel shades (100/300) to sit quietly under buildings.
+ * Each viewBox is 24x24 mapped to a 20-25px box (ADDENDUM-10 §2.1 revised
+ * target: +25% over round 1's 16-20px, still well inside the 40x40 cell —
+ * the largest, `cart`, is 25x23).
+ */
+const PROP_ICONS: Record<PropKind, ReactNode> = {
+  lamp: (
+    <svg viewBox="0 0 24 24" width="20" height="23" aria-hidden="true">
+      <rect x="11" y="9" width="2" height="12" fill={colors.grey600} />
+      <rect x="8" y="21" width="8" height="2" rx="1" fill={colors.grey600} />
+      <circle cx="12" cy="7" r="4" fill={colors.yellow300} />
+      <circle cx="12" cy="7" r="2" fill={colors.yellow100} />
+    </svg>
+  ),
+  bench: (
+    <svg viewBox="0 0 24 24" width="23" height="18" aria-hidden="true">
+      <rect x="3" y="9" width="18" height="2" fill={colors.orange700} />
+      <rect x="3" y="13" width="18" height="2" fill={colors.orange700} />
+      <rect x="4" y="15" width="2" height="5" fill={colors.orange800} />
+      <rect x="18" y="15" width="2" height="5" fill={colors.orange800} />
+    </svg>
+  ),
+  cart: (
+    <svg viewBox="0 0 24 24" width="25" height="23" aria-hidden="true">
+      <rect x="4" y="8" width="16" height="9" rx="1" fill={colors.teal300} />
+      <rect x="3" y="6" width="18" height="3" fill={colors.red300} />
+      <circle cx="8" cy="19" r="2" fill={colors.grey700} />
+      <circle cx="16" cy="19" r="2" fill={colors.grey700} />
+    </svg>
+  ),
+  tree: (
+    <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
+      <rect x="11" y="14" width="2" height="7" fill={colors.orange800} />
+      <circle cx="12" cy="10" r="7" fill={colors.green300} />
+    </svg>
+  ),
+  fountain: (
+    <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
+      <circle cx="12" cy="14" r="8" fill="none" stroke={colors.blue300} strokeWidth="2" />
+      <circle cx="12" cy="14" r="5" fill={colors.blue100} />
+      <circle cx="12" cy="9" r="1.5" fill={colors.blue300} />
+    </svg>
+  ),
+};
+
+/**
+ * Connected components of park cells (orthogonal adjacency), computed once
+ * from the fixed map. The current map has several separate park regions (top
+ * strip, corners, mid-block courtyards) — unlike the single lake body the
+ * ripple cap below already handles, so a "cap per body" for the fountain
+ * needs an actual grouping rather than one global first/middle pick.
+ */
+function parkBodyGroups(): number[][] {
+  const visited = new Set<number>();
+  const groups: number[][] = [];
+  for (let i = 0; i < CELL_COUNT; i++) {
+    if (terrainAtIndex(i) !== "park" || visited.has(i)) continue;
+    const group: number[] = [];
+    const stack = [i];
+    visited.add(i);
+    while (stack.length > 0) {
+      const idx = stack.pop() as number;
+      group.push(idx);
+      const { row, col } = cellFromIndex(idx);
+      const neighbors: Array<[number, number]> = [
+        [row - 1, col],
+        [row + 1, col],
+        [row, col - 1],
+        [row, col + 1],
+      ];
+      for (const [r, c] of neighbors) {
+        if (terrainAt(r, c) !== "park") continue;
+        const ni = indexFromCell({ row: r, col: c });
+        if (!visited.has(ni)) {
+          visited.add(ni);
+          stack.push(ni);
+        }
+      }
+    }
+    groups.push(group.sort((a, b) => a - b));
+  }
+  return groups;
+}
+
+/** Cell index -> the lowest index in its own park body — the only cell allowed to seat that body's (at most one) fountain. Mirrors the lake ripple cap at `TERRAIN_CELLS` below, generalized to multiple bodies. */
+const FOUNTAIN_SEAT: ReadonlyMap<number, number> = new Map(
+  parkBodyGroups().flatMap((group) => group.map((i): [number, number] => [i, group[0]])),
+);
 
 /**
  * One row per non-void cell (332 of 400 — road 93 + park 29 + lake 12 +
@@ -148,6 +252,43 @@ const TERRAIN_CELLS: TerrainCell[] = (() => {
     const { row, col } = cellFromIndex(i);
     const decor = decorVariant(row, col, 3);
     if (kind === "lake") lakeIndices.push(i);
+
+    // ADDENDUM-10 §2.1 — street furniture, per cell from terrain, same pass
+    // as glyph/ripple. Road: streetlamp/bench/cart, only on a road cell
+    // ADJACENT TO GROUND (so it reads as facing a building, not floating
+    // mid-road), gated `decorVariant(...,7) < 3` — loosened from round 1's
+    // `=== 0` (13 props, visually invisible per the round-1 pixel-diff FAIL)
+    // to hit the revised 35-40 target (93 road cells, 87 adjacent to ground
+    // -> exactly 40 on the fixed map). Park: tree/bench/fountain, gated on a
+    // DIFFERENT decorVariant bucket (modulus 7, not the glyph's modulus 4) so
+    // a prop never stacks on a glyph, loosened the same way (1-in-4 cells ->
+    // 1-in-2, exactly 11 on the fixed map).
+    let prop: PropKind | null = null;
+    if (kind === "road") {
+      const adjacentToGround =
+        terrainAt(row - 1, col) === "ground" ||
+        terrainAt(row + 1, col) === "ground" ||
+        terrainAt(row, col - 1) === "ground" ||
+        terrainAt(row, col + 1) === "ground";
+      if (adjacentToGround && decorVariant(row, col, 7) < 3) {
+        prop = ROAD_PROP_KINDS[decorVariant(row, col, ROAD_PROP_KINDS.length)];
+      }
+    } else if (kind === "park") {
+      const hasGlyph = decorVariant(row, col, 4) === 0;
+      if (FOUNTAIN_SEAT.get(i) === i) {
+        // Deterministic: a park body's designated seat cell always gets its
+        // one fountain, bypassing the scatter/glyph gates below — otherwise
+        // a body's fountain depends on the 1-in-3 scatter lottery landing on
+        // that exact cell, which can (and did) miss every seat on the map.
+        prop = "fountain";
+      } else if (!hasGlyph && decorVariant(row, col, 7) < 3) {
+        const guess = PARK_PROP_KINDS[decorVariant(row, col, PARK_PROP_KINDS.length)];
+        // Every non-seat cell that guesses "fountain" falls back to a tree —
+        // the seat cell above is the only cell allowed to carry one.
+        prop = guess === "fountain" ? "tree" : guess;
+      }
+    }
+
     cells.push({
       index: i,
       row,
@@ -172,8 +313,10 @@ const TERRAIN_CELLS: TerrainCell[] = (() => {
       // Sparse, not one bouquet per cell: only ~1 in 4 park cells gets a
       // single glyph, scattered by `decorVariant` rather than centred on
       // every tile — that's what reads as "a park", not "a grid of parks".
-      glyph: kind === "park" && decorVariant(row, col, 4) === 0 ? PARK_GLYPHS[decor] : null,
+      // Never on the fountain seat — that cell's one decoration is its fountain.
+      glyph: kind === "park" && decorVariant(row, col, 4) === 0 && FOUNTAIN_SEAT.get(i) !== i ? PARK_GLYPHS[decor] : null,
       ripple: false, // filled in below, once the full lake is known
+      prop,
     });
   }
   // One body of water gets one or two ripples total, not one per cell —
@@ -222,6 +365,7 @@ const TownTerrain = memo(function TownTerrain() {
         >
           {c.glyph && <span className="town-park-glyph">{c.glyph}</span>}
           {c.ripple && <span className="town-lake-ripple" />}
+          {c.prop && <span className="town-prop">{PROP_ICONS[c.prop]}</span>}
         </div>
       ))}
     </>

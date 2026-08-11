@@ -46,8 +46,29 @@ Props MUST go **inside the existing per-cell `div`**, in the same slot position 
   - **park cells** -> tree, bench, fountain (fountain rare — at most one or two per park body,
     mirroring the existing ripple-capping trick at `:179-185`).
   - **lake cells** -> nothing new; ripples already own that.
-- **Sparse, not per-cell.** Reuse the existing sparse pattern (`decorVariant(row, col, N) === 0`)
-  so props scatter. A prop on every road cell would read as clutter and bury the buildings.
+- **Scattered, not per-cell** — but scattered with a MEASURED target, not a vibe. Reuse the
+  existing `decorVariant(row, col, N) === 0` idiom, tuned to hit the counts below.
+
+#### Density targets (revised after round-1 visual FAIL)
+
+Round 1 shipped 20 props (13 road, 7 park) at 16-20px. Measured pixel diff against the
+propless map at fit view: **0.23% — invisible to the eye.** Placement sense scored 5/5 and art
+4/5, so the props were well made and well placed; there were simply not enough of them and they
+were too small. The failure was density alone.
+
+| | Round 1 (FAILED) | Target |
+|---|---|---|
+| Road props | 13 | **35-40** |
+| Park props | 7 (1-in-4 cells) | **10-12** (1-in-2 cells) |
+| Total | 20 | **50-55** |
+| Icon size | 16-20px | **20-26px (+25%)** |
+
+Both levers are required. Size alone will not carry it, and count alone leaves each prop too
+faint to register at fit scale. Fountain stays capped at one per park body.
+
+**Lesson worth keeping:** "sparse" as unquantified guidance under-shoots. A decorative-density
+requirement needs a target count and a measurable acceptance signal (here: visible at fit view,
+cross-checked with a pixel diff), or it cannot be gated honestly.
 
 ### 2.2 Determinism
 
