@@ -131,6 +131,9 @@ export interface EditEntryArgs {
   newBuildingId: string;
   variantIndex: number;
   plotIndex: number;
+  /** ADDENDUM-08 §2.1 — the footprint for `newBuildingId`, used only when this edit newly places a building (저축 -> 지출/수입). */
+  w: 1 | 2;
+  h: 1 | 2;
   now: number;
   /** ADDENDUM-04 §7 — same dial `deleteEntryEffects` takes; only consulted when `entry` is a grow contribution converting 지출/수입 -> 저축. */
   expAmountTiers: readonly (readonly [number, number])[] | null;
@@ -148,7 +151,7 @@ export interface EditEntryResult {
 }
 
 export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
-  const { entry: oldEntry, patch, today, dailyBuildSlots, materialQueueMax, tierThresholds, newBuildingId, variantIndex, plotIndex, now, expAmountTiers } =
+  const { entry: oldEntry, patch, today, dailyBuildSlots, materialQueueMax, tierThresholds, newBuildingId, variantIndex, plotIndex, w, h, now, expAmountTiers } =
     args;
 
   const newType = patch.type ?? oldEntry.type;
@@ -247,6 +250,8 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
       variantIndex,
       buildingId: newBuildingId,
       plotIndex,
+      w,
+      h,
       createdAt: now,
       entryYm: newYm,
       amountKrw: newAmountKrw,

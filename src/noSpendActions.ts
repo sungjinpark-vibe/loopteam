@@ -24,8 +24,11 @@ export interface ClaimNoSpendArgs {
   tierThresholds: readonly number[];
   buildingId: string;
   createdAt: number;
-  /** Where the park tile lands — computed by `placement.pickPlot`, supplied by the caller (rule R-4, ADDENDUM-02 §3.5). */
+  /** Where the park tile lands — computed by `placement.placeNew`, supplied by the caller (rule R-4, ADDENDUM-08 §3). */
   plotIndex: number;
+  /** ADDENDUM-08 §2.1 — the park tile's rolled footprint, alongside `plotIndex`. */
+  w: 1 | 2;
+  h: 1 | 2;
 }
 
 export interface ClaimNoSpendResult {
@@ -36,7 +39,7 @@ export interface ClaimNoSpendResult {
 
 /** Returns null when the claim isn't allowed — rejected here, not just hidden behind a disabled button. */
 export function claimNoSpendDay(args: ClaimNoSpendArgs): ClaimNoSpendResult | null {
-  const { town, existingBuildingCount, entries, today, dailyBuildSlots, noSpendDayCostsSlot, tierThresholds, buildingId, createdAt, plotIndex } =
+  const { town, existingBuildingCount, entries, today, dailyBuildSlots, noSpendDayCostsSlot, tierThresholds, buildingId, createdAt, plotIndex, w, h } =
     args;
 
   if (!canClaimNoSpend(entries, town, today, dailyBuildSlots, noSpendDayCostsSlot)) return null;
@@ -47,6 +50,8 @@ export function claimNoSpendDay(args: ClaimNoSpendArgs): ClaimNoSpendResult | nu
     categoryId: "park",
     variantIndex: 0, // spec §5 F15 / §8.1: "park variant 0"
     plotIndex,
+    w,
+    h,
     builtOn: today,
     createdAt,
   };
@@ -58,7 +63,6 @@ export function claimNoSpendDay(args: ClaimNoSpendArgs): ClaimNoSpendResult | nu
   const newTown: TownState = {
     ...town,
     ...advanceStreak(town, today), // a claimed no-spend day is a full streak act (F7)
-    nextPlotIndex: town.nextPlotIndex + 1,
     noSpendDays: [...town.noSpendDays, today],
     highestTierSeen: Math.max(town.highestTierSeen, newTier),
     ...(noSpendDayCostsSlot

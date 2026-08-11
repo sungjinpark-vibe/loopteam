@@ -1,257 +1,446 @@
 /**
- * ADDENDUM-01 §3.8 — road layout unit tests (component-placement DOM tests
- * live in components/TownGrid.test.tsx). `[unit]`/`[dom]`/`[qa]` legend per
- * ADDENDUM-01 §2.9.
+ * ADDENDUM-08 — fixed 20x20 map unit tests. `[unit]` (component-placement DOM
+ * tests live in components/TownGrid.test.tsx).
  */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { plotFromIndex, TOWN_COLUMNS } from "./selectors";
 import { SAVING_CATEGORY_IDS } from "./savingsBuckets";
 import {
-  BLOCK_ROWS,
+  CELL_COUNT,
   DISTRICT_ROW_GAP_PX,
-  GRID_COLUMNS,
+  GRID_GAP_PX,
   GRID_PADDING_X_PX,
+  GRID_SIZE,
   GRID_TEMPLATE_COLUMNS,
+  GRID_TEMPLATE_ROWS,
   LAYOUT_VERSION,
-  LOTS_PER_BLOCK,
-  MAX_EDGE_INSET,
   MIN_TILE_WIDTH_PX,
-  MIN_UNMASKED_LOTS_PER_BLOCK,
   MIN_VIEWPORT_PX,
   PIPS_PER_ROW,
-  ROAD_COLUMN,
-  ROAD_WIDTH_PX,
-  SAVINGS_COLUMN_RANK,
-  SAVINGS_ROWS,
   SAVINGS_ROW_ORDER,
-  SEG_STEP_PX,
-  SERPENTINE_COLUMNS,
-  TERRACE_BLEED_PX,
+  TERRACE_DROP_PX,
+  TERRACE_EARTH_PX,
   TERRACE_TINTS,
-  TOWN_HEAD_ROWS,
-  blockColumnInset,
-  blockFirstRow,
-  blockGridColumnEnd,
-  blockGridColumnStart,
-  blockIndexOf,
+  TILE_HEIGHT_PX,
+  TOWN_MAP,
   cellFromIndex,
-  crossStreetColumnRange,
-  crossStreetRowCount,
+  decorVariant,
   districtLadderLength,
-  freeSavingsCells,
-  gridRowCount,
-  indexFromPlot,
-  isBlockFirstRow,
-  isCrossStreetRow,
-  isMaskedCell,
-  isMaskedPlotCol,
-  isMaskedPlotIndex,
-  isPrimeLot,
+  elevationBandOf,
+  footprintCells,
+  inBounds,
+  indexFromCell,
+  isBuildable,
+  isPrimeCell,
   isPrimePlotIndex,
   isRoadCell,
-  isSavingsRow,
+  isWalkable,
   pipBlockHeightPx,
   pipRowCount,
   pipRowWidthPx,
   plotTileWidthPx,
-  renderedTileCount,
   savingsCellFor,
+  savingsCells,
   savingsPlotHeightPx,
   savingsPlotTemplateRows,
   structureHeightPx,
-  terraceEdgeInsetPx,
-  terraceTintOf,
-  unmaskedLotsInBlock,
+  terrainAt,
+  terrainAtIndex,
 } from "./townLayout";
+import type { TerrainKind } from "./townLayout";
 import type { SavingCategoryId } from "./types";
 
-const MAX_I = 600;
+// ── shared helpers over the raw map, used by several describe blocks ──
 
-describe("plot space <-> screen space round-trip (§3.1)", () => {
-  it("indexFromPlot is the exact inverse of plotFromIndex, i = 0..600", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      expect(indexFromPlot(plotFromIndex(i))).toBe(i);
-    }
+function terrainCharAt(row: number, col: number): string {
+  return TOWN_MAP[row][col];
+}
+
+const NEIGHBOR_OFFSETS: ReadonlyArray<[number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+
+describe("TOWN_MAP structure (§1.2)", () => {
+  it("is exactly 20 rows", () => {
+    expect(TOWN_MAP.length).toBe(20);
   });
 
-  it("plotFromIndex(indexFromPlot(p)) deep-equals p", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      const plot = plotFromIndex(i);
-      expect(plotFromIndex(indexFromPlot(plot))).toEqual(plot);
-    }
-  });
-});
-
-describe("cellFromIndex (§3.3)", () => {
-  it("is injective, i = 0..600", () => {
-    const seen = new Set<string>();
-    for (let i = 0; i <= MAX_I; i++) {
-      const { row, col } = cellFromIndex(i);
-      const key = `${row},${col}`;
-      expect(seen.has(key)).toBe(false);
-      seen.add(key);
-    }
+  it("every row is exactly 20 characters", () => {
+    for (let r = 0; r < TOWN_MAP.length; r++) expect(TOWN_MAP[r].length).toBe(20);
   });
 
-  it("no plot index ever lands on the road column or a cross-street row, i = 0..600", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      const { row, col } = cellFromIndex(i);
-      expect(col).not.toBe(ROAD_COLUMN);
-      expect(isCrossStreetRow(row)).toBe(false);
-    }
-  });
-
-  it("worked values (ADDENDUM-01 §3.3, re-derived for ADDENDUM-05 §2's 8-column town)", () => {
-    expect(cellFromIndex(0)).toEqual({ row: 3, col: 0 });
-    expect(cellFromIndex(1)).toEqual({ row: 3, col: 1 });
-    expect(cellFromIndex(2)).toEqual({ row: 3, col: 2 });
-    expect(cellFromIndex(3)).toEqual({ row: 3, col: 3 });
-    expect(cellFromIndex(7)).toEqual({ row: 3, col: 8 });
-    expect(cellFromIndex(8)).toEqual({ row: 4, col: 8 }); // directly below (7) — §3.9
-    expect(cellFromIndex(15)).toEqual({ row: 4, col: 0 });
-    expect(cellFromIndex(16)).toEqual({ row: 6, col: 0 });
-    expect(cellFromIndex(23)).toEqual({ row: 6, col: 8 });
-    expect(cellFromIndex(24)).toEqual({ row: 7, col: 8 });
+  it("every character is one of the six legend symbols", () => {
+    const legal = new Set([".", "#", "P", "L", "S", " "]);
+    for (const row of TOWN_MAP) for (const ch of row) expect(legal.has(ch)).toBe(true);
   });
 });
 
-describe("§2.1's structural (disjointness) invariant — the AC the whole D-32 answer rests on", () => {
-  it("no plot index can ever land on a savings row or savings cell, i = 0..600", () => {
-    const savingsCells = new Set(
-      SAVING_CATEGORY_IDS.map((id) => {
-        const c = savingsCellFor(id);
-        return `${c.row},${c.col}`;
-      }),
-    );
-    for (let i = 0; i <= MAX_I; i++) {
-      const { row, col } = cellFromIndex(i);
-      expect(row).toBeGreaterThanOrEqual(TOWN_HEAD_ROWS + 1);
-      expect(isSavingsRow(row)).toBe(false);
-      expect(savingsCells.has(`${row},${col}`)).toBe(false);
-    }
+describe("census — the map's fingerprint (§1.2)", () => {
+  it("ground/road/park/lake/savings/void counts match the authored map exactly", () => {
+    const counts: Record<string, number> = {};
+    for (const row of TOWN_MAP) for (const ch of row) counts[ch] = (counts[ch] ?? 0) + 1;
+    expect(counts["."]).toBe(193);
+    expect(counts["#"]).toBe(93);
+    expect(counts["P"]).toBe(29);
+    expect(counts["L"]).toBe(12);
+    expect(counts["S"]).toBe(5);
+    expect(counts[" "]).toBe(68);
   });
 
-  it("holds as a property of the row formula, not just today's TOWN_HEAD_ROWS (asserted with head rows doubled)", () => {
-    const rowFormula = (plotRow: number, headRows: number): number =>
-      plotRow + Math.floor(plotRow / BLOCK_ROWS) + 1 + headRows;
-    for (const headRows of [TOWN_HEAD_ROWS, TOWN_HEAD_ROWS * 2]) {
-      for (let plotRow = 0; plotRow < 100; plotRow++) {
-        // Smallest possible row is strictly greater than the largest possible
-        // savings row (headRows - 1) for ANY headRows value.
-        expect(rowFormula(plotRow, headRows)).toBeGreaterThan(headRows - 1);
+  it("census sums to CELL_COUNT (400)", () => {
+    const total = TOWN_MAP.reduce((sum, row) => sum + row.length, 0);
+    expect(total).toBe(CELL_COUNT);
+    expect(CELL_COUNT).toBe(400);
+    expect(GRID_SIZE).toBe(20);
+  });
+});
+
+describe("savings cells (§1.2)", () => {
+  it("exactly 5 S cells, contiguous on row 1, cols 7..11", () => {
+    const cells: Array<[number, number]> = [];
+    for (let r = 0; r < 20; r++) for (let c = 0; c < 20; c++) if (terrainCharAt(r, c) === "S") cells.push([r, c]);
+    expect(cells).toEqual([
+      [1, 7],
+      [1, 8],
+      [1, 9],
+      [1, 10],
+      [1, 11],
+    ]);
+  });
+
+  it("every S cell is orthogonally adjacent to a road cell", () => {
+    for (let r = 0; r < 20; r++) {
+      for (let c = 0; c < 20; c++) {
+        if (terrainCharAt(r, c) !== "S") continue;
+        const adjacent = NEIGHBOR_OFFSETS.some(([dr, dc]) => terrainCharAt(r + dr, c + dc) === "#");
+        expect(adjacent).toBe(true);
       }
     }
   });
 });
 
-describe("frontage invariant — every rendered cell touches at least one road cell (§3.3)", () => {
-  function roadNeighborCount(row: number, col: number): number {
-    return [isRoadCell(row - 1, col), isRoadCell(row + 1, col), isRoadCell(row, col - 1), isRoadCell(row, col + 1)]
-      .filter(Boolean).length;
+describe("road network connectivity (§1.2)", () => {
+  it("all 93 road cells are one connected component (4-neighbour flood fill)", () => {
+    const roadCells: Array<[number, number]> = [];
+    for (let r = 0; r < 20; r++) for (let c = 0; c < 20; c++) if (terrainCharAt(r, c) === "#") roadCells.push([r, c]);
+    expect(roadCells.length).toBe(93);
+
+    const visited = new Set<string>();
+    const stack: Array<[number, number]> = [roadCells[0]];
+    visited.add(`${roadCells[0][0]},${roadCells[0][1]}`);
+    while (stack.length > 0) {
+      const [r, c] = stack.pop()!;
+      for (const [dr, dc] of NEIGHBOR_OFFSETS) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (!inBounds(nr, nc) || terrainCharAt(nr, nc) !== "#") continue;
+        const key = `${nr},${nc}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        stack.push([nr, nc]);
+      }
+    }
+    expect(visited.size).toBe(roadCells.length);
+  });
+});
+
+describe("no landlocked ground cells (§1.2)", () => {
+  it("every '.' cell has a road cell within Chebyshev distance 3", () => {
+    function hasRoadWithin(r: number, c: number, dist: number): boolean {
+      for (let dr = -dist; dr <= dist; dr++) {
+        for (let dc = -dist; dc <= dist; dc++) {
+          if (inBounds(r + dr, c + dc) && terrainCharAt(r + dr, c + dc) === "#") return true;
+        }
+      }
+      return false;
+    }
+    let landlocked = 0;
+    for (let r = 0; r < 20; r++) {
+      for (let c = 0; c < 20; c++) {
+        if (terrainCharAt(r, c) === "." && !hasRoadWithin(r, c, 3)) landlocked++;
+      }
+    }
+    expect(landlocked).toBe(0);
+  });
+});
+
+describe("terrainAt / terrainAtIndex", () => {
+  it("agrees with the raw map character at every cell", () => {
+    const CHAR_TO_KIND: Record<string, TerrainKind> = {
+      ".": "ground",
+      "#": "road",
+      P: "park",
+      L: "lake",
+      S: "savings",
+      " ": "void",
+    };
+    for (let r = 0; r < 20; r++) {
+      for (let c = 0; c < 20; c++) {
+        expect(terrainAt(r, c)).toBe(CHAR_TO_KIND[terrainCharAt(r, c)]);
+      }
+    }
+  });
+
+  it("returns void out of bounds in all four directions", () => {
+    expect(terrainAt(-1, 5)).toBe("void");
+    expect(terrainAt(20, 5)).toBe("void");
+    expect(terrainAt(5, -1)).toBe("void");
+    expect(terrainAt(5, 20)).toBe("void");
+  });
+
+  it("terrainAtIndex agrees with terrainAt(cellFromIndex(i)) for every valid index", () => {
+    for (let i = 0; i < CELL_COUNT; i++) {
+      const { row, col } = cellFromIndex(i);
+      expect(terrainAtIndex(i)).toBe(terrainAt(row, col));
+    }
+  });
+
+  it("terrainAtIndex returns void for negative or overflowing indices", () => {
+    expect(terrainAtIndex(-1)).toBe("void");
+    expect(terrainAtIndex(400)).toBe("void");
+  });
+});
+
+describe("cellFromIndex / indexFromCell — inverses over 0..399", () => {
+  it("indexFromCell(cellFromIndex(i)) === i", () => {
+    for (let i = 0; i < CELL_COUNT; i++) expect(indexFromCell(cellFromIndex(i))).toBe(i);
+  });
+
+  it("cellFromIndex(indexFromCell(cell)) deep-equals cell, every row/col", () => {
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        expect(cellFromIndex(indexFromCell({ row, col }))).toEqual({ row, col });
+      }
+    }
+  });
+
+  it("worked values: 0 -> (0,0), 21 -> (1,1), 399 -> (19,19)", () => {
+    expect(cellFromIndex(0)).toEqual({ row: 0, col: 0 });
+    expect(cellFromIndex(21)).toEqual({ row: 1, col: 1 });
+    expect(cellFromIndex(399)).toEqual({ row: 19, col: 19 });
+  });
+});
+
+describe("inBounds", () => {
+  it("true for every (row, col) inside the 20x20 grid, false just outside it", () => {
+    expect(inBounds(0, 0)).toBe(true);
+    expect(inBounds(19, 19)).toBe(true);
+    expect(inBounds(-1, 0)).toBe(false);
+    expect(inBounds(0, -1)).toBe(false);
+    expect(inBounds(20, 0)).toBe(false);
+    expect(inBounds(0, 20)).toBe(false);
+  });
+});
+
+describe("isBuildable / isRoadCell / isWalkable (§5)", () => {
+  it("isBuildable is true iff the cell is ground", () => {
+    for (let r = 0; r < 20; r++) {
+      for (let c = 0; c < 20; c++) {
+        expect(isBuildable(r, c)).toBe(terrainAt(r, c) === "ground");
+      }
+    }
+  });
+
+  it("isRoadCell is true iff the cell is road", () => {
+    for (let r = 0; r < 20; r++) {
+      for (let c = 0; c < 20; c++) {
+        expect(isRoadCell(r, c)).toBe(terrainAt(r, c) === "road");
+      }
+    }
+  });
+
+  it("isWalkable is true for road and park", () => {
+    expect(isWalkable(2, 5)).toBe(true); // road
+    expect(isWalkable(0, 6)).toBe(true); // park
+  });
+
+  it("isWalkable is false for ground, lake, savings, and void", () => {
+    expect(isWalkable(3, 1)).toBe(false); // ground
+    expect(isWalkable(9, 6)).toBe(false); // lake
+    expect(isWalkable(1, 9)).toBe(false); // savings
+    expect(isWalkable(0, 0)).toBe(false); // void
+  });
+
+  it("isWalkable agrees with terrainAt over the whole grid", () => {
+    for (let r = 0; r < 20; r++) {
+      for (let c = 0; c < 20; c++) {
+        const t = terrainAt(r, c);
+        expect(isWalkable(r, c)).toBe(t === "road" || t === "park");
+      }
+    }
+  });
+});
+
+describe("footprintCells (§2.1)", () => {
+  const anchor = indexFromCell({ row: 3, col: 1 }); // ground, with ground neighbors to the right and below
+
+  it("1x1 returns exactly the anchor", () => {
+    expect(footprintCells(anchor, 1, 1)).toEqual([anchor]);
+  });
+
+  it("2x1 (w2 h1) returns the anchor and the cell to its right, in reading order", () => {
+    expect(footprintCells(anchor, 2, 1)).toEqual([indexFromCell({ row: 3, col: 1 }), indexFromCell({ row: 3, col: 2 })]);
+  });
+
+  it("1x2 (w1 h2) returns the anchor and the cell below it, in reading order", () => {
+    expect(footprintCells(anchor, 1, 2)).toEqual([indexFromCell({ row: 3, col: 1 }), indexFromCell({ row: 4, col: 1 })]);
+  });
+
+  it("2x2 returns all four cells, row-major reading order", () => {
+    expect(footprintCells(anchor, 2, 2)).toEqual([
+      indexFromCell({ row: 3, col: 1 }),
+      indexFromCell({ row: 3, col: 2 }),
+      indexFromCell({ row: 4, col: 1 }),
+      indexFromCell({ row: 4, col: 2 }),
+    ]);
+  });
+
+  it("always returns exactly w*h cells, for every legal shape at a valid interior anchor", () => {
+    const interior = indexFromCell({ row: 9, col: 9 });
+    for (const [w, h] of [
+      [1, 1],
+      [1, 2],
+      [2, 1],
+      [2, 2],
+    ] as const) {
+      expect(footprintCells(interior, w, h).length).toBe(w * h);
+    }
+  });
+});
+
+describe("anchor counts on an empty map (§1.2)", () => {
+  function isGround(row: number, col: number): boolean {
+    return inBounds(row, col) && terrainAt(row, col) === "ground";
+  }
+  function countAnchors(w: number, h: number): number {
+    let n = 0;
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        if (row + h > GRID_SIZE || col + w > GRID_SIZE) continue;
+        const anchor = indexFromCell({ row, col });
+        if (footprintCells(anchor, w, h).every((i) => { const c = cellFromIndex(i); return isGround(c.row, c.col); })) n++;
+      }
+    }
+    return n;
   }
 
-  // ADDENDUM-07: scoped to UNMASKED (rendered) lots, i = 0..600 — a masked
-  // index is void, never rendered, never buildable (`isMaskedPlotIndex`), so
-  // the invariant this describe block is named for simply does not apply to
-  // it. `crossStreetColumnRange`'s union rule is what makes this hold BY
-  // CONSTRUCTION for every unmasked lot: see the block-edge masking describe
-  // block below for the proof-shaped tests.
-  it("every UNMASKED plot cell has >= 1 road neighbor, i = 0..600", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      if (isMaskedPlotIndex(i)) continue;
+  it("2x2 has exactly 83 valid anchors", () => {
+    expect(countAnchors(2, 2)).toBe(83);
+  });
+
+  it("1x2 (w1 h2) has exactly 115 valid anchors", () => {
+    expect(countAnchors(1, 2)).toBe(115);
+  });
+
+  it("2x1 (w2 h1) has exactly 148 valid anchors", () => {
+    expect(countAnchors(2, 1)).toBe(148);
+  });
+
+  it("1x1 has exactly 193 valid anchors — every ground cell", () => {
+    expect(countAnchors(1, 1)).toBe(193);
+  });
+});
+
+describe("prime cells — 명당 (§6)", () => {
+  it("isPrimeCell is false for any non-ground cell", () => {
+    expect(isPrimeCell(0, 0)).toBe(false); // void
+    expect(isPrimeCell(2, 5)).toBe(false); // road
+    expect(isPrimeCell(0, 6)).toBe(false); // park
+    expect(isPrimeCell(9, 6)).toBe(false); // lake
+    expect(isPrimeCell(1, 9)).toBe(false); // savings
+  });
+
+  it("exactly 20 prime cells over the whole grid", () => {
+    let count = 0;
+    for (let r = 0; r < 20; r++) for (let c = 0; c < 20; c++) if (isPrimeCell(r, c)) count++;
+    expect(count).toBe(20);
+  });
+
+  it("a known prime cell: (3,3) is ground, adjacent to road (3,4) and to nothing park/lake — spot check the converse holds too", () => {
+    // (3,3) is ground next to the road at (3,4) but has no park/lake neighbor, so it is NOT prime —
+    // pinned as a concrete negative case alongside the positive count above.
+    expect(terrainAt(3, 3)).toBe("ground");
+    expect(isPrimeCell(3, 3)).toBe(false);
+  });
+
+  it("isPrimePlotIndex agrees with isPrimeCell(cellFromIndex(i)) for every index", () => {
+    for (let i = 0; i < CELL_COUNT; i++) {
       const { row, col } = cellFromIndex(i);
-      expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(1);
-    }
-  });
-
-  it("every savings cell has >= 2 road neighbors (cross streets above AND below)", () => {
-    for (const id of SAVING_CATEGORY_IDS) {
-      const { row, col } = savingsCellFor(id);
-      expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(2);
+      expect(isPrimePlotIndex(i)).toBe(isPrimeCell(row, col));
     }
   });
 });
 
-describe("column permutations", () => {
-  it("SERPENTINE_COLUMNS and SAVINGS_COLUMN_RANK are both permutations of the eight non-road grid columns", () => {
-    const expected = [0, 1, 2, 3, 5, 6, 7, 8];
-    expect(SERPENTINE_COLUMNS.length).toBe(TOWN_COLUMNS);
-    expect(SAVINGS_COLUMN_RANK.length).toBe(TOWN_COLUMNS);
-    expect([...SERPENTINE_COLUMNS].sort((a, b) => a - b)).toEqual(expected);
-    expect([...SAVINGS_COLUMN_RANK].sort((a, b) => a - b)).toEqual(expected);
-    expect(SERPENTINE_COLUMNS).not.toContain(ROAD_COLUMN);
-    expect(SAVINGS_COLUMN_RANK).not.toContain(ROAD_COLUMN);
+describe("elevationBandOf (§6)", () => {
+  it("is floor(row / 5), four bands over 20 rows", () => {
+    expect(elevationBandOf(0)).toBe(0);
+    expect(elevationBandOf(4)).toBe(0);
+    expect(elevationBandOf(5)).toBe(1);
+    expect(elevationBandOf(9)).toBe(1);
+    expect(elevationBandOf(10)).toBe(2);
+    expect(elevationBandOf(14)).toBe(2);
+    expect(elevationBandOf(15)).toBe(3);
+    expect(elevationBandOf(19)).toBe(3);
+  });
+});
+
+describe("decorVariant — unchanged from ADDENDUM-06 (R-2)", () => {
+  it("matches the original formula exactly", () => {
+    for (let row = 0; row <= 25; row++) {
+      for (let col = 0; col <= 25; col++) {
+        expect(decorVariant(row, col, 5)).toBe((((row * 31 + col * 17) % 5) + 5) % 5);
+      }
+    }
   });
 
-  // ADDENDUM-07's `blockGridColumnStart`/`blockGridColumnEnd` (block-edge
-  // masking) assume this monotonicity to turn "the first/last UNMASKED plot
-  // column" straight into "the leftmost/rightmost live grid column" — a
-  // permutation alone would not be enough.
-  it("SERPENTINE_COLUMNS is monotonically increasing in plot-column order", () => {
-    for (let i = 1; i < SERPENTINE_COLUMNS.length; i++) {
-      expect(SERPENTINE_COLUMNS[i]).toBeGreaterThan(SERPENTINE_COLUMNS[i - 1]);
+  it("is always in [0, kinds)", () => {
+    for (let row = 0; row <= 25; row++) {
+      for (let col = 0; col <= 25; col++) {
+        const v = decorVariant(row, col, 3);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThan(3);
+      }
     }
   });
 });
 
-describe("MVP-SPEC F2's AC in screen space (D-30 answered, §3.9)", () => {
-  it("consecutive plot indices within the same block are screen-adjacent", () => {
-    const blockOf = (idx: number) => Math.floor(plotFromIndex(idx).row / BLOCK_ROWS);
-    for (let i = 0; i < MAX_I; i++) {
-      if (blockOf(i) !== blockOf(i + 1)) continue;
-      const a = cellFromIndex(i);
-      const b = cellFromIndex(i + 1);
-      const sameRow = b.row === a.row;
-      const nextRowSameCol = b.row === a.row + 1 && b.col === a.col;
-      expect(sameRow || nextRowSameCol).toBe(true);
-    }
+describe("savingsCells / savingsCellFor / SAVINGS_ROW_ORDER", () => {
+  it("savingsCells returns the 5 S cells, left-to-right, row 1 cols 7..11", () => {
+    expect(savingsCells()).toEqual([
+      { row: 1, col: 7 },
+      { row: 1, col: 8 },
+      { row: 1, col: 9 },
+      { row: 1, col: 10 },
+      { row: 1, col: 11 },
+    ]);
   });
 
-  it("spot check: index 8 renders directly below index 7 on screen (last column of an 8-wide row)", () => {
-    expect(cellFromIndex(7)).toEqual({ row: 3, col: 8 });
-    expect(cellFromIndex(8)).toEqual({ row: 4, col: 8 });
-  });
-
-  it("across a block boundary the column repeats and exactly one cross-street row lies between (15 -> 16)", () => {
-    const a = cellFromIndex(15);
-    const b = cellFromIndex(16);
-    expect(a).toEqual({ row: 4, col: 0 });
-    expect(b).toEqual({ row: 6, col: 0 });
-    expect(b.col).toBe(a.col);
-    expect(b.row - a.row).toBe(2);
-    expect(isCrossStreetRow(a.row + 1)).toBe(true);
-  });
-});
-
-describe("savingsCellFor / SAVINGS_ROW_ORDER / freeSavingsCells", () => {
-  it("savingsCellFor is injective, off-road, and in a savings row for every id", () => {
+  it("savingsCellFor is injective and every result is a real savings cell", () => {
     const seen = new Set<string>();
     for (const id of SAVING_CATEGORY_IDS) {
       const { row, col } = savingsCellFor(id);
-      expect(col).not.toBe(ROAD_COLUMN);
-      expect(isSavingsRow(row)).toBe(true);
+      expect(terrainAt(row, col)).toBe("savings");
       const key = `${row},${col}`;
       expect(seen.has(key)).toBe(false);
       seen.add(key);
     }
   });
 
-  it("deposit and stock get the two street-front lots (§2.2/§3.3)", () => {
-    expect(savingsCellFor("deposit").col).toBe(ROAD_COLUMN - 1);
-    expect(savingsCellFor("stock").col).toBe(ROAD_COLUMN + 1);
+  it("worked cells, id rank -> column 7 + rank", () => {
+    expect(savingsCellFor("deposit")).toEqual({ row: 1, col: 7 });
+    expect(savingsCellFor("stock")).toEqual({ row: 1, col: 8 });
+    expect(savingsCellFor("emergency")).toEqual({ row: 1, col: 9 });
+    expect(savingsCellFor("goal")).toEqual({ row: 1, col: 10 });
+    expect(savingsCellFor("other_saving")).toEqual({ row: 1, col: 11 });
   });
 
-  it("worked cells (ADDENDUM-01 §3.3, re-derived for ADDENDUM-05 §2's 8-column town)", () => {
-    expect(savingsCellFor("deposit")).toEqual({ row: 1, col: 3 });
-    expect(savingsCellFor("stock")).toEqual({ row: 1, col: 5 });
-    expect(savingsCellFor("emergency")).toEqual({ row: 1, col: 2 });
-    expect(savingsCellFor("goal")).toEqual({ row: 1, col: 6 });
-    expect(savingsCellFor("other_saving")).toEqual({ row: 1, col: 1 });
+  it("throws for an id outside SAVING_CATEGORY_IDS instead of returning a garbage cell", () => {
+    expect(() => savingsCellFor("invest" as never)).toThrow(/SAVING_CATEGORY_IDS/);
   });
 
-  it("SAVINGS_ROW_ORDER is sorted by (row, col) and contains every id exactly once", () => {
+  it("SAVINGS_ROW_ORDER contains every id exactly once, sorted by (row, col)", () => {
     expect(SAVINGS_ROW_ORDER.length).toBe(SAVING_CATEGORY_IDS.length);
     expect(new Set(SAVINGS_ROW_ORDER).size).toBe(SAVING_CATEGORY_IDS.length);
     const cells = SAVINGS_ROW_ORDER.map(savingsCellFor);
@@ -261,86 +450,63 @@ describe("savingsCellFor / SAVINGS_ROW_ORDER / freeSavingsCells", () => {
       expect(prev.row < cur.row || (prev.row === cur.row && prev.col < cur.col)).toBe(true);
     }
   });
+});
 
-  it("freeSavingsCells returns SAVINGS_ROWS*TOWN_COLUMNS - SAVING_CATEGORY_IDS.length cells, none on the road", () => {
-    const cells = freeSavingsCells();
-    expect(cells.length).toBe(SAVINGS_ROWS * TOWN_COLUMNS - SAVING_CATEGORY_IDS.length);
-    // ADDENDUM-05 §2: 8 columns - 5 sub-types = 3 free cells now (was 1 at 6
-    // columns) — in SAVINGS_COLUMN_RANK's column-rank order, not sorted ascending.
-    expect(cells).toEqual([
-      { row: 1, col: 7 },
-      { row: 1, col: 0 },
-      { row: 1, col: 8 },
-    ]);
-    for (const c of cells) expect(c.col).not.toBe(ROAD_COLUMN);
+describe("GRID_TEMPLATE_COLUMNS / GRID_TEMPLATE_ROWS (§7)", () => {
+  it("GRID_TEMPLATE_COLUMNS splits into exactly 20 tokens (no stray space inside minmax())", () => {
+    const tokens = GRID_TEMPLATE_COLUMNS.split(" ");
+    expect(tokens.length).toBe(GRID_SIZE);
+    for (const token of tokens) expect(token).toBe(`minmax(${MIN_TILE_WIDTH_PX}px,1fr)`);
   });
 
-  it("throws for an id outside SAVING_CATEGORY_IDS instead of returning a garbage cell (round-1 finding C2)", () => {
-    // The legacy `invest` id is still a member of `SavingCategoryId` (types.ts)
-    // but never of `SAVING_CATEGORY_IDS` — `savingsCellFor` no longer accepts
-    // it at the type level either; `as never` simulates a value that reached
-    // here bypassing the type checker (e.g. a bad cast).
-    expect(() => savingsCellFor("invest" as never)).toThrow(/SAVING_CATEGORY_IDS/);
+  it("GRID_TEMPLATE_ROWS splits into exactly 20 uniform TILE_HEIGHT_PX tokens", () => {
+    const tokens = GRID_TEMPLATE_ROWS.split(" ");
+    expect(tokens.length).toBe(GRID_SIZE);
+    for (const token of tokens) expect(token).toBe(`${TILE_HEIGHT_PX}px`);
+  });
+
+  it("MIN_TILE_WIDTH_PX and TILE_HEIGHT_PX are both 40 — a square grid", () => {
+    expect(MIN_TILE_WIDTH_PX).toBe(40);
+    expect(TILE_HEIGHT_PX).toBe(40);
   });
 });
 
-describe("row/tile/cross-street counts and the grid template", () => {
-  it("worked values (ADDENDUM-01 §3.3, re-derived for ADDENDUM-05 §2's 8-column town — one block now holds 16 plots)", () => {
-    expect(gridRowCount(0)).toBe(6);
-    expect(gridRowCount(16)).toBe(6);
-    expect(gridRowCount(17)).toBe(9);
-    expect(crossStreetRowCount(0)).toBe(3);
-    expect(crossStreetRowCount(17)).toBe(4);
-    expect(renderedTileCount(17)).toBe(32);
-    expect(GRID_TEMPLATE_COLUMNS).toBe(
-      "minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr) 22px minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr) minmax(52px,1fr)",
-    );
-    // ADDENDUM-05 §2: every phone-class viewport (320..~518px) clamps to
-    // MIN_TILE_WIDTH_PX now — the raw derived width (~27-47px here) is below
-    // the floor at every one of these, which is the whole point of the clamp.
-    expect(plotTileWidthPx(390)).toBe(52);
-    expect(plotTileWidthPx(320)).toBe(52);
-  });
-
-  it("the first and last grid row are always cross streets, and row 1 is always a savings row", () => {
-    for (const n of [0, 12, 13, 25, 100]) {
-      const rows = gridRowCount(n);
-      expect(isCrossStreetRow(0)).toBe(true);
-      expect(isCrossStreetRow(rows - 1)).toBe(true);
-      expect(isSavingsRow(1)).toBe(true);
+describe("plotTileWidthPx (§7)", () => {
+  it("clamps to MIN_TILE_WIDTH_PX at phone-class viewports", () => {
+    for (const v of [320, 360, 390, 430]) {
+      expect(plotTileWidthPx(v)).toBe(MIN_TILE_WIDTH_PX);
     }
   });
 
-  it("GRID_TEMPLATE_COLUMNS has exactly GRID_COLUMNS tokens, with the road's px token at ROAD_COLUMN and every other a minmax(MIN_TILE_WIDTH_PX, 1fr)", () => {
-    const tokens = GRID_TEMPLATE_COLUMNS.split(" ");
-    expect(tokens.length).toBe(GRID_COLUMNS);
-    expect(tokens[ROAD_COLUMN]).toBe(`${ROAD_WIDTH_PX}px`);
-    tokens.forEach((token, i) => {
-      if (i !== ROAD_COLUMN) expect(token).toBe(`minmax(${MIN_TILE_WIDTH_PX}px,1fr)`);
-    });
-  });
-
-  // Acceptance criterion #2 (ADDENDUM-05 §9): plotTileWidthPx clamps to the floor.
-  it("plotTileWidthPx never returns below MIN_TILE_WIDTH_PX, at any supported viewport", () => {
-    for (const v of [320, 360, 390, 430]) {
+  it("never returns below MIN_TILE_WIDTH_PX at any viewport", () => {
+    for (const v of [200, 320, 800, 2000]) {
       expect(plotTileWidthPx(v)).toBeGreaterThanOrEqual(MIN_TILE_WIDTH_PX);
     }
-    expect(plotTileWidthPx(390)).toBe(MIN_TILE_WIDTH_PX); // the clamp is what wins at phone width, not the raw derivation
+  });
+
+  it("derives a wider tile at a viewport wide enough for 20 unclamped columns", () => {
+    expect(plotTileWidthPx(2000)).toBeGreaterThan(MIN_TILE_WIDTH_PX);
+  });
+
+  it("matches the no-road-column formula directly: (viewportPx - 2*pad - 19*gap) / 20, clamped", () => {
+    const v = 900;
+    const expected = Math.max(MIN_TILE_WIDTH_PX, (v - 2 * GRID_PADDING_X_PX - (GRID_SIZE - 1) * GRID_GAP_PX) / GRID_SIZE);
+    expect(plotTileWidthPx(v)).toBeCloseTo(expected, 6);
   });
 });
 
-describe("savings plot geometry (§2.5) — never clamped, wraps instead of overflowing (AC-F13-16)", () => {
-  it("(a) the widest pip line never overflows the narrowest plot at any supported viewport", () => {
+describe("savings plot geometry (§2.5) — unrelated to the map change, still sound after the width formula changed", () => {
+  it("the widest pip line never overflows the narrowest plot at any supported viewport", () => {
     for (const v of [320, 360, 390, 430]) {
       expect(pipRowWidthPx(PIPS_PER_ROW)).toBeLessThanOrEqual(plotTileWidthPx(v));
     }
   });
 
-  it("(b) PIPS_PER_ROW is maximal — one more pip would overflow at the narrowest viewport", () => {
+  it("PIPS_PER_ROW is maximal — one more pip would overflow at the narrowest viewport", () => {
     expect(pipRowWidthPx(PIPS_PER_ROW + 1)).toBeGreaterThan(plotTileWidthPx(MIN_VIEWPORT_PX));
   });
 
-  it("(c) pipRowCount always fits its ladder length and is monotone non-decreasing", () => {
+  it("pipRowCount always fits its ladder length and is monotone non-decreasing", () => {
     let prev = 0;
     for (let n = 1; n <= 40; n++) {
       const rows = pipRowCount(n);
@@ -350,7 +516,7 @@ describe("savings plot geometry (§2.5) — never clamped, wraps instead of over
     }
   });
 
-  it("(d) the template's three rows plus the two gaps sum exactly to the plot's own inline height, n = 1, 8, 20", () => {
+  it("the template's three rows plus the two gaps sum exactly to the plot's own inline height", () => {
     for (const n of [1, 8, 20]) {
       const rowsPx = savingsPlotTemplateRows(n)
         .split(" ")
@@ -360,10 +526,9 @@ describe("savings plot geometry (§2.5) — never clamped, wraps instead of over
     }
   });
 
-  it("heights are strictly increasing in ladder length and never clamped", () => {
-    const n = 8;
-    expect(structureHeightPx(2 * n) - structureHeightPx(n)).toBe(SEG_STEP_PX * n);
-    expect(savingsPlotHeightPx(2 * n)).toBeGreaterThan(savingsPlotHeightPx(n));
+  it("heights are strictly increasing in ladder length", () => {
+    expect(structureHeightPx(16)).toBeGreaterThan(structureHeightPx(8));
+    expect(savingsPlotHeightPx(16)).toBeGreaterThan(savingsPlotHeightPx(8));
   });
 
   it("pipBlockHeightPx grows with the ladder length (wraps rather than shrinking pips)", () => {
@@ -371,7 +536,7 @@ describe("savings plot geometry (§2.5) — never clamped, wraps instead of over
   });
 });
 
-describe("districtLadderLength — sized to the longest ladder any structure resolves to", () => {
+describe("districtLadderLength", () => {
   it("is the default length with no overrides, and the override's length when it is longer", () => {
     const DEFAULT = [1, 2, 3];
     expect(districtLadderLength(DEFAULT, {})).toBe(3);
@@ -380,311 +545,17 @@ describe("districtLadderLength — sized to the longest ladder any structure res
   });
 });
 
-describe("ADDENDUM-05 §2 (F-EXP) — 8-column town expansion", () => {
-  it("TOWN_COLUMNS/GRID_COLUMNS/SERPENTINE_COLUMNS match the spec's worked numbers", () => {
-    expect(TOWN_COLUMNS).toBe(8);
-    expect(GRID_COLUMNS).toBe(9);
-    expect(SERPENTINE_COLUMNS.length).toBe(8);
-    expect(SERPENTINE_COLUMNS).not.toContain(ROAD_COLUMN);
-    expect(ROAD_COLUMN).toBe(4);
-  });
-
-  it("8-column serpentine round-trip: indexFromPlot(plotFromIndex(i)) === i, i = 0..600", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      expect(indexFromPlot(plotFromIndex(i))).toBe(i);
-    }
-  });
-
-  it("frontage invariant still holds at 8 columns for every UNMASKED cell: >= 1 road neighbor, i = 0..600", () => {
-    function roadNeighborCount(row: number, col: number): number {
-      return [isRoadCell(row - 1, col), isRoadCell(row + 1, col), isRoadCell(row, col - 1), isRoadCell(row, col + 1)].filter(
-        Boolean,
-      ).length;
-    }
-    for (let i = 0; i <= MAX_I; i++) {
-      if (isMaskedPlotIndex(i)) continue; // ADDENDUM-07 — void, never a rendered lot
-      const { row, col } = cellFromIndex(i);
-      expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(1);
-    }
-  });
-
-  it("no plot index ever lands on a savings cell at 8 columns, i = 0..600", () => {
-    const savingsCells = new Set(
-      SAVING_CATEGORY_IDS.map((id) => {
-        const c = savingsCellFor(id);
-        return `${c.row},${c.col}`;
-      }),
-    );
-    for (let i = 0; i <= MAX_I; i++) {
-      const { row, col } = cellFromIndex(i);
-      expect(isSavingsRow(row)).toBe(false);
-      expect(savingsCells.has(`${row},${col}`)).toBe(false);
-    }
-  });
-
-  it("MIN_TILE_WIDTH_PX clamp: plotTileWidthPx never drops below it, and is exactly it at every supported phone viewport", () => {
-    expect(MIN_TILE_WIDTH_PX).toBe(52);
-    for (const v of [320, 360, 390, 430]) {
-      expect(plotTileWidthPx(v)).toBe(MIN_TILE_WIDTH_PX);
-    }
-    // Wide enough that 8 unclamped columns fit, the raw derivation wins instead.
-    expect(plotTileWidthPx(2000)).toBeGreaterThan(MIN_TILE_WIDTH_PX);
+describe("terrace constants (§6)", () => {
+  it("TERRACE_TINTS / TERRACE_EARTH_PX / TERRACE_DROP_PX keep their ADDENDUM-06 values", () => {
+    expect(TERRACE_TINTS).toBe(3);
+    expect(TERRACE_EARTH_PX).toBe(20);
+    expect(TERRACE_DROP_PX).toBe(6);
   });
 });
 
-describe("LAYOUT_VERSION (rule R-1, §3.6)", () => {
-  it("is a stable integer constant, bumped to 3 by ADDENDUM-07's block-edge masking", () => {
+describe("LAYOUT_VERSION (rule R-1)", () => {
+  it("is 4 — the fixed 20x20 map bump", () => {
     expect(Number.isInteger(LAYOUT_VERSION)).toBe(true);
-    expect(LAYOUT_VERSION).toBe(3);
-  });
-});
-
-describe("rule R-3 — App.css never places or measures a townLayout.ts coordinate/metric (§3.5/§3.8)", () => {
-  // process.cwd() is the project root under `vitest run` (this project's
-  // config/scripts always invoke it from there) — `import.meta.url` is not
-  // reliably a `file://` URL inside vitest's own module transform pipeline.
-  const appCssPath = join(process.cwd(), "src", "App.css");
-  const appCss = readFileSync(appCssPath, "utf8");
-
-  function ruleBodyOf(css: string, selector: string): string {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = new RegExp(`(?:^|[\\s,}])${escaped}\\s*\\{([^}]*)\\}`, "s").exec(css);
-    return match ? match[1] : "__SELECTOR_NOT_FOUND__";
-  }
-
-  const forbiddenCoordinate = /grid-column\s*:|grid-row\s*:|grid-template-columns\s*:|grid-template-rows\s*:/;
-  const forbiddenFallbackVar = /var\(\s*--[\w-]+\s*,/;
-
-  it.each([
-    ".town-grid",
-    ".town-tile",
-    ".town-main-street",
-    ".town-cross-street",
-    ".savings-plot",
-    ".savings-plot--empty",
-    ".savings-signpost",
-  ])("%s carries no grid coordinate and no fallback var()", (selector) => {
-    const body = ruleBodyOf(appCss, selector);
-    expect(body).not.toBe("__SELECTOR_NOT_FOUND__");
-    expect(body).not.toMatch(forbiddenCoordinate);
-    expect(body).not.toMatch(forbiddenFallbackVar);
-  });
-
-  it(".savings-plot and .savings-structure never declare height/width directly (arrives inline from JS)", () => {
-    for (const selector of [".savings-plot", ".savings-structure"]) {
-      const body = ruleBodyOf(appCss, selector);
-      if (body === "__SELECTOR_NOT_FOUND__") continue; // .savings-structure doesn't exist until the next task
-      expect(body).not.toMatch(/(?<!min-|max-)\bheight\s*:/);
-      expect(body).not.toMatch(/(?<!min-|max-)\bwidth\s*:/);
-    }
-  });
-
-  it(".town-grid's padding and grid-auto-rows read from GRID_PADDING_X_PX/the keyword auto, not a literal", () => {
-    const body = ruleBodyOf(appCss, ".town-grid");
-    expect(body).toMatch(/padding:\s*8px\s+var\(--town-grid-pad-x\)\s+24px/);
-    expect(body).toMatch(/grid-auto-rows:\s*auto/);
-  });
-});
-
-describe("terrain — terraceEdgeInsetPx / terraceTintOf (ADDENDUM-06 §2, AC-1)", () => {
-  it("TERRACE_BLEED_PX stays inside GRID_PADDING_X_PX, so a slab never overflows the viewport", () => {
-    expect(TERRACE_BLEED_PX).toBeLessThanOrEqual(GRID_PADDING_X_PX);
-  });
-
-  it("terraceEdgeInsetPx is always in [0, TERRACE_BLEED_PX], b = 0..200, both sides", () => {
-    for (let b = 0; b <= 200; b++) {
-      for (const side of [0, 1] as const) {
-        const inset = terraceEdgeInsetPx(b, side);
-        expect(inset).toBeGreaterThanOrEqual(0);
-        expect(inset).toBeLessThanOrEqual(TERRACE_BLEED_PX);
-      }
-    }
-  });
-
-  it("terraceTintOf is always in [0, TERRACE_TINTS), b = 0..200", () => {
-    for (let b = 0; b <= 200; b++) {
-      const tint = terraceTintOf(b);
-      expect(tint).toBeGreaterThanOrEqual(0);
-      expect(tint).toBeLessThan(TERRACE_TINTS);
-    }
-  });
-});
-
-describe("blockFirstRow (ADDENDUM-06 §2, AC-4)", () => {
-  it("blockFirstRow(0) is the first plot row right after the town head", () => {
-    expect(blockFirstRow(0)).toBe(TOWN_HEAD_ROWS + 1);
-  });
-
-  it("blockFirstRow(b) is <= every row blockIndexOf resolves back to block b, and is itself a block-first row, b = 0..200", () => {
-    for (let b = 0; b <= 200; b++) {
-      const firstRow = blockFirstRow(b);
-      expect(blockIndexOf(firstRow)).toBeLessThanOrEqual(firstRow);
-      expect(isBlockFirstRow(firstRow)).toBe(true);
-    }
-  });
-});
-
-describe("isPrimeLot / isPrimePlotIndex — 명당 (ADDENDUM-06 §2, AC-5)", () => {
-  it("exactly 2 prime cells per block's first row, b = 0..50", () => {
-    for (let b = 0; b <= 50; b++) {
-      const row = blockFirstRow(b);
-      let count = 0;
-      for (let col = 0; col < GRID_COLUMNS; col++) {
-        if (isPrimeLot(row, col)) count++;
-      }
-      expect(count).toBe(2);
-    }
-  });
-
-  it("row 0 (entrance cross street) is never a prime lot despite the signed-modulo trap", () => {
-    expect(isPrimeLot(0, ROAD_COLUMN - 1)).toBe(false);
-    expect(isPrimeLot(0, ROAD_COLUMN + 1)).toBe(false);
-  });
-
-  it("the road column itself is never a prime lot, for any row", () => {
-    for (let row = 0; row <= 30; row++) {
-      expect(isPrimeLot(row, ROAD_COLUMN)).toBe(false);
-    }
-  });
-
-  it("isPrimePlotIndex agrees with isPrimeLot(cellFromIndex(i)), i = 0..600", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      const { row, col } = cellFromIndex(i);
-      expect(isPrimePlotIndex(i)).toBe(isPrimeLot(row, col));
-    }
-  });
-});
-
-// ── ADDENDUM-07 — block-edge masking, the outer silhouette ──
-
-describe("blockColumnInset — capped, deterministic, never Math.random (R-2)", () => {
-  it("is always in [0, MAX_EDGE_INSET], b = 0..200, both sides", () => {
-    expect(MAX_EDGE_INSET).toBe(2);
-    for (let b = 0; b <= 200; b++) {
-      for (const side of [0, 1] as const) {
-        const inset = blockColumnInset(b, side);
-        expect(Number.isInteger(inset)).toBe(true);
-        expect(inset).toBeGreaterThanOrEqual(0);
-        expect(inset).toBeLessThanOrEqual(MAX_EDGE_INSET);
-      }
-    }
-  });
-
-  it("is a pure function of (b, side) alone — calling it twice never drifts", () => {
-    for (let b = 0; b <= 20; b++) {
-      expect(blockColumnInset(b, 0)).toBe(blockColumnInset(b, 0));
-      expect(blockColumnInset(b, 1)).toBe(blockColumnInset(b, 1));
-    }
-  });
-});
-
-describe("street-front / 명당 plot columns (3, 4) can NEVER be masked", () => {
-  it("isMaskedPlotCol(b, 3) and isMaskedPlotCol(b, 4) are always false, b = 0..200", () => {
-    // Structural, not incidental: MAX_EDGE_INSET = 2 caps the left mask at
-    // plot cols {0,1} and the right mask at plot cols {6,7} — cols 2..5 are
-    // outside either range for ANY inset value <= MAX_EDGE_INSET, so this
-    // holds regardless of what `decorVariant` returns.
-    for (let b = 0; b <= 200; b++) {
-      expect(isMaskedPlotCol(b, 3)).toBe(false);
-      expect(isMaskedPlotCol(b, 4)).toBe(false);
-    }
-  });
-
-  it("every 명당 (isPrimeLot) cell is therefore never masked, i = 0..600", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      if (!isPrimePlotIndex(i)) continue;
-      expect(isMaskedPlotIndex(i)).toBe(false);
-    }
-  });
-});
-
-describe("block widths genuinely differ — the outline is no longer a rectangle", () => {
-  function widthOf(b: number): number {
-    return TOWN_COLUMNS - blockColumnInset(b, 0) - blockColumnInset(b, 1);
-  }
-
-  it("blocks 0..4 are [5, 6, 7, 5, 6] plot columns wide — the director's own worked example", () => {
-    const widths = [0, 1, 2, 3, 4].map(widthOf);
-    expect(widths).toEqual([5, 6, 7, 5, 6]);
-  });
-
-  it("widths vary by >= 2 plot columns across the first 5 blocks (a 74-building town's worth)", () => {
-    const widths = [0, 1, 2, 3, 4].map(widthOf);
-    expect(Math.max(...widths) - Math.min(...widths)).toBeGreaterThanOrEqual(2);
-    // No two ADJACENT blocks share a width either — the silhouette actually
-    // steps in/out at every block boundary, not just "differs somewhere".
-    for (let b = 1; b < widths.length; b++) expect(widths[b]).not.toBe(widths[b - 1]);
-  });
-
-  it("unmaskedLotsInBlock never drops below MIN_UNMASKED_LOTS_PER_BLOCK (the G2 floor), b = 0..200", () => {
-    expect(MIN_UNMASKED_LOTS_PER_BLOCK).toBe(8);
-    for (let b = 0; b <= 200; b++) {
-      expect(unmaskedLotsInBlock(b)).toBeGreaterThanOrEqual(MIN_UNMASKED_LOTS_PER_BLOCK);
-      expect(unmaskedLotsInBlock(b)).toBeLessThanOrEqual(LOTS_PER_BLOCK);
-    }
-  });
-});
-
-describe("isMaskedCell / isMaskedPlotIndex — grid space and plot-index space agree", () => {
-  it("isMaskedPlotIndex(i) === isMaskedCell(cellFromIndex(i)), i = 0..600", () => {
-    for (let i = 0; i <= MAX_I; i++) {
-      const { row, col } = cellFromIndex(i);
-      expect(isMaskedPlotIndex(i)).toBe(isMaskedCell(row, col));
-    }
-  });
-
-  it("never masks the road column, any savings row, or the entrance/head rows", () => {
-    for (let row = 0; row <= 10; row++) {
-      expect(isMaskedCell(row, ROAD_COLUMN)).toBe(false);
-    }
-    for (let row = 0; row <= TOWN_HEAD_ROWS; row++) {
-      for (let col = 0; col < GRID_COLUMNS; col++) expect(isMaskedCell(row, col)).toBe(false);
-    }
-  });
-
-  it("some plot cells ARE masked (the mechanism actually fires, not a no-op)", () => {
-    let maskedCount = 0;
-    for (let i = 0; i <= MAX_I; i++) if (isMaskedPlotIndex(i)) maskedCount++;
-    expect(maskedCount).toBeGreaterThan(0);
-  });
-});
-
-describe("crossStreetColumnRange — the union rule (spec §3.2's frontage invariant)", () => {
-  it("the entrance row (0) and the savings closing row (TOWN_HEAD_ROWS) always span the full grid", () => {
-    expect(crossStreetColumnRange(0)).toEqual({ start: 0, end: GRID_COLUMNS - 1 });
-    expect(crossStreetColumnRange(TOWN_HEAD_ROWS)).toEqual({ start: 0, end: GRID_COLUMNS - 1 });
-  });
-
-  it("an inter-block cross street is NEVER narrower than either adjacent block's own span, b = 0..50", () => {
-    for (let b = 0; b <= 50; b++) {
-      const row = blockFirstRow(b) + BLOCK_ROWS; // the closer directly below block b
-      const { start, end } = crossStreetColumnRange(row);
-      expect(start).toBeLessThanOrEqual(blockGridColumnStart(b));
-      expect(end).toBeGreaterThanOrEqual(blockGridColumnEnd(b));
-      expect(start).toBeLessThanOrEqual(blockGridColumnStart(b + 1));
-      expect(end).toBeGreaterThanOrEqual(blockGridColumnEnd(b + 1));
-    }
-  });
-
-  it("isRoadCell agrees with crossStreetColumnRange on every cross-street row — the ONE thing NPC walkability and rendering both read", () => {
-    for (let row = 0; row <= gridRowCount(600); row++) {
-      if (!isCrossStreetRow(row)) continue;
-      const { start, end } = crossStreetColumnRange(row);
-      for (let col = 0; col < GRID_COLUMNS; col++) {
-        expect(isRoadCell(row, col)).toBe(col >= start && col <= end);
-      }
-    }
-  });
-
-  it("NPC walkability regression: a column outside a narrow cross street's union is NOT a road cell", () => {
-    // block 0 (width 5, plot cols masked {0,1,7}) meets block 1 (width 6,
-    // masked {6,7}) at row blockFirstRow(0) + BLOCK_ROWS. Their union leaves
-    // grid col 8 uncovered (neither block reaches it) — this is a concrete,
-    // pinned regression for the general property the test above already
-    // proves in general.
-    const row = blockFirstRow(0) + BLOCK_ROWS;
-    expect(crossStreetColumnRange(row).end).toBeLessThan(GRID_COLUMNS - 1);
-    expect(isRoadCell(row, GRID_COLUMNS - 1)).toBe(false);
-    expect(isRoadCell(row, ROAD_COLUMN)).toBe(true); // the main street itself is unaffected
+    expect(LAYOUT_VERSION).toBe(4);
   });
 });

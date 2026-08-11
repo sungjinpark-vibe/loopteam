@@ -38,8 +38,11 @@ export interface ApplyNewEntryArgs {
   tierThresholds: readonly number[];
   noSpendDayCostsSlot: boolean;
   variantIndex: number;
-  /** Where the new building lands — computed by `placement.pickPlot`, supplied by the caller (rule R-4, ADDENDUM-02 §3.5). */
+  /** Where the new building lands — computed by `placement.placeNew`, supplied by the caller (rule R-4, ADDENDUM-08 §3). */
   plotIndex: number;
+  /** ADDENDUM-08 §2.1 — the footprint of the new building, rolled by `placement.rollFootprint`/`placeNew`, supplied alongside `plotIndex`. */
+  w: 1 | 2;
+  h: 1 | 2;
   /**
    * ADDENDUM-04 §4/§5 — grow an existing building instead of placing a new
    * one. The id of a LIVE, entry-founded building; a stale id (named no live
@@ -110,6 +113,9 @@ export interface BuildOrQueueArgs {
   variantIndex: number;
   buildingId: string;
   plotIndex: number;
+  /** ADDENDUM-08 §2.1 — the footprint of the new building; ignored when this decision grows an existing one instead. */
+  w: 1 | 2;
+  h: 1 | 2;
   createdAt: number;
   /** 'YYYY-MM' of the entry's `occurredOn` — carried on a queued material (F14) so a later drain patches the right chunk. */
   entryYm: string;
@@ -164,6 +170,8 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
     variantIndex,
     buildingId,
     plotIndex,
+    w,
+    h,
     createdAt,
     entryYm,
     amountKrw,
@@ -187,7 +195,6 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       const newTown: TownState = {
         ...town,
         ...(advancesStreak ? advanceStreak(town, today) : {}),
-        // nextPlotIndex unchanged — no lot opens (§5).
         slotsUsedOn: today,
         slotsUsedToday: usedToday + 1,
         highestTierSeen: Math.max(town.highestTierSeen, newTier),
@@ -206,6 +213,8 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       categoryId,
       variantIndex,
       plotIndex,
+      w,
+      h,
       builtOn: today,
       createdAt,
       ...(gain > 1 ? { exp: gain - 1 } : {}),
@@ -216,7 +225,6 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
     const newTown: TownState = {
       ...town,
       ...(advancesStreak ? advanceStreak(town, today) : {}),
-      nextPlotIndex: town.nextPlotIndex + 1,
       slotsUsedOn: today,
       slotsUsedToday: usedToday + 1,
       highestTierSeen: Math.max(town.highestTierSeen, newTier),
@@ -259,6 +267,8 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     noSpendDayCostsSlot,
     variantIndex,
     plotIndex,
+    w,
+    h,
     growTargetId,
     expGain,
   } = args;
@@ -341,6 +351,8 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     variantIndex,
     buildingId,
     plotIndex,
+    w,
+    h,
     createdAt,
     entryYm: draft.occurredOn.slice(0, 7),
     amountKrw: draft.amountKrw,

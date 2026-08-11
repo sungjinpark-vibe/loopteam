@@ -1,0 +1,147 @@
+{
+  "expected": {
+    "ground": 193,
+    "road": 93,
+    "park": 29,
+    "lake": 12,
+    "savings": 5,
+    "void": 68,
+    "total": 400
+  },
+  "fixtureTried": [
+    {
+      "name": "mixedFootprints",
+      "buildingsRendered": 133
+    }
+  ],
+  "fixtureUsed": "mixedFootprints",
+  "grid": {
+    "columnTracks": 20,
+    "rowTracks": 20,
+    "columnTrackPx": [
+      "40px",
+      "40px",
+      "40px"
+    ],
+    "rowTrackPx": [
+      "40px",
+      "40px",
+      "40px"
+    ],
+    "directChildren": 476
+  },
+  "cells": {
+    "kinds": {
+      "park": 36,
+      "prime": 38,
+      "savings": 71,
+      "road": 93,
+      "lake": 14,
+      "building": 133,
+      "lot": 22
+    },
+    "buildingSpans": {
+      "1x1": 92,
+      "2x1": 23,
+      "1x2": 11,
+      "2x2": 7
+    },
+    "classSamples": [
+      "building-tile",
+      "empty-lot",
+      "npc-layer",
+      "npc-slot",
+      "npc-sprite",
+      "savings-pip",
+      "savings-plot",
+      "savings-structure",
+      "savings-structure-board",
+      "savings-structure-hint",
+      "savings-structure-label",
+      "savings-structure-pips",
+      "town-cell",
+      "town-lake-ripple",
+      "town-park-glyph",
+      "town-tile"
+    ]
+  },
+  "storedFootprints": {
+    "total": 133,
+    "shapes": {
+      "2x1": 23,
+      "1x1": 92,
+      "1x2": 11,
+      "2x2": 7
+    }
+  },
+  "zoomToggleFound": true,
+  "viewportFitsWholeMap": {
+    "gridW": 164,
+    "gridH": 397,
+    "vpW": 390,
+    "vpH": 397,
+    "fits": true
+  },
+  "afterToggle": {
+    "gridW": 390,
+    "vpW": 390,
+    "fits": true
+  },
+  "npcs": {
+    "count": 25
+  },
+  "perf": {
+    "avgFrameMs": 15.86
+  },
+  "migration": {
+    "seededAsV3": 133,
+    "sample": [
+      {
+        "id": "b2",
+        "exp": 0,
+        "source": "entry",
+        "createdAt": 1700000060000
+      },
+      {
+        "id": "b4",
+        "exp": 0,
+        "source": "entry",
+        "createdAt": 1700000120000
+      },
+      {
+        "id": "b6",
+        "exp": 0,
+        "source": "entry",
+        "createdAt": 1700000180000
+      }
+    ]
+  },
+  "migrationResult": {
+    "layoutVersionNow": 4,
+    "survivors": 133,
+    "renderedOnScreen": 133,
+    "anchorsInRange": true,
+    "duplicateAnchors": 0
+  },
+  "consoleErrorsAll": 2,
+  "consoleErrors": [],
+  "screenshots": [
+    "docs/qa/a08-01-whole-map.png",
+    "docs/qa/a08-02-toggled.png",
+    "docs/qa/a08-03-fullpage.png",
+    "docs/qa/a08-04-after-migration.png"
+  ],
+  "size_docs/qa/a08-01-whole-map.png": 97429,
+  "size_docs/qa/a08-02-toggled.png": 70753,
+  "size_docs/qa/a08-03-fullpage.png": 71318,
+  "size_docs/qa/a08-04-after-migration.png": 94649,
+  "verdict": {
+    "req1_grid_is_20x20": true,
+    "req2_terrain_present": true,
+    "req3_multi_tile_buildings": true,
+    "req3_all_four_sizes_stored": true,
+    "render_matches_store": true,
+    "migration_no_loss": true,
+    "no_console_errors": true
+  }
+}

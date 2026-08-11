@@ -20,7 +20,7 @@ function makeFakePort(): StoragePort {
   };
 }
 
-const town: TownState = { ...defaultTownState(), nextPlotIndex: 1 };
+const town: TownState = { ...defaultTownState() };
 const budget: BudgetSetting = { monthlyBudgetKrw: null, updatedAt: 0 };
 const building: Building = {
   id: "b1",
@@ -45,6 +45,9 @@ describe("LAYOUT_VERSION relayout (ADDENDUM-01 §3.6)", () => {
     const client = createChunkedStorage(port);
     const firstBoot = await client.loadBoot();
     expect(firstBoot.relayout).toBe(true);
+    // ADDENDUM-08 §4 — a version<4 boot must force a full re-seat: old
+    // plotIndex values are meaningless in the new 20x20 coordinate space.
+    expect(firstBoot.forceReseat).toBe(true);
     expect(firstBoot.buildings).toEqual([building]);
     expect(firstBoot.index.layoutVersion).toBe(LAYOUT_VERSION);
     client.flush(); // land the rewrite on the raw port — writes are debounced (storage.ts)
@@ -64,6 +67,7 @@ describe("LAYOUT_VERSION relayout (ADDENDUM-01 §3.6)", () => {
     const client = createChunkedStorage(port);
     const boot = await client.loadBoot();
     expect(boot.relayout).toBe(false);
+    expect(boot.forceReseat).toBe(false);
     expect(boot.buildings).toEqual([]);
   });
 
@@ -72,6 +76,7 @@ describe("LAYOUT_VERSION relayout (ADDENDUM-01 §3.6)", () => {
     const client = createChunkedStorage(port);
     const boot = await client.loadBoot();
     expect(boot.relayout).toBe(false);
+    expect(boot.forceReseat).toBe(false);
     expect(boot.index.layoutVersion).toBe(LAYOUT_VERSION); // stamped immediately, nothing to notify about later
   });
 
@@ -87,5 +92,6 @@ describe("LAYOUT_VERSION relayout (ADDENDUM-01 §3.6)", () => {
     const client = createChunkedStorage(port);
     const boot = await client.loadBoot();
     expect(boot.relayout).toBe(false);
+    expect(boot.forceReseat).toBe(false);
   });
 });

@@ -18,7 +18,6 @@ function makeFakePort(): StoragePort & { dump: () => Record<string, string> } {
 
 const town: TownState = {
   townName: "우리 동네",
-  nextPlotIndex: 1,
   streakDays: 1,
   longestStreakDays: 1,
   lastActOn: "2026-08-02",
@@ -197,9 +196,6 @@ describe("chunked storage round-trip", () => {
     // Rebuilt to one month BEFORE the earliest surviving entry (2026-06), never
     // the latest — advancing past 2026-07 would permanently suppress its 기념비 (F16).
     expect(boot.core?.town.lastSettledPeriod).toBe("2026-06");
-    // nextPlotIndex is recovered past every surviving building's plotIndex so a
-    // freshly-built building can never collide with one that already exists.
-    expect(boot.core?.town.nextPlotIndex).toBe(8);
     expect(boot.core?.onboarded).toBe(true); // ledger data survives — no re-onboarding
   });
 
@@ -320,7 +316,6 @@ describe("chunked storage round-trip", () => {
 
 const denseTown: TownState = {
   ...town,
-  nextPlotIndex: 7,
   streakDays: 24,
   longestStreakDays: 180,
   queue: [{ entryId: "e9", categoryId: "cafe", variantIndex: 2, queuedOn: "2026-08-02", entryYm: "2026-08" }],
@@ -359,7 +354,6 @@ describe("F12 export/import", () => {
     const sourceBoot = await source.loadBoot();
     const targetBoot = await target.loadBoot();
     expect(targetBoot.core).toEqual(sourceBoot.core);
-    expect(targetBoot.core?.town.nextPlotIndex).toBe(7);
     expect(targetBoot.core?.town.queue).toEqual(denseTown.queue);
     expect(targetBoot.core?.town.streakDays).toBe(24);
     expect(targetBoot.core?.town.savingsByCategoryKrw).toEqual(denseTown.savingsByCategoryKrw);

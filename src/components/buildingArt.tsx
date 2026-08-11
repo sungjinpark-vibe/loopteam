@@ -500,6 +500,9 @@ export interface BuildingArtProps {
   variantIndex: number;
   level: number;
   monumentPeriod?: string;
+  /** ADDENDUM-08 §7 — the building's footprint in cells (absent === 1x1). A footprint > 1 cell always gets the landmark treatment (broader/squatter + roof signboard) so a 2x2 reads as a deliberately bigger structure, not a 1x1 sprite stretched to fill a larger box. */
+  w?: number;
+  h?: number;
 }
 
 /**
@@ -525,7 +528,7 @@ export function archetypeFor(categoryId: BuildingCategoryId | null, monumentPeri
 /** Inline SVG building/park/monument art. Fixed viewBox, `width/height: 100%` — never clips
  * regardless of tile size (52/56/64/72px all verified: `preserveAspectRatio`'s default `meet`
  * always fits the whole viewBox inside the box). */
-export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod }: BuildingArtProps) {
+export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w = 1, h = 1 }: BuildingArtProps) {
   if (monumentPeriod || categoryId === null) {
     return <MonumentArt monumentPeriod={monumentPeriod} />;
   }
@@ -540,8 +543,10 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod }:
   const palette = paletteFor(spec.hue, variantIndex, spec.whiteWalls);
   const floors = floorsFor(level);
   // §4.2: landmark archetypes render wide/squat always; any building also gets
-  // promoted at level >= 4 — "placement + growth reads on screen".
-  const isLandmark = !!spec.landmark || level >= 4;
+  // promoted at level >= 4 ("placement + growth reads on screen") or by
+  // occupying a multi-cell footprint (ADDENDUM-08 §7 — a 2x2 must read as a
+  // deliberately bigger building, not a 1x1 sprite stretched into a big box).
+  const isLandmark = !!spec.landmark || level >= 4 || w * h > 1;
   const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark);
   const decor = decorParts(spec, geo);
 

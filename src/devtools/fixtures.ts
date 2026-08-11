@@ -40,7 +40,8 @@ export const DEVTOOLS_FIXTURES_BUNDLE_MARKER = "__AIT_DEVTOOLS_FIXTURES_MARKER__
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
 import { seededRandom } from "../platform/random";
-import { pickPlotIn } from "../placement";
+import { placeMonument, placeNew } from "../placement";
+import { CELL_COUNT, cellFromIndex, isBuildable } from "../townLayout";
 import { BALANCE } from "../balance.approved";
 import { daysInMonth, shiftMonth, ymOnly, ymd } from "../calendar";
 import { savingsByCategory } from "../selectors";
@@ -121,6 +122,8 @@ function makeBuilding(args: {
   builtOn: string;
   createdAt: number;
   monumentSummary?: MonthSummary;
+  w?: 1 | 2;
+  h?: 1 | 2;
 }): Building {
   return { ...args };
 }
@@ -128,7 +131,6 @@ function makeBuilding(args: {
 function freshTown(today: string): TownState {
   return {
     townName: "우리 동네",
-    nextPlotIndex: 0,
     streakDays: 0,
     longestStreakDays: 0,
     lastActOn: null,
@@ -157,40 +159,91 @@ function makeSequence() {
   };
 }
 
-interface PlotAllocator {
-  next(): number;
-  readonly frontier: number;
+interface Placement {
+  plotIndex: number;
+  w: 1 | 2;
+  h: 1 | 2;
 }
 
 /**
- * Assigns each new building's plotIndex through the REAL placement pipeline
- * (`pickPlotIn`, placement.ts) instead of a raw incrementing counter.
- * ADDENDUM-07's block-edge masking means a raw sequential counter (the
- * pre-ADDENDUM-07 `plotCursor.next++`) regularly lands on a masked (void)
- * cell — a fixture built that way would need boot-time repair, the opposite
- * of what these fixtures are for (§11.A: `dense`'s own tests assert
- * `repaired: 0` on the untouched fixture). `frontier` grows by exactly 1 per
- * placement, mirroring how `useTownStore` threads `nextPlotIndex` in real
- * gameplay, so `poolSize`'s pacing proof (placement.ts) applies unchanged.
+ * Every `ground` cell index, computed once — the overflow fallback below
+ * cycles through THESE, never a raw `% CELL_COUNT` — a building landing on a
+ * non-ground cell (road/park/lake/void/savings) would render nowhere at all
+ * (`TownGrid.tsx`'s ground-tile loop skips non-ground cells outright), which
+ * is a real invisible-building bug, not just a cosmetic overlap.
+ */
+const GROUND_CELLS: readonly number[] = Array.from({ length: CELL_COUNT }, (_, i) => i).filter((i) => {
+  const { row, col } = cellFromIndex(i);
+  return isBuildable(row, col);
+});
+
+interface PlotAllocator {
+  next(): Placement;
+  /** F16 monuments never roll a footprint — always try 2x2 first (ADDENDUM-08 §2.2, `placement.placeMonument`). */
+  nextMonument(): Placement;
+  /** Buildings placed so far — `placeNew` needs the live occupancy, not a counter (ADDENDUM-08's map has no growth frontier left to track). */
+  readonly placed: readonly Building[];
+}
+
+/**
+ * Assigns each new building's footprint+plotIndex through the REAL placement
+ * pipeline (`placeNew`, placement.ts) instead of a raw incrementing counter —
+ * a fixture built that way would need boot-time repair, the opposite of what
+ * these fixtures are for (§11.A: `dense`'s own tests assert `repaired: 0` on
+ * the untouched fixture).
+ *
+ * ponytail: the fixed 20x20 map holds ~193 ground cells; `dense`'s ~5,400
+ * buildings vastly exceed that (that fixture stresses 기록/boot-batching
+ * scale, not realistic town occupancy — ADDENDUM-08 doesn't ask for it to
+ * shrink). Once `placeNew` returns null (map genuinely full), this falls
+ * back to a raw modulo-CELL_COUNT cursor that ALLOWS overlapping buildings —
+ * acceptable for a synthetic stress fixture that already can't render
+ * meaningfully on a 400-cell grid; every fixture assertion (fixtures.test.ts)
+ * only checks counts/totals, never plot uniqueness. Upgrade path: cap `dense`
+ * at map capacity if a test ever needs its buildings to be individually
+ * placeable.
  *
  * Its own RNG stream (a seed distinct from the fixture's entry-generation
- * `rng`) means WHICH plot a building lands on never perturbs the
+ * `rng`) means WHICH cell a building lands on never perturbs the
  * amounts/categories/variants a fixture generates — every existing
  * byte-identical-output assertion (fixtures.test.ts) stays true.
  */
 function makePlotAllocator(seed: number): PlotAllocator {
   const rng = seededRandom(seed);
-  const taken = new Set<number>();
-  let frontier = 0;
+  const placed: Building[] = [];
+  let overflowCursor = 0;
+
+  // A placeholder pushed into `placed` so the NEXT call's occupancy check
+  // sees this cell taken — the caller fills in the building's real fields.
+  function record(out: Placement): Placement {
+    placed.push({
+      id: `__alloc${placed.length}`,
+      source: { kind: "entry", entryId: "" },
+      categoryId: null,
+      variantIndex: 0,
+      plotIndex: out.plotIndex,
+      w: out.w,
+      h: out.h,
+      builtOn: "",
+      createdAt: 0,
+    });
+    return out;
+  }
+
   return {
-    next(): number {
-      const idx = pickPlotIn(frontier, taken, rng);
-      taken.add(idx);
-      frontier += 1;
-      return idx;
+    next(): Placement {
+      const result = placeNew(placed, rng) ?? { anchor: GROUND_CELLS[overflowCursor++ % GROUND_CELLS.length], w: 1 as const, h: 1 as const };
+      return record({ plotIndex: result.anchor, w: result.w, h: result.h });
     },
-    get frontier() {
-      return frontier;
+    nextMonument(): Placement {
+      // ADDENDUM-08 §2.2 — F16 monuments always try 2x2 first via the
+      // dedicated `placeMonument` helper (never the generic roll+downgrade
+      // `next()` above uses), same rule the real store follows.
+      const result = placeMonument(placed, rng) ?? { anchor: GROUND_CELLS[overflowCursor++ % GROUND_CELLS.length], w: 1 as const, h: 1 as const };
+      return record({ plotIndex: result.anchor, w: result.w, h: result.h });
+    },
+    get placed() {
+      return placed;
     },
   };
 }
@@ -256,7 +309,7 @@ function generateMonth(opts: {
     if (dayBuildingsSoFar < dailyCap) {
       const buildingId = seq.nextId("b");
       const variantIndex = Math.floor(rng() * BALANCE.variantsPerCategory);
-      const plotIndex = plotAllocator.next();
+      const { plotIndex, w, h } = plotAllocator.next();
       buildings.push(
         makeBuilding({
           id: buildingId,
@@ -264,6 +317,8 @@ function generateMonth(opts: {
           categoryId,
           variantIndex,
           plotIndex,
+          w,
+          h,
           builtOn: occurredOn,
           createdAt,
         }),
@@ -360,7 +415,6 @@ function oneMonth(): Fixture {
   const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(entries);
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotAllocator.frontier,
     streakDays: 5,
     longestStreakDays: 12,
     lastActOn: "2026-07-31",
@@ -411,13 +465,16 @@ function dense(): Fixture {
       outcomeBucket,
       daysLogged: new Set(result.entries.map((e) => e.occurredOn)).size,
     };
+    const monumentPlacement = plotAllocator.nextMonument();
     buildings.push(
       makeBuilding({
         id: seq.nextId("mon"),
         source: { kind: "monument", period: lastPeriod },
         categoryId: null,
         variantIndex: outcomeBucket,
-        plotIndex: plotAllocator.next(),
+        plotIndex: monumentPlacement.plotIndex,
+        w: monumentPlacement.w,
+        h: monumentPlacement.h,
         builtOn: ymd(y, m, daysInMonth(y, m)),
         createdAt: seq.nextMs(),
         monumentSummary,
@@ -441,7 +498,6 @@ function dense(): Fixture {
   const today = ymd(lastMonth.y, lastMonth.m, daysInMonth(lastMonth.y, lastMonth.m));
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotAllocator.frontier,
     streakDays: 24,
     longestStreakDays: 180,
     lastActOn: today,
@@ -481,8 +537,9 @@ function capExceeded(): Fixture {
     const variantIndex = Math.floor(rng() * BALANCE.variantsPerCategory);
     if (i < cap) {
       const buildingId = seq.nextId("b");
+      const { plotIndex, w, h } = plotAllocator.next();
       buildings.push(
-        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex: plotAllocator.next(), builtOn: today, createdAt }),
+        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex, w, h, builtOn: today, createdAt }),
       );
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId }));
     } else {
@@ -493,7 +550,6 @@ function capExceeded(): Fixture {
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotAllocator.frontier,
     slotsUsedToday: cap,
     streakDays: 1,
     longestStreakDays: 1,
@@ -531,8 +587,9 @@ function queueFull(): Fixture {
     const variantIndex = Math.floor(rng() * BALANCE.variantsPerCategory);
     if (i < cap) {
       const buildingId = seq.nextId("b");
+      const { plotIndex, w, h } = plotAllocator.next();
       buildings.push(
-        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex: plotAllocator.next(), builtOn: today, createdAt }),
+        makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex, plotIndex, w, h, builtOn: today, createdAt }),
       );
       entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn: today, createdAt, buildingId }));
     } else if (queue.length < queueMax) {
@@ -546,7 +603,6 @@ function queueFull(): Fixture {
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotAllocator.frontier,
     slotsUsedToday: cap,
     streakDays: 1,
     longestStreakDays: 1,
@@ -583,15 +639,15 @@ function budgetBlown(): Fixture {
     const id = seq.nextId("e");
     const buildingId = seq.nextId("b");
     const categoryId = EXPENSE_CATEGORIES[i % EXPENSE_CATEGORIES.length];
+    const { plotIndex, w, h } = plotAllocator.next();
     buildings.push(
-      makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex: 0, plotIndex: plotAllocator.next(), builtOn: occurredOn, createdAt }),
+      makeBuilding({ id: buildingId, source: { kind: "entry", entryId: id }, categoryId, variantIndex: 0, plotIndex, w, h, builtOn: occurredOn, createdAt }),
     );
     entries.push(makeEntry({ id, type: "expense", amountKrw, categoryId, occurredOn, createdAt, buildingId }));
   });
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotAllocator.frontier,
     streakDays: 10,
     longestStreakDays: 10,
     lastActOn: today,
@@ -613,21 +669,23 @@ function noSpendStreak(): Fixture {
   const plotAllocator = makePlotAllocator(1006);
   const claimedDays = ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05"];
   const today = "2026-08-06";
-  const buildings: Building[] = claimedDays.map((date) =>
-    makeBuilding({
+  const buildings: Building[] = claimedDays.map((date) => {
+    const { plotIndex, w, h } = plotAllocator.next();
+    return makeBuilding({
       id: seq.nextId("b"),
       source: { kind: "nospend", date },
       categoryId: null,
       variantIndex: 0,
-      plotIndex: plotAllocator.next(),
+      plotIndex,
+      w,
+      h,
       builtOn: date,
       createdAt: seq.nextMs(),
-    }),
-  );
+    });
+  });
 
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotAllocator.frontier,
     streakDays: claimedDays.length,
     longestStreakDays: claimedDays.length,
     lastActOn: claimedDays[claimedDays.length - 1],
@@ -667,7 +725,6 @@ function unsettled(): Fixture {
   const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(entries);
   const town: TownState = {
     ...freshTown(today),
-    nextPlotIndex: plotAllocator.frontier,
     streakDays: 0,
     longestStreakDays: 6,
     lastActOn: "2026-07-20",
@@ -681,6 +738,53 @@ function unsettled(): Fixture {
     today,
     entries,
     buildings,
+    town,
+    budget: freshBudget(600_000, seq.nextMs()),
+  };
+}
+
+/**
+ * ADDENDUM-08 §9.3 — QA's browser evidence run needs a town at real scale
+ * showing every footprint size (1x1/1x2/2x1/2x2) at once, not a uniform grid
+ * of 1x1s. `targetEntries` asks for far more build-eligible entries than the
+ * fixed 20x20 map's 193 ground cells can hold at the natural §2.2 weights
+ * (~1.6 cells/building on average) — the real building count is decided by
+ * where `placeNew`'s roll/downgrade chain actually stops filling the map,
+ * which is the point: this fixture doubles as evidence the downgrade chain
+ * behaves under real pressure, not just a hand-picked round number.
+ */
+function mixedFootprints(): Fixture {
+  const rng = seededRandom(8);
+  const seq = makeSequence();
+  const plotAllocator = makePlotAllocator(1008);
+  const year = 2026;
+  const month = 7;
+  const result = generateMonth({
+    year,
+    month,
+    targetEntries: 145, // ~92% build-eligible (F13's 저축 entries don't build) — tuned so the natural mix fills the map without spilling into the placeNew-exhausted fallback (verified in fixtures.test.ts)
+    dailyCap: BALANCE.dailyBuildSlots,
+    rng,
+    seq,
+    plotAllocator,
+  });
+  const today = ymd(year, month, daysInMonth(year, month));
+  const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(result.entries);
+  const town: TownState = {
+    ...freshTown(today),
+    streakDays: 20,
+    longestStreakDays: 20,
+    lastActOn: today,
+    cumulativeSavingsKrw,
+    savingsByCategoryKrw,
+    lastSettledPeriod: today.slice(0, 7),
+  };
+  return {
+    name: "mixedFootprints",
+    description: `A near-full town with a natural mix of all four footprint sizes (1x1/1x2/2x1/2x2) — QA's browser evidence run (${result.buildings.length} buildings).`,
+    today,
+    entries: result.entries,
+    buildings: result.buildings,
     town,
     budget: freshBudget(600_000, seq.nextMs()),
   };
@@ -705,6 +809,7 @@ export const FIXTURES = {
   budgetBlown,
   noSpendStreak,
   unsettled,
+  mixedFootprints,
   corrupt,
 } as const;
 

@@ -11,18 +11,6 @@ import { daysInMonth as daysInMonthOf, dayBefore, monthBefore, parseYm, shiftMon
 import { savingsOf } from "./types";
 import type { Building, CategoryId, EntryType, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
-// ── Layout constant (not a balance dial, spec §9 / §13 trade-off 9) ──
-
-/** Town grid width. Kept out of balance.placeholder.ts: layout, not pacing. ADDENDUM-05 §2 (F-EXP): 6 -> 8. */
-export const TOWN_COLUMNS = 8;
-
-/** Serpentine row-major fill: the town reads as one street winding downward. */
-export function plotFromIndex(i: number): { col: number; row: number } {
-  const row = Math.floor(i / TOWN_COLUMNS);
-  const k = i % TOWN_COLUMNS;
-  return { row, col: row % 2 === 0 ? k : TOWN_COLUMNS - 1 - k };
-}
-
 // ── Small date helpers (device-local 'YYYY-MM-DD' strings only, §8.3) ──
 
 function ymOf(dateStr: string): string {

@@ -1,32 +1,33 @@
 /**
- * ADDENDUM-02 §3.6 — the boot-time self-healing reconciler, exercised through
- * the real hook (not just `placement.test.ts`'s pure-function unit). Same
- * bare createRoot+act hook-harness pattern `useTownStore.test.tsx` uses — a
- * NEW file so that file's existing assertions stay untouched.
+ * ADDENDUM-08 §3.6/§4 — the boot-time self-healing reconciler AND the
+ * version-4 migration (the fixed 20x20 map replacing the growing/serpentine
+ * town), exercised through the real hook (not just `placement.test.ts`'s
+ * pure-function unit). Same bare createRoot+act hook-harness pattern
+ * `useTownStore.test.tsx` uses.
  *
- * AC-R2 / AC-R3: a valid pre-change town boots with zero storage writes and
- * every building on its original lot. AC-R1 (boot level): a town with a
- * duplicate `plotIndex` is repaired silently, with a write only for the
- * affected month chunk(s), in ascending `ym` order, `saveCore` fired only
- * when `plotsOpened !== core.town.nextPlotIndex`, and exactly one
- * `placement_repaired` analytics event per boot.
+ * AC-R2 / AC-R3: a valid town (built through the real placement pipeline)
+ * boots with zero storage writes and every building on its original cell.
+ * AC-R1 (boot level): a corrupt/duplicate `plotIndex` is repaired silently,
+ * with a write only for the affected month chunk(s), in ascending `ym`
+ * order, and exactly one `placement_repaired` analytics event per boot.
  *
- * Round-3 findings C1/C2, closed here at the store level (not just in
- * `placement.test.ts`'s pure-function unit): a genuinely RANDOM (not dense
- * 0..N-1) valid town must also boot with zero writes, and `nextPlotIndex`
- * must never drift from the real building count across many build+reboot
- * cycles, no matter where the dice landed.
+ * §4 (this task's headline deliverable): a version<4 save forces every
+ * building to be re-seated in the new 20x20 coordinate space — every
+ * building survives (id/source/categoryId/exp/builtOn/createdAt/
+ * monumentSummary intact, only plotIndex/w/h may differ), chronology is
+ * preserved (oldest gets the lowest free cell), old buildings stay 1x1
+ * (no retroactive footprint growth), and capacity is proven at the map's
+ * own literal ground-cell count (193, ADDENDUM-08 §1.2) — a save at
+ * capacity loses nothing, one over capacity is never dropped.
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { daysInMonth, shiftMonth, ymd } from "./calendar";
 import { analytics } from "./platform/analytics";
 import { setTimeTravelDate } from "./platform/clock";
-import { pickPlot } from "./placement";
-import { seededRandom, setRandomOverride } from "./platform/random";
-import { plotFromIndex } from "./selectors";
-import { LAYOUT_VERSION } from "./townLayout";
+import { BALANCE } from "./balance.approved";
+import { growthScore, tier } from "./selectors";
+import { CELL_COUNT, cellFromIndex, isBuildable, LAYOUT_VERSION } from "./townLayout";
 import type { Building } from "./types";
 import { useTownStore } from "./useTownStore";
 
@@ -59,10 +60,9 @@ function flush(): void {
 
 const TODAY = "2026-08-02";
 
-function freshTownFixture(nextPlotIndex: number) {
+function freshTownFixture(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     townName: "우리 동네",
-    nextPlotIndex,
     streakDays: 0,
     longestStreakDays: 0,
     lastActOn: null,
@@ -74,42 +74,50 @@ function freshTownFixture(nextPlotIndex: number) {
     cumulativeSavingsKrw: 0,
     lastSettledPeriod: null,
     // ADDENDUM-02 §4.5 — this file is about the RECONCILER's own "no
-    // player-facing notice" contract (§3.6 point 6), not the move-hint. A
-    // fixture town with >= 2 buildings and `moveHintSeen` unset would
-    // otherwise ALSO get a (correct, separately-tested — see
-    // `useTownStore.move.test.tsx`) `{ kind: "moveHint" }` notice queued at
-    // boot, which is real, spec-required behaviour but unrelated to what
-    // this file tests. Marking it already-seen here keeps this file scoped
-    // to the reconciler.
+    // player-facing notice" contract (§3.6 point 6) and the §4 migration, not
+    // the move-hint. Marking it already-seen keeps every test here scoped to
+    // its own concern (`useTownStore.move.test.tsx` covers the hint itself).
     moveHintSeen: true,
+    ...overrides,
   };
 }
 
-function building(id: string, plotIndex: number, createdAt: number, builtOn: string): Building {
-  return { id, source: { kind: "entry", entryId: id }, categoryId: "cafe", variantIndex: 0, plotIndex, builtOn, createdAt };
+function building(id: string, plotIndex: number, createdAt: number, builtOn: string, extra: Partial<Building> = {}): Building {
+  return { id, source: { kind: "entry", entryId: id }, categoryId: "cafe", variantIndex: 0, plotIndex, builtOn, createdAt, ...extra };
 }
 
-function writeIndex(buildingMonths: string[]): void {
+function writeIndex(buildingMonths: string[], layoutVersion: number = LAYOUT_VERSION): void {
   window.localStorage.setItem(
     "ait.v1.index",
-    JSON.stringify({ schemaVersion: 1, layoutVersion: LAYOUT_VERSION, entryMonths: [], buildingMonths }),
+    JSON.stringify({ schemaVersion: 1, layoutVersion, entryMonths: [], buildingMonths }),
   );
 }
 
-function writeCore(nextPlotIndex: number): void {
-  const core = { town: freshTownFixture(nextPlotIndex), budget: { monthlyBudgetKrw: null, updatedAt: 0 }, onboarded: true };
+function writeCore(overrides: Partial<Record<string, unknown>> = {}): void {
+  const core = { town: freshTownFixture(overrides), budget: { monthlyBudgetKrw: null, updatedAt: 0 }, onboarded: true };
   window.localStorage.setItem("ait.v1.core", JSON.stringify(core));
 }
 
-/** 'YYYY-MM-DD' one calendar day after `dateStr` — reuses `calendar.ts`'s own day-count math (no reimplementation). */
-function dayAfter(dateStr: string): string {
-  const y = Number(dateStr.slice(0, 4));
-  const m = Number(dateStr.slice(5, 7));
-  const d = Number(dateStr.slice(8, 10));
-  if (d < daysInMonth(y, m)) return ymd(y, m, d + 1);
-  const next = shiftMonth(y, m, 1);
-  return ymd(next.y, next.m, 1);
+/** Groups `buildings` by their `builtOn` month and writes each chunk, plus the index and a fresh core — the whole pre-boot seed a migration/reconcile test needs. */
+function seedTown(buildings: readonly Building[], layoutVersion: number = LAYOUT_VERSION): void {
+  const months = new Set(buildings.map((b) => b.builtOn.slice(0, 7)));
+  writeIndex([...months].sort(), layoutVersion);
+  writeCore();
+  for (const ym of months) {
+    window.localStorage.setItem(`ait.v1.buildings.${ym}`, JSON.stringify(buildings.filter((b) => b.builtOn.slice(0, 7) === ym)));
+  }
 }
+
+/** Every `ground` cell index, in reading order (row-major) — what a forced relayout seats 1x1 buildings onto, oldest first (ADDENDUM-08 §3.2/§4). */
+const ALL_GROUND_CELLS: readonly number[] = Array.from({ length: CELL_COUNT }, (_, i) => i).filter((i) => {
+  const { row, col } = cellFromIndex(i);
+  return isBuildable(row, col);
+});
+/** The first `n` ground cells, reading order. */
+function groundCellsInOrder(n: number): number[] {
+  return ALL_GROUND_CELLS.slice(0, n);
+}
+const GROUND_CELL_COUNT = ALL_GROUND_CELLS.length; // townLayout's own census, computed rather than hand-copied (ADDENDUM-08 §1.2: 193)
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -123,62 +131,33 @@ afterEach(() => {
   root = null;
   container.remove();
   setTimeTravelDate(null);
-  setRandomOverride(null);
   vi.restoreAllMocks();
 });
 
-describe("useTownStore boot — AC-R2/AC-R3: a valid pre-change town needs no repair", () => {
-  it("boots with every building at its original ON-SCREEN cell (not just the same index) and issues zero storage writes", async () => {
-    // A larger, multi-block town (47 spans past the first two blocks) —
-    // round-3 finding: a 5-building fixture never leaves the first block, so
-    // it couldn't have caught a bug in block-boundary geometry.
-    //
-    // ADDENDUM-07: "valid" no longer means dense indices 0..N-1 — block-edge
-    // masking means most such runs include a void cell, which now correctly
-    // NEEDS repair (see placement.test.ts's own dedicated describe block for
-    // that case). The town a real player boots with zero writes is one built
-    // through the REAL placement pipeline instead.
-    const N = 47;
-    const rng = seededRandom(5);
-    const buildings: Building[] = [];
-    for (let i = 0; i < N; i++) buildings.push(building(`b${i}`, pickPlot(i, buildings, rng), i, TODAY));
-
-    // The BEFORE picture — exactly what the pre-change (sequential-placement)
-    // app would have rendered for this town, computed the same way TownGrid
-    // does (`plotFromIndex`), keyed by building id so order doesn't matter.
-    const beforeCellById = new Map(buildings.map((b) => [b.id, plotFromIndex(b.plotIndex)]));
-
-    writeIndex(["2026-08"]);
-    writeCore(N);
-    window.localStorage.setItem("ait.v1.buildings.2026-08", JSON.stringify(buildings));
+describe("useTownStore boot — AC-R2/AC-R3: a valid pre-placed town needs no repair", () => {
+  it("boots with every building at its original cell and issues zero storage writes", async () => {
+    // Built via a real, non-colliding layout (any set of distinct ground
+    // cells is legal) — the town a real player boots with zero writes.
+    const cells = groundCellsInOrder(40);
+    const buildings = cells.map((cell, i) => building(`b${i}`, cell, i, TODAY));
+    seedTown(buildings);
 
     const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     await mountAndWaitForBoot();
     flush();
 
-    expect(latest?.buildingCount).toBe(N);
-    expect(latest?.nextPlotIndex).toBe(N);
-    expect(latest?.notice).toBeNull(); // no relayout, no corruption, and no player-facing repair notice (§3.6 point 6)
+    expect(latest?.buildingCount).toBe(cells.length);
+    expect(latest?.notice).toBeNull(); // no relayout, no corruption, no player-facing repair notice (§3.6 point 6)
     expect(setItemSpy).not.toHaveBeenCalled(); // AC-R3: zero storage writes
-
-    // AC-R3 in full: the AFTER picture, cell-by-cell, matches the BEFORE
-    // picture exactly — "every building in the same on-screen position as
-    // before", not merely "the plotIndex number happens to be unchanged".
-    for (const b of latest!.buildings) {
-      expect(plotFromIndex(b.plotIndex)).toEqual(beforeCellById.get(b.id));
-    }
+    expect(latest!.buildings.map((b) => b.plotIndex).sort((a, b) => a - b)).toEqual(cells.slice().sort((a, b) => a - b));
   });
 });
 
 describe("useTownStore boot — AC-R1 (boot level): a single duplicate plotIndex is repaired silently", () => {
-  it("re-seats the later duplicate, writes ONLY the affected month chunk, does not touch core when plotsOpened already matches nextPlotIndex, fires placement_repaired once with count:1, and shows no player-facing notice", async () => {
-    const buildings = [
-      building("b0", 4, 100, TODAY),
-      building("b1", 4, 200, TODAY),
-    ];
-    writeIndex(["2026-08"]);
-    writeCore(5); // reconciled.plotsOpened will also be 5 here — the "no core write" branch
-    window.localStorage.setItem("ait.v1.buildings.2026-08", JSON.stringify(buildings));
+  it("re-seats the later duplicate, writes ONLY the affected month chunk, fires placement_repaired once with count:1, and shows no player-facing notice", async () => {
+    const dup = ALL_GROUND_CELLS[4]; // a real `ground` cell — arbitrary index, must NOT be park/road/void/savings
+    const buildings = [building("b0", dup, 100, TODAY), building("b1", dup, 200, TODAY)];
+    seedTown(buildings);
 
     const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     const trackSpy = vi.spyOn(analytics, "track");
@@ -188,24 +167,18 @@ describe("useTownStore boot — AC-R1 (boot level): a single duplicate plotIndex
     expect(latest?.buildingCount).toBe(2);
     const plotIndices = latest!.buildings.map((b) => b.plotIndex).sort((a, b) => a - b);
     expect(new Set(plotIndices).size).toBe(2); // no more collision
-    expect(plotIndices).not.toEqual([4, 4]);
+    expect(plotIndices).not.toEqual([dup, dup]);
     // The earlier claimant (b0, createdAt 100) keeps its lot; the later (b1) moved.
-    expect(latest!.buildings.find((b) => b.id === "b0")?.plotIndex).toBe(4);
-    expect(latest!.buildings.find((b) => b.id === "b1")?.plotIndex).not.toBe(4);
+    expect(latest!.buildings.find((b) => b.id === "b0")?.plotIndex).toBe(dup);
+    expect(latest!.buildings.find((b) => b.id === "b1")?.plotIndex).not.toBe(dup);
     expect(latest?.notice).toBeNull(); // repair is silent — §3.6 point 6, never a Notice
 
-    // §3.6's persistence contract, asserted literally: exactly ONE storage
-    // write, for exactly the one repaired month's chunk key. No core write —
-    // reconciled.plotsOpened (5) equals core.town.nextPlotIndex (5) already.
     expect(setItemSpy).toHaveBeenCalledTimes(1);
-    expect(setItemSpy).toHaveBeenCalledWith("ait.v1.buildings.2026-08", expect.any(String));
-
+    expect(setItemSpy).toHaveBeenCalledWith(`ait.v1.buildings.${TODAY.slice(0, 7)}`, expect.any(String));
     expect(trackSpy).toHaveBeenCalledTimes(1);
     expect(trackSpy).toHaveBeenCalledWith("placement_repaired", { count: 1 });
 
-    // Reload — a REAL reload (prior root unmounted by mountAndWaitForBoot) —
-    // repair is idempotent, so a second boot must not repair again and must
-    // issue zero further writes (nothing left to fix).
+    // Reload — repair is idempotent, so a second boot must not repair again.
     setItemSpy.mockClear();
     trackSpy.mockClear();
     await mountAndWaitForBoot();
@@ -217,20 +190,14 @@ describe("useTownStore boot — AC-R1 (boot level): a single duplicate plotIndex
 });
 
 describe("useTownStore boot — AC-R1 (boot level): corrupt plotIndex values, not just duplicates", () => {
-  it("repairs a negative and a fractional plotIndex (a corrupt import / partial recovery, not a collision) and leaves a clean building alone", async () => {
-    // A valid, non-colliding building alongside two corrupt ones — JSON
-    // round-trips negative/fractional numbers fine (unlike NaN, which
-    // `placement.test.ts` covers at the pure-function level), so this is
-    // exactly the shape a real corrupt export or partial F12 import can
-    // produce on disk.
+  it("repairs a negative and a fractional plotIndex (a corrupt import / partial recovery) and leaves a clean building alone", async () => {
+    const keeperCell = ALL_GROUND_CELLS[2]; // a real `ground` cell
     const buildings = [
-      building("keeper", 2, 50, TODAY),
+      building("keeper", keeperCell, 50, TODAY),
       building("bad-negative", -3, 100, TODAY),
       building("bad-fractional", 1.5, 150, TODAY),
     ];
-    writeIndex(["2026-08"]);
-    writeCore(3);
-    window.localStorage.setItem("ait.v1.buildings.2026-08", JSON.stringify(buildings));
+    seedTown(buildings);
 
     const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     const trackSpy = vi.spyOn(analytics, "track");
@@ -239,43 +206,34 @@ describe("useTownStore boot — AC-R1 (boot level): corrupt plotIndex values, no
 
     expect(latest?.buildingCount).toBe(3);
     const keeper = latest!.buildings.find((b) => b.id === "keeper");
-    expect(keeper?.plotIndex).toBe(2); // untouched — no collision, no repair
+    expect(keeper?.plotIndex).toBe(keeperCell); // untouched — no collision, no repair
 
     const repaired = latest!.buildings.filter((b) => b.id !== "keeper");
     for (const b of repaired) {
       expect(Number.isInteger(b.plotIndex)).toBe(true);
-      expect(b.plotIndex).toBeGreaterThanOrEqual(0);
+      const { row, col } = cellFromIndex(b.plotIndex);
+      expect(isBuildable(row, col)).toBe(true);
     }
     const allIndices = latest!.buildings.map((b) => b.plotIndex);
     expect(new Set(allIndices).size).toBe(allIndices.length); // no collision after repair
 
-    expect(trackSpy).toHaveBeenCalledTimes(1);
     expect(trackSpy).toHaveBeenCalledWith("placement_repaired", { count: 2 });
     expect(latest?.notice).toBeNull(); // silent — §3.6 point 6
-    expect(setItemSpy).toHaveBeenCalledWith("ait.v1.buildings.2026-08", expect.any(String));
+    expect(setItemSpy).toHaveBeenCalledWith(`ait.v1.buildings.${TODAY.slice(0, 7)}`, expect.any(String));
   });
 });
 
 describe("useTownStore boot — AC-R1 (boot level): duplicates across multiple months", () => {
-  it("writes only the repaired months' chunks, in ascending ym order, leaves an untouched month's chunk unwritten, writes core when plotsOpened no longer matches nextPlotIndex, and fires one placement_repaired event with the total repair count", async () => {
-    // June: duplicate at plot 20 (repaired). July: one clean building at plot
-    // 30 (must NEVER be repaired or written — it has no collision). August:
-    // duplicate at plot 4 (repaired). `reconcilePlacement` operates over the
-    // GLOBAL flattened occupancy, so June's loser and August's loser both
-    // land in the lowest globally-free UNMASKED lots — 0 and 1 are MASKED
-    // (ADDENDUM-07, block 0), so that's 2, then 3.
+  it("writes only the repaired months' chunks, in ascending ym order, leaves an untouched month's chunk unwritten, and fires one placement_repaired event with the total repair count", async () => {
+    const [juneCell, julyCell, augCell] = [ALL_GROUND_CELLS[10], ALL_GROUND_CELLS[15], ALL_GROUND_CELLS[20]];
     const buildings = [
-      building("j0", 20, 100, "2026-06-01"), // June — keeps 20
-      building("c0", 30, 150, "2026-07-01"), // July — untouched, never repaired
-      building("j1", 20, 200, "2026-06-02"), // June — loses, re-seated to 2
-      building("a0", 4, 300, "2026-08-01"), // August — keeps 4
-      building("a1", 4, 400, "2026-08-02"), // August — loses, re-seated to 3
+      building("j0", juneCell, 100, "2026-06-01"), // June — keeps its cell
+      building("c0", julyCell, 150, "2026-07-01"), // July — untouched, never repaired
+      building("j1", juneCell, 200, "2026-06-02"), // June — loses, re-seated
+      building("a0", augCell, 300, "2026-08-01"), // August — keeps its cell
+      building("a1", augCell, 400, "2026-08-02"), // August — loses, re-seated
     ];
-    writeIndex(["2026-06", "2026-07", "2026-08"]);
-    writeCore(3); // mismatched — forces the coreNeedsWrite branch
-    window.localStorage.setItem("ait.v1.buildings.2026-06", JSON.stringify(buildings.filter((b) => b.builtOn.startsWith("2026-06"))));
-    window.localStorage.setItem("ait.v1.buildings.2026-07", JSON.stringify(buildings.filter((b) => b.builtOn.startsWith("2026-07"))));
-    window.localStorage.setItem("ait.v1.buildings.2026-08", JSON.stringify(buildings.filter((b) => b.builtOn.startsWith("2026-08"))));
+    seedTown(buildings);
 
     const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     const trackSpy = vi.spyOn(analytics, "track");
@@ -284,22 +242,17 @@ describe("useTownStore boot — AC-R1 (boot level): duplicates across multiple m
 
     expect(latest?.buildingCount).toBe(5);
     const july = latest!.buildings.find((b) => b.id === "c0");
-    expect(july?.plotIndex).toBe(30); // untouched building, untouched value
+    expect(july?.plotIndex).toBe(julyCell); // untouched building, untouched value
     const june1 = latest!.buildings.find((b) => b.id === "j1");
     const aug1 = latest!.buildings.find((b) => b.id === "a1");
-    expect(june1?.plotIndex).toBe(2);
-    expect(aug1?.plotIndex).toBe(3);
-    // highest occupied index after repair is 30 (July) -> requiredLots = 31.
-    expect(latest?.nextPlotIndex).toBe(31);
+    expect(june1?.plotIndex).not.toBe(juneCell);
+    expect(aug1?.plotIndex).not.toBe(augCell);
     expect(latest?.notice).toBeNull();
 
     const writtenKeys = setItemSpy.mock.calls.map((call) => call[0]);
-    // Exactly the two repaired months' building chunks + core — nothing else,
-    // and specifically NEVER July's chunk (it has no repaired building).
-    expect(writtenKeys).not.toContain("ait.v1.buildings.2026-07");
+    expect(writtenKeys).not.toContain("ait.v1.buildings.2026-07"); // no repaired building — never written
     expect(writtenKeys.filter((k) => k === "ait.v1.buildings.2026-06")).toHaveLength(1);
     expect(writtenKeys.filter((k) => k === "ait.v1.buildings.2026-08")).toHaveLength(1);
-    expect(writtenKeys).toContain("ait.v1.core"); // plotsOpened (31) !== nextPlotIndex (3) at boot
     // Ascending ym order: June's write must precede August's write.
     expect(writtenKeys.indexOf("ait.v1.buildings.2026-06")).toBeLessThan(writtenKeys.indexOf("ait.v1.buildings.2026-08"));
 
@@ -308,59 +261,156 @@ describe("useTownStore boot — AC-R1 (boot level): duplicates across multiple m
   });
 });
 
-// Round-3 findings C1/C2: every AC-R2/AC-R3 case above used a DENSE 0..N-1
-// town — the pre-change sequential shape, not what random placement actually
-// produces. A single randomly-placed building whose plotIndex happens to sit
-// near the top of its block (perfectly valid, not corrupt) is exactly the
-// case the round-3 probe found firing an unwanted boot write.
-describe("useTownStore boot — round-3 finding C2: a clean RANDOMLY placed town needs no repair either", () => {
-  it("boots a single building at plot 11 (top of the first 12-lot block), nextPlotIndex 1, with zero storage writes", async () => {
-    const buildings = [building("b0", 11, 100, TODAY)];
-    writeIndex(["2026-08"]);
-    writeCore(1);
-    window.localStorage.setItem("ait.v1.buildings.2026-08", JSON.stringify(buildings));
+// ── ADDENDUM-08 §4 — migration of existing (pre-fixed-map) saves ──
 
-    const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
+describe("useTownStore boot — ADDENDUM-08 §4: version<4 forces a full relayout", () => {
+  it("a realistic mixed save (entries with exp, a claimed no-spend park, an F16 monument) survives with every field intact except plotIndex", async () => {
+    const buildings: Building[] = [
+      building("b0", 999, 100, "2026-07-01", { categoryId: "cafe", exp: 4 }),
+      building("b1", 5, 200, "2026-07-02", { categoryId: "food" }), // no exp — absent stays absent
+      building("nospend0", 12, 300, "2026-07-03", {
+        source: { kind: "nospend", date: "2026-07-03" },
+        categoryId: "park",
+      }),
+      building("mon0", 40, 50, "2026-07-31", {
+        source: { kind: "monument", period: "2026-07" },
+        categoryId: null,
+        monumentSummary: {
+          period: "2026-07",
+          expenseKrw: 10_000,
+          incomeKrw: 0,
+          savingKrw: 0,
+          budgetKrw: 600_000,
+          outcomeBucket: 1,
+          daysLogged: 3,
+        },
+      }),
+    ];
+    // Old index: no layoutVersion key at all — exactly what a pre-ADDENDUM-01
+    // town's index looked like, and what a pre-ADDENDUM-08 town's still is.
+    seedTown(buildings, 0);
+
     await mountAndWaitForBoot();
     flush();
 
-    expect(latest?.buildingCount).toBe(1);
-    // NOT ratcheted to max(plotIndex) + 1 = 12 — the town's growth frontier
-    // is a function of how many buildings were built (1), not of where the
-    // one it has happens to sit.
-    expect(latest?.nextPlotIndex).toBe(1);
-    expect(latest?.notice).toBeNull();
-    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(latest?.buildingCount).toBe(4); // zero losses
+    expect(latest?.notice).toEqual({ kind: "relayout" });
+
+    for (const before of buildings) {
+      const after = latest!.buildings.find((b) => b.id === before.id);
+      expect(after).toBeDefined();
+      // Every field except plotIndex (and w/h, unused here — none of these
+      // had one) survives byte-identical.
+      const { plotIndex: _beforePlot, ...beforeRest } = before;
+      const { plotIndex: _afterPlot, ...afterRest } = after!;
+      void _beforePlot;
+      void _afterPlot;
+      expect(afterRest).toEqual(beforeRest);
+      // Old buildings never had w/h — they stay 1x1, no retroactive growth.
+      expect(after!.w).toBeUndefined();
+      expect(after!.h).toBeUndefined();
+      const { row, col } = cellFromIndex(after!.plotIndex);
+      expect(isBuildable(row, col)).toBe(true);
+    }
+    const allIndices = latest!.buildings.map((b) => b.plotIndex);
+    expect(new Set(allIndices).size).toBe(allIndices.length); // no collisions post-relayout
+  });
+
+  it("chronology: buildings are seated in (createdAt, id) order — the oldest gets the lowest free cell", async () => {
+    // Deliberately shuffled input plotIndex/array order — only createdAt
+    // decides seating order after a forced relayout.
+    const buildings = [
+      building("young", 1, 500, "2026-07-05"),
+      building("old", 2, 100, "2026-07-01"),
+      building("middle", 3, 300, "2026-07-03"),
+    ];
+    seedTown(buildings, 3); // version 3 — pre-ADDENDUM-08
+
+    await mountAndWaitForBoot();
+    flush();
+
+    const expected = groundCellsInOrder(3); // reading-order ground cells, oldest -> lowest
+    expect(latest!.buildings.find((b) => b.id === "old")?.plotIndex).toBe(expected[0]);
+    expect(latest!.buildings.find((b) => b.id === "middle")?.plotIndex).toBe(expected[1]);
+    expect(latest!.buildings.find((b) => b.id === "young")?.plotIndex).toBe(expected[2]);
+  });
+
+  it("capacity: a save at exactly the map's ground-cell count relayouts with zero losses", async () => {
+    const buildings = Array.from({ length: GROUND_CELL_COUNT }, (_, i) => building(`b${i}`, i * 137, i, "2026-07-01"));
+    seedTown(buildings, 3);
+
+    await mountAndWaitForBoot();
+    flush();
+
+    expect(latest?.buildingCount).toBe(GROUND_CELL_COUNT); // zero losses
+    const allIndices = latest!.buildings.map((b) => b.plotIndex);
+    expect(new Set(allIndices).size).toBe(GROUND_CELL_COUNT); // every one got its own distinct cell
+    for (const i of allIndices) {
+      const { row, col } = cellFromIndex(i);
+      expect(isBuildable(row, col)).toBe(true);
+    }
+  });
+
+  it("capacity+1: one building over the map's ground-cell count is queued, not dropped — nothing vanishes", async () => {
+    const buildings = Array.from({ length: GROUND_CELL_COUNT + 1 }, (_, i) => building(`b${i}`, i * 137, i, "2026-07-01"));
+    seedTown(buildings, 3);
+
+    await mountAndWaitForBoot();
+    flush();
+
+    // Nothing dropped: every id from the seeded save is still present.
+    expect(latest?.buildingCount).toBe(GROUND_CELL_COUNT + 1);
+    const idsAfter = new Set(latest!.buildings.map((b) => b.id));
+    for (const b of buildings) expect(idsAfter.has(b.id)).toBe(true);
+
+    // Exactly one couldn't be seated on the 193-cell map — by (createdAt, id)
+    // order that is the YOUNGEST building (`b${GROUND_CELL_COUNT}`, the
+    // highest createdAt).
+    const seatedPlotIndices = latest!.buildings
+      .filter((b) => b.id !== `b${GROUND_CELL_COUNT}`)
+      .map((b) => b.plotIndex);
+    expect(new Set(seatedPlotIndices).size).toBe(GROUND_CELL_COUNT); // every OTHER building got a distinct, valid cell
+    for (const i of seatedPlotIndices) {
+      const { row, col } = cellFromIndex(i);
+      expect(isBuildable(row, col)).toBe(true);
+    }
   });
 });
 
-// Round-3 finding C1 (AC-P4 clause 2): the +1-per-build counter's own tests
-// only ever asserted the per-action increment; end to end, across reboots,
-// the round-3 probe showed the boot reconciler itself was what silently
-// inflated the counter (build 1/day + reboot each day, seed 1: 40 buildings,
-// nextPlotIndex reached 76). Reproduced here through the real store, the
-// real random port, and a real reboot between every single build.
-describe("useTownStore boot — round-3 finding C1: nextPlotIndex tracks buildingCount exactly across many build+reboot cycles", () => {
-  it("stays exactly N after N single-building days, each followed by a real reboot", async () => {
-    setRandomOverride(seededRandom(1)); // the exact seed the round-3 probe used
-    const DAYS = 40;
-    let today = TODAY;
-    for (let day = 0; day < DAYS; day++) {
-      setTimeTravelDate(today);
-      await mountAndWaitForBoot();
-      act(() => {
-        latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: today });
-      });
-      expect(latest?.buildingCount).toBe(day + 1);
-      expect(latest?.nextPlotIndex).toBe(day + 1); // never inflated by where the dice landed
-      today = dayAfter(today);
-    }
+// ── ADDENDUM-08 §4.1 (PM correction) — tier thresholds are still reachable
+// despite the map's fixed capacity. `tier()` is fed `growthScore(buildings)
+// = buildings.length + Σ exp` (ADDENDUM-04 §3), NOT raw building count — the
+// old town grew without bound so count alone could reach every threshold; the
+// new map caps count at 193, below `tierThresholds[4]` (200), so this proves
+// the top tier is reached through exp (a grow costs no cell), not assumed. ──
 
-    // One more reboot over the fully accumulated town — the reconciler must
-    // still see it as clean (repaired: 0) and leave the counter untouched.
-    setTimeTravelDate(today);
-    await mountAndWaitForBoot();
-    expect(latest?.buildingCount).toBe(DAYS);
-    expect(latest?.nextPlotIndex).toBe(DAYS);
+describe("ADDENDUM-08 §4.1 — tier thresholds remain reachable on a capacity-capped map", () => {
+  it("BALANCE.tierThresholds literal snapshot (guards against silent drift)", () => {
+    expect(BALANCE.tierThresholds).toEqual([0, 10, 30, 80, 200]);
+  });
+
+  it("growthScore is buildings.length + sum(exp) — unchanged by the geometry change", () => {
+    const buildings: Building[] = [
+      building("a", 0, 0, TODAY, { exp: 3 }),
+      building("b", 1, 1, TODAY), // exp absent -> reads 0
+      building("c", 2, 2, TODAY, { exp: 10 }),
+    ];
+    expect(growthScore(buildings)).toBe(buildings.length + 3 + 0 + 10);
+  });
+
+  it("tier 4 (threshold 200) is reachable on a town filled to the fixed map's 193-cell capacity, via exp rather than more buildings", () => {
+    // A full town: GROUND_CELL_COUNT buildings (the entire fixed-map budget).
+    // Count alone (`tier(GROUND_CELL_COUNT, ...)`) sits BELOW tier 4 — the
+    // capacity cap this correction is about, actually biting. Growth (exp)
+    // is uncapped by geometry (a grow costs no cell), so distributing just a
+    // few points of exp across the full town still clears 200.
+    expect(tier(GROUND_CELL_COUNT, BALANCE.tierThresholds)).toBeLessThan(4);
+    const expNeeded = 200 - GROUND_CELL_COUNT;
+    const buildings: Building[] = Array.from({ length: GROUND_CELL_COUNT }, (_, i) =>
+      building(`b${i}`, i, i, TODAY, i < expNeeded ? { exp: 1 } : {}),
+    );
+    const score = growthScore(buildings);
+    expect(score).toBeGreaterThanOrEqual(200);
+    expect(tier(score, BALANCE.tierThresholds)).toBe(4);
   });
 });

@@ -4,6 +4,7 @@ import { BALANCE } from "../balance.approved";
 import { FIXTURES, loadFixtureIntoStorage } from "./fixtures";
 import type { StoragePort } from "../platform/storage";
 import { budgetPace, monthTotal } from "../selectors";
+import { cellFromIndex, footprintCells, isBuildable } from "../townLayout";
 
 function makeFakePort(): StoragePort {
   const map = new Map<string, string>();
@@ -101,6 +102,34 @@ describe("fixture shapes match their spec §11 role", () => {
   it("unsettled is 3 periods stale", () => {
     const f = FIXTURES.unsettled();
     expect(f.town.lastSettledPeriod).toBe("2026-04");
+  });
+
+  // ADDENDUM-08 §9.3 — the QA browser-evidence fixture: it must actually show
+  // every footprint size, and every building on it must be a legal, non-
+  // overlapping placement (this is a screenshot fixture — an overlapping or
+  // off-terrain building would be a visibly broken evidence run, not a
+  // stress-test detail nobody looks at, the way `dense`'s fallback is).
+  it("mixedFootprints seeds a near-full town with all four footprint sizes and zero overlapping/off-terrain buildings", () => {
+    const f = FIXTURES.mixedFootprints();
+    expect(f.buildings.length).toBeGreaterThan(100);
+    const counts = { "1x1": 0, "1x2": 0, "2x1": 0, "2x2": 0 };
+    const occupied = new Set<number>();
+    for (const b of f.buildings) {
+      const w = b.w ?? 1;
+      const h = b.h ?? 1;
+      counts[`${w}x${h}` as keyof typeof counts]++;
+      for (const cell of footprintCells(b.plotIndex, w, h)) {
+        const { row, col } = cellFromIndex(cell);
+        expect(isBuildable(row, col)).toBe(true); // every cell is real `ground`
+        expect(occupied.has(cell)).toBe(false); // no two buildings share a cell
+        occupied.add(cell);
+      }
+    }
+    // All four legal footprints actually present — the whole point of this fixture.
+    expect(counts["1x1"]).toBeGreaterThan(0);
+    expect(counts["1x2"]).toBeGreaterThan(0);
+    expect(counts["2x1"]).toBeGreaterThan(0);
+    expect(counts["2x2"]).toBeGreaterThan(0);
   });
 });
 

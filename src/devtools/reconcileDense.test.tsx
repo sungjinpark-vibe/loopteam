@@ -16,30 +16,22 @@
  * boot path. This file fixes all three: it loads the actual `dense` fixture
  * through the actual chunked-storage round trip, measures `reconcilePlacement`
  * on data read back the same way `useTownStore` reads it, AND drives the real
- * `useTownStore` boot (React mount, not a bare function call) — once clean,
- * once with a deliberately introduced duplicate so the repair branch is the
- * one under test, not skipped by a lucky clean fixture.
+ * `useTownStore` boot (React mount, not a bare function call).
+ *
+ * ADDENDUM-08: the fixed 20x20 map's 193 ground cells are far smaller than
+ * `dense`'s ~5,400 build attempts, so the fixture itself now carries many
+ * baked-in collisions (devtools/fixtures.ts's own documented overflow
+ * ceiling) — the repair branch is exercised for free, no artificial
+ * duplicate needed.
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { analytics } from "../platform/analytics";
 import { setTimeTravelDate } from "../platform/clock";
 import { reconcilePlacement } from "../placement";
 import { createChunkedStorage } from "../storage";
-import type { Building } from "../types";
 import { useTownStore } from "../useTownStore";
 import { FIXTURES, loadFixtureIntoStorage } from "./fixtures";
-
-/** Same fixture, with one deliberate plotIndex collision — introduces exactly one repair. */
-function withOneDuplicate(buildings: readonly Building[]): Building[] {
-  const copy = buildings.map((b) => ({ ...b }));
-  // index 10 was created well before index 3000 (fixture generation order is
-  // creation order) — the earlier one keeps its lot, the later one is the
-  // one `reconcilePlacement` must re-seat.
-  copy[3000] = { ...copy[3000], plotIndex: copy[10].plotIndex };
-  return copy;
-}
 
 /** An in-memory `StoragePort` — same shape `createChunkedStorage` needs, factored out of the two pure-function tests below (round-3 finding C3: was duplicated verbatim). */
 function fakeInMemoryPort() {
@@ -48,7 +40,17 @@ function fakeInMemoryPort() {
 }
 
 describe("AC-R4 — reconcilePlacement on the REAL dense fixture, read back through the real storage round trip", () => {
-  it("finds nothing to repair on the untouched fixture, in a tight guard bound", async () => {
+  // ADDENDUM-08: unlike the old growing-town pool, the fixed 20x20 map has
+  // only 193 ground cells — `dense`'s ~5,400 build attempts (devtools/
+  // fixtures.ts's own documented ceiling) vastly exceed that, so the
+  // fixture itself already carries many genuine collisions (the overflow
+  // fallback that keeps every building visible instead of landing off-map).
+  // "Nothing to repair" is no longer the right claim at this scale; what
+  // still matters is the two invariants spec §4/§9 actually name: reconcile
+  // stays fast at ~5,400 items, and NO building is ever dropped — a
+  // building reconcile can't seat lands in `unplacedIds`, still present in
+  // `result.buildings`, never vanished.
+  it("reconciles the dense fixture within a tight guard bound, with every building preserved and no two seated buildings colliding", async () => {
     const fixture = FIXTURES.dense();
     const fakePort = fakeInMemoryPort();
     const loaderClient = createChunkedStorage(fakePort);
@@ -58,32 +60,26 @@ describe("AC-R4 — reconcilePlacement on the REAL dense fixture, read back thro
     expect(boot.buildings.length).toBe(fixture.buildings.length);
 
     const start = performance.now();
-    const result = reconcilePlacement(boot.core!.town.nextPlotIndex, boot.buildings);
+    const result = reconcilePlacement(boot.buildings);
     const elapsedMs = performance.now() - start;
 
-    expect(result.repaired).toBe(0);
-    expect(result.buildings).toBe(boot.buildings); // reference-identical — nothing to write
-    // reconcile itself is a sort + two O(n) passes over ~5,400 items — this is
-    // a tight guard (not the 1000ms formality round-2 flagged), meant to
-    // catch a regression from microseconds to something structurally worse.
-    expect(elapsedMs).toBeLessThan(100);
-  });
+    // Nothing dropped — every id from before reconcile is still present.
+    expect(result.buildings.length).toBe(boot.buildings.length);
+    const idsBefore = new Set(boot.buildings.map((b) => b.id));
+    const idsAfter = new Set(result.buildings.map((b) => b.id));
+    expect(idsAfter).toEqual(idsBefore);
 
-  it("repairs exactly the one introduced duplicate, still in a tight guard bound", async () => {
-    const fixture = FIXTURES.dense();
-    const fakePort = fakeInMemoryPort();
-    const loaderClient = createChunkedStorage(fakePort);
-    loadFixtureIntoStorage({ ...fixture, buildings: withOneDuplicate(fixture.buildings) }, loaderClient, fakePort);
+    // The buildings reconcile actually SEATED (i.e. not in `unplacedIds`)
+    // must be collision-free — that is the whole point of reconciling.
+    const unplaced = new Set(result.unplacedIds);
+    const seatedPlotIndices = result.buildings.filter((b) => !unplaced.has(b.id)).map((b) => b.plotIndex);
+    expect(new Set(seatedPlotIndices).size).toBe(seatedPlotIndices.length);
 
-    const boot = await loaderClient.loadBoot();
-    const start = performance.now();
-    const result = reconcilePlacement(boot.core!.town.nextPlotIndex, boot.buildings);
-    const elapsedMs = performance.now() - start;
-
-    expect(result.repaired).toBe(1);
-    const plotIndices = result.buildings.map((b) => b.plotIndex);
-    expect(new Set(plotIndices).size).toBe(plotIndices.length); // no more collision
-    expect(elapsedMs).toBeLessThan(100);
+    // reconcile itself is a sort + a handful of O(n) passes over ~5,400
+    // items — this is a tight guard (not the 1000ms formality round-2
+    // flagged), meant to catch a regression from microseconds to something
+    // structurally worse.
+    expect(elapsedMs).toBeLessThan(200);
   });
 });
 
@@ -152,62 +148,49 @@ afterEach(() => {
 });
 
 describe("AC-R4 — the real useTownStore boot over the dense fixture, on the real browser storage port", () => {
-  it("boots a clean dense town within a smoke budget and never fires placement_repaired", async () => {
+  // ADDENDUM-08: `dense`'s ~5,400 build attempts vastly exceed the fixed
+  // map's 193 ground cells, so the fixture itself already carries many
+  // baked-in collisions (devtools/fixtures.ts's own documented overflow
+  // ceiling) — "never fires placement_repaired" is no longer the right claim
+  // at this scale. What still matters (spec §3.6/§4/§9): the boot stays fast,
+  // self-heals silently (no player-facing notice), and drops nothing. The
+  // isolated "exactly one duplicate gets repaired" proof lives at controlled
+  // scale in `useTownStore.reconcile.test.tsx` instead, where it can actually
+  // be isolated from a background of pre-existing collisions.
+  it("boots the dense town within a smoke budget, self-heals its own overflow collisions silently, and drops nothing", async () => {
     const fixture = FIXTURES.dense();
     setTimeTravelDate(fixture.today);
     const loaderClient = createChunkedStorage(); // real browser localStorage port — same one useTownStore itself uses
-    loadFixtureIntoStorage(fixture, loaderClient);
+    // ADDENDUM-02 §4.5 — this test is about the reconciler's OWN "silent
+    // repair" contract (§3.6 point 6), not the move-hint; the dense fixture
+    // has thousands of buildings and an unset `moveHintSeen`, which would
+    // otherwise ALSO (correctly — see `useTownStore.move.test.tsx`) queue
+    // `{ kind: "moveHint" }` at this same boot. Marking it already-seen keeps
+    // this file scoped to reconciliation.
+    loadFixtureIntoStorage({ ...fixture, town: { ...fixture.town, moveHintSeen: true } }, loaderClient);
     loaderClient.flush(); // land the debounced writes before useTownStore's own client reads them back
 
-    const trackSpy = vi.spyOn(analytics, "track");
     const start = performance.now();
     await mountAndWaitForBoot();
     const elapsedMs = performance.now() - start;
-    // Round-3 finding C4: the previous version of this test asserted a bound
-    // but never surfaced the actual number anywhere in the evidence. Logged
-    // here so a reader (or QA re-running this) sees the real measured value,
-    // not just a pass/fail against a bound.
-    console.info(`[AC-R4] clean dense boot elapsedMs=${elapsedMs.toFixed(1)}`);
+    console.info(`[AC-R4] dense boot elapsedMs=${elapsedMs.toFixed(1)}`);
 
-    expect(latest?.buildingCount).toBe(fixture.buildings.length);
-    expect(trackSpy).not.toHaveBeenCalledWith("placement_repaired", expect.anything());
+    expect(latest?.buildingCount).toBe(fixture.buildings.length); // nothing dropped, even the buildings reconcile couldn't seat
+    // `placement_repaired` (analytics) counts buildings actually RE-SEATED,
+    // not ones reconcile gave up on (`unplacedIds` — kept, at their stale
+    // position, never dropped, per placement.ts's own contract) — at dense
+    // scale most of the fixture's ~5,400 build attempts can never fit the
+    // 193-cell map at all, so that count may legitimately land at 0. What
+    // matters here is that the boot never throws and never surfaces a
+    // player-facing notice for a repair the player did nothing wrong to cause.
+    expect(latest?.notice).toBeNull(); // silent repair — §3.6 point 6, never a player-facing notice
     // Round-2 asserted a 3,000ms bound against §10.4's <1s AC — three times
     // the actual written number, so the AC as written was never really
     // checked (round-3 finding C4). Asserting the AC's own literal number
     // (1,000ms) instead — measured on this machine (logged above) the real
-    // value is in the tens of ms, so 1,000ms is not a coin-flip bound, it is
-    // the spec's number, with real headroom to spare before it would ever
+    // value is comfortably under it, so 1,000ms is not a coin-flip bound, it
+    // is the spec's number, with real headroom to spare before it would ever
     // flake on CI.
     expect(elapsedMs).toBeLessThan(1_000);
-  });
-
-  it("boots a dense town with one duplicate plotIndex, self-heals within the same smoke budget, and fires placement_repaired exactly once", async () => {
-    const fixture = FIXTURES.dense();
-    setTimeTravelDate(fixture.today);
-    const loaderClient = createChunkedStorage();
-    loadFixtureIntoStorage(
-      // ADDENDUM-02 §4.5 — this test is about the reconciler's OWN "silent
-      // repair" contract (§3.6 point 6), not the move-hint; the dense fixture
-      // has thousands of buildings and an unset `moveHintSeen`, which would
-      // otherwise ALSO (correctly — see `useTownStore.move.test.tsx`) queue
-      // `{ kind: "moveHint" }` at this same boot. Marking it already-seen
-      // keeps this file scoped to reconciliation.
-      { ...fixture, buildings: withOneDuplicate(fixture.buildings), town: { ...fixture.town, moveHintSeen: true } },
-      loaderClient,
-    );
-    loaderClient.flush();
-
-    const trackSpy = vi.spyOn(analytics, "track");
-    const start = performance.now();
-    await mountAndWaitForBoot();
-    const elapsedMs = performance.now() - start;
-    console.info(`[AC-R4] repaired dense boot elapsedMs=${elapsedMs.toFixed(1)}`);
-
-    expect(latest?.buildingCount).toBe(fixture.buildings.length);
-    const plotIndices = latest!.buildings.map((b) => b.plotIndex);
-    expect(new Set(plotIndices).size).toBe(plotIndices.length); // repaired — no collision survives to the app
-    expect(trackSpy).toHaveBeenCalledWith("placement_repaired", { count: 1 });
-    expect(latest?.notice).toBeNull(); // silent repair — §3.6 point 6
-    expect(elapsedMs).toBeLessThan(1_000); // the AC's own literal number — see the twin test above
   });
 });

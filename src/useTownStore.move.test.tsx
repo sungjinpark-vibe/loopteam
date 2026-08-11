@@ -67,15 +67,15 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
   it("changes only the moved building's plotIndex, writes exactly one storage key, and survives a reload", async () => {
     await mountAndWaitForBoot();
     act(() => {
-      // rng() = 0 -> pool[0] -> the lowest free UNMASKED lot each time.
-      // ADDENDUM-07 masks plots 0/1 of block 0, so the first two buildings
-      // land at 2 and 3, not 0 and 1.
-      latest!.addEntry(COFFEE); // building at plot 2
-      latest!.addEntry({ ...COFFEE, categoryId: "food" }); // building at plot 3
+      // rng() = 0 -> rollFootprint always rolls 1x1 -> anchorsFor's FIRST
+      // reading-order ground cell each time. Cell 7 (row 0, col 7) is the
+      // fixed map's first `ground` cell (ADDENDUM-08 §1.2); the second
+      // building lands at cell 8.
+      latest!.addEntry(COFFEE); // building at plot 7
+      latest!.addEntry({ ...COFFEE, categoryId: "food" }); // building at plot 8
     });
     flush();
-    const moving = latest!.buildings.find((b) => b.plotIndex === 2)!;
-    const nextPlotIndexBefore = latest!.nextPlotIndex;
+    const moving = latest!.buildings.find((b) => b.plotIndex === 7)!;
     const queueLengthBefore = latest!.queueLength;
     const slotsRemainingBefore = latest!.slotsRemaining;
     const streakDaysBefore = latest!.streakDays;
@@ -83,16 +83,15 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
     const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     let result: MoveResult | undefined;
     act(() => {
-      result = latest!.moveBuilding(moving.id, 5);
+      result = latest!.moveBuilding(moving.id, 10); // cell 10 — still row 0, ground, unoccupied
     });
 
     expect(result?.ok).toBe(true);
-    expect(latest!.buildings.find((b) => b.id === moving.id)?.plotIndex).toBe(5);
-    expect(latest!.buildings.find((b) => b.plotIndex === 3)).toBeDefined(); // the other building untouched
+    expect(latest!.buildings.find((b) => b.id === moving.id)?.plotIndex).toBe(10);
+    expect(latest!.buildings.find((b) => b.plotIndex === 8)).toBeDefined(); // the other building untouched
 
     // AC-M4 — no OTHER TownState field moved (checked through the store's own
     // public surface, which mirrors each TownState field 1:1).
-    expect(latest!.nextPlotIndex).toBe(nextPlotIndexBefore);
     expect(latest!.queueLength).toBe(queueLengthBefore);
     expect(latest!.slotsRemaining).toBe(slotsRemainingBefore);
     expect(latest!.streakDays).toBe(streakDaysBefore);
@@ -105,7 +104,7 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
     expect(setItemSpy).toHaveBeenCalledWith(`ait.v1.buildings.${TODAY.slice(0, 7)}`, expect.any(String));
 
     await mountAndWaitForBoot();
-    expect(latest!.buildings.find((b) => b.id === moving.id)?.plotIndex).toBe(5);
+    expect(latest!.buildings.find((b) => b.id === moving.id)?.plotIndex).toBe(10);
   });
 
   // Round-2 finding C2 #2: the earlier version only proved persistence
@@ -122,11 +121,11 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
       latest!.addEntry({ ...COFFEE, categoryId: "food" });
     });
     flush(); // settle the two builds above before isolating the move's own write
-    const moving = latest!.buildings.find((b) => b.plotIndex === 2)!; // ADDENDUM-07: plot 0 is masked, first build lands at 2
+    const moving = latest!.buildings.find((b) => b.plotIndex === 7)!; // cell 7 is the fixed map's first `ground` cell
 
     const setItemSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     act(() => {
-      latest!.moveBuilding(moving.id, 5);
+      latest!.moveBuilding(moving.id, 10);
     });
 
     // No `flush()` call anywhere above this line — if this passes, the raw
@@ -134,7 +133,7 @@ describe("useTownStore.moveBuilding — AC-M4/AC-M10", () => {
     expect(setItemSpy).toHaveBeenCalledTimes(1);
     expect(setItemSpy).toHaveBeenCalledWith(`ait.v1.buildings.${TODAY.slice(0, 7)}`, expect.any(String));
     expect(JSON.parse(window.localStorage.getItem(`ait.v1.buildings.${TODAY.slice(0, 7)}`)!)).toContainEqual(
-      expect.objectContaining({ id: moving.id, plotIndex: 5 }),
+      expect.objectContaining({ id: moving.id, plotIndex: 10 }),
     );
   });
 
@@ -192,12 +191,13 @@ describe("useTownStore — AC-H1: the move-discoverability hint", () => {
 
     // A successful move dismisses it FOREVER (in-memory immediately, and
     // persisted the next time core is saved for any other reason). 3
-    // buildings occupy plots 2/3/4 (rng pinned to 0 -> the lowest free
-    // UNMASKED lot each time, ADDENDUM-07) — plot 5 is guaranteed free and in-bounds.
+    // buildings occupy cells 7/8/9 (rng pinned to 0 -> the first free ground
+    // cell in reading order each time, ADDENDUM-08 §1.2) — cell 10 is
+    // guaranteed free and in-bounds.
     const moving = latest!.buildings[0];
     let moveResult: MoveResult | undefined;
     act(() => {
-      moveResult = latest!.moveBuilding(moving.id, 5);
+      moveResult = latest!.moveBuilding(moving.id, 10);
     });
     expect(moveResult?.ok).toBe(true);
 

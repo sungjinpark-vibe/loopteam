@@ -263,110 +263,70 @@ button.town-fab {
  * add a fallback to a var() below (a fallback is a second source of truth
  * that silently wins if the custom property is ever unset). */
 
-/* ADDENDUM-05 §2 (F-EXP) — the scrolling wrapper around `.town-grid`. Native
- * `overflow-x: auto`, no gesture library, no pinch-zoom: MIN_TILE_WIDTH_PX's
- * `minmax()` floor (townLayout.ts) is what makes the grid overflow a narrow
- * viewport in the first place, this is just where that overflow scrolls.
- * `height` is set inline ONLY while the zoom-to-fit toggle is zoomed out
- * (TownGrid.tsx) — CSS `transform: scale()` doesn't shrink the layout box it
- * scales, so without this the page would grow a dead scroll region below the
- * visually-shrunk grid. At 1:1 (the default) no inline height is set and
- * this rule's `height: auto` is exactly today's untouched behaviour. */
+/* ADDENDUM-08 §7 — the scrolling wrapper around `.town-grid`. Native
+ * `overflow-x`/`overflow-y: auto`, no gesture library, no pinch-zoom: the
+ * fixed 20x20 map at MIN_TILE_WIDTH_PX (townLayout.ts) is wider AND taller
+ * than a phone, so the player pans by native scroll in both axes. A bounded
+ * `max-height` is what makes `overflow-y` meaningful (an unbounded viewport
+ * never overflows vertically) and gives the zoom-to-fit measurement a real
+ * `clientHeight` to fit against. `height` is set inline ONLY while the
+ * zoom-to-fit toggle is zoomed out (TownGrid.tsx) — CSS `transform: scale()`
+ * doesn't shrink the layout box it scales, so without this the page would
+ * grow a dead scroll region below the visually-shrunk grid. */
 .town-viewport {
   height: auto;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .town-grid {
-  --town-asphalt: #b9bec6; /* pure paint — no coordinate, stays here */
-  /* ADDENDUM-06 §7 — terrain palette. Pure paint (C-4): no townLayout.ts
-   * arithmetic reads these hex values (unlike --terrace-earth-h /
-   * --terrace-drop / --terrace-bleed / --terrace-inset-* below, which are
-   * pixel constants townLayout.ts owns and which arrive inline from
-   * TownGrid.tsx with no fallback here, same rule as --town-road-w etc). */
-  /* Value SPREAD is what sells elevation, not hue. The first cut of these three
-   * tints sat inside 3% luminance of each other, so five stacked terraces read as
-   * one flat sheet in the 74-building evidence shot (docs/qa/evidence-addendum06/
-   * 07). Adjacent blocks always differ by one step (`terraceTintOf` is b % 3), so
-   * the steps below are ~8% luminance apart — still cream, now legible. */
-  --terrace-a: #fdf7ec; /* plateau, tint 0 — highest/lightest */
-  --terrace-b: #f2e2cd; /* plateau, tint 1 */
-  --terrace-c: #e4cbaf; /* plateau, tint 2 — lowest/warmest */
-  /* A LIT top edge. The first cut was darker than every plateau, so it read as a
-   * seam between blocks; a bright rim above a dark earth wall is the whole
-   * elevation cue. */
-  --terrace-rim: #fffdf7; /* 1px plateau rim highlight */
+  /* Pure paint (C-4): no townLayout.ts arithmetic reads these hex values
+   * (unlike --terrace-earth-h / --terrace-drop below, which are pixel
+   * constants townLayout.ts owns and arrive inline from TownGrid.tsx with no
+   * fallback here). Value SPREAD is what sells elevation, not hue — the
+   * three plateau tints are ~8% luminance apart, still cream, legible. */
+  --terrace-a: #fdf7ec; /* plateau, band 0 — highest/lightest */
+  --terrace-b: #f2e2cd; /* plateau, band 1 */
+  --terrace-c: #e4cbaf; /* plateau, band 2 — lowest/warmest (band 3 cycles back to band 0's tint, ADDENDUM-08 §6: 4 bands, 3 tints) */
   --terrace-earth: #96694c; /* earth cross-section, top band */
   --terrace-earth-dk: #5d3826; /* earth cross-section, shadow band */
-  --terrace-shadow: rgba(93, 56, 38, 0.34); /* the step one terrace casts on the ramp below */
+  --terrace-shadow: rgba(93, 56, 38, 0.34); /* the step one band casts on the band below */
   --plaza-paving: #fde7ef; /* 명당 paving */
   --prime-marker: #ec6a9c; /* 명당 ring — the ONLY saturated hue in the terrain set */
+  --town-asphalt: #b9bec6; /* road surface */
+  --town-grass: #cdeccb; /* park base */
+  --town-water: #7fb8e0; /* lake fill */
+  --lake-shore: #e3f4fc; /* lighter shoreline ring on a lake cell touching non-lake */
   display: grid;
   gap: var(--town-gap); /* was 8px, now GRID_GAP_PX from townLayout.ts */
-  grid-auto-rows: auto; /* was 72px — road rows are shorter, the savings row is taller */
+  /* gridTemplateRows arrives inline from TownGrid.tsx (GRID_TEMPLATE_ROWS,
+   * ADDENDUM-08 §7) — every row is a fixed TILE_HEIGHT_PX track, no
+   * grid-auto-rows here (rule R-3: this file must never restate a number
+   * townLayout.ts owns). */
   padding: 8px var(--town-grid-pad-x) 24px; /* the middle 16 is GRID_PADDING_X_PX. No fallback. */
   /* ADDENDUM-02 §4.3 (break B23): a long-press must not fight the town's
-   * vertical scroll — `pan-y` keeps vertical touch-scroll native while
-   * still letting the gesture hook see the pointer events it needs. Left
-   * untouched by ADDENDUM-05 §2 on purpose (see TownGrid.tsx's header
-   * comment) — the move gesture wins over horizontal touch-scroll, always. */
-  touch-action: pan-y;
+   * scroll — `pan-x pan-y` (was `pan-y` alone; ADDENDUM-08 §7 adds vertical
+   * scroll too) keeps native scroll working while still letting the gesture
+   * hook see the pointer events it needs. The move gesture wins regardless. */
+  touch-action: pan-x pan-y;
   outline: none; /* the roving `.town-tile--cursor` ring is the focus indicator, not the browser default outline on the container */
 }
 
-/* ADDENDUM-06 §2.3 — terraces. One `.town-terrace` per plot block, emitted
- * BEFORE `.town-main-street` (TownGrid.tsx) so DOM order alone keeps it
- * behind every tile/road/NPC (T-R1) — this file has no z-index anywhere
- * (C-8). T-R2: neither this rule nor its pseudo-elements set a `height`,
- * `width` or `padding` that could grow a grid track (`NpcLayer` measures the
- * resolved `grid-template-*` off the live DOM, C-7 — AC-6 asserts those
- * strings are byte-identical with and without this layer). The slab fills
- * its grid area by default `stretch`; nothing here sizes it. The only
- * geometry is a negative margin, bleeding each edge outward by
- * `--terrace-inset-l`/`-r` (0..TERRACE_BLEED_PX, asserted <= the grid's own
- * GRID_PADDING_X_PX — AC-1) into `.town-grid`'s padding — never past it. */
-.town-terrace {
-  position: relative;
-  pointer-events: none; /* T-R3 — ground never wins a hit-test */
-  margin: 0 calc(-1 * var(--terrace-inset-r)) 0 calc(-1 * var(--terrace-inset-l));
-  box-shadow: inset 0 1px 0 var(--terrace-rim);
-}
-.town-terrace--t0 {
-  background: var(--terrace-a);
-}
-.town-terrace--t1 {
-  background: var(--terrace-b);
-}
-.town-terrace--t2 {
-  background: var(--terrace-c);
-}
-
-/* The dark earth cross-section — an absolutely-positioned pseudo-element, so
- * it costs the slab's own box nothing (T-R2). T-R5: `top: 100%` hangs it INTO
- * the cross-street row below, never over it; the cross street is a later DOM
- * sibling with no z-index, so the road always paints on top and stays a
- * continuous ribbon across every terrace. The box-shadow riding along is the
- * drop shadow the terrace casts on the ramp below it (`--terrace-drop`). */
-.town-terrace::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: var(--terrace-earth-h);
-  background: linear-gradient(180deg, var(--terrace-earth) 0%, var(--terrace-earth-dk) 100%);
-  box-shadow: 0 var(--terrace-drop) var(--terrace-drop) -2px var(--terrace-shadow);
-}
-
-/* ADDENDUM-06 §3.3 — 명당 (prime lot) marker. Always-visible pink paving +
- * ring on the tile itself (`.town-tile` already has `position: relative`,
- * ADDENDUM-02 §4.4), stacked with whatever move-mode state class is also
- * present — the perk is never colour-only (the aria-label change, TownGrid.tsx,
- * carries the same information for assistive tech). */
+/* ADDENDUM-08 §6 — 명당 (prime lot) marker. Always-visible pink paving + ring,
+ * shared by the static terrain cell (`.town-cell--prime`, an always-empty
+ * ground lot's permanent highlight) and the dynamic ground tile
+ * (`.town-tile--prime`, painted on the actual lot/building div so it stacks
+ * with whatever move-mode state class is also present) — same visual, two
+ * layers, so a building standing on a prime lot still reads as prime even
+ * though its opaque art covers the static layer underneath. The perk is
+ * never colour-only (the aria-label change, TownGrid.tsx, carries the same
+ * information for assistive tech). */
+.town-cell--prime,
 .town-tile--prime {
   background: var(--plaza-paving);
 }
+.town-cell--prime::before,
 .town-tile--prime::before {
   content: "";
   position: absolute;
@@ -397,7 +357,11 @@ button.town-fab {
 
 .town-tile {
   width: 100%;
-  height: var(--town-tile-h);
+  /* 100%, not a fixed px var: a 1x1 lot fills one TILE_HEIGHT_PX row, but a
+   * building's own tile can span 2 rows + the gap between them (ADDENDUM-08
+   * §7 — one element per building, spanning its whole footprint), and only
+   * the grid area's own 100% is correct for both. */
+  height: 100%;
   position: relative;
   /* ADDENDUM-02 §4.3 (break B23): a 500ms press must not pop the WebView's
    * text-selection/callout menu. */
@@ -488,80 +452,101 @@ button.town-fab {
   content: "🌱";
 }
 
-/* ADDENDUM-05 §4 (F-BLD): the street-facing offset that used to live here
- * (`.town-tile--left/right .building-roof`) is gone with the CSS-shape roof it
- * targeted. Buildings are inline SVG now (`buildingArt.tsx`) and carry their
- * own isometric facing, so no wrapper rule nudges a roof sideways any more. */
-
-/* Main street — one continuous ribbon down the whole rendered town.
- * grid-column is set inline from ROAD_COLUMN, and grid-row inline as
- * `1 / span gridRowCount(...)` — NOT `1 / -1`, which spans a single row
- * here because `.town-grid` declares no `grid-template-rows` (§3.4).
- *
- * No `z-index` here on purpose (round-1 finding C1): TownGrid.tsx emits the
- * cross streets right after the main street in DOM order, so with no forced
- * stacking context they already paint on top at every intersection — that is
- * what makes the crosswalk (`.town-cross-street::after`) visible. A
- * `z-index` on this element creates a new stacking context that would win
- * regardless of DOM order and paint the centre line straight over it. */
-.town-main-street {
-  position: relative; /* the ::before centre line positions against THIS, not .town-screen */
-  margin: calc(var(--town-gap) * -1) 0; /* close the row gaps: one continuous ribbon */
-  background: var(--town-asphalt);
+/* ADDENDUM-08 §6/§7 — the static terrain layer (`TownGrid.tsx`'s
+ * `TownTerrain`, one `.town-cell` per non-void cell). `.town-cell` itself is
+ * pure ground: pointer-events none (never wins a hit-test — the interactive
+ * ground/building tile is a separate, later sibling at the same grid cell)
+ * and no z-index anywhere in this file, so DOM order alone keeps every tile
+ * painting on top of it. */
+.town-cell {
+  position: relative;
+  pointer-events: none;
+  box-sizing: border-box; /* the shoreline border (below) must not grow the grid track */
 }
-.town-main-street::before {
+
+/* Elevation bands (ADDENDUM-08 §6) — a pure tint step per
+ * `elevationBandOf(row)`, ground/savings cells only (road/park/lake paint
+ * their own surface below); 4 bands cycle 3 tints (band 3 reuses band 0's). */
+.town-cell--band0 {
+  background: var(--terrace-a);
+}
+.town-cell--band1 {
+  background: var(--terrace-b);
+}
+.town-cell--band2 {
+  background: var(--terrace-c);
+}
+
+/* The earth lip at each band boundary (rows 4/9/14) — an absolutely
+ * positioned pseudo-element so it costs the cell's own box nothing and never
+ * grows a grid track (`NpcLayer` measures the resolved `grid-template-*` off
+ * the live DOM). `top: 100%` hangs it into the row below, never over it. */
+.town-cell--band-edge::after {
   content: "";
   position: absolute;
-  inset: 0;
-  margin: 0 auto;
-  width: 2px;
-  background: repeating-linear-gradient(180deg, #fff 0 10px, transparent 10px 22px);
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: var(--terrace-earth-h);
+  background: linear-gradient(180deg, var(--terrace-earth) 0%, var(--terrace-earth-dk) 100%);
+  box-shadow: 0 var(--terrace-drop) var(--terrace-drop) -2px var(--terrace-shadow);
 }
 
-/* Cross streets — grid-column: 1 / -1 and grid-row are set inline (R-3). */
-.town-cross-street {
-  height: var(--town-road-h);
-  position: relative; /* the ::after crosswalk positions against THIS, not .town-screen */
-  margin: 0 calc(var(--town-gap) * -1); /* close the column gaps */
+/* Road — a continuous street surface. `bleedRight`/`bleedBottom` (computed
+ * once in TownGrid.tsx from `isRoadCell`) bleed a negative margin into the
+ * grid gutter toward a same-kind neighbor, so the gap between two road cells
+ * never shows through as a dashed seam (checked against the authored map's
+ * actual road shape, not a single straight avenue — ADDENDUM-08 §1.2). */
+.town-cell--road {
   background: var(--town-asphalt);
 }
-.town-cross-street::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: var(--town-road-w); /* was a hardcoded 22px — R-3 */
-  left: calc(50% - var(--town-road-w) / 2); /* was calc(50% - 11px) — R-3 */
-  background: repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 7px);
-}
 
-/* §3.7 checklist item 3: street furniture, zero data (rule R-2) — a 가로등 on
- * every second block's street-front tile, a 버스 정류장 on every second cross
- * street. `town-tile--streetlight` / `town-cross-street--busstop` are added
- * from `decorVariant(...)` in TownGrid.tsx; nothing here is stored.
- * (`.town-tile` itself now carries `position: relative` — ADDENDUM-02 §4.4's
- * move-mode state classes need it too — so this selector no longer repeats it.) */
-.town-tile--streetlight::after {
-  content: "💡";
+/* Park — grass base, contiguous (bleed above merges same-kind neighbors into
+ * one lawn). A single deterministic glyph on ~1 in 4 park cells (TownGrid.tsx
+ * — sparse and scattered, not one bouquet per tile), so it reads as a park
+ * at a glance, not a grid of identical green squares. */
+.town-cell--park {
+  background: var(--town-grass);
+}
+.town-park-glyph {
   position: absolute;
-  top: 2px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   font-size: 14px;
   line-height: 1;
 }
-.town-tile--streetlight.town-tile--left::after {
-  right: -6px;
-}
-.town-tile--streetlight.town-tile--right::after {
-  left: -6px;
-}
 
-.town-cross-street--busstop::before {
-  content: "🚏";
+/* Lake — water fill, contiguous (bleed above merges same-kind neighbors into
+ * one body of water) + a lighter shoreline ring ONLY on the edges facing
+ * non-lake ground (borders, not box-shadow, so all four edges can combine on
+ * one cell — an interior lake cell surrounded by lake gets no border at
+ * all) + one or two ripples for the whole lake (TownGrid.tsx), so it reads
+ * as water, not a blue tile. */
+.town-cell--lake {
+  background: var(--town-water);
+}
+.town-cell--shore-t {
+  border-top: 3px solid var(--lake-shore);
+}
+.town-cell--shore-r {
+  border-right: 3px solid var(--lake-shore);
+}
+.town-cell--shore-b {
+  border-bottom: 3px solid var(--lake-shore);
+}
+.town-cell--shore-l {
+  border-left: 3px solid var(--lake-shore);
+}
+.town-lake-ripple {
   position: absolute;
-  top: 0;
-  left: 6px;
-  font-size: 14px;
-  line-height: 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%;
+  height: 40%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
 }
 
 /* 저축 블록 (ADDENDUM-01 §2.4a/§3.5). Each .savings-plot is a DIRECT grid item
@@ -669,15 +654,6 @@ button.town-fab {
 .savings-pip--on {
   background: var(--town-blue500);
 }
-.savings-signpost {
-  align-self: end;
-  height: var(--town-tile-h);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  font-size: 22px;
-}
-
 /* One shape per StructureKind (§2.3) — placeholder paint so the five
  * structures read as distinct even before real art (D-22). */
 .savings-plot--bank .savings-structure { background: var(--town-teal400); border-radius: 4px 4px 0 0; }

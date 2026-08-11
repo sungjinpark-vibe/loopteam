@@ -14,6 +14,7 @@
  * reserved for "no data" and never collides with a real pace outcome.
  */
 import { budgetPace, moodTier, unsettledPeriods } from "./selectors";
+import type { Placed } from "./placement";
 import type { Building, LedgerEntry, MonthSummary, TownState } from "./types";
 
 function monthSummaryFor(
@@ -44,7 +45,7 @@ function monthSummaryFor(
 
 /**
  * F16 acceptance criterion ("3 monuments in chronological plot order") vs
- * ADDENDUM-02 R-5 (plots are drawn randomly by `placement.allocatePlots`)
+ * ADDENDUM-02 R-5 (plots are drawn randomly by `placement.placeMany`)
  * conflict — director decision 2026-08-09: implement, ship OFF. Shipped
  * build keeps today's random placement, byte-identical.
  */
@@ -61,8 +62,19 @@ export interface SettleMonthsArgs {
   /** Deterministic id generator, one call per minted monument (i = 0, 1, 2, ...). */
   buildingIdFor: (i: number) => string;
   createdAt: number;
-  /** N distinct plot indices for this settlement run, called ONCE with the monument count — `placement.allocatePlots` (rule R-4). */
-  allocatePlotIndices: (count: number) => number[];
+  /**
+   * N footprint placements for this settlement run, called ONCE with the
+   * monument count (rule R-4). Each entry MUST be exactly what was reserved
+   * for that monument — build it from `placement.placeMonument` (tries 2x2,
+   * downgrades only when the town has no 2x2 room left), never from generic
+   * `placeMany` with a forced-2x2 override: this module trusts `w`/`h` here
+   * verbatim and stores them unchanged, so a placement that claims fewer
+   * cells than the stored footprint would leave the difference unclaimed for
+   * the next building to sit inside. May return fewer than requested if the
+   * town is full; the unplaced months stay unsettled and are retried on the
+   * next call (see `settleMonths`).
+   */
+  placeMany: (count: number) => Placed[];
   /** Test-only override for `MONUMENT_CHRONOLOGICAL_PLOTS`; defaults to it. */
   chronologicalPlots?: boolean;
 }
@@ -81,25 +93,37 @@ export interface SettleMonthsResult {
  */
 export function settleMonths(args: SettleMonthsArgs): SettleMonthsResult {
   const {
-    town, today, entriesForPeriod, budgetKrw, moodPaceThresholds, buildingIdFor, createdAt, allocatePlotIndices,
+    town, today, entriesForPeriod, budgetKrw, moodPaceThresholds, buildingIdFor, createdAt, placeMany,
     chronologicalPlots = MONUMENT_CHRONOLOGICAL_PLOTS,
   } = args;
 
   const periods = unsettledPeriods(town.lastSettledPeriod, today);
   if (periods.length === 0) return { town, monuments: [] };
 
-  const drawnPlotIndices = allocatePlotIndices(periods.length);
-  // ON: re-sort the same drawn set ascending so periods (already oldest-first)
-  // land in ascending plot order — chronological order visible on the grid.
-  const plotIndices = chronologicalPlots ? [...drawnPlotIndices].sort((a, b) => a - b) : drawnPlotIndices;
-  const monuments = periods.map((period, i) => {
+  const drawnPlacements = placeMany(periods.length);
+  // Fewer placements than months means the town is full — settle only the
+  // months that actually got a lot; the rest stay unsettled and retry next call.
+  const settledPeriods = periods.slice(0, drawnPlacements.length);
+  if (settledPeriods.length === 0) return { town, monuments: [] };
+
+  // ON: re-sort the same drawn set ascending (by anchor) so periods (already
+  // oldest-first) land in ascending plot order — chronological order visible
+  // on the grid.
+  const placements = chronologicalPlots ? [...drawnPlacements].sort((a, b) => a.anchor - b.anchor) : drawnPlacements;
+  const monuments = settledPeriods.map((period, i) => {
     const monumentSummary = monthSummaryFor(period, entriesForPeriod(period), budgetKrw, today, moodPaceThresholds);
     const building: Building = {
       id: buildingIdFor(i),
       source: { kind: "monument", period },
       categoryId: null,
       variantIndex: monumentSummary.outcomeBucket,
-      plotIndex: plotIndices[i],
+      plotIndex: placements[i].anchor,
+      // ADDENDUM-08 §2.2: stored EXACTLY what was reserved (`placeMonument`
+      // tries 2x2, downgrades only when the town is full) — never overridden
+      // here. A stored footprint bigger than the reservation would leave
+      // cells unclaimed for the next building to overlap into.
+      w: placements[i].w,
+      h: placements[i].h,
       builtOn: today,
       createdAt,
       monumentSummary,
@@ -109,8 +133,7 @@ export function settleMonths(args: SettleMonthsArgs): SettleMonthsResult {
 
   const newTown: TownState = {
     ...town,
-    nextPlotIndex: town.nextPlotIndex + periods.length,
-    lastSettledPeriod: periods[periods.length - 1],
+    lastSettledPeriod: settledPeriods[settledPeriods.length - 1],
   };
 
   return { town: newTown, monuments };

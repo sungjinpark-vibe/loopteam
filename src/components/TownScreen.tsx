@@ -238,7 +238,6 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       )}
 
       <TownGrid
-        nextPlotIndex={store.nextPlotIndex}
         buildings={store.buildings}
         justBuiltId={store.justBuiltId}
         savingsByCategoryKrw={store.savingsByCategoryKrw}

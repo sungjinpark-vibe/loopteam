@@ -61,7 +61,6 @@ describe("useTownStore — ADDENDUM-01 §2.6a savings level-up", () => {
     // F13's invariant, observed live through the store, not just the pure fn.
     expect(latest?.buildingCount).toBe(0);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots);
-    expect(latest?.nextPlotIndex).toBe(0);
     expect(latest?.savingsByCategoryKrw).toEqual({ deposit: FIRST_THRESHOLD });
 
     expect(latest?.notice).toEqual({ kind: "savings", id: "deposit" });

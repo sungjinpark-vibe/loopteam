@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RandomPort } from "../platform/random";
-import { EXTRA_REST_CHANCE, initialNpcStates, stepNpcs, type NpcState } from "./movement";
+import { GRID_SIZE, isRoadCell, isWalkable as mapIsWalkable, terrainAt } from "../townLayout";
+import { EXTRA_REST_CHANCE, initialNpcStates, reachableCells, stepNpcs, type NpcState } from "./movement";
 
 /** Deterministic fake `RandomPort` — replays a fixed sequence, then repeats its last value forever. */
 function fakeRandom(sequence: readonly number[]): RandomPort {
@@ -94,5 +95,105 @@ describe("stepNpcs", () => {
     // pick index 0 -> "up" (dRow: -1, dCol: 0): vertical-only, facing must be preserved from the prior step.
     const afterUp = stepNpcs(thenUp, cross, fakeRandom([0.9, 0]));
     expect(afterUp[0].facingLeft).toBe(true);
+  });
+});
+
+// ── Integration with the real ADDENDUM-08 map (townLayout.ts) ──
+// A small deterministic LCG, seeded per starting cell — not the injected
+// RandomPort (that's covered above with `fakeRandom`), just a cheap way to
+// generate many varied but reproducible walks for the invariant checks below.
+function lcgRandom(seed: number): RandomPort {
+  let s = seed >>> 0;
+  return {
+    next: () => {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    },
+  };
+}
+
+const firstRoadCell = (() => {
+  for (let row = 0; row < GRID_SIZE; row++) {
+    for (let col = 0; col < GRID_SIZE; col++) {
+      if (isRoadCell(row, col)) return { row, col };
+    }
+  }
+  throw new Error("no road cell found");
+})();
+
+describe("stepNpcs against the real map", () => {
+  it("never steps onto ground, lake, savings, or void — only road or park", () => {
+    let states: NpcState[] = [{ ...firstRoadCell, facingLeft: false, lastDelta: null }];
+    const rng = lcgRandom(1);
+    const visitedKinds = new Set<string>();
+    for (let step = 0; step < 500; step++) {
+      states = stepNpcs(states, mapIsWalkable, rng, 0.05); // low rest chance: keep it moving
+      const kind = terrainAt(states[0].row, states[0].col);
+      visitedKinds.add(kind);
+      expect(kind === "road" || kind === "park").toBe(true);
+    }
+    // Confirms the walk actually used both kinds, not just the road it started on.
+    expect(visitedKinds.has("road")).toBe(true);
+    expect(visitedKinds.has("park")).toBe(true);
+  });
+
+  it("respects the grid bounds at all four map edges (isWalkable reads out-of-bounds as void)", () => {
+    const corners = [
+      { row: 0, col: 0 },
+      { row: 0, col: GRID_SIZE - 1 },
+      { row: GRID_SIZE - 1, col: 0 },
+      { row: GRID_SIZE - 1, col: GRID_SIZE - 1 },
+    ];
+    for (const corner of corners) {
+      let states: NpcState[] = [{ ...corner, facingLeft: false, lastDelta: null }];
+      const rng = lcgRandom(corner.row * 100 + corner.col + 1);
+      for (let step = 0; step < 50; step++) {
+        states = stepNpcs(states, mapIsWalkable, rng, 0.1);
+        expect(states[0].row).toBeGreaterThanOrEqual(0);
+        expect(states[0].row).toBeLessThan(GRID_SIZE);
+        expect(states[0].col).toBeGreaterThanOrEqual(0);
+        expect(states[0].col).toBeLessThan(GRID_SIZE);
+      }
+    }
+  });
+});
+
+describe("reachableCells", () => {
+  it("finds the road network's own connected component (all 93 road cells)", () => {
+    const cells = reachableCells(firstRoadCell, isRoadCell);
+    expect(cells).toHaveLength(93);
+  });
+
+  it("road ∪ walkable component omits the isolated park pockets that touch no road", () => {
+    // ADDENDUM-08's authored map has a few park cells reachable only by
+    // crossing non-walkable ground (verified against the map directly:
+    // 122 total walkable cells, 115 in the road-connected component).
+    const allWalkable: { row: number; col: number }[] = [];
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        if (mapIsWalkable(row, col)) allWalkable.push({ row, col });
+      }
+    }
+    const component = reachableCells(firstRoadCell, mapIsWalkable);
+    expect(allWalkable.length).toBe(122);
+    expect(component.length).toBe(115);
+    expect(component.length).toBeLessThan(allWalkable.length);
+  });
+
+  it("no NPC spawned in the road-connected component can ever be stranded: a long walk from every spawn cell visits many distinct cells", () => {
+    const spawnCells = reachableCells(firstRoadCell, mapIsWalkable);
+    for (const cell of spawnCells) {
+      let states: NpcState[] = [{ ...cell, facingLeft: false, lastDelta: null }];
+      const rng = lcgRandom(cell.row * 1000 + cell.col + 1);
+      const visited = new Set([`${cell.row},${cell.col}`]);
+      for (let step = 0; step < 300; step++) {
+        states = stepNpcs(states, mapIsWalkable, rng, 0.1);
+        visited.add(`${states[0].row},${states[0].col}`);
+      }
+      // The component is a dense grid of corridors (min observed ~49 in a
+      // manual simulation) — 10 is a conservative floor that only a genuine
+      // dead-end-of-one could fail.
+      expect(visited.size).toBeGreaterThanOrEqual(10);
+    }
   });
 });

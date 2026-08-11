@@ -73,7 +73,6 @@ function renderGrid(
 ) {
   return (
     <TownGrid
-      nextPlotIndex={fixture.town.nextPlotIndex}
       buildings={fixture.buildings}
       justBuiltId={null}
       savingsByCategoryKrw={fixture.town.savingsByCategoryKrw}
@@ -90,15 +89,17 @@ function renderGrid(
   );
 }
 
-describe("TownGrid over the dense fixture (~5,400 tiles) — AC-R4's move-mode half", () => {
-  // ADDENDUM-07: fixture generation itself now routes every plot assignment
-  // through the real `pickPlotIn` pipeline (devtools/fixtures.ts) instead of
-  // a raw counter, so building the ~5,400-building `dense` fixture costs a
-  // real (measured: ~300ms) fraction of a second on top of the mount itself
-  // (already the suite's single most expensive render, ~4s on a loaded
-  // machine) — vitest's 5000ms default leaves too little headroom under
-  // parallel test-file load. An explicit, still-generous bound, not a
-  // performance target (that's the internal ms assertions below).
+describe("TownGrid over the dense fixture (193 fixed ground tiles) — AC-R4's move-mode half", () => {
+  // ADDENDUM-08: the map is now a FIXED 20x20 grid (193 ground tiles,
+  // townLayout.ts's own census) — it no longer grows with the fixture's
+  // building count, so mounting `dense` (still ~5,400 build attempts across
+  // 36 months, §11) is no longer the ~5,400-tile render round-2 C4 #6 was
+  // worried about. The ground layer itself is always exactly 193 elements;
+  // what this file still usefully proves is that entering move mode and
+  // moving the cursor stay cheap even when `buildings` itself is a large
+  // array (many of `dense`'s build attempts collide onto the same handful of
+  // cells once the map is full — devtools/fixtures.ts's own documented
+  // ceiling — which this test doesn't depend on being collision-free).
   it("mounts, enters move mode, and moves the keyboard cursor, each within a generous smoke budget — numbers logged", () => {
     const fixture = FIXTURES.dense();
 
@@ -111,16 +112,22 @@ describe("TownGrid over the dense fixture (~5,400 tiles) — AC-R4's move-mode h
 
     const tileCountBefore =
       mounted.container.querySelectorAll(".town-tile").length;
-    expect(tileCountBefore).toBeGreaterThan(5_000);
+    // The fixed map's own ground-cell census (ADDENDUM-08 §1.2) — one
+    // `.town-tile` per ground cell, always, independent of building count.
+    expect(tileCountBefore).toBe(193);
 
-    // Entering move mode: the movingId flip is exactly the unmeasured risk
-    // C4 #6 named — it invalidates the whole ~5,400-element `tiles` memo
-    // (every tile is re-created to recompute its `isMoving`/`isDroppable`
-    // classes), even though the dense fixture's sequential fixture-builder
-    // (`devtools/fixtures.ts`) packs the town nearly solid, so the actual
-    // NUMBER of droppable (free) lots stays small — G2 (§3.2) only promises
-    // ">= 1", never "most of them".
-    const firstBuildingId = fixture.buildings[0].id;
+    // Entering move mode still rebuilds the ground-tile memo (every tile
+    // recomputes its `isMoving`/`isDroppable` classes) — now bounded at 193
+    // elements instead of growing with the town, but still worth a smoke
+    // guard against a structural regression.
+    //
+    // The LAST building in the fixture, not the first: `dense`'s build
+    // attempts (~5,400) vastly exceed the fixed map's 193 cells, so many
+    // early buildings' anchors get reused by a later colliding build
+    // (devtools/fixtures.ts's own documented overflow ceiling) and TownGrid's
+    // anchor map keeps whichever building came LAST for a shared cell — only
+    // the final building in array order is guaranteed to still own its anchor.
+    const firstBuildingId = fixture.buildings[fixture.buildings.length - 1].id;
     const moveModeStart = performance.now();
     act(() => {
       mounted!.root.render(renderGrid(fixture, { movingId: firstBuildingId }));
@@ -139,7 +146,11 @@ describe("TownGrid over the dense fixture (~5,400 tiles) — AC-R4's move-mode h
     console.info(
       `[AC-R4] dense TownGrid free (droppable) lot count=${droppableCount}`,
     );
-    expect(droppableCount).toBeGreaterThanOrEqual(1); // G2 — always at least one, even on a nearly-full town
+    // No lower-bound assertion here (unlike the old growing-pool guarantee):
+    // `dense`'s build attempts vastly exceed the fixed map's 193 cells, so
+    // whether any lot is still free for THIS building's footprint depends on
+    // where its collisions landed — logged above for visibility, not asserted.
+
     // AC-R4's own literal boot budget (§10.4) re-used here as the smoke bound
     // for this render — generous headroom on any real machine; the point is
     // catching a structural regression (e.g. an O(n^2) path), not a coin flip.
@@ -147,13 +158,14 @@ describe("TownGrid over the dense fixture (~5,400 tiles) — AC-R4's move-mode h
 
     // A pure cursor move (arrow key) must stay cheap even here — this is the
     // regression guard for the C4 #7 fix (`TownGrid.tsx`'s imperative cursor
-    // highlight, NOT a `tiles` memo dependency).
-    // plot 2, not 0 — ADDENDUM-07 masks plot 0 of block 0, so it renders no
-    // `.town-tile` node to attach the cursor highlight to unless occupied.
+    // highlight, NOT the ground-tiles memo dependency).
+    // Cell 7 (row 0, col 7) is the fixed map's first `ground` cell in reading
+    // order (ADDENDUM-08 §1.2) — cells 0-6 are void/park and render no
+    // `.town-tile` node at all to attach the cursor highlight to.
     const cursorMoveStart = performance.now();
     act(() => {
       mounted!.root.render(
-        renderGrid(fixture, { movingId: firstBuildingId, cursorIndex: 2 }),
+        renderGrid(fixture, { movingId: firstBuildingId, cursorIndex: 7 }),
       );
     });
     const cursorMoveElapsedMs = performance.now() - cursorMoveStart;

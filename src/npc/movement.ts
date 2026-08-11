@@ -56,9 +56,10 @@ export function initialNpcStates(count: number, roadCells: readonly { row: numbe
 /**
  * Advances every NPC by exactly one step: each independently either rests
  * (dead end, or the `restChance` draw) or moves to one random walkable
- * neighbor, preferring not to immediately reverse. `isWalkable` bounds the
- * road network for the CALLER's current grid extent (townLayout's
- * `isRoadCell` plus a row/column bound — see `NpcLayer`).
+ * neighbor, preferring not to immediately reverse. `isWalkable` is the
+ * caller's predicate — `NpcLayer` passes townLayout's `isWalkable`
+ * (road OR park, ADDENDUM-08 §5) directly; out-of-bounds cells already read
+ * as non-walkable there, so no separate bound check is needed here.
  */
 export function stepNpcs(
   states: readonly NpcState[],
@@ -84,4 +85,33 @@ export function stepNpcs(
       lastDelta: pick,
     };
   });
+}
+
+/**
+ * Orthogonal flood-fill of the walkable graph from `seed` — the set of cells
+ * an NPC can ever reach by walking. ADDENDUM-08's fixed map has a few park
+ * cells that touch no road (isolated pockets); `NpcLayer` seeds this from a
+ * road cell and spawns NPCs only in the returned component, so a spawn can
+ * never land in a pocket it can then never leave. Plain BFS, not a
+ * pathfinder — there is no goal, just "what's reachable at all".
+ */
+export function reachableCells(
+  seed: { row: number; col: number },
+  isWalkable: (row: number, col: number) => boolean,
+): { row: number; col: number }[] {
+  const key = (row: number, col: number) => `${row},${col}`;
+  const seen = new Set([key(seed.row, seed.col)]);
+  const cells = [seed];
+  for (let i = 0; i < cells.length; i++) {
+    const cur = cells[i];
+    for (const d of NEIGHBOR_DELTAS) {
+      const row = cur.row + d.dRow;
+      const col = cur.col + d.dCol;
+      if (isWalkable(row, col) && !seen.has(key(row, col))) {
+        seen.add(key(row, col));
+        cells.push({ row, col });
+      }
+    }
+  }
+  return cells;
 }

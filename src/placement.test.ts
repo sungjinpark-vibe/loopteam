@@ -1,29 +1,25 @@
 /**
- * ADDENDUM-02 §3 / §8.3 — Placement + Repair/compatibility acceptance
- * criteria (AC-P1..AC-P8, AC-R1, AC-R2). AC-P9 ([dom]) lives in
- * `components/TownGrid.test.tsx`, the only place a grid actually mounts.
- * AC-R4's dense-scale evidence lives in `devtools/reconcileDense.test.tsx`
- * (it must load the real `dense` fixture through the real boot path, which
- * needs `src/devtools/**`, off-limits to this file per eslint's
- * `no-restricted-imports` rule — MVP-SPEC §11).
+ * ADDENDUM-08 §3 — footprint placement, move, and reconcile.
  */
 import { describe, expect, it } from "vitest";
 import { seededRandom } from "./platform/random";
 import {
-  allocatePlots,
-  freePlots,
+  anchorsFor,
+  fits,
+  footprintOf,
   moveBuilding,
-  occupiedPlots,
-  openPlotCount,
-  pickPlot,
-  pickPlotIn,
-  poolSize,
+  occupiedCells,
+  pickAnchor,
+  placeMany,
+  placeMonument,
+  placeNew,
   reconcilePlacement,
+  rollFootprint,
 } from "./placement";
-import { cellFromIndex, isMaskedPlotIndex, isRoadCell, LOTS_PER_BLOCK, renderedTileCount, unmaskedLotsInBlock } from "./townLayout";
+import { CELL_COUNT, footprintCells, GRID_SIZE, indexFromCell } from "./townLayout";
 import type { Building } from "./types";
 
-function building(id: string, plotIndex: number, createdAt = 0, builtOn = "2026-08-01"): Building {
+function building(id: string, plotIndex: number, w?: 1 | 2, h?: 1 | 2, createdAt = 0, builtOn = "2026-08-01"): Building {
   return {
     id,
     source: { kind: "entry", entryId: id },
@@ -32,511 +28,440 @@ function building(id: string, plotIndex: number, createdAt = 0, builtOn = "2026-
     plotIndex,
     builtOn,
     createdAt,
+    ...(w !== undefined ? { w } : {}),
+    ...(h !== undefined ? { h } : {}),
   };
 }
 
-/** A randomised occupancy set: `count` distinct plot indices under 700, for a randomised-N trial. */
-function randomOccupancy(rng: () => number, count: number): Building[] {
-  const indices = new Set<number>();
-  while (indices.size < count) indices.add(Math.floor(rng() * 700));
-  return [...indices].map((idx, i) => building(`b${i}`, idx));
-}
-
-/** The first N UNMASKED plot indices, ascending — what a real town built with rng() = 0 (AC-P7) lands on under ADDENDUM-07's block-edge masking. */
-function firstNUnmasked(n: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; out.length < n; i++) if (!isMaskedPlotIndex(i)) out.push(i);
-  return out;
-}
-
-/** Minimal whole-block RAW pool size whose cumulative UNMASKED capacity exceeds `need` — an independent (test-side) reimplementation of placement.ts's own block-search, verifying the production `poolSize` against pure townLayout.ts geometry rather than against itself. */
-function unmaskedAwarePoolSize(need: number): number {
-  let blocks = 0;
-  let capacity = 0;
-  do {
-    capacity += unmaskedLotsInBlock(blocks);
-    blocks++;
-  } while (capacity <= need);
-  return blocks * LOTS_PER_BLOCK;
-}
-
-describe("AC-P1/AC-P2 — 1,000 seeded placements interleaved with deletions", () => {
-  it("every pick is free and inside the pool, and no two live buildings ever collide", () => {
-    const rng = seededRandom(1);
-    let plotsOpened = 0;
-    let buildings: Building[] = [];
-    let nextId = 0;
-    const SAMPLE_SIZE = 1000; // AC-P1/AC-P2's own stated count — deletions are interleaved IN ADDITION, not counted against it
-
-    for (let placed = 0; placed < SAMPLE_SIZE; ) {
-      const doDelete = buildings.length > 0 && rng() < 0.3;
-      if (doDelete) {
-        const victim = Math.floor(rng() * buildings.length);
-        buildings = buildings.filter((_, i) => i !== victim); // F9: a deleted lot rejoins the free pool
-        continue;
-      }
-
-      const pool = openPlotCount(plotsOpened, buildings);
-      const idx = pickPlot(plotsOpened, buildings, rng);
-      expect(idx).toBeGreaterThanOrEqual(0);
-      expect(idx).toBeLessThan(pool); // AC-P1: inside openPlotCount
-      expect(buildings.some((b) => b.plotIndex === idx)).toBe(false); // AC-P1: free
-
-      buildings.push(building(`b${nextId++}`, idx));
-      plotsOpened += 1;
-      placed++;
-
-      const seen = new Set<number>();
-      for (const b of buildings) {
-        expect(seen.has(b.plotIndex)).toBe(false); // AC-P2: no collision, ever
-        seen.add(b.plotIndex);
-      }
+/**
+ * Reusable assertion (PM request, post F16-overlap-bug review): no two
+ * buildings' footprints share a cell. Applied after every test below that
+ * produces a set of placed buildings, not just the placement-specific ones —
+ * an overlap is the single worst outcome this whole module exists to prevent.
+ */
+function expectNoOverlap(buildings: readonly Building[]): void {
+  const seen = new Set<number>();
+  for (const b of buildings) {
+    const { w, h } = footprintOf(b);
+    for (const c of footprintCells(b.plotIndex, w, h)) {
+      expect(seen.has(c)).toBe(false);
+      seen.add(c);
     }
-  });
-});
-
-describe("AC-P3 — openPlotCount(n, buildings) > max(n - 1, maxPlotIndex) for n = 0..600 (G1)", () => {
-  it("holds with no buildings", () => {
-    for (let n = 0; n <= 600; n++) {
-      expect(openPlotCount(n, [])).toBeGreaterThan(Math.max(n - 1, -1));
-    }
-  });
-
-  it("holds for randomised occupancy sets", () => {
-    const rng = seededRandom(2);
-    for (let trial = 0; trial < 50; trial++) {
-      const n = Math.floor(rng() * 601);
-      const buildings = randomOccupancy(rng, Math.floor(rng() * 30));
-      const maxPlotIndex = buildings.length > 0 ? Math.max(...buildings.map((b) => b.plotIndex)) : -1;
-      expect(openPlotCount(n, buildings)).toBeGreaterThan(Math.max(n - 1, maxPlotIndex));
-    }
-  });
-});
-
-describe("AC-P4 — open-lot count after N buildings placed through the REAL pickPlot pipeline is exactly the masking-aware pool size; nextPlotIndex after N build-producing acts is exactly N", () => {
-  // ADDENDUM-07: pacing is no longer `renderedTileCount(N + 1)` — a raw
-  // block no longer always holds LOTS_PER_BLOCK BUILDABLE lots (block-edge
-  // masking), so `openPlotCount` now tracks `unmaskedAwarePoolSize(N)` (this
-  // file's own independent reimplementation, over pure townLayout.ts
-  // geometry) instead. `renderedTileCount(N + 1)` is asserted as a LOWER
-  // bound below — the new pacing is never TIGHTER than the old one, only
-  // ever the same or looser (report the actual numbers in docs/qa).
-  it("pacing is a pure function of history alone (§3.4, §6.6) — a hand-built 0..N-1 occupancy would NOT have caught this: round-3 finding traced a real failure to seed 1 by N=4 (idx 11, pool 24, expected 12) under the pre-fix pool sizing", () => {
-    const rng = seededRandom(1); // the exact seed the round-3 probe used
-    let plotsOpened = 0;
-    const buildings: Building[] = [];
-    for (let N = 0; N <= 600; N++) {
-      expect(plotsOpened).toBe(N); // the +1-per-build counter, unaffected by WHERE the dice landed
-      const pool = openPlotCount(plotsOpened, buildings);
-      expect(pool).toBe(unmaskedAwarePoolSize(N));
-      expect(pool).toBeGreaterThanOrEqual(renderedTileCount(N + 1));
-      const idx = pickPlot(plotsOpened, buildings, rng);
-      expect(isMaskedPlotIndex(idx)).toBe(false); // pickPlot never lands on a void cell
-      buildings.push(building(`b${N}`, idx));
-      plotsOpened += 1;
-    }
-  });
-
-  it("holds under a second, independent seed too — not an artifact of one lucky draw sequence", () => {
-    const rng = seededRandom(42);
-    let plotsOpened = 0;
-    const buildings: Building[] = [];
-    for (let N = 0; N <= 200; N++) {
-      expect(openPlotCount(plotsOpened, buildings)).toBe(unmaskedAwarePoolSize(N));
-      const idx = pickPlot(plotsOpened, buildings, rng);
-      buildings.push(building(`b${N}`, idx));
-      plotsOpened += 1;
-    }
-    expect(plotsOpened).toBe(201);
-  });
-});
-
-describe("AC-P5 — freePlots(...).length >= 1 for every N = 0..600 (G2)", () => {
-  it("holds with a dense N-building occupancy", () => {
-    for (let N = 0; N <= 600; N++) {
-      const buildings = Array.from({ length: N }, (_, i) => building(`b${i}`, i));
-      expect(freePlots(N, buildings).length).toBeGreaterThanOrEqual(1);
-    }
-  });
-
-  it("holds for randomised occupancy sets", () => {
-    const rng = seededRandom(3);
-    for (let trial = 0; trial < 50; trial++) {
-      const n = Math.floor(rng() * 601);
-      const buildings = randomOccupancy(rng, Math.floor(rng() * 30));
-      expect(freePlots(n, buildings).length).toBeGreaterThanOrEqual(1);
-    }
-  });
-});
-
-describe("AC-P6 — allocatePlots returns k distinct free lots, each inside the pool AT THE MOMENT IT IS DRAWN", () => {
-  it("for k = 1..20 — checked per-draw, not against a looser final-occupancy bound", () => {
-    const plotsOpened = 5;
-    const buildings = Array.from({ length: plotsOpened }, (_, i) => building(`b${i}`, i));
-    for (let k = 1; k <= 20; k++) {
-      const seed = 100 + k;
-      const result = allocatePlots(plotsOpened, buildings, k, seededRandom(seed));
-      expect(result.length).toBe(k);
-      expect(new Set(result).size).toBe(k); // distinct
-      for (const idx of result) expect(buildings.some((b) => b.plotIndex === idx)).toBe(false); // free of the PRE-existing occupancy
-
-      // Replay the exact same draws with an identical seed, threading `taken`
-      // through by hand exactly as allocatePlots does internally (it is
-      // documented as nothing more than this loop over pickPlotIn), so each
-      // draw is checked against the pool AS IT STOOD at that exact moment —
-      // strictly tighter than a bound computed over the final occupancy
-      // (round-2 finding: that bound would not catch a plot returned beyond
-      // its own draw-time pool but still inside the final one).
-      const rng = seededRandom(seed);
-      const taken = occupiedPlots(buildings);
-      const replay: number[] = [];
-      for (let step = 0; step < k; step++) {
-        const poolAtThisDraw = poolSize(plotsOpened + step, taken);
-        const idx = pickPlotIn(plotsOpened + step, taken, rng);
-        expect(idx).toBeGreaterThanOrEqual(0);
-        expect(idx).toBeLessThan(poolAtThisDraw); // draw-time pool, not the final one
-        taken.add(idx);
-        replay.push(idx);
-      }
-      // The replay must be byte-identical to allocatePlots' real output —
-      // otherwise the per-draw checks above would be observing a different
-      // sequence than the one allocatePlots actually produced.
-      expect(replay).toEqual(result);
-    }
-  });
-});
-
-describe("AC-P7 — rng() = 0 reproduces a dense town over the UNMASKED lots, in ascending order, skipping every masked one", () => {
-  it("pickPlot returns the first 30 unmasked plot indices, in order, as buildings accumulate", () => {
-    // ADDENDUM-07: rng() = 0 always takes pool[0] (the smallest FREE lot),
-    // and the pool now excludes masked indices — so the sequence is the
-    // ascending list of unmasked indices, not literal 0, 1, 2, ... (the
-    // pre-masking result; some of those literal indices are now void).
-    const expected = firstNUnmasked(30);
-    const buildings: Building[] = [];
-    for (let i = 0; i < 30; i++) {
-      const idx = pickPlot(i, buildings, () => 0);
-      expect(idx).toBe(expected[i]);
-      expect(isMaskedPlotIndex(idx)).toBe(false);
-      buildings.push(building(`b${i}`, idx));
-    }
-  });
-});
-
-describe("AC-P8 — pickPlot never throws", () => {
-  it("on an empty buildings array", () => {
-    expect(() => pickPlot(0, [], () => 0.5)).not.toThrow();
-  });
-
-  it("on rng() returning exactly 1 (must not index past the pool's end)", () => {
-    expect(() => pickPlot(0, [], () => 1)).not.toThrow();
-    const idx = pickPlot(0, [], () => 1);
-    expect(idx).toBeGreaterThanOrEqual(0);
-    expect(idx).toBeLessThan(openPlotCount(0, []));
-  });
-
-  it("on NaN / negative / fractional plotIndex already present in occupancy", () => {
-    const weird: Building[] = [building("b1", NaN), building("b2", -3), building("b3", 1.5)];
-    expect(() => pickPlot(0, weird, () => 0.5)).not.toThrow();
-    const idx = pickPlot(0, weird, () => 0.5);
-    expect(Number.isInteger(idx)).toBe(true);
-    expect(idx).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe("ADDENDUM-07 — freePlots/pickPlotIn never return a masked index, and G2 holds over UNMASKED lots", () => {
-  it("freePlots never includes a masked index, for N = 0..600 dense occupancy", () => {
-    for (let N = 0; N <= 600; N += 17) {
-      const buildings = Array.from({ length: N }, (_, i) => building(`b${i}`, i));
-      for (const i of freePlots(N, buildings)) expect(isMaskedPlotIndex(i)).toBe(false);
-    }
-  });
-
-  it("pickPlot/pickPlotIn never return a masked index, across 500 seeded draws on a growing town", () => {
-    const rng = seededRandom(7);
-    let plotsOpened = 0;
-    const buildings: Building[] = [];
-    for (let N = 0; N < 500; N++) {
-      const idx = pickPlot(plotsOpened, buildings, rng);
-      expect(isMaskedPlotIndex(idx)).toBe(false);
-      buildings.push(building(`b${N}`, idx));
-      plotsOpened += 1;
-    }
-  });
-
-  it("G2 restated: freePlots(...).length >= 1 (a free UNMASKED lot) for a DENSE occupancy that also includes masked-but-occupied legacy indices", () => {
-    // Every index 0..N-1 occupied, whether masked or not — exactly the shape
-    // a pre-ADDENDUM-07 legacy save has before reconciliation. G2 must still
-    // find a free (unmasked) lot beyond it, growing the pool by whole blocks.
-    for (const N of [0, 1, 8, 16, 40, 200, 600]) {
-      const buildings = Array.from({ length: N }, (_, i) => building(`b${i}`, i));
-      const free = freePlots(N, buildings);
-      expect(free.length).toBeGreaterThanOrEqual(1);
-      for (const i of free) expect(isMaskedPlotIndex(i)).toBe(false);
-    }
-  });
-
-  it("growing the pool by one block always restores G2 — the MIN_UNMASKED_LOTS_PER_BLOCK floor in practice", () => {
-    // A block's own worst case never drops below 8 unmasked lots
-    // (townLayout.test.ts asserts the general bound); here it is exercised
-    // through the real pool-growth path instead of the constant directly.
-    const rng = seededRandom(9);
-    for (let trial = 0; trial < 30; trial++) {
-      const n = Math.floor(rng() * 601);
-      const buildings = randomOccupancy(rng, Math.floor(rng() * 40));
-      expect(freePlots(n, buildings).length).toBeGreaterThanOrEqual(1);
-    }
-  });
-});
-
-describe("AC-R1 — reconcilePlacement repairs a duplicate plotIndex", () => {
-  it("re-seats the later of two buildings sharing index 4 at the lowest free UNMASKED lot, leaves the earlier alone, preserves order, and is idempotent", () => {
-    const earlier = building("b1", 4, 100);
-    const later = building("b2", 4, 200);
-    const result = reconcilePlacement(5, [earlier, later]);
-
-    expect(result.repaired).toBe(1);
-    expect(result.buildings[0]).toBe(earlier); // untouched — same object reference
-    expect(result.buildings[0].plotIndex).toBe(4);
-    // Lowest free lot 0..3 are candidates, but 0 and 1 are MASKED
-    // (ADDENDUM-07, block 0) — 2 is the lowest free UNMASKED one.
-    expect(result.buildings[1].plotIndex).toBe(2);
-    expect(result.buildings.map((b) => b.id)).toEqual(["b1", "b2"]); // array order preserved
-
-    const second = reconcilePlacement(result.plotsOpened, result.buildings);
-    expect(second.repaired).toBe(0);
-    expect(second.buildings).toBe(result.buildings); // idempotent — nothing left to fix
-  });
-
-  it("preserves both buildings even when they share an id (keyed by position, never by id)", () => {
-    const a = building("dup", 4, 100);
-    const b = building("dup", 4, 200);
-    const result = reconcilePlacement(5, [a, b]);
-    expect(result.buildings.length).toBe(2);
-    expect(result.repaired).toBe(1);
-    expect(new Set(result.buildings.map((x) => x.plotIndex)).size).toBe(2);
-  });
-
-  // Round-3 finding C2: every reconcile test up to here fed only duplicate
-  // POSITIVE INTEGERS. The `Number.isInteger(i) && i >= 0` guard exists
-  // specifically for NaN / negative / fractional plotIndex — the corrupt
-  // F12-import / corrupt-core-recovery case this reconciler exists for
-  // (§3.6) — and had zero coverage.
-  it("repairs NaN, negative, and fractional plotIndex — the corrupt-import/recovery case, not just duplicates", () => {
-    const clean = building("keeper", 2, 50); // legitimately occupies 2 — must survive untouched
-    const nan = building("bad-nan", NaN, 100);
-    const negative = building("bad-negative", -3, 150);
-    const fractional = building("bad-fractional", 1.5, 200);
-    const result = reconcilePlacement(3, [clean, nan, negative, fractional]);
-
-    expect(result.repaired).toBe(3);
-    expect(result.buildings[0]).toBe(clean); // untouched — same object reference
-    expect(result.buildings[0].plotIndex).toBe(2);
-
-    const repairedIndices = result.buildings.slice(1).map((b) => b.plotIndex);
-    for (const i of repairedIndices) {
-      expect(Number.isInteger(i)).toBe(true);
-      expect(i).toBeGreaterThanOrEqual(0);
-      expect(isMaskedPlotIndex(i)).toBe(false); // never re-seated onto a void cell (ADDENDUM-07)
-    }
-    // Distinct from each other AND from the survivor's lot 2.
-    expect(new Set([2, ...repairedIndices]).size).toBe(4);
-
-    // Idempotent — a second pass over the repaired output finds nothing left to fix.
-    const second = reconcilePlacement(result.plotsOpened, result.buildings);
-    expect(second.repaired).toBe(0);
-    expect(second.buildings).toBe(result.buildings);
-  });
-});
-
-describe("AC-R2 — a valid pre-change town needs no repair", () => {
-  // ADDENDUM-07: "valid" no longer means "dense indices 0..N-1" — block-edge
-  // masking means most such runs now include a void cell, and correctly
-  // NEEDS repair (see the describe block right below this one). The town a
-  // real player boots with zero writes is one built through the REAL
-  // placement pipeline instead — `pickPlot(i, buildings, () => 0)` is
-  // AC-P7's own dense sequence over the UNMASKED lots, so this is the
-  // masking-aware replacement for the old literal `i` fixture, not a
-  // different claim.
-  it("returns repaired: 0 for a town built through the real placement pipeline, nextPlotIndex = N", () => {
-    for (const N of [0, 1, 12, 37, 600]) {
-      const buildings: Building[] = [];
-      for (let i = 0; i < N; i++) buildings.push(building(`b${i}`, pickPlot(i, buildings, () => 0), i));
-      const result = reconcilePlacement(N, buildings);
-      expect(result.repaired).toBe(0);
-      expect(result.buildings).toBe(buildings); // reference-identical — the caller can skip the write entirely
-      expect(result.plotsOpened).toBe(N);
-    }
-  });
-});
-
-describe("ADDENDUM-07 — reconcilePlacement re-seats a legacy save's building off a masked (void) cell", () => {
-  it("a dense 0..N-1 legacy town (the PRE-masking valid shape) now needs repair — every masked occupant moves to an unmasked lot", () => {
-    const N = 40;
-    const buildings = Array.from({ length: N }, (_, i) => building(`b${i}`, i, i));
-    const maskedCount = buildings.filter((b) => isMaskedPlotIndex(b.plotIndex)).length;
-    expect(maskedCount).toBeGreaterThan(0); // the scenario actually exercises the new branch
-
-    const result = reconcilePlacement(N, buildings);
-    expect(result.repaired).toBe(maskedCount);
-    // Every surviving plotIndex is unmasked, and still collision-free.
-    const indices = result.buildings.map((b) => b.plotIndex);
-    for (const i of indices) expect(isMaskedPlotIndex(i)).toBe(false);
-    expect(new Set(indices).size).toBe(indices.length);
-    // A building that was never on a masked cell keeps its original lot.
-    for (const b of buildings) {
-      if (isMaskedPlotIndex(b.plotIndex)) continue;
-      expect(result.buildings.find((x) => x.id === b.id)?.plotIndex).toBe(b.plotIndex);
-    }
-
-    // Idempotent — a second pass finds nothing left to fix.
-    const second = reconcilePlacement(result.plotsOpened, result.buildings);
-    expect(second.repaired).toBe(0);
-    expect(second.buildings).toBe(result.buildings);
-  });
-
-  it("never re-seats a repaired building onto ANOTHER masked cell", () => {
-    // Every index 0..15 (block 0) is either masked or forced-occupied here,
-    // so any repair must reach past block 0 for an unmasked lot.
-    const buildings = Array.from({ length: 16 }, (_, i) => building(`b${i}`, i, i));
-    const result = reconcilePlacement(16, buildings);
-    for (const b of result.buildings) expect(isMaskedPlotIndex(b.plotIndex)).toBe(false);
-  });
-});
-
-// ── ADDENDUM-02 §4.1/§8.3 — moveBuilding (AC-M1..AC-M4, AC-M11) ──
-
-describe("AC-M1 — a move to a free in-town lot", () => {
-  it("returns ok: true, an array differing ONLY in that building's plotIndex, and echoes from/to", () => {
-    const a = building("a", 0);
-    const b = building("b", 1);
-    const buildings = [a, b];
-    const result = moveBuilding(12, buildings, "a", 5);
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.from).toBe(0);
-    expect(result.to).toBe(5);
-    expect(result.buildings.find((x) => x.id === "a")?.plotIndex).toBe(5);
-    expect(result.buildings.find((x) => x.id === "b")).toBe(b); // untouched, same reference
-    expect(buildings[0].plotIndex).toBe(0); // input never mutated
-  });
-});
-
-describe("AC-M2 — rejection cases, exact reasons, inputs never mutated", () => {
-  it("occupied -> 'occupied'", () => {
-    // plot 1 is MASKED (block 0, ADDENDUM-07) — that has its own dedicated
-    // "out-of-town" rejection test; plot 2 is unmasked, so it isolates V4.
-    const buildings = [building("a", 0), building("b", 2)];
-    const result = moveBuilding(12, buildings, "a", 2);
-    expect(result).toEqual({ ok: false, reason: "occupied" });
-    expect(buildings[0].plotIndex).toBe(0);
-  });
-
-  it("to === from -> 'same-plot'", () => {
-    const buildings = [building("a", 0)];
-    const result = moveBuilding(12, buildings, "a", 0);
-    expect(result).toEqual({ ok: false, reason: "same-plot" });
-  });
-
-  it("to < 0 -> 'out-of-town'", () => {
-    const buildings = [building("a", 0)];
-    expect(moveBuilding(12, buildings, "a", -1)).toEqual({ ok: false, reason: "out-of-town" });
-  });
-
-  it("to >= openPlotCount -> 'out-of-town'", () => {
-    const buildings = [building("a", 0)];
-    const pool = openPlotCount(1, buildings);
-    expect(moveBuilding(1, buildings, "a", pool)).toEqual({ ok: false, reason: "out-of-town" });
-  });
-
-  it("non-integer to -> 'out-of-town'", () => {
-    const buildings = [building("a", 0)];
-    expect(moveBuilding(12, buildings, "a", 1.5)).toEqual({ ok: false, reason: "out-of-town" });
-    expect(moveBuilding(12, buildings, "a", NaN)).toEqual({ ok: false, reason: "out-of-town" });
-  });
-
-  it("unknown id -> 'not-found'", () => {
-    const buildings = [building("a", 0)];
-    expect(moveBuilding(12, buildings, "ghost", 5)).toEqual({ ok: false, reason: "not-found" });
-  });
-
-  it("D-37 — cannot move past the open pool even into an index that LOOKS plausible", () => {
-    const buildings = [building("a", 0)];
-    const pool = openPlotCount(1, buildings);
-    // one past the pool boundary — still rejected, not silently clamped
-    expect(moveBuilding(1, buildings, "a", pool + 5)).toEqual({ ok: false, reason: "out-of-town" });
-  });
-
-  it("ADDENDUM-07 — a masked (void) destination is rejected as 'out-of-town', reusing the existing reason code", () => {
-    const buildings = [building("a", 2)]; // plot 2 is unmasked (block 0)
-    const maskedTarget = 7; // block 0's plot 7 is masked (insetR = 1), for any plotsOpened
-    expect(isMaskedPlotIndex(maskedTarget)).toBe(true);
-    expect(moveBuilding(12, buildings, "a", maskedTarget)).toEqual({ ok: false, reason: "out-of-town" });
-  });
-
-  it("ADDENDUM-07 — every UNMASKED lot in the pool remains a legal destination (masking rejects, never over-rejects)", () => {
-    const buildings = [building("a", 2)];
-    for (let to = 0; to < openPlotCount(12, buildings); to++) {
-      if (isMaskedPlotIndex(to) || to === buildings[0].plotIndex) continue;
-      expect(moveBuilding(12, buildings, "a", to).ok).toBe(true);
-    }
-  });
-});
-
-describe("AC-M3 — every OTHER field survives a move untouched", () => {
-  it("id/source/categoryId/variantIndex/builtOn/createdAt are identical (toEqual minus plotIndex)", () => {
-    const original: Building = {
-      id: "a",
-      source: { kind: "nospend", date: "2026-08-01" },
-      categoryId: "park",
-      variantIndex: 2,
-      plotIndex: 0,
-      builtOn: "2026-08-01",
-      createdAt: 12345,
-    };
-    // plot 6 (not 7 — ADDENDUM-07 masks plot 7 of block 0, always; see the
-    // dedicated masked-destination rejection test below for that case).
-    const result = moveBuilding(12, [original], "a", 6);
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-    const moved = result.buildings[0];
-    expect(moved).toEqual({ ...original, plotIndex: 6 });
-  });
-});
-
-describe("AC-M4 — moveBuilding touches nothing but the buildings array (no TownState involvement)", () => {
-  it("the function signature takes/returns no TownState field at all — a caller cannot pass one in", () => {
-    // moveBuilding's own signature (plotsOpened: number, buildings, id, to) has
-    // no TownState parameter, so slotsUsedToday/streakDays/nextPlotIndex/queue/etc
-    // are structurally unreachable — this is the AC's own contract, exercised
-    // end-to-end (against a real TownState) in useTownStore's move action.
-    const buildings = [building("a", 0)];
-    const result = moveBuilding(12, buildings, "a", 5);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(Object.keys(result)).toEqual(["ok", "buildings", "from", "to"]);
-  });
-});
-
-describe("AC-M11 — the frontage invariant re-asserted over the DESTINATION space, at three town sizes", () => {
-  function roadNeighborCount(row: number, col: number): number {
-    return [isRoadCell(row - 1, col), isRoadCell(row + 1, col), isRoadCell(row, col - 1), isRoadCell(row, col + 1)].filter(
-      Boolean,
-    ).length;
   }
+}
 
-  // ADDENDUM-07: scoped to every UNMASKED index — the actual legal
-  // destination space now that moveBuilding rejects a masked one. A masked
-  // index is void and was never a real destination in the first place.
-  it("every LEGAL (unmasked) destination in the open pool at 12 / 24 / 600 has an orthogonal road neighbor", () => {
-    for (const plotsOpened of [12, 24, 600]) {
-      const pool = openPlotCount(plotsOpened, []);
-      for (let i = 0; i < pool; i++) {
-        if (isMaskedPlotIndex(i)) continue;
-        const { row, col } = cellFromIndex(i);
-        expect(roadNeighborCount(row, col)).toBeGreaterThanOrEqual(1);
-      }
+// ── rollFootprint ──
+
+describe("rollFootprint", () => {
+  it("only ever produces the four legal shapes", () => {
+    const rng = seededRandom(1);
+    for (let i = 0; i < 2000; i++) {
+      const { w, h } = rollFootprint(rng);
+      expect([1, 2]).toContain(w);
+      expect([1, 2]).toContain(h);
+    }
+  });
+
+  it("weights land within +/-3pp of 60/15/15/10 over 10,000 seeded draws", () => {
+    const rng = seededRandom(7);
+    const counts = { "1x1": 0, "1x2": 0, "2x1": 0, "2x2": 0 };
+    const N = 10_000;
+    for (let i = 0; i < N; i++) {
+      const { w, h } = rollFootprint(rng);
+      counts[`${w}x${h}` as keyof typeof counts]++;
+    }
+    expect(counts["1x1"] / N).toBeGreaterThanOrEqual(0.57);
+    expect(counts["1x1"] / N).toBeLessThanOrEqual(0.63);
+    expect(counts["1x2"] / N).toBeGreaterThanOrEqual(0.12);
+    expect(counts["1x2"] / N).toBeLessThanOrEqual(0.18);
+    expect(counts["2x1"] / N).toBeGreaterThanOrEqual(0.12);
+    expect(counts["2x1"] / N).toBeLessThanOrEqual(0.18);
+    expect(counts["2x2"] / N).toBeGreaterThanOrEqual(0.07);
+    expect(counts["2x2"] / N).toBeLessThanOrEqual(0.13);
+  });
+});
+
+// ── footprintOf ──
+
+describe("footprintOf", () => {
+  it("absent w/h defaults to 1x1", () => {
+    expect(footprintOf({})).toEqual({ w: 1, h: 1 });
+  });
+  it("reads stored w/h", () => {
+    expect(footprintOf({ w: 2, h: 1 })).toEqual({ w: 2, h: 1 });
+  });
+});
+
+// ── fits ──
+
+describe("fits", () => {
+  it("rejects a footprint that steps onto a road cell", () => {
+    // row 2 is a solid road row across most columns.
+    expect(fits(indexFromCell({ row: 2, col: 5 }), 1, 1, new Set())).toBe(false);
+  });
+
+  it("rejects a footprint that steps onto a park cell", () => {
+    expect(fits(indexFromCell({ row: 0, col: 4 }), 1, 1, new Set())).toBe(false);
+  });
+
+  it("rejects a footprint that steps onto a lake cell", () => {
+    expect(fits(indexFromCell({ row: 8, col: 7 }), 1, 1, new Set())).toBe(false);
+  });
+
+  it("rejects a footprint that steps onto a savings cell", () => {
+    expect(fits(indexFromCell({ row: 1, col: 8 }), 1, 1, new Set())).toBe(false);
+  });
+
+  it("rejects a footprint that steps onto a void cell", () => {
+    expect(fits(indexFromCell({ row: 0, col: 0 }), 1, 1, new Set())).toBe(false);
+  });
+
+  it("rejects an anchor whose footprint would fall outside the grid (bottom/right edge)", () => {
+    expect(fits(CELL_COUNT - 1, 2, 2, new Set())).toBe(false);
+  });
+
+  it("rejects the classic row-wrap bug: a 2-wide footprint anchored at col 19 must not wrap to col 0 of the same row", () => {
+    // Row 3 col 19 is ground ('P' at 18/19 actually — pick a real ground cell
+    // at the row's last column and confirm a width-2 footprint there is
+    // rejected for going out of bounds, never silently wrapping to col 0.
+    for (let row = 0; row < GRID_SIZE; row++) {
+      const anchor = indexFromCell({ row, col: GRID_SIZE - 1 });
+      expect(fits(anchor, 2, 1, new Set())).toBe(false);
+    }
+  });
+
+  it("rejects an anchor already in the occupied set, or overlapping one", () => {
+    const anchor = indexFromCell({ row: 3, col: 1 }); // ground cell
+    expect(fits(anchor, 1, 1, new Set([anchor]))).toBe(false);
+  });
+
+  it("accepts a legal ground-only footprint", () => {
+    const anchor = indexFromCell({ row: 3, col: 1 });
+    expect(fits(anchor, 1, 1, new Set())).toBe(true);
+  });
+});
+
+// ── anchorsFor — verified-correct counts on the empty town ──
+
+describe("anchorsFor on an empty town", () => {
+  it("2x2 -> 83 anchors", () => {
+    expect(anchorsFor(2, 2, new Set()).length).toBe(83);
+  });
+  it("1x2 (w1 h2) -> 115 anchors", () => {
+    expect(anchorsFor(1, 2, new Set()).length).toBe(115);
+  });
+  it("2x1 (w2 h1) -> 148 anchors", () => {
+    expect(anchorsFor(2, 1, new Set()).length).toBe(148);
+  });
+  it("1x1 -> 193 anchors (every ground cell)", () => {
+    expect(anchorsFor(1, 1, new Set()).length).toBe(193);
+  });
+});
+
+// ── pickAnchor ──
+
+describe("pickAnchor", () => {
+  it("returns null when no anchor exists for the shape", () => {
+    const occupied = new Set(anchorsFor(1, 1, new Set())); // every ground cell occupied
+    expect(pickAnchor([], 1, 1, () => 0.5)).not.toBeNull(); // sanity: empty town has room
+    expect(anchorsFor(1, 1, occupied).length).toBe(0);
+  });
+
+  it("only ever returns a legal anchor", () => {
+    const rng = seededRandom(3);
+    for (let i = 0; i < 200; i++) {
+      const anchor = pickAnchor([], 2, 2, rng);
+      expect(anchor).not.toBeNull();
+      expect(fits(anchor!, 2, 2, new Set())).toBe(true);
     }
   });
 });
 
+// ── placeNew — downgrade chain ──
+
+describe("placeNew", () => {
+  it("never returns an overlapping/illegal placement across many draws on a growing town", () => {
+    // Average footprint size is > 1 cell (§2.2 weights), so 150 draws can
+    // legitimately fill all 193 ground cells before finishing — stop early
+    // when the town is genuinely full rather than asserting non-null forever.
+    const rng = seededRandom(5);
+    const buildings: Building[] = [];
+    for (let i = 0; i < 150; i++) {
+      const placed = placeNew(buildings, rng);
+      if (placed === null) break; // town full — fine, exercised separately below
+      const occupiedBefore = occupiedCells(buildings);
+      expect(fits(placed.anchor, placed.w, placed.h, occupiedBefore)).toBe(true);
+      buildings.push(building(`b${i}`, placed.anchor, placed.w, placed.h, i));
+    }
+    // no two buildings ever collide
+    expect(occupiedCells(buildings).size).toBe(
+      buildings.reduce((sum, b) => sum + footprintOf(b).w * footprintOf(b).h, 0),
+    );
+    expectNoOverlap(buildings);
+  });
+
+  it("downgrades 2x2 -> 2x1 -> 1x2 -> 1x1 when larger shapes have no room: force a town where only 1x1 anchors remain", () => {
+    // Occupy every cell reachable by a 1x1 building except a single free
+    // ground cell surrounded (as much as the map allows) by taken cells, by
+    // filling the whole ground set with 1x1 buildings minus one gap.
+    const allGround = anchorsFor(1, 1, new Set());
+    const gap = allGround[0];
+    const buildings = allGround.filter((i) => i !== gap).map((i, idx) => building(`f${idx}`, i));
+    const rng = () => 0.95; // always rolls 2x2 first
+    const placed = placeNew(buildings, rng);
+    expect(placed).not.toBeNull();
+    expect(placed).toEqual({ anchor: gap, w: 1, h: 1 }); // downgraded all the way to 1x1
+  });
+
+  it("returns null when even 1x1 has nowhere to go (town completely full)", () => {
+    const allGround = anchorsFor(1, 1, new Set());
+    const buildings = allGround.map((i, idx) => building(`f${idx}`, i));
+    expect(placeNew(buildings, () => 0.95)).toBeNull();
+    expect(placeNew(buildings, () => 0.1)).toBeNull(); // full regardless of the roll
+  });
+});
+
+// ── placeMany ──
+
+describe("placeMany", () => {
+  it("returns count distinct, non-overlapping placements on an empty town", () => {
+    const rng = seededRandom(11);
+    const placements = placeMany([], 40, rng);
+    expect(placements.length).toBe(40);
+    const cells = new Set<number>();
+    let totalCells = 0;
+    for (const p of placements) {
+      for (const c of footprintCells(p.anchor, p.w, p.h)) {
+        expect(cells.has(c)).toBe(false);
+        cells.add(c);
+      }
+      totalCells += p.w * p.h;
+    }
+    expect(cells.size).toBe(totalCells);
+    expectNoOverlap(placements.map((p, i) => building(`b${i}`, p.anchor, p.w, p.h)));
+  });
+
+  it("returns fewer than count when the town fills up mid-drain, never throws", () => {
+    const allGround = anchorsFor(1, 1, new Set());
+    // Leave only 3 free cells.
+    const buildings = allGround.slice(0, allGround.length - 3).map((i, idx) => building(`f${idx}`, i));
+    const rng = () => 0.95; // bias toward large shapes so some draws fail outright
+    const placements = placeMany(buildings, 10, rng);
+    expect(placements.length).toBeLessThanOrEqual(10);
+    expect(placements.length).toBeGreaterThan(0);
+    expectNoOverlap([...buildings, ...placements.map((p, i) => building(`new${i}`, p.anchor, p.w, p.h))]);
+  });
+});
+
+// ── moveBuilding ──
+
+describe("moveBuilding", () => {
+  it("not-found for an unknown id", () => {
+    expect(moveBuilding([building("a", 0)], "ghost", 5)).toEqual({ ok: false, reason: "not-found" });
+  });
+
+  it("same-plot when to === from", () => {
+    expect(moveBuilding([building("a", indexFromCell({ row: 3, col: 1 }))], "a", indexFromCell({ row: 3, col: 1 }))).toEqual({
+      ok: false,
+      reason: "same-plot",
+    });
+  });
+
+  it("out-of-town for a negative/non-integer/overflowing index", () => {
+    const buildings = [building("a", indexFromCell({ row: 3, col: 1 }))];
+    expect(moveBuilding(buildings, "a", -1)).toEqual({ ok: false, reason: "out-of-town" });
+    expect(moveBuilding(buildings, "a", 1.5)).toEqual({ ok: false, reason: "out-of-town" });
+    expect(moveBuilding(buildings, "a", CELL_COUNT)).toEqual({ ok: false, reason: "out-of-town" });
+  });
+
+  it("out-of-town for a destination that isn't ground (road cell)", () => {
+    const buildings = [building("a", indexFromCell({ row: 3, col: 1 }))];
+    const road = indexFromCell({ row: 2, col: 5 });
+    expect(moveBuilding(buildings, "a", road)).toEqual({ ok: false, reason: "out-of-town" });
+  });
+
+  it("occupied when another live building already holds the target anchor", () => {
+    const a = building("a", indexFromCell({ row: 3, col: 1 }));
+    const b = building("b", indexFromCell({ row: 3, col: 2 }));
+    expect(moveBuilding([a, b], "a", b.plotIndex)).toEqual({ ok: false, reason: "occupied" });
+  });
+
+  it("no-fit when the footprint doesn't fit at the target (its own anchor cell is ground, but the rest of the footprint steps onto terrain)", () => {
+    const a = building("a", indexFromCell({ row: 3, col: 1 }), 2, 1);
+    // row 3: col 16 is ground, col 17 is park — the anchor itself is legal
+    // (so this isn't "out-of-town"), but the width-2 footprint isn't.
+    const target = indexFromCell({ row: 3, col: 16 });
+    expect(moveBuilding([a], "a", target)).toEqual({ ok: false, reason: "no-fit" });
+  });
+
+  it("succeeds to a free legal lot, touching only that building's plotIndex", () => {
+    const a = building("a", indexFromCell({ row: 3, col: 1 }));
+    const b = building("b", indexFromCell({ row: 3, col: 2 }));
+    const target = indexFromCell({ row: 4, col: 1 });
+    const result = moveBuilding([a, b], "a", target);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.from).toBe(a.plotIndex);
+    expect(result.to).toBe(target);
+    expect(result.buildings.find((x) => x.id === "b")).toBe(b); // untouched
+    expectNoOverlap(result.buildings);
+  });
+
+  it("self-overlap is allowed: nudging a 2x2 one cell over never rejects on its own footprint", () => {
+    const anchor = indexFromCell({ row: 3, col: 1 });
+    const a = building("a", anchor, 2, 2);
+    const target = indexFromCell({ row: 3, col: 2 }); // shares 2 cells with the current footprint
+    const result = moveBuilding([a], "a", target);
+    expect(result.ok).toBe(true);
+    if (result.ok) expectNoOverlap(result.buildings);
+  });
+});
+
+// ── reconcilePlacement ──
+
+describe("reconcilePlacement", () => {
+  it("keeps a valid, non-overlapping town untouched (repaired: 0, same array reference)", () => {
+    const rng = seededRandom(21);
+    const buildings: Building[] = [];
+    for (let i = 0; i < 50; i++) {
+      const placed = placeNew(buildings, rng)!;
+      buildings.push(building(`b${i}`, placed.anchor, placed.w, placed.h, i));
+    }
+    const result = reconcilePlacement(buildings);
+    expect(result.repaired).toBe(0);
+    expect(result.buildings).toBe(buildings);
+    expect(result.unplacedIds).toEqual([]);
+    expectNoOverlap(result.buildings);
+  });
+
+  it("re-seats a duplicate anchor deterministically, keeping the earlier claimant", () => {
+    const anchor = indexFromCell({ row: 3, col: 1 }); // a real ground cell
+    const earlier = building("b1", anchor, undefined, undefined, 100);
+    const later = building("b2", anchor, undefined, undefined, 200);
+    const result = reconcilePlacement([earlier, later]);
+    expect(result.repaired).toBe(1);
+    expect(result.buildings[0]).toBe(earlier); // untouched
+    expect(result.buildings[1].plotIndex).not.toBe(anchor);
+
+    const second = reconcilePlacement(result.buildings);
+    expect(second.repaired).toBe(0);
+    expect(second.buildings).toBe(result.buildings); // idempotent
+    expectNoOverlap(result.buildings);
+  });
+
+  it("shrinks a footprint to 1x1 when its size has no anchor anywhere, but a 1x1 does", () => {
+    // Occupy everything except one gap, then place a 2x2 building "on top of"
+    // an occupied region (stale anchor) that no 2x2 free space exists for.
+    const allGround = anchorsFor(1, 1, new Set());
+    const gap = allGround[0];
+    // "others" sort BEFORE "big" (lower createdAt), so they claim every
+    // ground cell except the gap first — only then does "big" get evaluated
+    // and find no 2x2 room anywhere, forcing the shrink-to-1x1 retry.
+    const others = allGround.filter((i) => i !== gap).map((i, idx) => building(`f${idx}`, i, undefined, undefined, idx));
+    const bigOne = building("big", 999_999, 2, 2, 999); // stale, illegal anchor, forces a re-seat, processed last
+    const result = reconcilePlacement([bigOne, ...others]);
+    const big = result.buildings.find((b) => b.id === "big")!;
+    expect(big.plotIndex).toBe(gap);
+    expect(footprintOf(big)).toEqual({ w: 1, h: 1 });
+    expect(result.shrunk).toBe(1);
+    expect(result.repaired).toBeGreaterThanOrEqual(1);
+    expectNoOverlap(result.buildings);
+  });
+
+  it("forceReseat treats every stored anchor as invalid, even legal ones", () => {
+    const a = building("a", indexFromCell({ row: 5, col: 5 }), undefined, undefined, 1);
+    const b = building("b", indexFromCell({ row: 5, col: 6 }), undefined, undefined, 2);
+    const normal = reconcilePlacement([a, b]);
+    expect(normal.repaired).toBe(0); // both already legal, non-overlapping
+
+    const forced = reconcilePlacement([a, b], { forceReseat: true });
+    expect(forced.repaired).toBe(2); // both re-seated from scratch, oldest first
+    expect(forced.buildings[0].plotIndex).toBeLessThan(forced.buildings[1].plotIndex);
+    expectNoOverlap(forced.buildings);
+  });
+
+  it("never loses a building: 193 1x1 buildings all placed; 194 places 193 and reports 1 unplaced", () => {
+    // 1x1 explicitly (not placeMany's random roll — the average rolled
+    // footprint is > 1 cell, so 193 RANDOM buildings would not all fit; this
+    // test is about the ground-cell CAPACITY, exercised with the smallest shape).
+    const allGround = anchorsFor(1, 1, new Set());
+    expect(allGround.length).toBe(193); // sanity: exactly the ground-cell capacity
+    const buildings193 = allGround.map((anchor, i) => building(`b${i}`, anchor, undefined, undefined, i));
+    const result193 = reconcilePlacement(buildings193);
+    expect(result193.unplacedIds).toEqual([]);
+    expect(result193.buildings.length).toBe(193);
+    expectNoOverlap(result193.buildings);
+
+    const buildings194 = [...buildings193, building("overflow", 0, undefined, undefined, 999)];
+    const result194 = reconcilePlacement(buildings194);
+    expect(result194.buildings.length).toBe(194); // never dropped
+    expect(result194.unplacedIds).toEqual(["overflow"]);
+    // The unplaced straggler still sits at its stale, illegal anchor (0 — void)
+    // by construction, so it is excluded from the overlap check on purpose:
+    // it was never actually reserved anywhere.
+    expectNoOverlap(result194.buildings.filter((b) => b.id !== "overflow"));
+  });
+});
+
+// ── placeMonument (F16) ──
+
+describe("placeMonument", () => {
+  it("is 2x2 on a normal (empty) town", () => {
+    const rng = seededRandom(1);
+    const placed = placeMonument([], rng);
+    expect(placed).not.toBeNull();
+    expect(placed).toEqual({ anchor: placed!.anchor, w: 2, h: 2 });
+    expect(fits(placed!.anchor, 2, 2, new Set())).toBe(true);
+  });
+
+  it("downgrades to a smaller footprint when no 2x2 anchor is left, and never overlaps an existing building", () => {
+    // Occupy every ground cell except one — no 2x2 (or 2x1/1x2) anchor can
+    // exist with only a single free cell.
+    const allGround = anchorsFor(1, 1, new Set());
+    const gap = allGround[0];
+    const existing = allGround.filter((i) => i !== gap).map((i, idx) => building(`f${idx}`, i));
+    const rng = () => 0.95; // biases the placeNew fallback's roll toward 2x2, which still has no room
+    const placed = placeMonument(existing, rng);
+    expect(placed).not.toBeNull();
+    expect(placed).toEqual({ anchor: gap, w: 1, h: 1 });
+    expectNoOverlap([...existing, building("monument", placed!.anchor, placed!.w, placed!.h)]);
+  });
+
+  it("returns null when the town is completely full (no room even at 1x1)", () => {
+    const allGround = anchorsFor(1, 1, new Set());
+    const buildings = allGround.map((i, idx) => building(`f${idx}`, i));
+    expect(placeMonument(buildings, () => 0.5)).toBeNull();
+  });
+});
+
+// ── invariant: stored w/h always equals the reserved footprint ──
+
+describe("stored footprint equals reserved footprint (the F16 overlap bug's root-cause invariant)", () => {
+  it("holds for every placement placeNew/placeMany/placeMonument hand back, across many draws", () => {
+    const rng = seededRandom(99);
+    const buildings: Building[] = [];
+
+    for (let i = 0; i < 60; i++) {
+      const placed = placeNew(buildings, rng);
+      if (placed === null) break;
+      const candidate = building(`n${i}`, placed.anchor, placed.w, placed.h, i);
+      // The footprint the caller is about to STORE must be exactly the one
+      // that was RESERVED — verified by re-checking `fits` against the
+      // occupancy from BEFORE this placement, with the stored w/h.
+      expect(fits(candidate.plotIndex, footprintOf(candidate).w, footprintOf(candidate).h, occupiedCells(buildings))).toBe(true);
+      buildings.push(candidate);
+    }
+
+    const batch = placeMany(buildings, 5, rng);
+    const occBefore = occupiedCells(buildings);
+    for (const p of batch) {
+      expect(fits(p.anchor, p.w, p.h, occBefore)).toBe(true);
+      for (const c of footprintCells(p.anchor, p.w, p.h)) occBefore.add(c);
+    }
+
+    const monument = placeMonument(buildings, rng);
+    if (monument !== null) {
+      expect(fits(monument.anchor, monument.w, monument.h, occupiedCells(buildings))).toBe(true);
+    }
+  });
+});

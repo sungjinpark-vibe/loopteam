@@ -88,6 +88,12 @@ export interface Building {
   // first load. A "grow" act (§5) increments this instead of placing a new
   // `Building`.
   exp?: number;
+  // ADDENDUM-08 §2.1: multi-cell footprint. OPTIONAL, absent === 1 — the
+  // entire backward-compat story for the thousands of already-persisted 1x1
+  // buildings: no data migration, no defaulting pass, old JSON stays valid.
+  // Read through `footprintOf` (placement.ts) rather than raw at call sites.
+  w?: 1 | 2; // footprint width in cells; absent === 1
+  h?: 1 | 2; // footprint height in cells; absent === 1
 }
 
 /** Pending material — an over-cap entry waiting for tomorrow (F14). */
@@ -123,7 +129,12 @@ export interface MonthSummary {
 
 export interface TownState {
   townName: string;
-  nextPlotIndex: number; // ADDENDUM-02 §6.4: opened-lot counter (growth frontier), +1 per placed building, never decremented — NOT the next building's position (that's placement.pickPlot, drawn uniformly at random over the open pool)
+  // ADDENDUM-08 §3: the map is fixed at 400 cells, all open from launch —
+  // there is no growth frontier left to count. `nextPlotIndex` (ADDENDUM-02
+  // §6.4) is DELETED, not renamed: an old persisted core still carries the
+  // key, it is simply never read and never written again (no migration
+  // pass needed — same absent-means-nothing discipline `moveHintSeen`
+  // already sets on this same interface).
   streakDays: number;
   longestStreakDays: number;
   lastActOn: string | null; // entry OR no-spend claim

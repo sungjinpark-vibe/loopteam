@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { plotFromIndex } from "./selectors";
 import { applyNewEntry, type EntryDraft } from "./entryActions";
 import type { Building, TownState } from "./types";
 
 function freshTown(overrides: Partial<TownState> = {}): TownState {
   return {
     townName: "우리 동네",
-    nextPlotIndex: 0,
     streakDays: 0,
     longestStreakDays: 0,
     lastActOn: null,
@@ -47,21 +45,23 @@ function callArgs(overrides: Partial<Parameters<typeof applyNewEntry>[0]> = {}):
     noSpendDayCostsSlot: true,
     variantIndex: 0,
     plotIndex: 0,
+    w: 1,
+    h: 1,
     ...overrides,
   };
 }
 
 describe("applyNewEntry — F2/F4 build", () => {
-  it("places a building via plotFromIndex(nextPlotIndex) and consumes one slot when slots remain", () => {
+  it("places a building at the supplied plotIndex/footprint and consumes one slot when slots remain", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
-    const result = applyNewEntry(callArgs({ town, entryId: "e1", buildingId: "b1" }));
+    const result = applyNewEntry(callArgs({ town, entryId: "e1", buildingId: "b1", plotIndex: 42, w: 2, h: 1 }));
 
     expect(result.building).not.toBeNull();
-    expect(result.building?.plotIndex).toBe(0);
+    expect(result.building?.plotIndex).toBe(42);
+    expect(result.building?.w).toBe(2);
+    expect(result.building?.h).toBe(1);
     expect(result.building?.source).toEqual({ kind: "entry", entryId: "e1" });
-    expect(plotFromIndex(result.building!.plotIndex)).toEqual({ row: 0, col: 0 });
     expect(result.entry.buildingId).toBe("b1");
-    expect(result.town.nextPlotIndex).toBe(1);
     expect(result.town.slotsUsedToday).toBe(1);
     expect(result.town.slotsUsedOn).toBe("2026-08-02");
     expect(result.queuedMaterial).toBeNull();
@@ -74,20 +74,18 @@ describe("applyNewEntry — F2/F4 build", () => {
       callArgs({ town, draft: { ...draft, amountKrw: 1_000_000 }, entryId: "e2", buildingId: "b2", createdAt: 2000, variantIndex: 1 }),
     );
     expect(result.building?.plotIndex).toBe(0);
-    expect(result.town.nextPlotIndex).toBe(1);
   });
 
   it("resets the slot count when slotsUsedOn is stale (new day) — F4", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, nextPlotIndex: 5 });
+    const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5 });
     const result = applyNewEntry(callArgs({ town, entryId: "e4", buildingId: "b4", createdAt: 4000 }));
     expect(result.building).not.toBeNull();
     expect(result.town.slotsUsedOn).toBe("2026-08-02");
     expect(result.town.slotsUsedToday).toBe(1);
-    expect(result.town.nextPlotIndex).toBe(6);
   });
 
   it("advancing the date backward grants nothing (F4)", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-05", slotsUsedToday: 5, nextPlotIndex: 5 });
+    const town = freshTown({ slotsUsedOn: "2026-08-05", slotsUsedToday: 5 });
     const result = applyNewEntry(callArgs({ town, entryId: "e4b", buildingId: "b4b", today: "2026-08-02" }));
     expect(result.building).toBeNull(); // no slot freed by travelling backward — falls to F14 queue instead
     expect(result.queuedMaterial).not.toBeNull();
@@ -185,7 +183,7 @@ describe("applyNewEntry — F2/F4 build", () => {
 
 describe("applyNewEntry — F14 materials queue", () => {
   it("pushes to the queue (not overflow) when no slot remains and the queue has room", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5 });
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5 });
     const result = applyNewEntry(callArgs({ town, entryId: "e6", buildingId: "b6", materialQueueMax: 10 }));
     expect(result.building).toBeNull();
     expect(result.queueOverflow).toBe(false);
@@ -200,12 +198,11 @@ describe("applyNewEntry — F14 materials queue", () => {
     expect(result.entry.queued).toBe(true);
     expect(result.entry.buildingId).toBeNull();
     expect(result.town.queue).toEqual([result.queuedMaterial]);
-    expect(result.town.nextPlotIndex).toBe(5); // no building placed yet
   });
 
   it("overflows past materialQueueMax — entry still recorded, no material, town.queue unchanged", () => {
     const queue = [{ entryId: "qe1", categoryId: "food" as const, variantIndex: 0, queuedOn: "2026-08-02", entryYm: "2026-08" }];
-    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5, queue });
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, queue });
     const result = applyNewEntry(callArgs({ town, entryId: "e7", buildingId: "b7", materialQueueMax: 1 }));
     expect(result.building).toBeNull();
     expect(result.queuedMaterial).toBeNull();
@@ -216,7 +213,7 @@ describe("applyNewEntry — F14 materials queue", () => {
   });
 
   it("a queued entry counts as a streak act (F7) even though no building rises yet", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5, lastActOn: "2026-08-01", streakDays: 3, longestStreakDays: 3 });
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, lastActOn: "2026-08-01", streakDays: 3, longestStreakDays: 3 });
     const result = applyNewEntry(callArgs({ town, entryId: "e8", buildingId: "b8" }));
     expect(result.town.streakDays).toBe(4);
     expect(result.town.lastActOn).toBe("2026-08-02");
@@ -224,7 +221,7 @@ describe("applyNewEntry — F14 materials queue", () => {
 
   it("overflow is NOT a streak act", () => {
     const queue = [{ entryId: "qe1", categoryId: "food" as const, variantIndex: 0, queuedOn: "2026-08-02", entryYm: "2026-08" }];
-    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5, queue, lastActOn: "2026-08-01", streakDays: 3, longestStreakDays: 3 });
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, queue, lastActOn: "2026-08-01", streakDays: 3, longestStreakDays: 3 });
     const result = applyNewEntry(callArgs({ town, entryId: "e9", buildingId: "b9", materialQueueMax: 1 }));
     expect(result.town.streakDays).toBe(3);
     expect(result.town.lastActOn).toBe("2026-08-01");
@@ -266,7 +263,7 @@ describe("applyNewEntry — F5 tier celebration", () => {
   });
 
   it("does not fire while the material only queues (no building placed yet)", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 9, highestTierSeen: 0 });
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, highestTierSeen: 0 });
     const buildings: Building[] = Array.from({ length: 9 }, (_, i) => ({
       id: `b${i}`,
       source: { kind: "entry", entryId: `e${i}` },
@@ -298,7 +295,6 @@ describe("applyNewEntry — F15 revocation", () => {
     const town = freshTown({
       slotsUsedOn: "2026-08-02",
       slotsUsedToday: 1, // the 1 slot the claim itself spent
-      nextPlotIndex: 4,
       noSpendDays: ["2026-08-02"],
     });
     const result = applyNewEntry(callArgs({ town, buildings: [nospendBuilding], entryId: "e11", buildingId: "b11" }));
@@ -313,7 +309,6 @@ describe("applyNewEntry — F15 revocation", () => {
     const town = freshTown({
       slotsUsedOn: "2026-08-01",
       slotsUsedToday: 5, // yesterday's count — irrelevant to today's refund decision
-      nextPlotIndex: 4,
       noSpendDays: ["2026-08-01"],
     });
     const pastBuilding = { ...nospendBuilding, source: { kind: "nospend" as const, date: "2026-08-01" }, builtOn: "2026-08-01" };
@@ -353,7 +348,6 @@ describe("applyNewEntry — F15 revocation", () => {
     const town = freshTown({
       slotsUsedOn: "2026-08-02",
       slotsUsedToday: 1, // the 1 slot the claim itself spent
-      nextPlotIndex: 9,
       noSpendDays: ["2026-08-02"],
       highestTierSeen: 0,
     });
@@ -388,14 +382,13 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
   };
 
   it("grows the host instead of building — no new Building, host exp +gain, entry.buildingId = host.id", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0, nextPlotIndex: 5 });
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(
       callArgs({ town, buildings: [host], entryId: "e20", buildingId: "b20", growTargetId: "host1", expGain: 1 }),
     );
     expect(result.building).toBeNull();
     expect(result.grownBuilding).toEqual({ ...host, exp: 1 });
     expect(result.entry.buildingId).toBe("host1");
-    expect(result.town.nextPlotIndex).toBe(5); // unchanged — grow opens no lot
     expect(result.town.slotsUsedToday).toBe(1); // slot IS consumed
   });
 
@@ -436,7 +429,7 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
   });
 
   it("no free slot: a growTargetId still queues — grow is never a free bypass of the F4 daily cap", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5, nextPlotIndex: 5 });
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 5 });
     const result = applyNewEntry(
       callArgs({
         town,

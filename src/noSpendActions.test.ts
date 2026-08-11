@@ -5,7 +5,6 @@ import type { LedgerEntry, TownState } from "./types";
 function freshTown(overrides: Partial<TownState> = {}): TownState {
   return {
     townName: "우리 동네",
-    nextPlotIndex: 0,
     streakDays: 0,
     longestStreakDays: 0,
     lastActOn: null,
@@ -34,6 +33,8 @@ function baseArgs(overrides: Partial<Parameters<typeof claimNoSpendDay>[0]> = {}
     buildingId: "park1",
     createdAt: 1000,
     plotIndex: 0,
+    w: 1,
+    h: 1,
     ...overrides,
   };
 }
@@ -45,6 +46,8 @@ describe("claimNoSpendDay — F15", () => {
     expect(result!.building.source).toEqual({ kind: "nospend", date: "2026-08-02" });
     expect(result!.building.categoryId).toBe("park");
     expect(result!.building.plotIndex).toBe(0);
+    expect(result!.building.w).toBe(1);
+    expect(result!.building.h).toBe(1);
     expect(result!.town.noSpendDays).toEqual(["2026-08-02"]);
     expect(result!.town.slotsUsedToday).toBe(3);
     expect(result!.town.streakDays).toBe(1);

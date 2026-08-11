@@ -1,25 +1,29 @@
 /**
- * 저축 블록 (savings block) — the fixed-cell row at the town's head.
- * ADDENDUM-01 §2.4a / §2.3 / §2.5: five real savings structures (one per
- * `SAVING_CATEGORY_IDS`) + one 안내판 signpost, each sized from the shared
- * ladder length (§2.5's shared-longest rule) but leveled from its OWN
+ * 저축 블록 (savings block) — ADDENDUM-08 §1.1: five real savings structures
+ * (one per `SAVING_CATEGORY_IDS`) standing on the map's fixed `S` cells (row
+ * 1, cols 7..11, `savingsCells()`/`savingsCellFor`), each sized from the
+ * shared ladder length (§2.5's shared-longest rule) but leveled from its OWN
  * cumulative amount and its OWN ladder (`ladderFor`).
  *
- * §2.4a's trap: this MUST return a `<>…</>` fragment of direct grid items,
- * never a wrapping element — a wrapper collapses every lot into one cell.
+ * ADDENDUM-08 drops the old 안내판 signpost: the old map reserved extra
+ * `TOWN_COLUMNS`-wide savings-row cells beyond the five structures; the new
+ * fixed map has exactly 5 `S` cells and nothing else to signpost.
  *
- * Does NOT raise its own toast (§2.3/§2.6a forbid a `@toss/tds-mobile`
- * import here — it would drag the TDS runtime into `TownGrid.test.tsx`).
- * `useTownStore` owns the level-up toast through the existing Notice FIFO;
- * this component only owns the one-shot rise animation and its auto-scroll,
- * keyed on `justGrew.seq` (the same `scrollIntoView` mechanism `TownGrid`'s
+ * This MUST return a `<>…</>` fragment of direct grid items, never a
+ * wrapping element — a wrapper collapses every lot into one cell.
+ *
+ * Does NOT raise its own toast (forbids a `@toss/tds-mobile` import here —
+ * it would drag the TDS runtime into `TownGrid.test.tsx`). `useTownStore`
+ * owns the level-up toast through the existing Notice FIFO; this component
+ * only owns the one-shot rise animation and its auto-scroll, keyed on
+ * `justGrew.seq` (the same `scrollIntoView` mechanism `TownGrid`'s
  * `justBuiltId` effect already uses).
  *
- * Round-4 finding C1 #2: `justGrew` is a one-shot event, not sticky state —
- * once the rise animation's native `animationend` fires, `onRiseSettled`
- * (owned by `useTownStore`, mirrors `dismissNotice`'s shape) resets it to
- * `null` so the structure falls back to its `idleAnim` loop instead of
- * staying in `.savings-plot--rise` forever.
+ * `justGrew` is a one-shot event, not sticky state — once the rise
+ * animation's native `animationend` fires, `onRiseSettled` (owned by
+ * `useTownStore`, mirrors `dismissNotice`'s shape) resets it to `null` so
+ * the structure falls back to its `idleAnim` loop instead of staying in
+ * `.savings-plot--rise` forever.
  */
 import { memo, useEffect, useMemo, useRef } from "react";
 import { CATEGORY_CONTENT, SAVINGS_STRUCTURE } from "../content.placeholder";
@@ -27,8 +31,6 @@ import { ladderFor, towerSegments } from "../selectors";
 import {
   SAVINGS_ROW_ORDER,
   districtLadderLength,
-  freeSavingsCells,
-  roadSideOf,
   savingsCellFor,
   savingsPlotHeightPx,
   savingsPlotTemplateRows,
@@ -77,7 +79,6 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
 
   const plots = SAVINGS_ROW_ORDER.map((id) => {
     const { row, col } = savingsCellFor(id);
-    const side = roadSideOf(col);
     const content = SAVINGS_STRUCTURE[id];
     const category = CATEGORY_CONTENT[id];
     const ownLadder = ladderFor(id, ladder, ladderOverrides);
@@ -108,7 +109,7 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
         key={id}
         className={
           `savings-plot savings-plot--${content.kind} savings-plot--cap-${content.capShape}` +
-          `${isEmpty ? " savings-plot--empty" : ""}${isRising ? " savings-plot--rise" : ""} town-tile--${side}`
+          `${isEmpty ? " savings-plot--empty" : ""}${isRising ? " savings-plot--rise" : ""}`
         }
         data-structure-id={id}
         style={{
@@ -156,21 +157,7 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
     );
   });
 
-  // The 마을 안내판 (village signpost) — the first free savings-row cell in
-  // column-rank order. Decoration only (rule R-2): no data, never persisted,
-  // so it never needs to change once mounted.
-  const signposts = freeSavingsCells().map(({ row, col }) => (
-    <div key={`${row},${col}`} className="savings-signpost" style={{ gridColumn: col + 1, gridRow: row + 1 }} aria-hidden="true">
-      🪧
-    </div>
-  ));
-
-  return (
-    <>
-      {plots}
-      {signposts}
-    </>
-  );
+  return <>{plots}</>;
 }
 
 export const SavingsRow = memo(SavingsRowImpl);

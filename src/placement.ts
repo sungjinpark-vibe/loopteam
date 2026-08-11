@@ -1,343 +1,282 @@
 /**
- * Random building placement + self-healing reconciler — ADDENDUM-02 §3.
- * Pure domain. No React, no storage, no Date, no Math.random (rule R-6 — the
- * only random draws here come through the injected `rng`/`RandomPort`).
+ * Random footprint placement + self-healing reconciler — ADDENDUM-08 §3.
+ * Pure domain. No React, no storage, no Date, no Math.random (the only
+ * random draws here come through the injected `rng`).
  *
- * Three concepts, named apart (§3.1):
- *  - opened lots (the town's growth frontier) — `TownState.nextPlotIndex`
- *  - the open pool (which lot indices exist right now) — `openPlotCount` below
- *  - occupancy/position (which lot a building stands on) — `Building.plotIndex`
- *
- * `plotFromIndex` / `TOWN_COLUMNS` (selectors.ts) and the whole road layout
- * (townLayout.ts) are read-only here (rule R-5) — this module only decides
- * WHICH index a building holds, never what an index means on screen.
+ * The fixed 20x20 map (`townLayout.ts`) is read-only here: this module only
+ * decides WHICH cells a building's footprint occupies, never what a cell
+ * means on screen. `plotIndex` is a building's top-left (anchor) cell.
  */
-import { isMaskedPlotIndex, LOTS_PER_BLOCK, unmaskedLotsInBlock } from "./townLayout";
+import { CELL_COUNT, cellFromIndex, footprintCells, indexFromCell, inBounds, isBuildable } from "./townLayout";
 import type { Building } from "./types";
 
-/**
- * Minimal whole-block count whose cumulative UNMASKED capacity (sum of
- * townLayout.ts's `unmaskedLotsInBlock` over blocks 0..blocks-1) exceeds
- * `need` — ADDENDUM-07's block-edge masking means a raw block no longer
- * always holds LOTS_PER_BLOCK buildable lots, so `poolSize` below grows the
- * pool in units of "enough blocks that the UNMASKED count clears `need`",
- * not "enough blocks that the RAW count clears `need`" (the pre-masking
- * rule). O(blocks) — always terminates, since `unmaskedLotsInBlock` is > 0
- * every iteration (townLayout.ts's `MIN_UNMASKED_LOTS_PER_BLOCK` floor).
- */
-function blocksForUnmaskedCapacity(need: number): number {
-  let blocks = 0;
-  let capacity = 0;
-  do {
-    capacity += unmaskedLotsInBlock(blocks);
-    blocks++;
-  } while (capacity <= need);
-  return blocks;
+export interface Placed {
+  anchor: number;
+  w: 1 | 2;
+  h: 1 | 2;
+}
+
+/** `w`/`h` read discipline (ADDENDUM-08 §2.1) — absent means 1x1, everywhere. */
+export function footprintOf(b: Pick<Building, "w" | "h">): { w: number; h: number } {
+  return { w: b.w ?? 1, h: b.h ?? 1 };
+}
+
+/** ADDENDUM-08 §2.2 weights: 1x1 60%, 1x2/2x1 15% each, 2x2 10%. */
+export function rollFootprint(rng: () => number): { w: 1 | 2; h: 1 | 2 } {
+  const r = rng();
+  if (r < 0.6) return { w: 1, h: 1 };
+  if (r < 0.75) return { w: 1, h: 2 };
+  if (r < 0.9) return { w: 2, h: 1 };
+  return { w: 2, h: 2 };
+}
+
+export function occupiedCells(buildings: readonly Building[]): Set<number> {
+  const cells = new Set<number>();
+  for (const b of buildings) {
+    const { w, h } = footprintOf(b);
+    for (const cell of footprintCells(b.plotIndex, w, h)) cells.add(cell);
+  }
+  return cells;
 }
 
 /**
- * The lot count the growth pool must cover, for a given growth frontier
- * (`plotsOpened`, i.e. `nextPlotIndex`) and the town's CURRENT occupancy.
- *
- * NOT simply `max(plotsOpened, highest-occupied-index)`, despite that being
- * ADDENDUM-02 §3.2's literal code block — that version folds every occupied
- * index into the pool unconditionally, so one random draw landing near the
- * top of the currently open block (an ordinary, non-corrupt outcome) drags
- * the pool's size to that draw's position instead of to the number of
- * buildings actually built. That breaks §3.4's growth table / §6.1's F2 AC /
- * §6.6's proposed invariant (town area becomes a function of the dice, not
- * of history), and it makes `reconcilePlacement` (below) see a "mismatch"
- * and fire a boot-time write on every valid, freshly-randomly-placed town —
- * the exact case §3.6 point 2 promises zero writes for. Escalated to
- * planner/director rather than silently deviated from the addendum text
- * (ADDENDUM-02 is not yet approved) — see the client-dev report for this task.
- *
- * The bump below fires ONLY when the frontier-only pool would actually be
- * unsafe for this occupancy: an index it cannot render (DE-2/G1), or so many
- * occupied lots that none would be left free (G2). Both branches are proven
- * safe for ANY (plotsOpened, taken) pair, including adversarial/corrupt
- * ones — see `poolSize`'s doc for the two-line proof of each.
- *
- * Under the real `pickPlot`/`allocatePlots` pipeline this never fires: every
- * live draw is already bounded by the SAME frontier-only pool it is about to
- * enlarge (`plotsOpened` only ever grows by exactly `+ 1` per placed
- * building — the producer call sites, ADDENDUM-02 §3.5), so by induction
- * `taken.size <= plotsOpened` and every occupied index is already
- * `< blocksForUnmaskedCapacity(plotsOpened) * LOTS_PER_BLOCK` before this
- * function is asked. It exists to protect the one case that genuinely needs
- * it: a `plotIndex` that did NOT come from this pipeline — an F12 import,
- * hand-edited storage, or a corrupt-recovery survivor `reconcilePlacement`
- * chose not to re-seat because it was a valid, unique, non-negative integer
- * (just an implausibly large one).
- *
- * ADDENDUM-07 correction: `framedPool` here MUST be the same masking-aware
- * bound `poolSize` itself uses (`blocksForUnmaskedCapacity(frontier) *
- * LOTS_PER_BLOCK`), not the pre-masking `renderedTileCount(frontier + 1)`.
- * The raw pool is now wider than `renderedTileCount` alone accounts for
- * (block-edge masking needs MORE raw blocks per unit of buildable capacity),
- * so a `renderedTileCount`-based threshold is too tight: an ordinary,
- * perfectly legitimate `pickPlot` draw routinely lands past it, which fires
- * the "corrupt data" escape valve on completely normal input — and since the
- * valve's own effect is to WIDEN the pool further (raising the threshold
- * every subsequent call must also clear), this compounds every draw into an
- * unbounded runaway (caught empirically: AC-P1's 1,000-placement trial blew
- * `pool` past 100,000 by build ~200 before this fix).
+ * True iff every cell of the `w`x`h` footprint anchored at `anchor` is in
+ * bounds, `ground`, and not already occupied. Bounds are checked PER CELL
+ * here (not via `footprintCells`, which trusts its caller) — that is what
+ * stops a 2-wide footprint from wrapping the row edge (col 19 -> col 0).
  */
-export function requiredLots(plotsOpened: number, taken: ReadonlySet<number>): number {
-  const frontier = Math.max(plotsOpened, 0);
-  const framedPool = blocksForUnmaskedCapacity(frontier) * LOTS_PER_BLOCK;
-  let highest = 0;
-  for (const i of taken) if (Number.isInteger(i) && i >= 0) highest = Math.max(highest, i + 1);
-  if (highest > framedPool || taken.size >= framedPool) return Math.max(highest, taken.size);
-  return frontier;
+export function fits(anchor: number, w: number, h: number, occupied: ReadonlySet<number>): boolean {
+  const { row, col } = cellFromIndex(anchor);
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const r = row + dy;
+      const c = col + dx;
+      if (!inBounds(r, c) || !isBuildable(r, c)) return false;
+      if (occupied.has(indexFromCell({ row: r, col: c }))) return false;
+    }
+  }
+  return true;
 }
 
-/**
- * Every plot index the town currently shows — the single pool used by
- *   (a) a new building's random landing spot,
- *   (b) a move's legal destinations, and
- *   (c) TownGrid's tile count.
- * One definition, three consumers (rule R-5).
- *
- * `poolSize = blocksForUnmaskedCapacity(need) * LOTS_PER_BLOCK`, need =
- * `requiredLots(...)` — now ITSELF masking-aware (see its doc), so both
- * functions size the pool by the same "add whole blocks until their
- * UNMASKED capacity clears the target" rule; ADDENDUM-07's block-edge
- * masking means a raw block no longer always holds `LOTS_PER_BLOCK`
- * BUILDABLE lots, so this is stricter than the pre-masking rule
- * (`renderedTileCount`, RAW capacity only).
- *
- * `requiredLots` returns one of two values, and both make the two guarantees
- * below hold for ANY `(plotsOpened, taken)` pair — not just ones a real game
- * session could produce:
- *
- *   - the escape valve fired: need = max(highest, taken.size). By
- *     `blocksForUnmaskedCapacity`'s own loop condition,
- *     `unmaskedCapacity(blocks) > need >= highest > every occupied index`
- *     (G1) and `unmaskedCapacity(blocks) > need >= taken.size` (G2). Since
- *     `poolSize = blocks * LOTS_PER_BLOCK >= unmaskedCapacity(blocks)` (a
- *     block's raw lot count is never less than its unmasked one), both
- *     bounds carry through to `poolSize`.
- *   - it didn't: need = plotsOpened, and by the valve's own NOT-firing
- *     condition (now itself stated in `blocksForUnmaskedCapacity` terms),
- *     `highest <= framedPool` and `taken.size < framedPool` where
- *     `framedPool = blocksForUnmaskedCapacity(need) * LOTS_PER_BLOCK =
- *     poolSize` exactly — G1 and G2 again, with no gap between the bound
- *     `requiredLots` checked and the pool `poolSize` actually returns (this
- *     is what closes the runaway: the NEXT call's threshold is derived from
- *     the SAME formula the previous call's pool was sized by, so a
- *     legitimate draw can never exceed it).
- *
- * G1 (DE-2, nothing invisible): no building can ever sit outside the
- * rendered grid. G2 (there is ALWAYS somewhere to put a building): the
- * free-lot count is >= 1 at EVERY town size, forever — and since
- * `freePlots`/`pickPlotIn` (below) additionally exclude every MASKED index,
- * G2 here means a free UNMASKED lot, the guarantee that actually matters (a
- * masked index was never buildable). `unmaskedLotsInBlock`'s floor
- * (`MIN_UNMASKED_LOTS_PER_BLOCK` = 8, townLayout.ts) is what makes growing
- * the pool by one block always restore G2, independent of the specific
- * `decorVariant` hash: >= 8 fresh unmasked lots land every time it widens.
- */
-export function poolSize(plotsOpened: number, taken: ReadonlySet<number>): number {
-  return blocksForUnmaskedCapacity(requiredLots(plotsOpened, taken)) * LOTS_PER_BLOCK;
-}
-
-/** Fresh, mutable Set — callers may add to it (`allocatePlots` does). */
-export function occupiedPlots(buildings: readonly Building[]): Set<number> {
-  const taken = new Set<number>();
-  for (const b of buildings) taken.add(b.plotIndex);
-  return taken;
-}
-
-export function openPlotCount(plotsOpened: number, buildings: readonly Building[]): number {
-  return poolSize(plotsOpened, occupiedPlots(buildings));
-}
-
-/**
- * Free UNMASKED lots, ascending. Bounded by the pool, so O(open lots) — one
- * pass per save. A masked index is never free — it was never buildable
- * (ADDENDUM-07) — so it is excluded here exactly like an occupied one.
- */
-export function freePlots(plotsOpened: number, buildings: readonly Building[]): number[] {
-  const taken = occupiedPlots(buildings);
-  const limit = poolSize(plotsOpened, taken);
+// ponytail: scans all 400 cells per call — fine at this town size (one map,
+// never grows). Index by cell if the map ever grows past a few thousand.
+export function anchorsFor(w: number, h: number, occupied: ReadonlySet<number>): number[] {
   const out: number[] = [];
-  for (let i = 0; i < limit; i++) if (!taken.has(i) && !isMaskedPlotIndex(i)) out.push(i);
+  for (let i = 0; i < CELL_COUNT; i++) if (fits(i, w, h, occupied)) out.push(i);
   return out;
 }
 
-/**
- * Where a NEWLY CONSTRUCTED building lands: a uniformly random free UNMASKED
- * lot in the open pool (the SAME pool `poolSize`/`openPlotCount` report —
- * R-5). `taken` is the occupancy BEFORE this building. A masked index is
- * excluded exactly like an occupied one — it was never buildable (ADDENDUM-07).
- *
- * By G2 (`poolSize`'s doc, masking-aware) the free-UNMASKED-lot count is >= 1
- * for ANY `(plotsOpened, taken)` pair, so the fallback below is provably
- * unreachable, not merely unreachable for well-formed input. It exists only
- * so a save can NEVER throw on pathological input: a throw here loses a real
- * ledger entry, the one failure this app may not have.
- */
-export function pickPlotIn(plotsOpened: number, taken: ReadonlySet<number>, rng: () => number): number {
-  const limit = poolSize(plotsOpened, taken);
-  const pool: number[] = [];
-  for (let i = 0; i < limit; i++) if (!taken.has(i) && !isMaskedPlotIndex(i)) pool.push(i);
-  if (pool.length === 0) return requiredLots(plotsOpened, taken);
+function pickAnchorIn(occupied: ReadonlySet<number>, w: number, h: number, rng: () => number): number | null {
+  const anchors = anchorsFor(w, h, occupied);
+  if (anchors.length === 0) return null;
   const r = Math.min(Math.max(rng(), 0), 0.999_999_999); // rng() === 1 must not index past the end
-  return pool[Math.floor(r * pool.length)];
+  return anchors[Math.floor(r * anchors.length)];
 }
 
-export function pickPlot(plotsOpened: number, buildings: readonly Building[], rng: () => number): number {
-  return pickPlotIn(plotsOpened, occupiedPlots(buildings), rng);
+export function pickAnchor(buildings: readonly Building[], w: number, h: number, rng: () => number): number | null {
+  return pickAnchorIn(occupiedCells(buildings), w, h, rng);
 }
 
 /**
- * N distinct lots for one F14 queue drain — no two drained buildings may
- * collide, and each must be legal at the moment it is drawn. `plotsOpened + k`
- * is what lets the k-th drained building see the block its predecessor opened.
+ * The downgrade path for a rolled footprint (§3.1): starting from 2x2 walks
+ * the full chain 2x2 -> 2x1 -> 1x2 -> 1x1; starting from 2x1 or 1x2 downgrades
+ * straight to 1x1 (skipping the other non-square shape); 1x1 has nowhere
+ * smaller to go.
  */
-export function allocatePlots(
-  plotsOpened: number,
-  buildings: readonly Building[],
-  count: number,
-  rng: () => number,
-): number[] {
-  const taken = occupiedPlots(buildings); // fresh Set — safe to mutate
-  const out: number[] = [];
+function downgradeChain(rolled: { w: 1 | 2; h: 1 | 2 }): Array<{ w: 1 | 2; h: 1 | 2 }> {
+  if (rolled.w === 2 && rolled.h === 2) {
+    return [
+      { w: 2, h: 2 },
+      { w: 2, h: 1 },
+      { w: 1, h: 2 },
+      { w: 1, h: 1 },
+    ];
+  }
+  if (rolled.w === 1 && rolled.h === 1) return [{ w: 1, h: 1 }];
+  return [rolled, { w: 1, h: 1 }];
+}
+
+export function placeNew(buildings: readonly Building[], rng: () => number): Placed | null {
+  const rolled = rollFootprint(rng);
+  const occupied = occupiedCells(buildings);
+  for (const shape of downgradeChain(rolled)) {
+    const anchor = pickAnchorIn(occupied, shape.w, shape.h, rng);
+    if (anchor !== null) return { anchor, w: shape.w, h: shape.h };
+  }
+  return null; // town genuinely full even at 1x1 — caller queues it (§3.1 step 3)
+}
+
+/**
+ * N distinct, non-overlapping placements in one pass, for a queue/settlement
+ * drain — each accumulates into the SAME occupied set so no two collide. May
+ * return FEWER than `count` when the town fills up mid-drain; never throws.
+ */
+export function placeMany(buildings: readonly Building[], count: number, rng: () => number): Placed[] {
+  const occupied = occupiedCells(buildings);
+  const out: Placed[] = [];
   for (let k = 0; k < count; k++) {
-    const idx = pickPlotIn(plotsOpened + k, taken, rng);
-    taken.add(idx);
-    out.push(idx);
+    const rolled = rollFootprint(rng);
+    let placed: Placed | null = null;
+    for (const shape of downgradeChain(rolled)) {
+      const anchor = pickAnchorIn(occupied, shape.w, shape.h, rng);
+      if (anchor !== null) {
+        placed = { anchor, w: shape.w, h: shape.h };
+        break;
+      }
+    }
+    if (placed === null) break; // full even at 1x1 — stop, hand back what we placed so far
+    for (const cell of footprintCells(placed.anchor, placed.w, placed.h)) occupied.add(cell);
+    out.push(placed);
   }
   return out;
 }
 
-// ── §4 — move via long-press (ADDENDUM-02 §4.1) ──
+/**
+ * F16 monument placement (ADDENDUM-08 §2.2): tries 2x2 first — monuments are
+ * the town's landmark — and only downgrades (via the normal `placeNew` roll
+ * + downgrade chain) when no 2x2 anchor is left. Whatever this returns IS
+ * what was reserved: the caller MUST store this exact w/h on the Building,
+ * never override it — a stored footprint larger than what was reserved
+ * leaves the extra cells unclaimed, so the next building placed can land
+ * inside the monument (bug, not a stylistic choice).
+ */
+export function placeMonument(buildings: readonly Building[], rng: () => number): Placed | null {
+  const anchor = pickAnchor(buildings, 2, 2, rng);
+  if (anchor !== null) return { anchor, w: 2, h: 2 };
+  return placeNew(buildings, rng); // town too full for 2x2 — a smaller monument, never overlapping
+}
 
-export type MoveRejection = "not-found" | "same-plot" | "out-of-town" | "occupied";
+// ── move via long-press ──
+
+export type MoveRejection = "not-found" | "same-plot" | "out-of-town" | "occupied" | "no-fit";
 
 export type MoveResult =
   | { ok: true; buildings: Building[]; from: number; to: number }
   | { ok: false; reason: MoveRejection };
 
 /**
- * The ONLY mutator of `Building.plotIndex` outside placement-time (rule R-4).
- * Pure: returns a new array with exactly one building's `plotIndex` replaced.
- * Never throws, never mutates an input, and touches NOTHING else on the
- * building — not `id`, `source`, `categoryId`, `variantIndex`, `builtOn` or
- * `createdAt` (AC-M3).
+ * Checked in order:
+ *   not-found  - the building must exist
+ *   same-plot  - `toAnchor === building.plotIndex` (UI treats this as cancel)
+ *   out-of-town - `toAnchor` outside the grid, or its cell isn't `ground`
+ *   occupied   - another LIVE building already holds the anchor cell
+ *   no-fit     - the full footprint doesn't fit at `toAnchor` (terrain, bounds,
+ *                or another building's cell anywhere in the footprint)
  *
- * Checked in order (V1-V4, §4.1):
- *   V1 the building must exist                      -> "not-found"
- *   V2 `to === building.plotIndex`                   -> "same-plot" (UI treats this as cancel, not an error)
- *   V3 `to` must be a non-negative integer inside the CURRENT open pool
- *      (`openPlotCount` over the pre-move occupancy) AND not a MASKED index
- *      (ADDENDUM-07 — a void cell was never a lot)  -> "out-of-town" (D-37:
- *      a building may only move among lots the town has already grown into;
- *      reuses this same reason code rather than inventing a new one, since a
- *      masked cell is exactly as "not in the town" to a mover as one past the
- *      pool boundary)
- *   V4 no other LIVE building may already hold `to`  -> "occupied" (D-34:
- *      rejected, not swapped)
- *
- * V5 (frontage) and V6 (savings cells unreachable) need no runtime check —
- * both are structural over the destination space (every plot index maps
- * through `cellFromIndex` to a cell with road frontage, and no plot index
- * ever aliases a savings cell). V7 (every building kind is movable, D-35) is
- * satisfied by this function taking no `categoryId`/`source` branch at all.
+ * Self-overlap is allowed: the mover's OWN current cells are excluded from
+ * the occupancy checked here, so nudging a 2x2 one cell over never rejects
+ * on its own footprint.
  */
-export function moveBuilding(
-  plotsOpened: number,
-  buildings: readonly Building[],
-  buildingId: string,
-  toPlotIndex: number,
-): MoveResult {
+export function moveBuilding(buildings: readonly Building[], buildingId: string, toAnchor: number): MoveResult {
   const index = buildings.findIndex((b) => b.id === buildingId);
   if (index === -1) return { ok: false, reason: "not-found" };
 
   const building = buildings[index];
-  if (toPlotIndex === building.plotIndex) return { ok: false, reason: "same-plot" };
-  if (
-    !Number.isInteger(toPlotIndex) ||
-    toPlotIndex < 0 ||
-    toPlotIndex >= openPlotCount(plotsOpened, buildings) ||
-    isMaskedPlotIndex(toPlotIndex)
-  ) {
+  if (toAnchor === building.plotIndex) return { ok: false, reason: "same-plot" };
+  if (!Number.isInteger(toAnchor) || toAnchor < 0 || toAnchor >= CELL_COUNT) {
     return { ok: false, reason: "out-of-town" };
   }
-  if (buildings.some((b) => b.plotIndex === toPlotIndex)) return { ok: false, reason: "occupied" };
+  const { row, col } = cellFromIndex(toAnchor);
+  if (!isBuildable(row, col)) return { ok: false, reason: "out-of-town" };
+
+  const otherCells = occupiedCells(buildings.filter((b) => b.id !== buildingId));
+  if (otherCells.has(toAnchor)) return { ok: false, reason: "occupied" };
+
+  const { w, h } = footprintOf(building);
+  if (!fits(toAnchor, w, h, otherCells)) return { ok: false, reason: "no-fit" };
 
   const next = buildings.slice() as Building[];
-  next[index] = { ...building, plotIndex: toPlotIndex };
-  return { ok: true, buildings: next, from: building.plotIndex, to: toPlotIndex };
+  next[index] = { ...building, plotIndex: toAnchor };
+  return { ok: true, buildings: next, from: building.plotIndex, to: toAnchor };
 }
 
+// ── reconcile (self-heal, runs on every boot) ──
+
 export interface ReconcileResult {
-  /** Same order and same object identities as the input, except repaired entries. Identical reference when repaired === 0. */
+  /** Same order and object identities as the input, except repaired entries. Identical reference when repaired === 0. */
   buildings: Building[];
-  /**
-   * >= buildings.length, and `openPlotCount(plotsOpened, buildings) > every
-   * plotIndex` (DE-2/G1 — see `poolSize`'s doc). NOT itself `> every
-   * plotIndex`: a valid random placement can legitimately hold an index past
-   * the raw counter (e.g. building #1 landing at plot 11 of its 12-lot
-   * block) without that being a repair — only the rendered POOL, not this
-   * counter, is guaranteed to be past it. Equals the input `plotsOpened`
-   * whenever nothing needed widening, which is what makes a valid town's
-   * boot a zero-write no-op (§3.6 point 2).
-   */
-  plotsOpened: number;
+  /** Count of buildings whose plotIndex changed (re-seated), shrinks included. */
   repaired: number;
+  /** Of `repaired`, how many also had their footprint shrunk to 1x1 because their original size had no legal anchor anywhere. */
+  shrunk: number;
+  /** Ids that had no legal anchor even at 1x1 — the town is genuinely full. Kept in `buildings`, untouched, at their stale position: NEVER dropped. The caller (queue) is responsible for placing them once room opens up. */
+  unplacedIds: string[];
+}
+
+function firstFitAnchor(w: number, h: number, occupied: ReadonlySet<number>): number | null {
+  for (let i = 0; i < CELL_COUNT; i++) if (fits(i, w, h, occupied)) return i;
+  return null;
 }
 
 /**
- * Deterministic by (createdAt, id, array position), so two devices repairing
- * the same corrupt export land on the same town. Keyed by POSITION, never by
- * id, so duplicate ids cannot collapse two buildings into one.
- * O(n log n) for the sort + O(n) passes — microseconds even on the ~5,400
- * building dense fixture, inside the <1s first-paint budget (MVP-SPEC §10.4).
- *
- * ADDENDUM-07: a building sitting on a MASKED index is ALSO a loser, exactly
- * like a duplicate/NaN/negative/fractional one — a masked cell is void and
- * was never a legal lot, so a legacy save built before block-edge masking
- * (or any save with a hand-edited/imported plotIndex) deterministically
- * re-seats onto an unmasked lot at boot, the same self-healing story §3.6
- * already tells for every other corrupt shape.
+ * Deterministic by (createdAt, id, plotIndex), so two devices repairing the
+ * same corrupt/relayouted town land on the same result. `opts.forceReseat`
+ * treats every stored anchor as invalid (ADDENDUM-08 §4's version-4
+ * migration: old plotIndex values are meaningless in the new coordinate
+ * space) — every building lays out fresh in sort order, oldest first.
  */
-export function reconcilePlacement(plotsOpened: number, buildings: readonly Building[]): ReconcileResult {
-  const order = buildings.map((_, pos) => pos).sort((x, y) => {
-    const a = buildings[x], b = buildings[y];
-    return a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : x - y);
-  });
+export function reconcilePlacement(buildings: readonly Building[], opts?: { forceReseat?: boolean }): ReconcileResult {
+  const forceReseat = opts?.forceReseat ?? false;
+  const order = buildings
+    .map((_, pos) => pos)
+    .sort((x, y) => {
+      const a = buildings[x];
+      const b = buildings[y];
+      return a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : a.plotIndex - b.plotIndex);
+    });
 
-  const taken = new Set<number>();
-  const losers: number[] = [];
-  for (const pos of order) {
-    const i = buildings[pos].plotIndex;
-    if (Number.isInteger(i) && i >= 0 && !taken.has(i) && !isMaskedPlotIndex(i)) taken.add(i); // earliest claimant keeps the lot
-    else losers.push(pos); // duplicate, NaN, negative, fractional, or masked
-  }
-
+  const occupied = new Set<number>();
   let repaired = 0;
+  let shrunk = 0;
+  const unplacedIds: string[] = [];
   const fixed = buildings.slice() as Building[];
-  let cursor = 0;
-  for (const pos of losers) {
-    while (taken.has(cursor) || isMaskedPlotIndex(cursor)) cursor++; // never re-seat onto a masked cell either
-    taken.add(cursor);
-    fixed[pos] = { ...buildings[pos], plotIndex: cursor };
+
+  for (const pos of order) {
+    const b = buildings[pos];
+    const { w, h } = footprintOf(b);
+
+    if (!forceReseat && fits(b.plotIndex, w, h, occupied)) {
+      for (const cell of footprintCells(b.plotIndex, w, h)) occupied.add(cell);
+      continue; // legal where it already stands — keep, no write
+    }
+
+    let anchor = firstFitAnchor(w, h, occupied);
+    let nextW = w;
+    let nextH = h;
+    if (anchor === null && (w > 1 || h > 1)) {
+      anchor = firstFitAnchor(1, 1, occupied);
+      nextW = 1;
+      nextH = 1;
+      if (anchor !== null) shrunk++;
+    }
+
+    if (anchor === null) {
+      // No room even at 1x1. The building is NEVER dropped — it keeps every
+      // field except its position, and re-attempts a seat on the next
+      // reconcile (i.e. the next boot, or as soon as a cell frees up).
+      //
+      // It is parked at -1 rather than left on its stale anchor, because a
+      // stale anchor is a position placement never granted: those cells are
+      // already owned by a seated building, so the renderer's cell->building
+      // map would let this phantom OVERWRITE a real building and hide it.
+      // Same invariant as the F16 monument — stored footprint is always the
+      // one placement actually reserved. -1 is outside 0..399, so every
+      // consumer that walks the grid skips it by construction.
+      unplacedIds.push(b.id);
+      fixed[pos] = { ...b, plotIndex: -1 };
+      continue;
+    }
+
+    for (const cell of footprintCells(anchor, nextW, nextH)) occupied.add(cell);
+    fixed[pos] =
+      nextW === w && nextH === h ? { ...b, plotIndex: anchor } : { ...b, plotIndex: anchor, w: nextW as 1 | 2, h: nextH as 1 | 2 };
     repaired++;
   }
 
-  // The DE-2 safety net (requiredLots) only widens `plotsOpened` when the
-  // final occupancy actually needs it — an index beyond what the frontier
-  // implies (F12 import, corrupt-recovery survivor). For a valid, freshly
-  // random-placed town (repaired === 0, taken produced entirely by
-  // pickPlot/allocatePlots) this is a no-op: `Math.max(plotsOpened,
-  // buildings.length)` already equals the input `plotsOpened`, so the caller
-  // sees no mismatch and issues no boot write (§3.6 point 2).
-  const safeFrontier = Math.max(plotsOpened, buildings.length);
   return {
-    buildings: repaired === 0 ? (buildings as Building[]) : fixed,
-    plotsOpened: requiredLots(safeFrontier, taken),
+    buildings: repaired === 0 && unplacedIds.length === 0 ? (buildings as Building[]) : fixed,
     repaired,
+    shrunk,
+    unplacedIds,
   };
 }

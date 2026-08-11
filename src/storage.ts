@@ -188,6 +188,18 @@ export interface BootState {
    * install never sees this (see `emptyIndex()`'s own comment).
    */
   relayout: boolean;
+  /**
+   * ADDENDUM-08 §4: identical condition to `relayout` — a version<4 index
+   * means every stored `plotIndex` was drawn in the OLD (serpentine/
+   * growing-town) coordinate space and is meaningless on the fixed 20x20
+   * grid, not just "needs a screen refresh". Surfaced as its own named flag
+   * (rather than reusing `relayout` at the call site) so `useTownStore.ts`
+   * reads `boot.forceReseat` for "pass `{ forceReseat: true }` into
+   * `reconcilePlacement`" and `boot.relayout` for "show the one-time
+   * notice" — two different consumers of the same fact, not one boolean
+   * doing double duty by name alone.
+   */
+  forceReseat: boolean;
 }
 
 /**
@@ -234,7 +246,6 @@ function rebuildIndexFromKeys(port: StoragePort): StorageIndex {
 export function defaultTownState(): TownState {
   return {
     townName: "우리 동네",
-    nextPlotIndex: 0,
     streakDays: 0,
     longestStreakDays: 0,
     lastActOn: null,
@@ -634,22 +645,21 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
             reason: "cumulativeSavingsKrw may be understated — one or more entries chunks were also unreadable",
           });
         }
-        // Recovered buildings ARE fully known (buildings chunks were read
-        // above independent of the core loss) — reuse their plot indices so
-        // a freshly-placed building never collides with one that survived.
-        const nextPlotIndex = buildings.reduce((max, b) => Math.max(max, b.plotIndex + 1), 0);
         // noSpendDays and queue were already fully recoverable from data this
         // same function reads anyway (buildings above, recoveredEntries
         // here) — dropping them to defaultTownState()'s `[]` would let a
         // previously-claimed 무지출 데이 become re-claimable (F15's guard is
         // `town.noSpendDays.includes(today)`) and would silently forget every
-        // still-queued material (F14).
+        // still-queued material (F14). Building positions themselves need no
+        // recovery step (ADDENDUM-08): `reconcilePlacement` (useTownStore.ts's
+        // boot chain) re-validates every stored `plotIndex` against the fixed
+        // map on every boot regardless, so there is no growth-frontier counter
+        // left here to reconstruct.
         core = {
           town: {
             ...defaultTownState(),
             ...rebuildDerived(recoveredEntries),
             savingsByCategoryKrw: savingsByCategory(recoveredEntries, savingsBucketOf), // ADDENDUM-01 §4.2
-            nextPlotIndex,
             noSpendDays: recoverNoSpendDays(buildings),
             queue: recoverQueue(recoveredEntries),
           },
@@ -672,7 +682,7 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       const finalIndex = relayout ? { ...index, layoutVersion: LAYOUT_VERSION } : index;
       if (relayout) writeJson(bufferedPort, INDEX_KEY, finalIndex);
 
-      return { index: finalIndex, core, buildings, economy, corrupted, relayout };
+      return { index: finalIndex, core, buildings, economy, corrupted, relayout, forceReseat: relayout };
     },
 
     /** Lazily loaded — the current month at boot, others on demand (기록 navigation). */

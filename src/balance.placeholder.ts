@@ -35,6 +35,6 @@ export const BALANCE = {
   noSpendDayCostsSlot: true, // design rule, confirm — D-15
 } as const;
 
-// TOWN_COLUMNS is deliberately NOT here: per spec §9 it is a layout constant
-// (how wide the grid renders), not a pacing dial. It lives next to
-// `plotFromIndex` in selectors.ts instead (spec §5 F2 / §13 trade-off 9).
+// Layout constants (GRID_SIZE etc.) are deliberately NOT here: per spec §9
+// they are geometry, not a pacing dial. ADDENDUM-08 §1 moved them into
+// townLayout.ts's single authored map.

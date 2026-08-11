@@ -11,10 +11,10 @@
  * a repaint trigger only: NPC position/species is derived (species is a
  * pure function of array index) and never persisted (rule R-2).
  */
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { random } from "../platform/random";
-import { GRID_COLUMNS, isRoadCell } from "../townLayout";
-import { initialNpcStates, stepNpcs, type NpcState } from "../npc/movement";
+import { GRID_SIZE, isRoadCell, isWalkable } from "../townLayout";
+import { initialNpcStates, reachableCells, stepNpcs, type NpcState } from "../npc/movement";
 import { speciesForIndex } from "../npc/species";
 import { NpcSprite } from "../npc/NpcSprite";
 import "../npc.css";
@@ -27,13 +27,6 @@ export interface NpcLayerProps {
    * reimplement that rule, it only renders `npcCount` sprites.
    */
   npcCount: number;
-  /**
-   * Row count of the currently rendered town grid
-   * (`gridRowCount(openPlotCount(...))`, `townLayout.ts` — the same value
-   * `TownGrid` derives its own row count from). Bounds the road network
-   * NPCs may walk: `isRoadCell(row, col)` is otherwise unbounded above.
-   */
-  rowCount: number;
 }
 
 const STEP_INTERVAL_MS = 2500; // ~2.5s/tick, PM-DECISIONS §F-NPC
@@ -42,30 +35,32 @@ function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false);
 }
 
-function NpcLayerImpl({ npcCount, rowCount }: NpcLayerProps) {
-  const roadCells = useMemo(() => {
-    const cells: { row: number; col: number }[] = [];
-    for (let row = 0; row < rowCount; row++) {
-      for (let col = 0; col < GRID_COLUMNS; col++) {
-        if (isRoadCell(row, col)) cells.push({ row, col });
-      }
+/**
+ * The walkable component that contains the road network, computed once at
+ * module load — the map (`townLayout.ts`) is a fixed authored constant, so
+ * this never changes at runtime. ADDENDUM-08's map has a few park cells that
+ * touch no road (isolated pockets, verified 7 of 122 walkable cells);
+ * spawning only inside this component is what stops an NPC from being
+ * permanently stranded in one, without editing the authored map.
+ */
+const SPAWN_CELLS: { row: number; col: number }[] = (() => {
+  for (let row = 0; row < GRID_SIZE; row++) {
+    for (let col = 0; col < GRID_SIZE; col++) {
+      if (isRoadCell(row, col)) return reachableCells({ row, col }, isWalkable);
     }
-    return cells;
-  }, [rowCount]);
+  }
+  return []; // unreachable in practice — the map always has road cells
+})();
 
-  const isWalkable = useCallback(
-    (row: number, col: number) => row >= 0 && row < rowCount && col >= 0 && col < GRID_COLUMNS && isRoadCell(row, col),
-    [rowCount],
-  );
+function NpcLayerImpl({ npcCount }: NpcLayerProps) {
+  const [npcs, setNpcs] = useState<NpcState[]>(() => initialNpcStates(npcCount, SPAWN_CELLS));
 
-  const [npcs, setNpcs] = useState<NpcState[]>(() => initialNpcStates(npcCount, roadCells));
-
-  // Re-seed positions whenever the visible count or the road network itself
-  // changes (town grew a row, etc.) — species/position are derived, never
-  // migrated, so a full re-seed is the simple, correct choice (R-2).
+  // Re-seed positions whenever the visible count changes — species/position
+  // are derived, never migrated, so a full re-seed is the simple, correct
+  // choice (R-2).
   useEffect(() => {
-    setNpcs(initialNpcStates(npcCount, roadCells));
-  }, [npcCount, roadCells]);
+    setNpcs(initialNpcStates(npcCount, SPAWN_CELLS));
+  }, [npcCount]);
 
   useEffect(() => {
     if (prefersReducedMotion()) return; // render in place, never move (ADDENDUM-05 §3)
@@ -73,14 +68,15 @@ function NpcLayerImpl({ npcCount, rowCount }: NpcLayerProps) {
       setNpcs((prev) => stepNpcs(prev, isWalkable, random));
     }, STEP_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [isWalkable]);
+  }, []);
 
-  // Real grid track geometry, read off the live DOM. Uniform `col/GRID_COLUMNS`
-  // fractions are NOT good enough here: the road column is 22px against the
-  // plots' 52px, and a savings row is ~250px against a plot row's 72px — so a
-  // uniform fraction put NPCs on top of the 저축 structures instead of on the
-  // street. Resolved `grid-template-*` values are already in px, so this is a
-  // measurement, not a second source of truth for any constant (rule R-3).
+  // Real grid track geometry, read off the live DOM. A uniform `col/GRID_SIZE`
+  // fraction is NOT good enough here: the savings row is taller than a plot
+  // row, so a uniform fraction put NPCs on top of the 저축 structures instead
+  // of on the street. Resolved `grid-template-*` values are already in px, so
+  // this is a measurement, not a second source of truth for any constant
+  // (rule R-3) — the uniform 20x20 grid (ADDENDUM-08 §7) makes the columns
+  // agree with each other, but the savings row still doesn't.
   const layerRef = useRef<HTMLDivElement | null>(null);
   const [tracks, setTracks] = useState<{ cols: number[]; rows: number[]; gap: number } | null>(null);
   useEffect(() => {
@@ -94,7 +90,7 @@ function NpcLayerImpl({ npcCount, rowCount }: NpcLayerProps) {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [rowCount, npcCount]);
+  }, []); // the grid is a fixed 20x20 constant — nothing here ever changes post-mount
 
   // Prefix sums, so placing an NPC is O(1) instead of walking the row array.
   // The dense fixture has ~1,000 grid rows and this runs per sprite per render.
@@ -122,9 +118,9 @@ function NpcLayerImpl({ npcCount, rowCount }: NpcLayerProps) {
       className="npc-layer"
       // `1 / -1` would collapse to a SINGLE row here: `.town-grid` declares no
       // `grid-template-rows`, so it has no explicit last row line to count back
-      // from (the same trap `.town-main-street` documents). Spanning the real
-      // row count is what makes this layer as tall as the town.
-      style={{ gridColumn: "1 / -1", gridRow: `1 / span ${Math.max(1, rowCount)}`, pointerEvents: "none" }}
+      // from (the same trap `.town-main-street` documents). Spanning
+      // `GRID_SIZE` explicitly is what makes this layer as tall as the town.
+      style={{ gridColumn: "1 / -1", gridRow: `1 / span ${GRID_SIZE}`, pointerEvents: "none" }}
       aria-hidden="true"
     >
       {npcs.map((npc, i) => {
@@ -134,8 +130,8 @@ function NpcLayerImpl({ npcCount, rowCount }: NpcLayerProps) {
         const style = centre
           ? { left: `${centre.x}px`, top: `${centre.y}px` }
           : {
-              left: `${((npc.col + 0.5) / GRID_COLUMNS) * 100}%`,
-              top: `${rowCount > 0 ? ((npc.row + 0.5) / rowCount) * 100 : 0}%`,
+              left: `${((npc.col + 0.5) / GRID_SIZE) * 100}%`,
+              top: `${((npc.row + 0.5) / GRID_SIZE) * 100}%`,
             };
         return (
           <div key={i} className="npc-slot" data-npc-cell={`${npc.row},${npc.col}`} style={style}>
@@ -150,7 +146,7 @@ function NpcLayerImpl({ npcCount, rowCount }: NpcLayerProps) {
 }
 
 /**
- * Memoized on `{ npcCount, rowCount }`. `TownGrid` re-renders on every roving
+ * Memoized on `{ npcCount }`. `TownGrid` re-renders on every roving
  * keyboard-cursor move and every move-mode transition; without this, each one
  * dragged the whole NPC layer through render for no reason. The layer's own
  * ~2.5s timer is what drives it, not its parent.

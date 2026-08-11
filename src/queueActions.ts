@@ -14,6 +14,7 @@
  * `entryActions.ts`/`useTownStore.ts` already use for a normal save.
  */
 import { expGainFor, expOf, slotsRemainingToday, tier } from "./selectors";
+import type { Placed } from "./placement";
 import type { Building, QueuedMaterial, TownState } from "./types";
 
 export interface DrainQueueResult {
@@ -33,8 +34,15 @@ export function drainQueue(
   /** Deterministic id generator, one call per drained material (i = 0, 1, 2, ...). */
   buildingIdFor: (i: number) => string,
   createdAt: number,
-  /** N distinct plot indices for this drain, called ONCE with the drain count — computed by `placement.allocatePlots` (rule R-4, ADDENDUM-02 §3.5). Not an rng: a drain places several buildings at once and they may not collide. */
-  allocatePlotIndices: (count: number) => number[],
+  /**
+   * N footprint placements for this drain, called ONCE with the drain count —
+   * computed by `placement.placeMany` (rule R-4, ADDENDUM-08 §3). Not an rng:
+   * a drain places several buildings at once and they may not collide. May
+   * return FEWER than requested if the town fills up mid-drain — the
+   * un-placed materials simply stay queued (never dropped, never built as a
+   * ghost on a cell that doesn't exist).
+   */
+  placeMany: (count: number) => Placed[],
   /**
    * ADDENDUM-04 §6/§7 — `BALANCE.expAmountTiers`, threaded through so a
    * drained material founds with the SAME amount-driven exp a same-day
@@ -50,10 +58,11 @@ export function drainQueue(
   }
 
   const drainCount = Math.min(remaining, town.queue.length);
-  const toDrain = town.queue.slice(0, drainCount);
-  const rest = town.queue.slice(drainCount);
+  const placements = placeMany(drainCount); // may be fewer than drainCount — town could be full
+  const actualCount = placements.length;
+  const toDrain = town.queue.slice(0, actualCount);
+  const rest = town.queue.slice(actualCount); // undrained materials (town-full remainder, plus anything past drainCount) stay queued, FIFO order preserved
 
-  const plotIndices = allocatePlotIndices(drainCount);
   // ADDENDUM-04 §6/§7 parity fix: a material queued without `amountKrw`
   // (pre-existing data, migration-safe) reads gain 1 via `expGainFor`'s own
   // `null`-tiers contract — exactly today's behaviour, never a crash.
@@ -64,7 +73,9 @@ export function drainQueue(
       source: { kind: "entry", entryId: material.entryId },
       categoryId: material.categoryId,
       variantIndex: material.variantIndex,
-      plotIndex: plotIndices[i],
+      plotIndex: placements[i].anchor,
+      w: placements[i].w,
+      h: placements[i].h,
       builtOn: today,
       createdAt,
       ...(gain > 1 ? { exp: gain - 1 } : {}),
@@ -82,14 +93,13 @@ export function drainQueue(
   // `dailyBuildSlots - remaining` is today's ALREADY-used count (0 when
   // slotsUsedOn was stale, but NOT necessarily 0 when the queue drains on a
   // same-day reopen after slots were partially spent — e.g. dailyBuildSlots
-  // is raised mid-day, D-3). Add drainCount on top of that, never overwrite
+  // is raised mid-day, D-3). Add actualCount on top of that, never overwrite
   // it — overwriting would hand back slots already spent today.
   const usedBeforeDrain = dailyBuildSlots - remaining;
   const newTown: TownState = {
     ...town,
-    nextPlotIndex: town.nextPlotIndex + drainCount,
     slotsUsedOn: today,
-    slotsUsedToday: usedBeforeDrain + drainCount,
+    slotsUsedToday: usedBeforeDrain + actualCount,
     queue: rest,
     highestTierSeen: Math.max(town.highestTierSeen, newTier),
   };

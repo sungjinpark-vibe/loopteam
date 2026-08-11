@@ -5,7 +5,6 @@ import type { Building, LedgerEntry, QueuedMaterial, TownState } from "./types";
 function freshTown(overrides: Partial<TownState> = {}): TownState {
   return {
     townName: "우리 동네",
-    nextPlotIndex: 0,
     streakDays: 0,
     longestStreakDays: 0,
     lastActOn: null,
@@ -74,12 +73,11 @@ describe("deleteEntryEffects — F9", () => {
   it("removes the bound building, leaves other buildings/slots untouched", () => {
     const b = building();
     const survivor = building({ id: "b2", plotIndex: 7, source: { kind: "entry", entryId: "e2" } });
-    const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 2, nextPlotIndex: 8 });
+    const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 2 });
     const result = deleteEntryEffects({ town, buildings: [b, survivor], entry: entry(), expAmountTiers });
     expect(result.buildings).toEqual([survivor]);
     expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
     expect(result.town.slotsUsedToday).toBe(2); // not refunded
-    expect(result.town.nextPlotIndex).toBe(8); // not decremented
   });
 
   it("drops a QUEUED entry's material from town.queue (round-4 finding C2 — no ghost building on the next drain)", () => {
@@ -105,7 +103,7 @@ describe("deleteEntryEffects — F9", () => {
 
 function editArgs(overrides: Partial<Parameters<typeof editEntryEffects>[0]> = {}): Parameters<typeof editEntryEffects>[0] {
   return {
-    town: freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 1, nextPlotIndex: 1 }),
+    town: freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 1 }),
     buildings: [building()],
     entry: entry(),
     patch: {},
@@ -116,6 +114,8 @@ function editArgs(overrides: Partial<Parameters<typeof editEntryEffects>[0]> = {
     newBuildingId: "bnew",
     variantIndex: 0,
     plotIndex: 9,
+    w: 1,
+    h: 1,
     now: 2000,
     expAmountTiers,
     ...overrides,
@@ -239,12 +239,11 @@ describe("editEntryEffects — F9, type changed (round-4 finding C1)", () => {
   });
 
   it("지출 -> 저축 loses its building (not refunded) and starts contributing to the tower", () => {
-    const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 3, nextPlotIndex: 4 });
+    const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 3 });
     const result = editEntryEffects(editArgs({ town, buildings: [building()], patch: { type: "saving", categoryId: "goal" } }));
     expect(result.buildings).toEqual([]);
     expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
     expect(result.town.slotsUsedToday).toBe(3); // not refunded
-    expect(result.town.nextPlotIndex).toBe(4); // not decremented
     expect(result.town.savingsByCategoryKrw).toEqual({ goal: 4_500 });
     expect(result.entry.buildingId).toBeNull();
     expect(result.entry.queued).toBe(false);

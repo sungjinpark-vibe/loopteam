@@ -12,8 +12,7 @@
  * (`movingId`, `cursorIndex`) instead of taking a per-tile callback prop.
  */
 import { useEffect, useRef, type RefObject } from "react";
-import { plotFromIndex } from "../selectors";
-import { indexFromPlot } from "../townLayout";
+import { GRID_SIZE, cellFromIndex, indexFromCell } from "../townLayout";
 
 export const LONG_PRESS_MS = 500; // platform interaction default (assumption; director may retune — not a balance dial)
 export const LONG_PRESS_TOLERANCE_PX = 8; // same
@@ -137,9 +136,11 @@ export function useTileGestures(
       latest.current.callbacks.onTap(plotIndex);
     }
 
+    // ADDENDUM-08 §2 — the serpentine is gone; a fixed 20-wide row-major grid,
+    // so stepping a row is just `indexFromCell`'s trivial inverse of `cellFromIndex`.
     function stepCursor(nextRow: number, col: number): number | null {
-      if (nextRow < 0) return null;
-      const nextIndex = indexFromPlot({ row: nextRow, col });
+      if (nextRow < 0 || nextRow >= GRID_SIZE) return null;
+      const nextIndex = indexFromCell({ row: nextRow, col });
       return nextIndex >= 0 && nextIndex < latest.current.tileCount ? nextIndex : null;
     }
 
@@ -172,7 +173,7 @@ export function useTileGestures(
       if (e.key === "ArrowLeft") next = cursor > 0 ? cursor - 1 : null;
       else if (e.key === "ArrowRight") next = cursor + 1 < count ? cursor + 1 : null;
       else {
-        const { row, col } = plotFromIndex(cursor);
+        const { row, col } = cellFromIndex(cursor);
         next = e.key === "ArrowUp" ? stepCursor(row - 1, col) : stepCursor(row + 1, col);
       }
       if (next !== null) cb.onCursorMove(next);

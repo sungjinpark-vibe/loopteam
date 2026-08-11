@@ -32,7 +32,15 @@ import { claimNoSpendDay } from "./noSpendActions";
 import { drainQueue } from "./queueActions";
 import { settleMonths } from "./settlementActions";
 import { isPrimePlotIndex } from "./townLayout";
-import { allocatePlots, moveBuilding as movePlacement, pickPlot, reconcilePlacement, type MoveResult } from "./placement";
+import {
+  placeMany as placeManyPlots,
+  placeMonument,
+  moveBuilding as movePlacement,
+  placeNew,
+  reconcilePlacement,
+  type MoveResult,
+  type Placed,
+} from "./placement";
 import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
 import { clock, getTimeTravelDate, subscribeTimeTravel } from "./platform/clock";
@@ -184,8 +192,8 @@ function mutateBuildingsForMonth(
  * persisted together in ONE core write. Runs once, right after boot, before
  * the app is shown.
  *
- * Settlement runs first, in memory — its output `town` (`lastSettledPeriod`/
- * `nextPlotIndex` already advanced) is what `drainQueue` mutates FURTHER, so
+ * Settlement runs first, in memory — its output `town` (`lastSettledPeriod`
+ * already advanced) is what `drainQueue` mutates FURTHER, so
  * whichever `saveCore` call fires below carries both advances at once: there
  * is no intermediate state where settlement happened but the drain (or a
  * crash/reload) could observe a stale `lastSettledPeriod`. Any minted
@@ -239,7 +247,39 @@ async function settleAndDrainAndPersist(
     // contract the drain's own id generator below already follows.
     buildingIdFor: (i) => makeId("b", now + i),
     createdAt: now,
-    allocatePlotIndices: (count) => allocatePlots(town.nextPlotIndex, buildings, count, random.next),
+    // ADDENDUM-08 §2.2 — a monument always tries 2x2 first (`placeMonument`),
+    // never the generic roll+downgrade `placeMany` (townLayout's ordinary
+    // buildings use below). `settleMonths` only knows how to ask for N
+    // placements at once, so this loops `placeMonument` itself, folding each
+    // pick's cells into `occ` before the next call so two monuments settled
+    // in the same run can never overlap. Returns fewer than `count` (settling
+    // fewer months this boot; the rest stay unsettled and retry next boot —
+    // `settleMonths`'s own "fewer placements than months" contract) once even
+    // a downgraded `placeMonument` can't find room — never dropped.
+    placeMany: (count) => {
+      const placements: Placed[] = [];
+      let occ: readonly Building[] = buildings;
+      for (let i = 0; i < count; i++) {
+        const placed = placeMonument(occ, random.next);
+        if (placed === null) break;
+        placements.push(placed);
+        occ = [
+          ...occ,
+          {
+            id: `__monumentScratch${i}`,
+            source: { kind: "monument", period: "" },
+            categoryId: null,
+            variantIndex: 0,
+            plotIndex: placed.anchor,
+            w: placed.w,
+            h: placed.h,
+            builtOn: "",
+            createdAt: 0,
+          },
+        ];
+      }
+      return placements;
+    },
   });
   const buildingsWithMonuments = [...buildings, ...settled.monuments];
 
@@ -257,10 +297,10 @@ async function settleAndDrainAndPersist(
     // that happens to be unique by luck of `Math.random()`.
     (i) => makeId("b", now + i),
     now,
-    // ADDENDUM-02 §3.3/§3.5 (B18): N distinct random lots for this drain,
-    // drawn once so no two drained buildings (or a monument just allocated
-    // above) can collide.
-    (count) => allocatePlots(settled.town.nextPlotIndex, buildingsWithMonuments, count, random.next),
+    // ADDENDUM-08 §3: N distinct footprint placements for this drain, drawn
+    // once so no two drained buildings (or a monument just allocated above)
+    // can collide.
+    (count) => placeManyPlots(buildingsWithMonuments, count, random.next),
     BALANCE.expAmountTiers, // ADDENDUM-04 §6/§7
   );
   if (result.drained.length === 0 && settled.monuments.length === 0) {
@@ -450,13 +490,21 @@ export function useTownStore() {
       const core = boot.core ?? freshCore(clock.now(), today);
       const storageClient = storageRef.current;
 
-      // ADDENDUM-02 §3.6 — self-healing reconcile, BEFORE anything else
-      // (the drain below allocates lots and must see sane occupancy). Zero
-      // storage writes for the 100%-of-real-towns case where nothing is
-      // wrong (repaired === 0 and plotsOpened already matches nextPlotIndex).
-      const reconciled = reconcilePlacement(core.town.nextPlotIndex, boot.buildings);
-      const coreNeedsWrite = reconciled.plotsOpened !== core.town.nextPlotIndex;
-      const reconciledTown: TownState = coreNeedsWrite ? { ...core.town, nextPlotIndex: reconciled.plotsOpened } : core.town;
+      // ADDENDUM-08 §3.6/§4 — self-healing reconcile, BEFORE anything else
+      // (the drain below places new buildings and must see sane occupancy).
+      // `boot.forceReseat` (true exactly on a version<4 boot) tells the
+      // reconciler every stored plotIndex is meaningless in the new 20x20
+      // coordinate space — every building lays out fresh, oldest first
+      // (§4's migration). Zero storage writes for the ordinary case where
+      // nothing is wrong (repaired === 0, no forced reseat).
+      const reconciled = reconcilePlacement(boot.buildings, { forceReseat: boot.forceReseat });
+      // ponytail: `unplacedIds` (buildings.length > 193 ground cells) is
+      // unreachable for any real save (spec §4: "193 ground cells >> any
+      // existing save") — those buildings are kept, at their stale
+      // plotIndex, inside `reconciled.buildings` already (placement.ts's own
+      // contract: "never dropped"); they simply re-attempt a normal seat the
+      // next time `reconcilePlacement` runs. No separate storage/UI path for
+      // them exists yet — add one if a save ever legitimately exceeds capacity.
       if (reconciled.repaired > 0) {
         // Only months that actually contain a repaired building, ascending
         // ym order — rebuilt from the reconciled in-memory array, never
@@ -473,16 +521,13 @@ export function useTownStore() {
         // No player-facing notice — they did nothing wrong (§3.6 point 6).
         analytics.track("placement_repaired", { count: reconciled.repaired });
       }
-      if (coreNeedsWrite) {
-        storageClient.saveCore({ town: reconciledTown, budget: core.budget, onboarded: core.onboarded });
-      }
 
       // F16 settlement THEN F14 queue drain, both AFTER F4's slot reset (the
       // reset is purely evaluated — slotsRemainingToday — at drain time) and
       // persisted together in one write (see the function's own doc).
       const settleDrain = await settleAndDrainAndPersist(
         storageClient,
-        reconciledTown,
+        core.town,
         reconciled.buildings,
         core.budget,
         core.onboarded,
@@ -635,10 +680,20 @@ export function useTownStore() {
     const entryId = makeId("e", now);
     const buildingId = makeId("b", now);
     const variantIndex = Math.floor(random.next() * BALANCE.variantsPerCategory);
-    // ADDENDUM-02 §3.3/§3.5 (B16/B24): a uniformly random free lot, computed
-    // here exactly like `variantIndex` already is, and passed in — placement.ts
-    // is the only module allowed to decide a plotIndex (rule R-4).
-    const plotIndex = pickPlot(prev.town.nextPlotIndex, prev.buildings, random.next);
+    // ADDENDUM-08 §2.2/§3 (B16/B24): a random footprint on a random free
+    // anchor, computed here exactly like `variantIndex` already is, and
+    // passed in — placement.ts is the only module allowed to decide a
+    // plotIndex (rule R-4).
+    // ponytail: `placeNew` returns null only when the town has zero free
+    // ground cells even at 1x1 (~193 buildings, spec §4's own "far past any
+    // real save" ceiling) — an accepted gap, not handled here: the entry
+    // still builds at the fallback anchor rather than being lost, but a
+    // genuinely full live town could momentarily collide two buildings.
+    // Follow-up: teach `decideBuildOrQueue` to force-queue when placement fails.
+    const placed = placeNew(prev.buildings, random.next);
+    const plotIndex = placed?.anchor ?? 0;
+    const w = placed?.w ?? 1;
+    const h = placed?.h ?? 1;
     // ADDENDUM-04 §3/§7 — director-closed Option 3: EXP scales with amount
     // for every entry type, no per-type branching. Computed here (the only
     // place BALANCE.expAmountTiers is read) and passed down as a plain
@@ -662,6 +717,8 @@ export function useTownStore() {
       noSpendDayCostsSlot: BALANCE.noSpendDayCostsSlot,
       variantIndex,
       plotIndex,
+      w,
+      h,
       growTargetId,
       expGain,
     });
@@ -742,7 +799,10 @@ export function useTownStore() {
     const today = clock.today();
     const now = clock.now();
     const buildingId = makeId("b", now);
-    const plotIndex = pickPlot(prev.town.nextPlotIndex, prev.buildings, random.next);
+    const placed = placeNew(prev.buildings, random.next);
+    const plotIndex = placed?.anchor ?? 0;
+    const w = placed?.w ?? 1;
+    const h = placed?.h ?? 1;
 
     const result = claimNoSpendDay({
       town: prev.town,
@@ -757,6 +817,8 @@ export function useTownStore() {
       buildingId,
       createdAt: now,
       plotIndex,
+      w,
+      h,
     });
     if (result === null) return false;
 
@@ -785,8 +847,8 @@ export function useTownStore() {
    * `plotIndex` after placement-time. Persists exactly one storage key: the
    * MOVED building's own month chunk, rebuilt from memory (never
    * read-modify-write — same reasoning `mutateBuildingsForMonth` explains).
-   * `core` (and therefore `nextPlotIndex`) is never written here — a move is
-   * not a build-producing act (no slot, no streak, no tier, no queue). The
+   * `core` is never written here — a move is not a build-producing act (no
+   * slot, no streak, no tier, no queue). The
    * discoverability hint's `moveHintSeen` flag is folded into the in-memory
    * `town` on the FIRST successful move (D-36) and rides whatever `saveCore`
    * happens next for any other reason — it is NOT written here, which is
@@ -808,7 +870,7 @@ export function useTownStore() {
     const prev = stateRef.current;
     if (prev === null) return { ok: false, reason: "not-found" };
 
-    const result = movePlacement(prev.town.nextPlotIndex, prev.buildings, id, to);
+    const result = movePlacement(prev.buildings, id, to);
     if (!result.ok) return result;
 
     const moved = result.buildings.find((b) => b.id === id)!;
@@ -850,9 +912,8 @@ export function useTownStore() {
   /**
    * F9 delete — thin wiring over `historyActions.deleteEntryEffects` (pure):
    * persists the removed building's OLD month chunk (if any — round-4
-   * finding C3: building count -1, plot becomes a permanent empty lot,
-   * `nextPlotIndex` never decremented so nothing else reflows, and the slot
-   * is NOT refunded) and the entry's own month chunk (which also carries
+   * finding C3: building count -1, the plot becomes a permanent empty lot,
+   * and the slot is NOT refunded) and the entry's own month chunk (which also carries
    * `town` — the queue-drop for a still-queued entry and the 저축 back-out,
    * both computed by the pure function, round-4 finding C2/C3).
    */
@@ -897,7 +958,7 @@ export function useTownStore() {
    * its own doc for the four type-change cases; round-4 finding C1 made
    * `type` itself editable). A fresh building/plot/variant is only rolled
    * when the edit could possibly need one (저축 -> 지출/수입, the one case
-   * that can newly consume a slot) — same `pickPlot`/`random.next` calls
+   * that can newly consume a slot) — same `placeNew`/`random.next` calls
    * `addEntry` already makes for a real F1 save.
    */
   const updateEntry = useCallback((entryId: string, ym: string, patch: EntryEditPatch) => {
@@ -912,7 +973,10 @@ export function useTownStore() {
     const needsFreshBuilding = oldEntry.type === "saving" && patch.type !== undefined && patch.type !== "saving";
     const newBuildingId = needsFreshBuilding ? makeId("b", now) : "";
     const variantIndex = needsFreshBuilding ? Math.floor(random.next() * BALANCE.variantsPerCategory) : 0;
-    const plotIndex = needsFreshBuilding ? pickPlot(prev.town.nextPlotIndex, prev.buildings, random.next) : 0;
+    const placed = needsFreshBuilding ? placeNew(prev.buildings, random.next) : null;
+    const plotIndex = placed?.anchor ?? 0;
+    const w = placed?.w ?? 1;
+    const h = placed?.h ?? 1;
 
     const result = editEntryEffects({
       town: prev.town,
@@ -926,6 +990,8 @@ export function useTownStore() {
       newBuildingId,
       variantIndex,
       plotIndex,
+      w,
+      h,
       now,
       expAmountTiers: BALANCE.expAmountTiers,
     });
@@ -1190,7 +1256,6 @@ export function useTownStore() {
     loading: state === null,
     townName: state?.town.townName ?? "",
     buildings: state?.buildings ?? [],
-    nextPlotIndex: state?.town.nextPlotIndex ?? 0,
     buildingCount: state ? countBuildings(state.buildings) : 0,
     // ADDENDUM-04 §3 — the tier-driving score (`buildings.length + Σexp`).
     // `buildingCount` above is unchanged and still the literal count 기록/UI want.

@@ -47,9 +47,12 @@ export interface BuildingVisualProps {
    * stays 1 and no `Lv.N` badge ever shows on one — no extra guard needed here.
    */
   monumentPeriod?: string;
+  /** ADDENDUM-08 §2.1/§7 — footprint in cells (absent === 1x1), forwarded to `BuildingArt` for the landmark-scale treatment. Never read raw elsewhere — callers pass `footprintOf(building)`. */
+  w?: 1 | 2;
+  h?: 1 | 2;
 }
 
-function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 1, monumentPeriod }: BuildingVisualProps) {
+function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 1, monumentPeriod, w, h }: BuildingVisualProps) {
   const content = categoryId ? CATEGORY_CONTENT[categoryId] : null;
   // F16 — a monument (categoryId === null) gets its own stone tone rather
   // than falling back to the same grey400 the "etc"/"other_saving" categories
@@ -73,7 +76,7 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 
       title={title}
       data-archetype={archetypeFor(categoryId, monumentPeriod)}
     >
-      <BuildingArt categoryId={categoryId} variantIndex={variantIndex} level={level} monumentPeriod={monumentPeriod} />
+      <BuildingArt categoryId={categoryId} variantIndex={variantIndex} level={level} monumentPeriod={monumentPeriod} w={w} h={h} />
       {floors > 0 && (
         <span className="building-level-badge" aria-hidden="true">
           {`Lv.${level}`}

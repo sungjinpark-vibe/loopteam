@@ -11,7 +11,6 @@ import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import {
   districtLadderLength,
-  freeSavingsCells,
   savingsCellFor,
   savingsPlotHeightPx,
   savingsPlotTemplateRows,
@@ -51,10 +50,10 @@ function mount(props: Partial<SavingsRowProps> = {}): HTMLElement {
 }
 
 describe("SavingsRow (ADDENDUM-01 §2.4a/§3.4 item 4)", () => {
-  it("mounts as a bare fragment: parent's direct children are exactly the plots + the signpost", () => {
+  it("mounts as a bare fragment: parent's direct children are exactly the five plots (ADDENDUM-08 — no signpost, the map has exactly 5 S cells)", () => {
     const container = mount();
     const grid = container.querySelector(".town-grid") as HTMLElement;
-    expect(grid.children.length).toBe(SAVING_CATEGORY_IDS.length + freeSavingsCells().length);
+    expect(grid.children.length).toBe(SAVING_CATEGORY_IDS.length);
   });
 
   it("AC-F13-8: a fresh town (no savingsByCategoryKrw) renders 5 empty level-0 plots with signboard + emptyHint", () => {

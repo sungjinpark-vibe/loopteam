@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  TOWN_COLUMNS,
   advanceStreak,
   budgetPace,
   buildingCount,
@@ -18,7 +17,6 @@ import {
   monthTotal,
   monthTotals,
   moodTier,
-  plotFromIndex,
   rebuildDerived,
   recentMemos,
   savingsByCategory,
@@ -29,52 +27,6 @@ import {
 } from "./selectors";
 import { savingsBucketOf } from "./savingsBuckets";
 import type { Building, LedgerEntry, TownState } from "./types";
-
-// ── plotFromIndex — spec §5 F2 AC: i = 0..23, serpentine adjacency ──
-describe("plotFromIndex", () => {
-  it("fills row 0 left-to-right for i = 0..TOWN_COLUMNS-1", () => {
-    for (let i = 0; i < TOWN_COLUMNS; i++) {
-      expect(plotFromIndex(i)).toEqual({ row: 0, col: i });
-    }
-  });
-
-  it("reverses direction on row 1 (serpentine)", () => {
-    // i = TOWN_COLUMNS..2*TOWN_COLUMNS-1 is row 1, right-to-left.
-    for (let k = 0; k < TOWN_COLUMNS; k++) {
-      expect(plotFromIndex(TOWN_COLUMNS + k)).toEqual({ row: 1, col: TOWN_COLUMNS - 1 - k });
-    }
-  });
-
-  it("the last index of row 0 sits directly above the first index of row 1 (the spec's own worked example, generalized to TOWN_COLUMNS)", () => {
-    const lastOfRow0 = plotFromIndex(TOWN_COLUMNS - 1);
-    const firstOfRow1 = plotFromIndex(TOWN_COLUMNS);
-    expect(lastOfRow0).toEqual({ row: 0, col: TOWN_COLUMNS - 1 });
-    expect(firstOfRow1).toEqual({ row: 1, col: TOWN_COLUMNS - 1 });
-    expect(firstOfRow1.col).toBe(lastOfRow0.col);
-    expect(firstOfRow1.row).toBe(lastOfRow0.row + 1);
-  });
-
-  it("i = 0..23 (four full rows) never collide and stay within the grid width", () => {
-    const seen = new Set<string>();
-    for (let i = 0; i < 24; i++) {
-      const { row, col } = plotFromIndex(i);
-      expect(col).toBeGreaterThanOrEqual(0);
-      expect(col).toBeLessThan(TOWN_COLUMNS);
-      expect(row).toBe(Math.floor(i / TOWN_COLUMNS));
-      const key = `${row},${col}`;
-      expect(seen.has(key)).toBe(false);
-      seen.add(key);
-    }
-  });
-
-  it("is monotonic-safe: a large index still resolves to a valid, unique plot", () => {
-    const a = plotFromIndex(5_403);
-    const b = plotFromIndex(5_404);
-    expect(a.col).toBeGreaterThanOrEqual(0);
-    expect(a.col).toBeLessThan(TOWN_COLUMNS);
-    expect(a).not.toEqual(b);
-  });
-});
 
 // ── buildingCount ──
 describe("buildingCount", () => {

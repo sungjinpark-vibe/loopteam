@@ -21,7 +21,7 @@ import { BALANCE } from "./balance.approved";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
-import { plotFromIndex } from "./selectors";
+import { cellFromIndex } from "./townLayout";
 import { useTownStore, type AddEntryResult } from "./useTownStore";
 
 let container: HTMLDivElement;
@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 describe("useTownStore.addEntry — two saves in one session, then reload", () => {
-  it("places both buildings via the real serpentine/storage wiring and survives a reload", async () => {
+  it("places both buildings via the real placement/storage wiring and survives a reload", async () => {
     await mountAndWaitForBoot();
     expect(latest?.loading).toBe(false);
     expect(latest?.buildingCount).toBe(0);
@@ -76,14 +76,15 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     });
     expect(latest?.buildingCount).toBe(1);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 1);
-    // ADDENDUM-07 masks plot 0 of block 0 — rng() = 0 -> pool[0] -> the
-    // lowest free UNMASKED lot, which is 2.
-    expect(latest?.buildings[0]?.plotIndex).toBe(2);
+    // rng() = 0 -> rollFootprint always rolls 1x1 (r < 0.6) -> anchorsFor's
+    // FIRST reading-order anchor. Row 0 cols 0-3 are void and 4-6 are park —
+    // cell 7 is the first `ground` cell on the fixed map (ADDENDUM-08 §1.2).
+    expect(latest?.buildings[0]?.plotIndex).toBe(7);
 
     // The second save in the same session — the path never exercised before:
     // it must append to the SAME month's entries chunk (loadEntriesForMonth
     // -> [...existing, entry] -> saveEntriesForMonth), not overwrite it, and
-    // plotFromIndex(3) must actually differ from plotFromIndex(2) (both would
+    // cellFromIndex(8) must actually differ from cellFromIndex(7) (both would
     // otherwise alias to the same row/col and this bug would be invisible).
     const secondCoffee: EntryDraft = { type: "expense", amountKrw: 3_200, categoryId: "food", occurredOn: TODAY };
     act(() => {
@@ -91,11 +92,10 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     });
     expect(latest?.buildingCount).toBe(2);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
-    expect(latest?.nextPlotIndex).toBe(2);
-    const secondBuilding = latest!.buildings.find((b) => b.plotIndex === 3);
+    const secondBuilding = latest!.buildings.find((b) => b.plotIndex === 8);
     expect(secondBuilding).toBeDefined();
-    expect(plotFromIndex(secondBuilding!.plotIndex)).toEqual({ row: 0, col: 3 });
-    expect(plotFromIndex(2)).not.toEqual(plotFromIndex(3)); // guards against a row/col alias
+    expect(cellFromIndex(secondBuilding!.plotIndex)).toEqual({ row: 0, col: 8 });
+    expect(cellFromIndex(7)).not.toEqual(cellFromIndex(8)); // guards against a row/col alias
 
     // Hard reload: a brand-new hook instance (fresh storage client) must read
     // back BOTH entries/buildings — not just the first one saved. Writes are
@@ -110,7 +110,7 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
     await mountAndWaitForBoot();
     expect(latest?.buildingCount).toBe(2);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - 2);
-    expect(latest?.buildings.map((b) => b.plotIndex).sort()).toEqual([2, 3]);
+    expect(latest?.buildings.map((b) => b.plotIndex).sort((a, b) => a - b)).toEqual([7, 8]);
     expect(latest?.buildings.map((b) => b.categoryId).sort()).toEqual(["cafe", "food"]);
   });
 });
@@ -136,9 +136,8 @@ describe("useTownStore.addEntry — ADDENDUM-04 grow, then reload", () => {
     expect(addResult?.building).toBeNull(); // grew, not built
     expect(addResult?.grew?.id).toBe(hostId);
     expect(addResult?.grew?.exp).toBe(1);
-    expect(latest?.buildingCount).toBe(1); // still one building
+    expect(latest?.buildingCount).toBe(1); // still one building — a grow opens no lot
     expect(latest?.growthScore).toBe(2); // 1 (length) + 1 (exp) — both acts add exactly 1
-    expect(latest?.nextPlotIndex).toBe(1); // unchanged — the grow opened no lot
     expect(latest?.buildings[0].exp).toBe(1);
 
     // Hard reload — the exp must round-trip through storage exactly like
