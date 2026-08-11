@@ -246,3 +246,97 @@ describe("PlaceholderBuilding — landmark roof signboard (§4.2-4.3, AC-9)", ()
     expect(mounted.container.querySelector('[data-part="signboard"]')).not.toBeNull();
   });
 });
+
+// ── ADDENDUM-08 §7 — footprint must actually shape the art, not just gate isLandmark ──
+
+describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
+  function svgOf(w?: 1 | 2, h?: 1 | 2) {
+    const m = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={1} w={w} h={h} />);
+    const svg = m.container.querySelector("svg")!;
+    const result = { count: svg.querySelectorAll("*").length, html: svg.innerHTML };
+    m.unmount();
+    return result;
+  }
+
+  it("1x1, 2x1, 1x2, and 2x2 each render distinguishable markup — a bigger footprint must not be the same sprite stretched into a bigger box", () => {
+    const oneByOne = svgOf(1, 1);
+    const twoByOne = svgOf(2, 1);
+    const oneByTwo = svgOf(1, 2);
+    const twoByTwo = svgOf(2, 2);
+
+    // 1x1 must be the smallest by node count, 2x2 the largest — a genuinely bigger structure.
+    expect(twoByOne.count).toBeGreaterThan(oneByOne.count);
+    expect(oneByTwo.count).toBeGreaterThan(oneByOne.count);
+    expect(twoByTwo.count).toBeGreaterThan(twoByOne.count);
+    expect(twoByTwo.count).toBeGreaterThan(oneByTwo.count);
+
+    // 2x1 (wide) and 1x2 (deep) land on the same node count by design (each swaps which
+    // face gets the extra window column) — they must still be geometrically distinct.
+    expect(twoByOne.html).not.toBe(oneByTwo.html);
+
+    // every footprint must be visually distinguishable from every other.
+    const all = [oneByOne.html, twoByOne.html, oneByTwo.html, twoByTwo.html];
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it("a 2x2 landmark gets a bigger roof signboard than the same archetype at 1x1", () => {
+    const small = mountComponent(<PlaceholderBuilding categoryId="social" variantIndex={0} level={1} w={1} h={1} />);
+    const big = mountComponent(<PlaceholderBuilding categoryId="social" variantIndex={0} level={1} w={2} h={2} />);
+    const smallPlate = small.container.querySelector('[data-part="signboard"]') as SVGRectElement;
+    const bigPlate = big.container.querySelector('[data-part="signboard"]') as SVGRectElement;
+    expect(Number(bigPlate.getAttribute("width"))).toBeGreaterThan(Number(smallPlate.getAttribute("width")));
+    small.unmount();
+    big.unmount();
+  });
+
+  /**
+   * Regression test for a visual-verification failure: a 2x1 (wide) building rendered
+   * only +67% wider than 1x1 despite its tile being +115% wider (86px vs 40px), because
+   * the SVG's `viewBox` width was a fixed 120 regardless of footprint — widening the cube
+   * inside a fixed-width viewBox can't widen the rendered pixels (the `preserveAspectRatio
+   * ="meet"` scale is `min(tileW/viewBoxW, tileH/viewBoxH)`, and every h=1 footprint is
+   * height-bound at 40/176 no matter how wide the tile is). Node-count/markup-distinctness
+   * assertions above do NOT catch this class of defect — the broken build passed those too.
+   * This test asserts on actual rendered geometry instead.
+   */
+  function svgMeta(w: 1 | 2, h: 1 | 2) {
+    const m = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={1} w={w} h={h} />);
+    const svg = m.container.querySelector("svg")!;
+    const viewBoxWidth = Number(svg.getAttribute("viewBox")!.split(" ")[2]);
+    // rightmost x-coordinate the cube actually draws to, across every wall/roof/eave
+    // polygon — this is what must fill the (possibly wider) viewBox, not just the
+    // viewBox's own width, or a fix could "pass" by growing the canvas around a
+    // building that stayed the same size.
+    const xs = Array.from(svg.querySelectorAll("polygon")).flatMap((el) =>
+      el
+        .getAttribute("points")!
+        .trim()
+        .split(/\s+/)
+        .map((pair) => Number(pair.split(",")[0])),
+    );
+    const rightExtent = Math.max(...xs);
+    m.unmount();
+    return { viewBoxWidth, fill: rightExtent / viewBoxWidth };
+  }
+
+  it("a 2x1 (wide) footprint widens the viewBox in proportion to its w:h ratio, and the cube fills it at least as well as 1x1 fills its own — the footprint-differentiation fix", () => {
+    const oneByOne = svgMeta(1, 1);
+    const twoByOne = svgMeta(2, 1);
+    const oneByTwo = svgMeta(1, 2);
+    const twoByTwo = svgMeta(2, 2);
+
+    // the actual bug: a footprint wider than it is deep must get a proportionally
+    // wider viewBox (this is what the fixed VIEW_W=120 violated for 2x1).
+    expect(twoByOne.viewBoxWidth).toBe(oneByOne.viewBoxWidth * 2);
+    // footprints that are square or deeper-than-wide must be byte-identical to the
+    // approved baseline (commit afc7cd6) — no incidental distortion from this fix.
+    expect(oneByTwo.viewBoxWidth).toBe(oneByOne.viewBoxWidth);
+    expect(twoByTwo.viewBoxWidth).toBe(oneByOne.viewBoxWidth);
+
+    // a wider viewBox alone would be a regression (more empty canvas, same tiny
+    // building) — the cube must fill at least as much of its (now wider) viewBox
+    // as the 1x1 baseline fills its own, proving the building itself got wider,
+    // not just the empty space around it.
+    expect(twoByOne.fill).toBeGreaterThanOrEqual(oneByOne.fill);
+  });
+});

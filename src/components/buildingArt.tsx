@@ -132,6 +132,24 @@ interface Decor {
   wideDoor?: boolean;
   ribbon?: boolean;
   routeStripe?: boolean;
+  /** health/clinic — a facade cross, so the category reads without the emoji. */
+  cross?: boolean;
+  /** salary/office (bank-like) — two entrance columns flanking the door. */
+  columns?: boolean;
+  /** food — a dish + steam near the ground, next to the awning. */
+  foodDisplay?: boolean;
+  /** cafe — an outdoor table + cup beside the parasol. */
+  cafeTable?: boolean;
+  /** shopping — a storefront display window with goods inside. */
+  displayWindow?: boolean;
+  /** education — an arched transom over the entrance. */
+  archEntrance?: boolean;
+  /** transport — a platform canopy overhang at the roofline. */
+  canopy?: boolean;
+  /** living/townhouse — a small porch roof over the door. */
+  porch?: boolean;
+  /** culture/cinema — poster boards beside the ticket window. */
+  posterBoards?: boolean;
 }
 
 interface ArchetypeSpec {
@@ -153,17 +171,17 @@ const DEFAULT_H = 54;
 // Category -> archetype (ADDENDUM-05 §F-BLD table). This mapping is ours —
 // lifetown's own categories (reading/study/work/exercise) do not apply.
 const ARCHETYPES: Record<ArchetypeCategoryId, ArchetypeSpec> = {
-  food: { archetype: "restaurant", hue: "orange", roof: "flat", sign: "🍚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true } },
-  cafe: { archetype: "cafe", hue: "orange", roof: "pyramid", sign: "☕", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { parasol: true } },
-  transport: { archetype: "transport", hue: "blue", roof: "flat", sign: "🚌", hw: 42, hBase: 32, decor: { routeStripe: true }, landmark: true },
-  shopping: { archetype: "shop", hue: "purple", roof: "flat", sign: "🛍️", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true } },
-  living: { archetype: "townhouse", hue: "teal", roof: "pyramid", sign: "🏠", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { chimney: "back", windowBoxes: true } },
-  health: { archetype: "clinic", hue: "red", roof: "flat", sign: "✚", hw: DEFAULT_HW, hBase: DEFAULT_H, whiteWalls: true },
-  culture: { archetype: "cinema", hue: "purple", roof: "flat", sign: "🎬", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { marquee: true, ticketWindow: true }, landmark: true },
-  education: { archetype: "school", hue: "blue", roof: "pyramid", sign: "📚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { clock: true, flag: true } },
+  food: { archetype: "restaurant", hue: "orange", roof: "flat", sign: "🍚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true, foodDisplay: true } },
+  cafe: { archetype: "cafe", hue: "orange", roof: "pyramid", sign: "☕", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { parasol: true, cafeTable: true } },
+  transport: { archetype: "transport", hue: "blue", roof: "flat", sign: "🚌", hw: 42, hBase: 32, decor: { routeStripe: true, canopy: true }, landmark: true },
+  shopping: { archetype: "shop", hue: "purple", roof: "flat", sign: "🛍️", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true, displayWindow: true } },
+  living: { archetype: "townhouse", hue: "teal", roof: "pyramid", sign: "🏠", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { chimney: "back", windowBoxes: true, porch: true } },
+  health: { archetype: "clinic", hue: "red", roof: "flat", sign: "✚", hw: DEFAULT_HW, hBase: DEFAULT_H, whiteWalls: true, decor: { cross: true } },
+  culture: { archetype: "cinema", hue: "purple", roof: "flat", sign: "🎬", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { marquee: true, ticketWindow: true, posterBoards: true }, landmark: true },
+  education: { archetype: "school", hue: "blue", roof: "pyramid", sign: "📚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { clock: true, flag: true, archEntrance: true } },
   social: { archetype: "hall", hue: "yellow", roof: "flat", sign: "🎁", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { bunting: true, wideDoor: true }, landmark: true },
   etc: { archetype: "cottage", hue: "grey", roof: "pyramid", sign: "✳️", hw: DEFAULT_HW, hBase: DEFAULT_H },
-  salary: { archetype: "office", hue: "green", roof: "flat", sign: "💼", hw: 24, hBase: 66, landmark: true },
+  salary: { archetype: "office", hue: "green", roof: "flat", sign: "💼", hw: 24, hBase: 66, decor: { columns: true }, landmark: true },
   sidejob: { archetype: "workshop", hue: "green", roof: "pyramid", sign: "🔧", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { chimney: "side" } },
   bonus: { archetype: "gift", hue: "yellow", roof: "flat", sign: "🎀", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { ribbon: true } },
   other_income: { archetype: "cottage", hue: "teal", roof: "pyramid", sign: "💰", hw: DEFAULT_HW, hBase: DEFAULT_H },
@@ -179,6 +197,25 @@ const CY = 142;
 
 function floorsFor(level: number): number {
   return Math.max(0, Math.min(level, MAX_VISUAL_LEVEL) - 1);
+}
+
+/**
+ * Footprint-differentiation fix (visual verification: 2x1 scored 2/5 — it rendered
+ * only +67% wider than 1x1 despite occupying a tile more than double the width).
+ * Root cause: `preserveAspectRatio="meet"`'s scale is `min(tileW/VIEW_W, tileH/VIEW_H)`.
+ * Every footprint with h=1 has a 40px-tall tile, so `40/176=0.227` always binds —
+ * widening the cube inside a FIXED-width viewBox can't widen the rendered pixels
+ * proportionally, and risks clipping past VIEW_W.
+ *
+ * Only footprints wider than they are deep (2x1, not 1x1/1x2/2x2) get a wider
+ * viewBox — `w > h` is false for all three currently-passing cases, so this
+ * returns the untouched base width for them (proof: `120 * (w/h) === 120` only
+ * when w===h, and the `w > h` guard skips the formula entirely for 1x2 where
+ * w<h). VIEW_H stays fixed on purpose — that keeps the height-bound scale
+ * (and therefore the approved 1x1 vertical proportions) unchanged.
+ */
+function viewWidthFor(w: number, h: number): number {
+  return w > h ? VIEW_W * (w / h) : VIEW_W;
 }
 
 /**
@@ -225,23 +262,47 @@ function windowGrid(
   return out;
 }
 
+/**
+ * ADDENDUM-08 §7 — footprint in cells (absent === 1x1). The right wall face
+ * (`RB`/`RT`) carries the grid-x extent, the left wall face (`LB`/`LT`)
+ * carries the grid-y extent — the natural isometric mapping, since a box
+ * wider in x only bulges its x-facing (right) side and a box deeper in y
+ * only bulges its y-facing (left) side. This is what makes a 2x1 read WIDE,
+ * a 1x2 read DEEP/narrow-tall, and a 2x2 read as a genuinely bigger volume
+ * instead of the same landmark scale stretched over a bigger box.
+ */
+interface Footprint {
+  w: number;
+  h: number;
+}
+
 /** The isometric wall-cube skeleton, shared by every category archetype. */
-function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, variantIndex: number, isLandmark: boolean) {
+function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, variantIndex: number, isLandmark: boolean, footprint: Footprint) {
   const { roof } = spec;
+  const wide = footprint.w > 1;
+  const deep = footprint.h > 1;
   // §4.2: a landmark is broader + squatter than its neighbours inside the same tile.
-  const hw = isLandmark ? spec.hw * 1.3 : spec.hw;
-  const hBase = isLandmark ? spec.hBase * 0.82 : spec.hBase;
+  const landmarkMult = isLandmark ? 1.3 : 1;
+  // right face (x-facing) extent. `w>h` (2x1, not 2x2 where w===h) swaps the
+  // flat 1.28x "wide" bump for the actual w:h ratio, so a 2x1 stretches ~2x —
+  // 1x1/1x2/2x2 all have w<=h and fall through to the untouched 1x/1.28x path.
+  const wideMult = wide ? (footprint.w > footprint.h ? footprint.w / footprint.h : 1.28) : 1;
+  const ux = spec.hw * landmarkMult * wideMult;
+  const uy = spec.hw * landmarkMult * (deep ? 1.28 : 1); // left face (y-facing) extent
+  let hBase = isLandmark ? spec.hBase * 0.82 : spec.hBase;
+  if (wide && deep) hBase *= 1.18; // 2x2 must read as genuinely bigger, not just wide+squat
   const h = hBase + floors * FLOOR_STEP;
-  const hh = hw / 2;
-  const cx = CX;
+  const hh = (ux + uy) / 4;
+  const viewW = viewWidthFor(footprint.w, footprint.h);
+  const cx = viewW / 2;
   const cy = CY;
 
   const FB: Vec = { x: cx, y: cy + hh };
-  const RB: Vec = { x: cx + hw, y: cy };
-  const LB: Vec = { x: cx - hw, y: cy };
+  const RB: Vec = { x: cx + ux, y: cy };
+  const LB: Vec = { x: cx - uy, y: cy };
   const FT: Vec = { x: cx, y: cy + hh - h };
-  const RT: Vec = { x: cx + hw, y: cy - h };
-  const LT: Vec = { x: cx - hw, y: cy - h };
+  const RT: Vec = { x: cx + ux, y: cy - h };
+  const LT: Vec = { x: cx - uy, y: cy - h };
   const BT: Vec = { x: cx, y: cy - hh - h };
 
   const roofH = roof === "pyramid" ? 22 : 10;
@@ -250,7 +311,7 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
 
   // ground shadow
   parts.push(
-    <ellipse key="shadow" cx={cx} cy={cy + hh + 6} rx={hw * 1.02} ry={hh * 0.7} fill="rgba(90,74,106,0.14)" />,
+    <ellipse key="shadow" cx={cx} cy={cy + hh + 6} rx={Math.max(ux, uy) * 1.02} ry={hh * 0.7} fill="rgba(90,74,106,0.14)" />,
   );
 
   // walls
@@ -279,9 +340,12 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
     );
   }
 
-  // windows (left face) — cols x rows grid, rows scale with level (§4.1)
+  // windows (left face) — cols x rows grid, rows scale with level (§4.1),
+  // cols scale with footprint depth (§7 — a deeper footprint reads denser here)
   const winRows = Math.min(4, 1 + floors);
-  parts.push(...windowGrid(FB, LB, LT, FT, 2, winRows, 0.18, 0.64, 0.34, 0.44, palette, variantIndex, "win-l"));
+  const leftCols = deep ? 3 : 2;
+  const rightCols = wide ? 3 : 2;
+  parts.push(...windowGrid(FB, LB, LT, FT, leftCols, winRows, 0.18, 0.64, 0.34, 0.44, palette, variantIndex, "win-l"));
 
   // door + door windows (right face) — wideDoor widens the door quad
   const doorU1 = spec.decor?.wideDoor ? 0.48 : 0.4;
@@ -291,11 +355,25 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
   parts.push(
     <polygon key="lintel" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.2, 0.34, 0.55, 0.6))} fill={colors.yellow200} />,
   );
+  // doorstep/stoop — a small slab just outside the threshold, protruding past
+  // the wall base (v < 0 extrapolates beyond the FB-RB ground edge on purpose)
+  const doorMidU = (0.14 + doorU1) / 2;
+  parts.push(
+    <polygon key="stoop" points={pointsAttr(quadPts(FB, RB, RT, FT, doorMidU - 0.09, doorMidU + 0.09, -0.07, 0.02))} fill={palette.roofDark} opacity={0.5} />,
+  );
   // right-face window grid starts clear of the door quad (doorU1 max is 0.48)
   const rightWinBase = doorU1 + 0.12;
   parts.push(
-    ...windowGrid(FB, RB, RT, FT, 2, winRows, rightWinBase, 0.9 - rightWinBase, 0.3, 0.44, palette, variantIndex, "win-r"),
+    ...windowGrid(FB, RB, RT, FT, rightCols, winRows, rightWinBase, 0.9 - rightWinBase, 0.3, 0.44, palette, variantIndex, "win-r"),
   );
+  // window sills — a thin ledge right under each face's window band
+  parts.push(<polygon key="sill-l" points={pointsAttr(quadPts(FB, LB, LT, FT, 0.15, 0.85, 0.3, 0.335))} fill={palette.roofDark} opacity={0.3} />);
+  parts.push(
+    <polygon key="sill-r" points={pointsAttr(quadPts(FB, RB, RT, FT, rightWinBase - 0.02, 0.92, 0.26, 0.295))} fill={palette.roofDark} opacity={0.3} />,
+  );
+  // roof eave — a thin shadow band at the wall/roof seam so the roof reads as its own slab
+  parts.push(<polygon key="eave-l" points={pointsAttr(quadPts(FB, LB, LT, FT, 0.0, 1.0, 0.93, 1.0))} fill={palette.roofDark} opacity={0.28} />);
+  parts.push(<polygon key="eave-r" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.0, 1.0, 0.93, 1.0))} fill={palette.roofDark} opacity={0.28} />);
 
   // roof
   if (roof === "pyramid") {
@@ -311,31 +389,32 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
 
   const signAnchor: Vec = roof === "pyramid" ? { x: cx, y: cy - h - roofH * 0.42 } : { x: cx, y: cy - h + 8 };
 
-  return { parts, FT, RT, LT, BT, RB, cx, cy, h, hh, hw, signAnchor };
+  return { parts, FB, FT, RT, LT, BT, RB, LB, cx, cy, h, hh, ux, uy, viewW, signAnchor };
 }
 
-function decorParts(spec: ArchetypeSpec, geo: ReturnType<typeof buildingCube>): ReactNode[] {
+function decorParts(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeof buildingCube>): ReactNode[] {
   const d = spec.decor;
   if (!d) return [];
   const out: ReactNode[] = [];
-  const { FT, RT, RB, cx, cy, h, hh, hw } = geo;
+  const { FB, FT, RT, RB, LB, LT, cx, cy, h, hh, ux, uy } = geo;
+  const doorU1 = spec.decor?.wideDoor ? 0.48 : 0.4;
 
   if (d.awning) {
-    const a = quadPts({ x: cx, y: cy + hh }, RB, RT, FT, 0.05, 0.25, 0.56, 0.66);
-    const b = quadPts({ x: cx, y: cy + hh }, RB, RT, FT, 0.25, 0.45, 0.56, 0.66);
+    const a = quadPts(FB, RB, RT, FT, 0.05, 0.25, 0.56, 0.66);
+    const b = quadPts(FB, RB, RT, FT, 0.25, 0.45, 0.56, 0.66);
     out.push(<polygon key="awning-a" points={pointsAttr(a)} fill={colors.white} />);
     out.push(<polygon key="awning-b" points={pointsAttr(b)} fill={colors.red400} />);
   }
 
   if (d.parasol) {
-    const px = cx + hw * 0.25;
+    const px = cx + ux * 0.25;
     const py = cy - h - 26;
     out.push(<ellipse key="parasol-canopy" cx={px} cy={py} rx={12} ry={5} fill={colors.red400} />);
     out.push(<rect key="parasol-pole" x={px - 1} y={py} width={2} height={12} fill={colors.grey600} />);
   }
 
   if (d.chimney) {
-    const cxOff = d.chimney === "side" ? -hw * 0.6 : hw * 0.15;
+    const cxOff = d.chimney === "side" ? -uy * 0.6 : ux * 0.15;
     const chimX = cx + cxOff;
     const chimY = cy - h - 8;
     out.push(<rect key="chimney" x={chimX - 4} y={chimY - 14} width={8} height={14} fill={colors.grey600} />);
@@ -343,22 +422,96 @@ function decorParts(spec: ArchetypeSpec, geo: ReturnType<typeof buildingCube>): 
   }
 
   if (d.windowBoxes) {
-    const box = quadPts({ x: cx, y: cy + hh }, { x: cx - hw, y: cy }, geo.LT, geo.FT, 0.32, 0.58, 0.36, 0.41);
+    const box = quadPts(FB, LB, LT, FT, 0.32, 0.58, 0.36, 0.41);
     out.push(<polygon key="window-box" points={pointsAttr(box)} fill={colors.green600} />);
   }
 
   if (d.marquee) {
-    const band = quadPts({ x: cx, y: cy + hh }, RB, RT, FT, 0.05, 0.95, 0.58, 0.68);
+    const band = quadPts(FB, RB, RT, FT, 0.05, 0.95, 0.58, 0.68);
     out.push(<polygon key="marquee" points={pointsAttr(band)} fill={colors.yellow400} />);
     for (let i = 0; i < 3; i++) {
-      const p = bil({ x: cx, y: cy + hh }, RB, RT, FT, 0.2 + i * 0.25, 0.63);
+      const p = bil(FB, RB, RT, FT, 0.2 + i * 0.25, 0.63);
       out.push(<circle key={`bulb-${i}`} cx={p.x} cy={p.y} r={1.4} fill={colors.white} />);
     }
   }
 
   if (d.ticketWindow) {
-    const win = quadPts({ x: cx, y: cy + hh }, { x: cx - hw, y: cy }, geo.LT, geo.FT, 0.15, 0.32, 0.2, 0.36);
+    const win = quadPts(FB, LB, LT, FT, 0.15, 0.32, 0.2, 0.36);
     out.push(<polygon key="ticket-window" points={pointsAttr(win)} fill={colors.grey50} />);
+  }
+
+  if (d.cross) {
+    const vBar = quadPts(FB, RB, RT, FT, 0.46, 0.54, 0.58, 0.86);
+    const barH = quadPts(FB, RB, RT, FT, 0.38, 0.62, 0.68, 0.76);
+    out.push(<polygon key="cross-v" points={pointsAttr(vBar)} fill={colors.red500} />);
+    out.push(<polygon key="cross-h" points={pointsAttr(barH)} fill={colors.red500} />);
+  }
+
+  if (d.columns) {
+    const colA = quadPts(FB, RB, RT, FT, 0.04, 0.11, 0.03, 0.5);
+    const colB = quadPts(FB, RB, RT, FT, 0.43, 0.5, 0.03, 0.5);
+    out.push(<polygon key="col-a" points={pointsAttr(colA)} fill={palette.roofLite} />);
+    out.push(<polygon key="col-b" points={pointsAttr(colB)} fill={palette.roofLite} />);
+  }
+
+  if (d.foodDisplay) {
+    const bx = cx - ux * 0.4;
+    const by = cy + hh * 0.45;
+    out.push(<ellipse key="dish" cx={bx} cy={by} rx={6} ry={3} fill={colors.white} stroke={palette.roofDark} strokeWidth={0.8} />);
+    out.push(<circle key="dish-a" cx={bx - 1.6} cy={by - 0.8} r={1.2} fill={colors.orange500} />);
+    out.push(<circle key="dish-b" cx={bx + 1.6} cy={by - 0.8} r={1.2} fill={colors.red400} />);
+  }
+
+  if (d.cafeTable) {
+    const tx = cx + ux * 0.42;
+    const ty = cy + hh * 0.5;
+    out.push(<rect key="table-top" x={tx - 5} y={ty - 1} width={10} height={2} fill={colors.grey600} />);
+    out.push(<line key="table-leg" x1={tx} y1={ty + 1} x2={tx} y2={ty + 6} stroke={colors.grey600} strokeWidth={1.2} />);
+    out.push(<circle key="cup" cx={tx - 3} cy={ty - 3} r={1.6} fill={colors.white} stroke={palette.roofDark} strokeWidth={0.6} />);
+  }
+
+  if (d.displayWindow) {
+    const win = quadPts(FB, LB, LT, FT, 0.14, 0.34, 0.2, 0.4);
+    out.push(<polygon key="display-window" points={pointsAttr(win)} fill={colors.grey50} stroke={palette.roofDark} strokeWidth={0.6} />);
+    const g1 = bil(FB, LB, LT, FT, 0.2, 0.28);
+    const g2 = bil(FB, LB, LT, FT, 0.28, 0.3);
+    out.push(<rect key="goods-a" x={g1.x - 1.5} y={g1.y - 3} width={3} height={4} fill={colors.purple400} />);
+    out.push(<circle key="goods-b" cx={g2.x} cy={g2.y - 2} r={1.6} fill={colors.yellow400} />);
+  }
+
+  if (d.archEntrance) {
+    const doorTopL = bil(FB, RB, RT, FT, 0.14, 0.52);
+    const doorTopR = bil(FB, RB, RT, FT, doorU1, 0.52);
+    const midX = (doorTopL.x + doorTopR.x) / 2;
+    const topY = Math.min(doorTopL.y, doorTopR.y) - 5;
+    out.push(
+      <path
+        key="arch"
+        d={`M ${doorTopL.x.toFixed(1)} ${doorTopL.y.toFixed(1)} Q ${midX.toFixed(1)} ${topY.toFixed(1)} ${doorTopR.x.toFixed(1)} ${doorTopR.y.toFixed(1)} Z`}
+        fill={palette.roofLite}
+      />,
+    );
+  }
+
+  if (d.canopy) {
+    const band = quadPts(FB, RB, RT, FT, -0.05, 1.05, 0.92, 1.0);
+    out.push(<polygon key="canopy" points={pointsAttr(band)} fill={palette.roofDark} opacity={0.85} />);
+  }
+
+  if (d.porch) {
+    const roofBand = quadPts(FB, RB, RT, FT, 0.08, 0.46, 0.6, 0.66);
+    out.push(<polygon key="porch-roof" points={pointsAttr(roofBand)} fill={palette.roofMid} />);
+    const p1 = bil(FB, RB, RT, FT, 0.1, 0.6);
+    const p2 = bil(FB, RB, RT, FT, 0.44, 0.6);
+    out.push(<line key="porch-post-a" x1={p1.x} y1={p1.y} x2={p1.x} y2={p1.y + 8} stroke={palette.roofDark} strokeWidth={1} />);
+    out.push(<line key="porch-post-b" x1={p2.x} y1={p2.y} x2={p2.x} y2={p2.y + 8} stroke={palette.roofDark} strokeWidth={1} />);
+  }
+
+  if (d.posterBoards) {
+    const p1 = quadPts(FB, LB, LT, FT, 0.42, 0.52, 0.22, 0.34);
+    const p2 = quadPts(FB, LB, LT, FT, 0.55, 0.65, 0.22, 0.34);
+    out.push(<polygon key="poster-a" points={pointsAttr(p1)} fill={colors.yellow200} />);
+    out.push(<polygon key="poster-b" points={pointsAttr(p2)} fill={colors.blue200} />);
   }
 
   if (d.clock) {
@@ -407,12 +560,15 @@ function decorParts(spec: ArchetypeSpec, geo: ReturnType<typeof buildingCube>): 
  * Two posts + a rounded plate + the archetype's glyph at 22px — the oversized
  * roof ornament landmarks get instead of the bare emoji (§4.3). Applied
  * uniformly to every landmark archetype and to any building promoted to
- * landmark rendering by level.
+ * landmark rendering by level. `big` (ADDENDUM-08 §7 — a genuine 2x2
+ * footprint) scales the plate up further and adds a small cap above it, so a
+ * 2x2 landmark's roof ornament reads as bigger than a 1x1 landmark's, not
+ * just the same signboard on a wider box.
  */
-function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeof buildingCube>): ReactNode[] {
+function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeof buildingCube>, big: boolean): ReactNode[] {
   const { signAnchor } = geo;
-  const plateW = 44;
-  const plateH = 18;
+  const plateW = big ? 56 : 44;
+  const plateH = big ? 22 : 18;
   const plateCx = signAnchor.x;
   const plateCy = signAnchor.y - 14;
   const plateTop = plateCy - plateH / 2;
@@ -431,13 +587,18 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
       fill={palette.roofLite}
       stroke={palette.roofDark}
     />,
-    <text key="plate-sign" x={plateCx} y={plateCy + 7} fontSize={22} textAnchor="middle">
+    <text key="plate-sign" x={plateCx} y={plateCy + 7} fontSize={big ? 26 : 22} textAnchor="middle">
       {spec.sign}
     </text>,
   ];
   // three marquee bulbs along the plate's bottom edge — the same trick d.marquee already uses
   for (let i = 0; i < 3; i++) {
     out.push(<circle key={`bulb-${i}`} cx={plateCx - 12 + i * 12} cy={plateBottom} r={1.2} fill={colors.white} />);
+  }
+  // 2x2 landmark cap — a small parapet block above the plate, the "extra roof
+  // structure" ADDENDUM-08 §7 asks for on genuinely bigger buildings.
+  if (big) {
+    out.push(<rect key="cap" x={plateCx - 6} y={plateTop - 5} width={12} height={5} fill={palette.roofDark} />);
   }
   return out;
 }
@@ -525,9 +686,11 @@ export function archetypeFor(categoryId: BuildingCategoryId | null, monumentPeri
   return ARCHETYPES[categoryId].archetype;
 }
 
-/** Inline SVG building/park/monument art. Fixed viewBox, `width/height: 100%` — never clips
- * regardless of tile size (52/56/64/72px all verified: `preserveAspectRatio`'s default `meet`
- * always fits the whole viewBox inside the box). */
+/** Inline SVG building/park/monument art. `width/height: 100%` — never clips regardless of
+ * tile size (52/56/64/72px all verified: `preserveAspectRatio`'s default `meet` always fits
+ * the whole viewBox inside the box). The viewBox width is fixed at 120 EXCEPT for footprints
+ * wider than they are deep (2x1), where `viewWidthFor` widens it proportionally so the cube's
+ * extra width isn't clipped and can actually render wider (see `viewWidthFor` for why). */
 export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w = 1, h = 1 }: BuildingArtProps) {
   if (monumentPeriod || categoryId === null) {
     return <MonumentArt monumentPeriod={monumentPeriod} />;
@@ -547,15 +710,16 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
   // occupying a multi-cell footprint (ADDENDUM-08 §7 — a 2x2 must read as a
   // deliberately bigger building, not a 1x1 sprite stretched into a big box).
   const isLandmark = !!spec.landmark || level >= 4 || w * h > 1;
-  const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark);
-  const decor = decorParts(spec, geo);
+  const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark, { w, h });
+  const decor = decorParts(spec, palette, geo);
+  const big2x2 = w === 2 && h === 2;
 
   return (
-    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" height="100%" data-archetype={spec.archetype} aria-hidden="true">
+    <svg viewBox={`0 0 ${geo.viewW} ${VIEW_H}`} width="100%" height="100%" data-archetype={spec.archetype} aria-hidden="true">
       {geo.parts}
       {decor}
       {isLandmark ? (
-        roofSignboard(spec, palette, geo)
+        roofSignboard(spec, palette, geo, big2x2)
       ) : (
         <text x={geo.signAnchor.x} y={geo.signAnchor.y + 8} fontSize={16} textAnchor="middle">
           {spec.sign}

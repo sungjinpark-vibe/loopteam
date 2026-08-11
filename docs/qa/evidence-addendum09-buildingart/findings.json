@@ -1,0 +1,188 @@
+{
+  "fixtureLoaded": true,
+  "buildingCount": 133,
+  "archetypesPresent": [
+    "gift",
+    "transport",
+    "office",
+    "restaurant",
+    "clinic",
+    "cinema",
+    "shop",
+    "school",
+    "cafe",
+    "cottage",
+    "hall",
+    "townhouse",
+    "workshop"
+  ],
+  "zoomToggleFound": true,
+  "discoveredPrimePlotIndex": 24,
+  "consoleErrorsAfterNaturalScene": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "customScene": {
+    "ym": "2026-07",
+    "count": 6,
+    "primeUsed": 24
+  },
+  "zoomStateAfterReload": "true",
+  "allBuildingTiles": [
+    {
+      "plotIndex": "24",
+      "archetype": "clinic",
+      "x": -285,
+      "y": 79.5,
+      "w": 40,
+      "h": 40
+    },
+    {
+      "plotIndex": "174",
+      "archetype": "restaurant",
+      "x": 175,
+      "y": 401.5,
+      "w": 40,
+      "h": 40
+    },
+    {
+      "plotIndex": "175",
+      "archetype": "restaurant",
+      "x": 221,
+      "y": 401.5,
+      "w": 40,
+      "h": 40
+    },
+    {
+      "plotIndex": "176",
+      "archetype": "restaurant",
+      "x": 267,
+      "y": 401.5,
+      "w": 86,
+      "h": 40
+    },
+    {
+      "plotIndex": "214",
+      "archetype": "restaurant",
+      "x": 175,
+      "y": 493.5,
+      "w": 40,
+      "h": 86
+    },
+    {
+      "plotIndex": "216",
+      "archetype": "restaurant",
+      "x": 267,
+      "y": 493.5,
+      "w": 86,
+      "h": 86
+    }
+  ],
+  "footprintCrop": {
+    "ok": true,
+    "clip": {
+      "x": 125,
+      "y": 351.5,
+      "width": 278,
+      "height": 278
+    }
+  },
+  "isolated1x1Crop": {
+    "ok": true,
+    "clip": {
+      "x": 160,
+      "y": 386.5,
+      "width": 70,
+      "height": 70
+    }
+  },
+  "isolated2x1Crop": {
+    "ok": true,
+    "clip": {
+      "x": 252,
+      "y": 386.5,
+      "width": 116,
+      "height": 70
+    }
+  },
+  "renderedBuildingPx": {
+    "plot174_1x1": {
+      "bboxLocal": {
+        "w": 65,
+        "h": 103
+      },
+      "renderedPx": {
+        "w": 15,
+        "h": 23
+      },
+      "tileContainerPx": {
+        "w": 40,
+        "h": 40
+      }
+    },
+    "plot176_2x1": {
+      "bboxLocal": {
+        "w": 109,
+        "h": 116
+      },
+      "renderedPx": {
+        "w": 25,
+        "h": 26
+      },
+      "tileContainerPx": {
+        "w": 86,
+        "h": 40
+      }
+    },
+    "plot214_1x2": {
+      "bboxLocal": {
+        "w": 109,
+        "h": 117
+      },
+      "renderedPx": {
+        "w": 36,
+        "h": 39
+      },
+      "tileContainerPx": {
+        "w": 40,
+        "h": 86
+      }
+    },
+    "plot216_2x2": {
+      "bboxLocal": {
+        "w": 109,
+        "h": 133
+      },
+      "renderedPx": {
+        "w": 53,
+        "h": 65
+      },
+      "tileContainerPx": {
+        "w": 86,
+        "h": 86
+      }
+    }
+  },
+  "levelCrop": {
+    "ok": true,
+    "clip": {
+      "x": 145,
+      "y": 371.5,
+      "width": 146,
+      "height": 100
+    }
+  },
+  "primeCrop": {
+    "ok": true,
+    "clip": {
+      "x": 135,
+      "y": 202.5,
+      "width": 120,
+      "height": 120
+    }
+  },
+  "primeTileHasPrimeClass": "town-tile town-tile--prime",
+  "consoleErrorsAll": 3,
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}
