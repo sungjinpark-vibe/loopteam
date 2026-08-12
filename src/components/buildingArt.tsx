@@ -790,7 +790,7 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   // smallest thing that still reads as a distinct coloured marker on the roof.
   // Capped at spanW so it can never spill sideways past the tile (the surviving
   // half of the d8ce379 freeze).
-  const plateW = Math.min(geo.box.spanW * (big ? 0.42 : 0.52), big ? 130 : 90);
+  const plateW = Math.min(geo.box.spanW * (big ? 0.46 : 0.58), big ? 140 : 100);
   const plateH = plateW * 0.38;
   const plateCx = signAnchor.x;
   // Mounted flush on the roof (bottom edge at the sign anchor), clamped so the plate
@@ -808,7 +808,7 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   // sign in the table (including the flat-coloured "✚"/"✳️") reads against white,
   // and several do not read against a saturated plate.
   const postX = plateW * 0.23;
-  const chipInset = plateH * 0.16;
+  const chipInset = plateH * 0.11;
   const out: ReactNode[] = [
     <line key="post-l" x1={plateCx - postX} y1={plateBottom} x2={plateCx - postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
     <line key="post-r" x1={plateCx + postX} y1={plateBottom} x2={plateCx + postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
@@ -834,7 +834,7 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
       rx={2}
       fill={colors.white}
     />,
-    <text key="plate-sign" x={plateCx} y={plateCy + plateH * 0.3} fontSize={plateH * 0.66} textAnchor="middle">
+    <text key="plate-sign" x={plateCx} y={plateCy + plateH * 0.32} fontSize={plateH * 0.76} textAnchor="middle">
       {spec.sign}
     </text>,
   ];

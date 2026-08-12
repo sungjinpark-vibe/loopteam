@@ -1,0 +1,600 @@
+{
+  "after": [
+    {
+      "label": "100% zoom",
+      "mapScale": 1,
+      "gridTop": -157.5,
+      "perLevel": [
+        {
+          "level": 1,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 2,
+          "artHeightPx": 45,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 5,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 3,
+          "artHeightPx": 50,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 10,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 4,
+          "artHeightPx": 55,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 15,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 5,
+          "artHeightPx": 60,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 20,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 6,
+          "artHeightPx": 65,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 25,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 7,
+          "artHeightPx": 70,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 30,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 8,
+          "artHeightPx": 75,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 35,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 9,
+          "artHeightPx": 80,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 40,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 10,
+          "artHeightPx": 85,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 45,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        }
+      ],
+      "headerBottom": null,
+      "highestArtTop": -149.5
+    },
+    {
+      "label": "100% zoom, scrolled to top",
+      "mapScale": 1,
+      "gridTop": 188.5,
+      "perLevel": [
+        {
+          "level": 1,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 2,
+          "artHeightPx": 45,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 5,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 3,
+          "artHeightPx": 50,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 10,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 4,
+          "artHeightPx": 55,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 15,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 5,
+          "artHeightPx": 60,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 20,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 6,
+          "artHeightPx": 65,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 25,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 7,
+          "artHeightPx": 70,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 30,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 8,
+          "artHeightPx": 75,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 35,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 9,
+          "artHeightPx": 80,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 40,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        },
+        {
+          "level": 10,
+          "artHeightPx": 85,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 45,
+          "signWidthPx": 21.8,
+          "signHeightPx": 8.3
+        }
+      ],
+      "headerBottom": null,
+      "highestArtTop": 196.5
+    },
+    {
+      "label": "fit scale (default view)",
+      "mapScale": 0.419,
+      "gridTop": 188.5,
+      "perLevel": [
+        {
+          "level": 1,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 2,
+          "artHeightPx": 18.9,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 2.1,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 3,
+          "artHeightPx": 21,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 4.2,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 4,
+          "artHeightPx": 23.1,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 6.3,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 5,
+          "artHeightPx": 25.2,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 8.4,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 6,
+          "artHeightPx": 27.3,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 10.5,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 7,
+          "artHeightPx": 29.4,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 12.6,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 8,
+          "artHeightPx": 31.5,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 14.7,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 9,
+          "artHeightPx": 33.5,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 16.8,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        },
+        {
+          "level": 10,
+          "artHeightPx": 35.6,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 18.9,
+          "signWidthPx": 9.1,
+          "signHeightPx": 3.5
+        }
+      ],
+      "headerBottom": null,
+      "highestArtTop": 191.9
+    }
+  ],
+  "before": [
+    {
+      "label": "100% zoom",
+      "mapScale": 1,
+      "gridTop": -112.5,
+      "perLevel": [
+        {
+          "level": 1,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 2,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 3,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 4,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 5,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 6,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 7,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 8,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 9,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 10,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        }
+      ],
+      "headerBottom": null,
+      "highestArtTop": -104.5
+    },
+    {
+      "label": "100% zoom, scrolled to top",
+      "mapScale": 1,
+      "gridTop": 188.5,
+      "perLevel": [
+        {
+          "level": 1,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 2,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 3,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 4,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 5,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 6,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 7,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 8,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 9,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        },
+        {
+          "level": 10,
+          "artHeightPx": 40,
+          "artWidthPx": 40,
+          "tileWidthPx": 40,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 10,
+          "signHeightPx": 4.1
+        }
+      ],
+      "headerBottom": null,
+      "highestArtTop": 196.5
+    },
+    {
+      "label": "fit scale (default view)",
+      "mapScale": 0.419,
+      "gridTop": 188.5,
+      "perLevel": [
+        {
+          "level": 1,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 2,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 3,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": null,
+          "signHeightPx": null
+        },
+        {
+          "level": 4,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 4.2,
+          "signHeightPx": 1.7
+        },
+        {
+          "level": 5,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 4.2,
+          "signHeightPx": 1.7
+        },
+        {
+          "level": 6,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 4.2,
+          "signHeightPx": 1.7
+        },
+        {
+          "level": 7,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 4.2,
+          "signHeightPx": 1.7
+        },
+        {
+          "level": 8,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 4.2,
+          "signHeightPx": 1.7
+        },
+        {
+          "level": 9,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 4.2,
+          "signHeightPx": 1.7
+        },
+        {
+          "level": 10,
+          "artHeightPx": 16.8,
+          "artWidthPx": 16.8,
+          "tileWidthPx": 16.8,
+          "risesAboveCellPx": 0,
+          "signWidthPx": 4.2,
+          "signHeightPx": 1.7
+        }
+      ],
+      "headerBottom": null,
+      "highestArtTop": 191.9
+    }
+  ]
+}
