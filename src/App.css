@@ -65,6 +65,40 @@
   }
 }
 
+/* ── Toast layer (TDS `openToast`) — Gate-3 follow-up A6 ──
+ *
+ * Measured in a real browser, not assumed: TDS mounts every toast into
+ * `#tds-mobile-portal-container` as one FIXED, full-width `aria-live` wrapper
+ * pinned to `bottom: 0` with `z-index: 30000` — above `.bottom-tab-bar` (10),
+ * `.town-fab` and `.town-zoom-toggle`. Two consequences, both defects:
+ *
+ * 1. The wrapper is a live pointer target across its whole box, so while any
+ *    toast is up, `document.elementFromPoint()` inside the tab bar returns the
+ *    wrapper, not the tab — the tab bar and the FAB simply stop responding.
+ *    A toast is a status message; it must never block input (the same rule
+ *    that got the blocking tier-celebration modal removed in round 1). Only
+ *    the toast card itself takes pointer events, so tap-to-dismiss still works.
+ * 2. Its resting position sits ON the tab bar. `openToast`'s own `gap` option
+ *    only moves the card (it is applied as vertical padding on this wrapper),
+ *    which trades the tab-bar overlap for a FAB overlap and still leaves the
+ *    wrapper covering the tab bar. Setting the clearance HERE instead fixes
+ *    every toast at once — including any future call site that forgets an
+ *    option — and reuses the same stack arithmetic `.tier-celebration` already
+ *    clears the FAB/zoom-toggle column with.
+ *
+ * `!important` is required and deliberate: the padding it overrides is an
+ * inline style written by the vendor component.
+ */
+#tds-mobile-portal-container > [aria-live="polite"] {
+  pointer-events: none;
+  padding-top: 0 !important;
+  padding-bottom: calc(var(--tab-bar-h) + 24px + 48px + 48px) !important;
+}
+
+#tds-mobile-portal-container > [aria-live="polite"] > * {
+  pointer-events: auto;
+}
+
 /* ── §9 balance banner ── */
 
 .balance-banner {

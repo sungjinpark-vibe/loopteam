@@ -432,17 +432,26 @@ describe("TownScreen — Gate-3 follow-up: the reward toast names the currency a
     await mountAndWaitForBoot();
     const perBuild = BALANCE.seedAwards.build;
 
-    openSheet();
-    fillAndSave("카페");
-    expect(document.body.textContent).toContain(`+씨앗 ${perBuild}개`);
-    expect(document.body.textContent).toContain(`모은 ${perBuild}개`);
+    // Building #1 raises A2's celebration banner instead of a toast (A6 — the
+    // two are bottom-docked and would otherwise land on the same line), so the
+    // toast assertions start from building #2.
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    act(() => latest!.dismissNotice());
     expect(latest!.economy.seeds).toBe(perBuild);
 
     openSheet();
     fillAndSave("교통");
-    // The running total, not the grant, is what moved.
+    expect(document.body.textContent).toContain(`+씨앗 ${perBuild}개`);
     expect(document.body.textContent).toContain(`모은 ${perBuild * 2}개`);
     expect(latest!.economy.seeds).toBe(perBuild * 2);
+
+    openSheet();
+    fillAndSave("문화");
+    // The running total, not the grant, is what moved.
+    expect(document.body.textContent).toContain(`모은 ${perBuild * 3}개`);
+    expect(latest!.economy.seeds).toBe(perBuild * 3);
   });
 
   it("the shop header — the surface the same currency is SPENT on — names the unit too", async () => {
@@ -457,6 +466,28 @@ describe("TownScreen — Gate-3 follow-up: the reward toast names the currency a
       container.querySelector<HTMLElement>(".shop-fab")!.click();
     });
     expect(document.body.querySelector(".shop-balance")?.textContent).toBe(`씨앗 ${seedsNow}개`);
+  });
+});
+
+// Gate-3 follow-up (A6): the first founding's celebration banner and the
+// routine build toast are both bottom-docked and measured to the same line in
+// a real browser — the toast covered the banner's copy. The banner is the
+// feedback for that one save; every later build still toasts.
+describe("TownScreen — Gate-3 follow-up: the first founding does not stack a toast on its banner", () => {
+  it("suppresses the build toast for building #1 only", async () => {
+    await mountAndWaitForBoot();
+
+    openSheet();
+    fillAndSave("카페");
+    expect(latest!.buildingCount).toBe(1);
+    expect(latest!.notice).toEqual({ kind: "firstBuilding" }); // the banner is what fires
+    expect(document.body.textContent).not.toContain("건물이 생겼어요");
+
+    act(() => latest!.dismissNotice());
+    openSheet();
+    fillAndSave("교통");
+    expect(latest!.buildingCount).toBe(2);
+    expect(document.body.textContent).toContain("건물이 생겼어요"); // building #2 toasts as before
   });
 });
 

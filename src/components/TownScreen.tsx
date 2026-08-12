@@ -58,13 +58,12 @@ function seedSuffix(amount: number, balanceAfter: number): string {
   return amount > 0 ? ` (+${formatSeedsWithUnit(toSeedCount(amount))} · 모은 ${formatSeeds(toSeedCount(balanceAfter))})` : "";
 }
 
-// Toss TDS `openToast`'s default position ignores this app's own
-// `.bottom-tab-bar` (fixed, 56px, spec-owned — App.css `--tab-bar-h`), so a
-// toast with no `gap` sits low enough to occlude both tab labels (liveops-pd
-// finding, round-5: the level-up toast covered "우리 동네"/"기록"). `gap` is
-// TDS's own offset-from-bottom option (`BaseToastOptions.gap`) — bump it
-// clear of the tab bar plus a small margin.
-const TOAST_GAP_ABOVE_TAB_BAR = 80;
+// Gate-3 follow-up (A6): the toast layer's clearance above the bottom tab bar
+// and the FAB column is owned entirely by App.css's
+// `#tds-mobile-portal-container > [aria-live="polite"]` rule now — see its
+// comment for the measurement. `openToast`'s `gap` option only moved the card
+// (leaving the wrapper itself over the tab bar, swallowing its taps), so no
+// call site here passes one; a new toast is correctly placed by default.
 
 export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -124,23 +123,28 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     // A5 — the balance AFTER this save. `store.economy.seeds` is the pre-save
     // value here (stale render closure, same as `queueLength` below).
     const seedsAfter = store.economy.seeds + result.seedsGranted;
+    // A6 — the first founding raises A2's celebration banner, and both it and
+    // the routine build toast are bottom-docked: measured in the browser, they
+    // land on the same line and the toast covers the banner's copy. The banner
+    // IS the feedback for that one save, so the toast stands down rather than
+    // stacking on it (`store.buildingCount` is the pre-save count, same stale
+    // closure as `seedsAfter` above). Every later build toasts as before.
+    const isFirstFounding = result.building !== null && store.buildingCount === 0;
     // F14: a save with zero slots either queues (return-promise toast) or,
     // once the queue itself is full, overflows plainly — never a silent no-op.
     if (result.queued) {
       // `result.queueLength` is the queue's length AFTER this save (post-push) —
       // `store.queueLength` would read the PRE-save value here, from the
       // render closure captured before `addEntry`'s state commit re-renders.
-      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`, { gap: TOAST_GAP_ABOVE_TAB_BAR });
+      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`);
     } else if (result.queueOverflow) {
-      openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.", { gap: TOAST_GAP_ABOVE_TAB_BAR });
+      openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
     } else if (result.grew) {
       // ADDENDUM-04 §5/§8 — one-line level-up feedback on the same toast
       // channel as F14's notices above; no celebration system (§4's "what
       // was deliberately NOT built" applies to this feedback too).
-      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted, seedsAfter)}`, {
-        gap: TOAST_GAP_ABOVE_TAB_BAR,
-      });
-    } else if (result.building?.categoryId) {
+      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted, seedsAfter)}`);
+    } else if (result.building?.categoryId && !isFirstFounding) {
       // Gate-3-rerun fix (ux-researcher/target-player TOP FIX): the reward
       // used to resolve as a silent speck somewhere in an already-dense map
       // — `TownGrid`'s own `justBuiltId` effect now zooms/scrolls the camera
@@ -150,9 +154,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // `seedSuffix` below is a game-currency count, not money, so it's a
       // different axis from the invariant this note is guarding.
       const content = CATEGORY_CONTENT[result.building.categoryId];
-      openToast(`${content.icon} ${content.label} 건물이 생겼어요${seedSuffix(result.seedsGranted, seedsAfter)}`, {
-        gap: TOAST_GAP_ABOVE_TAB_BAR,
-      });
+      openToast(`${content.icon} ${content.label} 건물이 생겼어요${seedSuffix(result.seedsGranted, seedsAfter)}`);
     }
   }
 
@@ -208,7 +210,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     // highlight to explain why, so a player who missed the highlight read it
     // as "the primary button vanished". Same transient toast channel every
     // other TownScreen feedback line already uses — no new surface.
-    openToast(`반짝이는 건물 ${candidates.length}채 중에서 키울 건물을 탭하세요`, { gap: TOAST_GAP_ABOVE_TAB_BAR });
+    openToast(`반짝이는 건물 ${candidates.length}채 중에서 키울 건물을 탭하세요`);
   }
 
   function handleGrowPickCancel() {
@@ -265,10 +267,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   function handleClaimNoSpend() {
     const claimed = store.claimNoSpend();
     if (claimed) {
-      openToast(
-        BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.",
-        { gap: TOAST_GAP_ABOVE_TAB_BAR },
-      );
+      openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
     }
   }
 
