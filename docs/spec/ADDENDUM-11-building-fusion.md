@@ -265,7 +265,21 @@ Reuse `mutateBuildingsForMonth` for all three writes; do not invent a second wri
 
 ## §4 — Art for Lv.6-10
 
-### §4.0 The governing principle: 커지지 않고 고급화 — refined, not bigger
+### §4.0 — SUPERSEDED 2026-08-13 by user instruction (kept for the record)
+
+> **⚠️ THIS PRINCIPLE WAS REVOKED BY THE USER ON 2026-08-13.** He instructed, directly:
+> **"레벨이 오를수록 건물이 높아져야 한다"** and **"무슨 건물인지 알 수 있게 지붕에 간판을 달아라"**.
+> Height is now the PRIMARY level signal and buildings DO grow — upward, past the top of their tile.
+> The material/crown channels below survive as the SECONDARY signal and are still accurate.
+>
+> This is the author of the constraint changing his own mind, not a violation of it. The reasoning
+> below is preserved because it correctly documents *why* the engine made "bigger" hard, and that
+> analysis is exactly what the height implementation had to solve (bottom-anchored overflow above the
+> tile, z-order so lower rows occlude upper rows, no clipping at the grid's top edge).
+>
+> **What survives unchanged:** the building's BASE FOOTPRINT still fills its tile and never spills
+> sideways — the horizontal half of the `d8ce379` property is still an invariant. Only the vertical
+> ceiling is lifted. See `app_in_toss/CLAUDE.md` for the standing record.
 
 **Every Lv.6-10 proposal below is subordinate to this one rule:** a higher level reads as **more
 refined, never physically bigger.** A Lv.10 must not outgrow its cell, and it must not shrink its
