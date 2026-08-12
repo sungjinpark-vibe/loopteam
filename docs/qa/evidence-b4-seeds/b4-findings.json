@@ -1,0 +1,28 @@
+{
+  "url": "http://localhost:5173/",
+  "days": [
+    {
+      "day": "2026-08-12",
+      "saves": 10,
+      "note": "10 foundings + tier-1 crossing",
+      "shopBalance": "씨앗 95개"
+    },
+    {
+      "day": "2026-08-13",
+      "saves": 10,
+      "note": "1 grow + 9 foundings",
+      "shopBalance": "씨앗 166개"
+    }
+  ],
+  "shopBalanceAtStart": "씨앗 0개",
+  "affordDotAtStart": false,
+  "chargeStubNotice": "토스 결제 연동은 추후 지원됩니다",
+  "balanceAfterChargeTap": "씨앗 0개",
+  "toastAfterSecondBuild": "☕ 카페 건물이 생겼어요 (+씨앗 7개 · 모은 14개)",
+  "toastOnQueuedSave": "오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 1개) (+씨앗 4개 · 모은 99개)",
+  "toastOnGrowSave": "레벨이 올랐어요! (Lv.4) (+씨앗 4개 · 모은 103개)",
+  "affordDotAfterDay2": true,
+  "balanceAfterPurchase": "씨앗 16개",
+  "purchaseNotice": "",
+  "consoleErrors": []
+}

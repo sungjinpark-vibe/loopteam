@@ -430,7 +430,8 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
 describe("TownScreen — Gate-3 follow-up: the reward toast names the currency and its balance", () => {
   it("shows the grant with its unit AND the balance after it, growing across saves", async () => {
     await mountAndWaitForBoot();
-    const perBuild = BALANCE.seedAwards.build;
+    // B4: a normal founding save now pays the entry award AND the build bonus.
+    const perBuild = BALANCE.seedAwards.entry + BALANCE.seedAwards.build;
 
     // Building #1 raises A2's celebration banner instead of a toast (A6 — the
     // two are bottom-docked and would otherwise land on the same line), so the

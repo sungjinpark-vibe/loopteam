@@ -9,6 +9,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BALANCE } from "./balance.approved";
+import { SHOP_SKUS } from "./economy/skus";
 import { NPC_MAX_VISIBLE, NPC_SLOT_SKU } from "./economy/types";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
@@ -51,7 +52,7 @@ afterEach(() => {
 });
 
 describe("seed earn loop", () => {
-  it("a build grants BALANCE.seedAwards.build seeds exactly once", async () => {
+  it("a build grants BALANCE.seedAwards.entry + .build seeds exactly once", async () => {
     await mountAndWaitForBoot();
     expect(latest?.economy.seeds).toBe(0);
 
@@ -60,12 +61,95 @@ describe("seed earn loop", () => {
     act(() => {
       addResult = latest!.addEntry(coffee);
     });
-    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.build);
-    expect(latest?.economy.grantedEventKeys).toEqual([`seed:build:${latest!.buildings[0].id}`]);
+    // B4 — the recorded entry pays on its own, the founding is a bonus on top.
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build);
+    const keys = latest!.economy.grantedEventKeys;
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^seed:entry:/);
+    expect(keys[1]).toBe(`seed:build:${latest!.buildings[0].id}`);
     // Gate-3-rerun fix — the caller (TownScreen) folds this into the
     // build toast; see `AddEntryResult.seedsGranted`'s doc for why the grant
     // needs to be surfaced at all (it silently existed before, per the panel).
-    expect(addResult?.seedsGranted).toBe(BALANCE.seedAwards.build);
+    expect(addResult?.seedsGranted).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build);
+  });
+
+  // --- B4 — the paths that used to pay nothing at all. -------------------
+  it("an entry that GROWS an existing building still grants the entry award", async () => {
+    await mountAndWaitForBoot();
+    const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
+    act(() => {
+      latest!.addEntry(coffee);
+    });
+    const hostId = latest!.buildings[0].id;
+    const seedsAfterFounding = latest!.economy.seeds;
+
+    let grow: AddEntryResult | undefined;
+    act(() => {
+      grow = latest!.addEntry({ ...coffee, amountKrw: 30_000 }, hostId);
+    });
+    expect(grow?.grew).not.toBeNull(); // it really took the grow branch, not the build one
+    expect(grow?.seedsGranted).toBe(BALANCE.seedAwards.entry); // was 0 before B4
+    expect(latest?.economy.seeds).toBe(seedsAfterFounding + BALANCE.seedAwards.entry);
+  });
+
+  it("an entry that QUEUES past the daily slot cap still grants the entry award", async () => {
+    await mountAndWaitForBoot();
+    const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
+    act(() => {
+      for (let i = 0; i < BALANCE.dailyBuildSlots; i++) latest!.addEntry(coffee);
+    });
+    const seedsAtCap = latest!.economy.seeds;
+
+    let queued: AddEntryResult | undefined;
+    act(() => {
+      queued = latest!.addEntry(coffee);
+    });
+    expect(queued?.queued).toBe(true); // slots exhausted — nothing was built
+    expect(queued?.seedsGranted).toBe(BALANCE.seedAwards.entry); // was 0 before B4
+    expect(latest?.economy.seeds).toBe(seedsAtCap + BALANCE.seedAwards.entry);
+  });
+
+  it("the cheapest shop sku is reachable in days, not months, and not in one sitting", async () => {
+    const cheapest = Math.min(...SHOP_SKUS.map((s) => s.priceSeeds));
+    const perNormalEntry = BALANCE.seedAwards.entry + BALANCE.seedAwards.build;
+    // "a few entries a day" = 3 — between 3 and 14 days to the price floor.
+    const days = cheapest / (3 * perNormalEntry);
+    expect(days).toBeGreaterThan(3);
+    expect(days).toBeLessThan(14);
+    // ...and one day of grinding every reward path cannot reach it: the ONLY
+    // saves that pay are the ones that produced something, so a day is capped
+    // at `dailyBuildSlots` foundings + one tier crossing + a full queue (whose
+    // build bonus lands on a LATER boot's drain, not today).
+    const oneDayCeiling =
+      BALANCE.dailyBuildSlots * perNormalEntry + BALANCE.seedAwards.tier + BALANCE.materialQueueMax * BALANCE.seedAwards.entry;
+    expect(oneDayCeiling).toBeLessThan(cheapest);
+  });
+
+  it("a 저축 entry and a queue-overflow save stay outside the entry award (they have no daily cap of their own)", async () => {
+    await mountAndWaitForBoot();
+    let saving: AddEntryResult | undefined;
+    act(() => {
+      saving = latest!.addEntry({ type: "saving", amountKrw: 100_000, categoryId: "deposit", occurredOn: TODAY });
+    });
+    expect(saving?.seedsGranted).toBe(0); // F13 — 저축 never builds, grows, queues or spends a slot
+    expect(latest?.economy.seeds).toBe(0);
+
+    const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
+    act(() => {
+      for (let i = 0; i < BALANCE.dailyBuildSlots + BALANCE.materialQueueMax; i++) latest!.addEntry(coffee);
+    });
+    const seedsAtCeiling = latest!.economy.seeds;
+
+    let overflow: AddEntryResult | undefined;
+    act(() => {
+      overflow = latest!.addEntry(coffee);
+    });
+    expect(overflow?.queueOverflow).toBe(true);
+    expect(overflow?.seedsGranted).toBe(0);
+    expect(latest?.economy.seeds).toBe(seedsAtCeiling);
+    // The day's hard ceiling, measured through the real store — under the
+    // cheapest sku, so the shop can never be bought out in one sitting.
+    expect(seedsAtCeiling).toBeLessThan(Math.min(...SHOP_SKUS.map((s) => s.priceSeeds)));
   });
 
   it("a no-spend claim grants BALANCE.seedAwards.nospend seeds", async () => {

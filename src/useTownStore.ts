@@ -809,6 +809,22 @@ export function useTownStore() {
     // whatever `grantSeeds` actually paid (0 on an idempotent no-op) instead
     // of discarding its result, so the caller can show it.
     let seedsGranted = 0;
+    // B4 — the entry itself is the play action, so it pays whether it founded,
+    // grew (ADDENDUM-04 §5) or queued (F14); `entryId` is minted per save, so
+    // the idempotency key is unique by construction. The build/tier awards
+    // below stay separate bonuses on top.
+    //
+    // Gated on the save having actually PRODUCED something, which is what
+    // bounds a day's earnings at `dailyBuildSlots + materialQueueMax` rewarded
+    // saves (see the ceiling arithmetic on `BALANCE.seedAwards`). The two
+    // excluded cases are the two unbounded ones: a queue-overflow save (the
+    // town is full for today — the app itself says "건물 없이 저장했어요") and a
+    // 저축 entry, which by F13 never builds, grows, queues or spends a slot,
+    // so it has no cap of its own to inherit.
+    if (result.building || result.grownBuilding || result.queuedMaterial) {
+      const entryAward = { kind: "entry", entryId } as const;
+      if (grantSeeds(entryAward)) seedsGranted += awardFor(entryAward).amount;
+    }
     if (result.building) {
       setJustBuiltId(result.building.id);
       // Gate-3 follow-up (A2) — queued BEFORE the tier notice below so the

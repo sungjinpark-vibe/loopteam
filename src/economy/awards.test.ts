@@ -4,6 +4,16 @@ import { applyAward, awardFor, type AwardEvent } from "./awards";
 import { defaultEconomyState } from "./types";
 
 describe("awardFor", () => {
+  // B4 — the entry award is what makes the shop reachable by logging; the
+  // build award below only ever fired for an entry that FOUNDED a building.
+  it("keys an entry award by entry id, amount from the balance dial", () => {
+    expect(awardFor({ kind: "entry", entryId: "e1" })).toEqual({
+      eventKey: "seed:entry:e1",
+      amount: BALANCE.seedAwards.entry,
+    });
+    expect(BALANCE.seedAwards.entry).toBeGreaterThan(0);
+  });
+
   it("keys a build award by building id, amount from the balance dial", () => {
     expect(awardFor({ kind: "build", buildingId: "b1" })).toEqual({
       eventKey: "seed:build:b1",

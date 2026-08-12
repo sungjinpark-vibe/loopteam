@@ -136,7 +136,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // `result.queueLength` is the queue's length AFTER this save (post-push) —
       // `store.queueLength` would read the PRE-save value here, from the
       // render closure captured before `addEntry`'s state commit re-renders.
-      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`);
+      // B4 — a queued save still earns the entry award, so it carries the same
+      // suffix as the build/level-up toasts below; without it the only saves
+      // that ever showed a reward were the ones that raised a building.
+      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.queueOverflow) {
       openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
     } else if (result.grew) {

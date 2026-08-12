@@ -15,6 +15,10 @@ import { BALANCE } from "../balance.approved";
 import { GRANTED_EVENT_KEYS_CAP, seeds as toSeedCount, type EconomyState } from "./types";
 
 export type AwardEvent =
+  // B4 — the ledger entry itself, which is the play action the player actually
+  // performs. `build` below only ever fired when the entry FOUNDED a building,
+  // so growing (ADDENDUM-04 §5), queueing (F14) and overflowing all paid zero.
+  | { kind: "entry"; entryId: string }
   | { kind: "build"; buildingId: string }
   | { kind: "nospend"; date: string }
   | { kind: "tier"; tier: number }
@@ -28,6 +32,8 @@ export interface SeedAward {
 /** Event descriptor -> the seed grant it earns. Pure — same event always yields the same key and amount. */
 export function awardFor(event: AwardEvent): SeedAward {
   switch (event.kind) {
+    case "entry":
+      return { eventKey: `seed:entry:${event.entryId}`, amount: BALANCE.seedAwards.entry };
     case "build":
       return { eventKey: `seed:build:${event.buildingId}`, amount: BALANCE.seedAwards.build };
     case "nospend":
