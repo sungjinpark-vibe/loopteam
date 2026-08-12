@@ -78,6 +78,27 @@ function shade(hue: Hue, n: number): string {
   return HUE_SHADES[hue][idx];
 }
 
+/**
+ * ADDENDUM-11 §4.1 — the fuse-tier "material step" channel. Bronze -> silver ->
+ * gold -> platinum -> jewel, escalating in the SAME roof/trim surfaces every
+ * archetype already paints (`top`/`roofLite`/`roofDark`) — colour only, so it
+ * cannot move a single vertex and therefore cannot move the §4.0 fill metric.
+ * Tokens only, from `@toss/tds-colors`, same discipline as `HUE_SHADES`.
+ */
+// Deliberately NOT derived from the archetype's own hue (unlike HUE_SHADES) —
+// a tier-1 step has to read against every category, including the orange-hued
+// ones (food/cafe), so each step is picked for contrast against a LIGHT
+// default roofLite (shade 100-300) rather than for hue-matching.
+const FUSE_TRIM: readonly string[] = [colors.orange700, colors.grey400, colors.yellow500, colors.blue200, colors.purple600];
+const FUSE_RIDGE: readonly string[] = [colors.orange800, colors.grey600, colors.yellow700, colors.blue500, colors.purple800];
+
+/** fuseTier 0 (or absent) returns `palette` untouched — the byte-identical guarantee for unfused buildings. */
+function withFuseMaterial(palette: Palette, fuseTier: number): Palette {
+  if (fuseTier <= 0) return palette;
+  const trim = FUSE_TRIM[fuseTier - 1];
+  return { ...palette, top: trim, roofLite: trim };
+}
+
 interface Palette {
   left: string;
   right: string;
@@ -191,8 +212,16 @@ const ARCHETYPES: Record<ArchetypeCategoryId, ArchetypeSpec> = {
 /** Cosmetic cap on the level-growth visual (ADDENDUM-04 §8's maxLevel dial). */
 export const MAX_VISUAL_LEVEL = 5;
 
+/** ADDENDUM-11 §2.3/§4.1 — the fuse ladder tops out at Lv.10 = maxLevel(5) + 5. */
+export const MAX_FUSE_TIER = 5;
+
 function floorsFor(level: number): number {
   return Math.max(0, Math.min(level, MAX_VISUAL_LEVEL) - 1);
+}
+
+/** absent === 0, same discipline as `fuseOf` (ADDENDUM-11 §2.4) reads `b.fuse`. */
+function clampFuseTier(fuseTier: number | undefined): number {
+  return Math.max(0, Math.min(MAX_FUSE_TIER, Math.trunc(fuseTier ?? 0)));
 }
 
 /**
@@ -266,6 +295,11 @@ function artBox(w: number, h: number) {
  * (§4.1). Replaces the old single flat-colour window quad per face. One pane in
  * three is unlit, chosen by `(r*3 + c + variantIndex) % 3 === 0` — deterministic,
  * seeded from the building's own variantIndex, never `Math.random`.
+ *
+ * ADDENDUM-11 §4.1 "windows fully lit": `fuseTier` widens the modulo divisor
+ * (fewer panes land on the unlit remainder) and tier 5 forces every pane lit —
+ * a Lv.10 tower reads lit end to end. Recolours existing quads only; pane
+ * count/size/position is untouched, so this cannot move the fill metric.
  */
 function windowGrid(
   A: Vec,
@@ -281,17 +315,19 @@ function windowGrid(
   palette: Palette,
   variantIndex: number,
   key: string,
+  fuseTier = 0,
 ): ReactNode[] {
   const out: ReactNode[] = [];
   const cellU = uSpan / cols;
   const cellV = vSpan / rows;
   const paneU = cellU * 0.625; // pane narrower than its cell — leaves a mullion gap
   const paneV = cellV * 0.6364;
+  const unlitDivisor = 3 + fuseTier; // fuseTier 0 -> %3, byte-identical to pre-fusion behaviour
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const u0 = uBase + c * cellU;
       const v0 = vBase + r * cellV;
-      const unlit = (r * 3 + c + variantIndex) % 3 === 0;
+      const unlit = fuseTier < MAX_FUSE_TIER && (r * 3 + c + variantIndex) % unlitDivisor === 0;
       out.push(
         <polygon
           key={`${key}-${r}-${c}`}
@@ -320,7 +356,15 @@ interface Footprint {
 }
 
 /** The isometric wall-cube skeleton, shared by every category archetype. */
-function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, variantIndex: number, isLandmark: boolean, footprint: Footprint) {
+function buildingCube(
+  spec: ArchetypeSpec,
+  palette: Palette,
+  floors: number,
+  variantIndex: number,
+  isLandmark: boolean,
+  footprint: Footprint,
+  fuseTier = 0,
+) {
   const { roof } = spec;
   const wide = footprint.w > 1;
   const deep = footprint.h > 1;
@@ -386,6 +430,26 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
     />,
   );
 
+  // ADDENDUM-11 §4.1 "plinth / ground glow" — a second ellipse at the IDENTICAL
+  // position/radii as the shadow above, tier-tinted. Reusing the shadow's own
+  // extents means this can never move the fill metric: the furthest point it
+  // reaches is a point the shadow ellipse (already in the frozen baseline)
+  // already reaches.
+  if (fuseTier > 0) {
+    parts.push(
+      <ellipse
+        key="fuse-glow"
+        data-part="fuse-glow"
+        cx={cx + (ux - uy) / 2}
+        cy={cy + hh * 0.28}
+        rx={(box.spanW / 2) * 0.98}
+        ry={hh * 0.72}
+        fill={FUSE_TRIM[fuseTier - 1]}
+        opacity={0.1 + 0.03 * fuseTier}
+      />,
+    );
+  }
+
   // walls
   parts.push(<polygon key="wall-left" points={pointsAttr([FB, LB, LT, FT])} fill={palette.left} />);
   parts.push(<polygon key="wall-right" points={pointsAttr([FB, RB, RT, FT])} fill={palette.right} />);
@@ -417,7 +481,7 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
   const winRows = Math.min(4, 1 + floors);
   const leftCols = deep ? 3 : 2;
   const rightCols = wide ? 3 : 2;
-  parts.push(...windowGrid(FB, LB, LT, FT, leftCols, winRows, 0.18, 0.64, 0.34, 0.44, palette, variantIndex, "win-l"));
+  parts.push(...windowGrid(FB, LB, LT, FT, leftCols, winRows, 0.18, 0.64, 0.34, 0.44, palette, variantIndex, "win-l", fuseTier));
 
   // door + door windows (right face) — wideDoor widens the door quad
   const doorU1 = spec.decor?.wideDoor ? 0.48 : 0.4;
@@ -439,7 +503,7 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
   // right-face window grid starts clear of the door quad (doorU1 max is 0.48)
   const rightWinBase = doorU1 + 0.12;
   parts.push(
-    ...windowGrid(FB, RB, RT, FT, rightCols, winRows, rightWinBase, 0.9 - rightWinBase, 0.3, 0.44, palette, variantIndex, "win-r"),
+    ...windowGrid(FB, RB, RT, FT, rightCols, winRows, rightWinBase, 0.9 - rightWinBase, 0.3, 0.44, palette, variantIndex, "win-r", fuseTier),
   );
   // window sills — a thin ledge right under each face's window band
   parts.push(<polygon key="sill-l" points={pointsAttr(quadPts(FB, LB, LT, FT, 0.15, 0.85, 0.3, 0.335))} fill={palette.roofDark} opacity={0.3} />);
@@ -457,9 +521,26 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
     parts.push(<polygon key="roof-br" points={pointsAttr([RT, BT, apex])} fill={palette.roofDark} />);
     parts.push(<polygon key="roof-fl" points={pointsAttr([LT, FT, apex])} fill={palette.roofLite} />);
     parts.push(<polygon key="roof-fr" points={pointsAttr([RT, FT, apex])} fill={palette.roofMid} />);
-    parts.push(<circle key="ridge" cx={apex.x} cy={apex.y} r={3.5} fill="#ffffff" opacity={0.85} />);
+    {
+      /* ADDENDUM-11 §4.1 "crown / spire ornament" — same node, same position, same
+       * radius as the always-present ridge dot; fuseTier only recolours it toward the
+       * material step. Zero geometry delta, so it cannot move the fill metric. */
+    }
+    parts.push(
+      <circle key="ridge" cx={apex.x} cy={apex.y} r={RIDGE_R} fill={fuseTier > 0 ? FUSE_RIDGE[fuseTier - 1] : "#ffffff"} opacity={0.85} />,
+    );
   } else {
     parts.push(<polygon key="roof-top" points={pointsAttr([FT, RT, BT, LT])} fill={palette.top} />);
+    // Flat roofs have no ridge dot to recolour, so fuseTier adds a small accent
+    // INSET at the roof plane's own vertical midpoint (cy - h), never at BT (the
+    // topmost vertex) — its radius is capped at `hh`, so its top edge can never
+    // rise past BT, the point flat-roof buildings already reach at fuseTier 0.
+    if (fuseTier > 0) {
+      const r = Math.min(RIDGE_R, hh * 0.6) * (0.4 + 0.12 * fuseTier);
+      parts.push(
+        <circle key="fuse-crown" data-part="fuse-crown" cx={cx + (ux - uy) / 4} cy={cy - h} r={r} fill={FUSE_RIDGE[fuseTier - 1]} opacity={0.85} />,
+      );
+    }
   }
 
   const signAnchor: Vec = roof === "pyramid" ? { x: cx, y: cy - h - roofH * 0.42 } : { x: cx, y: cy - h + 8 };
@@ -779,6 +860,14 @@ export interface BuildingArtProps {
   /** ADDENDUM-08 §7 — the building's footprint in cells (absent === 1x1). A footprint > 1 cell always gets the landmark treatment (broader/squatter + roof signboard) so a 2x2 reads as a deliberately bigger structure, not a 1x1 sprite stretched to fill a larger box. */
   w?: number;
   h?: number;
+  /**
+   * ADDENDUM-11 §4.1 — fuse tier (0-5), a visual channel independent of `level`.
+   * Absent/0 renders BYTE-IDENTICALLY to pre-fusion art (§4.0/§4.1's whole
+   * compatibility story). `level` still drives floor count/wall height exactly
+   * as before and stays clamped at `MAX_VISUAL_LEVEL` — fuseTier never touches
+   * geometry, only roof/trim material, window lighting, and a ground glow.
+   */
+  fuseTier?: number;
 }
 
 /**
@@ -806,7 +895,7 @@ export function archetypeFor(categoryId: BuildingCategoryId | null, monumentPeri
  * aspect (`artBox`) — so `meet` has no slack to centre away and the art fills the cell in
  * BOTH axes, at one rendered scale shared by every footprint. See `artBox` for why the box
  * aspect and the cube's re-derived extents had to change together. */
-export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w = 1, h = 1 }: BuildingArtProps) {
+export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w = 1, h = 1, fuseTier }: BuildingArtProps) {
   if (monumentPeriod || categoryId === null) {
     return <MonumentArt monumentPeriod={monumentPeriod} w={w} h={h} />;
   }
@@ -818,19 +907,27 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
   }
 
   const spec = ARCHETYPES[categoryId];
-  const palette = paletteFor(spec.hue, variantIndex, spec.whiteWalls);
+  const fuse = clampFuseTier(fuseTier);
+  const palette = withFuseMaterial(paletteFor(spec.hue, variantIndex, spec.whiteWalls), fuse);
   const floors = floorsFor(level);
   // §4.2: landmark archetypes render wide/squat always; any building also gets
   // promoted at level >= 4 ("placement + growth reads on screen") or by
   // occupying a multi-cell footprint (ADDENDUM-08 §7 — a 2x2 must read as a
   // deliberately bigger building, not a 1x1 sprite stretched into a big box).
   const isLandmark = !!spec.landmark || level >= 4 || w * h > 1;
-  const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark, { w, h });
+  const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark, { w, h }, fuse);
   const decor = decorParts(spec, palette, geo);
   const big2x2 = w === 2 && h === 2;
 
   return (
-    <svg viewBox={`0 0 ${geo.viewW} ${geo.box.vh}`} width="100%" height="100%" data-archetype={spec.archetype} aria-hidden="true">
+    <svg
+      viewBox={`0 0 ${geo.viewW} ${geo.box.vh}`}
+      width="100%"
+      height="100%"
+      data-archetype={spec.archetype}
+      data-fuse-tier={fuse || undefined}
+      aria-hidden="true"
+    >
       {geo.parts}
       {decor}
       {isLandmark ? (

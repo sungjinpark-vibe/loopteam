@@ -15,8 +15,9 @@
  */
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import { afterEach, describe, expect, it } from "vitest";
+import { colors } from "@toss/tds-colors";
 import { PlaceholderBuilding } from "./PlaceholderBuilding";
-import { MAX_VISUAL_LEVEL } from "./buildingArt";
+import { MAX_FUSE_TIER, MAX_VISUAL_LEVEL } from "./buildingArt";
 import { GRID_GAP_PX, MIN_TILE_WIDTH_PX, TILE_HEIGHT_PX } from "../townLayout";
 import type { BuildingCategoryId } from "../types";
 
@@ -316,8 +317,11 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
     };
   }
 
-  function artMetrics(categoryId: BuildingCategoryId, w: 1 | 2, h: 1 | 2) {
-    const m = mountComponent(<PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={1} w={w} h={h} />);
+  function artMetrics(categoryId: BuildingCategoryId, w: 1 | 2, h: 1 | 2, fuseTier = 0) {
+    const level = MAX_VISUAL_LEVEL + fuseTier; // ADDENDUM-11 §2.4: Lv = maxLevel + fuse
+    const m = mountComponent(
+      <PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={level} fuseTier={fuseTier} w={w} h={h} />,
+    );
     const svg = m.container.querySelector("svg")!;
     const [, , viewW, viewH] = svg.getAttribute("viewBox")!.split(" ").map(Number);
     // every wall / roof / eave / window / decor polygon vertex the art actually draws
@@ -356,11 +360,164 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
     });
   }
 
+  // ADDENDUM-11 §4.1/§7.5 — extend the fill-rate regression test from
+  // "4 footprints x 2 roof shapes" to "4 footprints x 6 fuse tiers" (0-5, i.e.
+  // Lv.5 through Lv.10). fuseTier never touches wall/roof geometry (§4.0), so
+  // this must hold at every tier exactly as it holds at tier 0 today.
+  const FUSE_TIERS = [0, 1, 2, 3, 4, 5] as const;
+  for (const categoryId of ["food", "cafe"] as const) {
+    it.each(FUSE_TIERS)(`a ${categoryId} at fuse tier %i (Lv.${MAX_VISUAL_LEVEL}+%i) still fills its cell in both axes at every footprint`, (fuseTier) => {
+      for (const [w, h] of FOOTPRINTS) {
+        const tile = tileBoxPx(w, h);
+        const { aspect, fillW, fillH } = artMetrics(categoryId, w, h, fuseTier);
+        expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
+        expect(fillW).toBeGreaterThanOrEqual(0.9);
+        expect(fillH).toBeGreaterThanOrEqual(0.9);
+      }
+    });
+  }
+
   it("all four footprints fill their cell by the same margin — no footprint is the odd one out", () => {
     const fills = FOOTPRINTS.flatMap(([w, h]) => {
       const m = artMetrics("food", w, h);
       return [m.fillW, m.fillH];
     });
     expect(Math.max(...fills) - Math.min(...fills)).toBeLessThanOrEqual(0.08);
+  });
+});
+
+// ── ADDENDUM-11 §4 — fuse-tier art (Lv.6-10), no size, only material/light ──
+
+describe("PlaceholderBuilding — fuse tier art (ADDENDUM-11 §4)", () => {
+  it("fuseTier 0 and no fuseTier prop render identical markup — the no-regression baseline", () => {
+    const a = mountComponent(<PlaceholderBuilding categoryId="etc" variantIndex={0} level={5} />);
+    const b = mountComponent(<PlaceholderBuilding categoryId="etc" variantIndex={0} level={5} fuseTier={0} />);
+    expect(a.container.innerHTML).toBe(b.container.innerHTML);
+    a.unmount();
+    b.unmount();
+  });
+
+  it("Lv.1-5 (fuseTier absent) SVG output is unchanged — golden snapshot for every archetype family", () => {
+    const flat = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={1} level={5} w={2} h={1} />);
+    const pyramid = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={2} level={3} />);
+    expect(flat.container.querySelector("svg")!.outerHTML).toMatchSnapshot("food-2x1-lv5-fuse0");
+    expect(pyramid.container.querySelector("svg")!.outerHTML).toMatchSnapshot("cafe-1x1-lv3-fuse0");
+    flat.unmount();
+    pyramid.unmount();
+  });
+
+  it(`a level above the visual cap combined with a fuse tier (Lv.${MAX_VISUAL_LEVEL + MAX_FUSE_TIER}) still fits — geometry stays capped, only fuseTier is new`, () => {
+    const unfused = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={MAX_VISUAL_LEVEL} />);
+    const fused = mountComponent(
+      <PlaceholderBuilding categoryId="cafe" variantIndex={0} level={MAX_VISUAL_LEVEL + MAX_FUSE_TIER} fuseTier={MAX_FUSE_TIER} />,
+    );
+    // floor-belt count (wall geometry) is identical — fuseTier never adds a floor.
+    expect(fused.container.querySelectorAll(".building-floor-belt").length).toBe(
+      unfused.container.querySelectorAll(".building-floor-belt").length,
+    );
+    unfused.unmount();
+    fused.unmount();
+  });
+
+  it("roof material steps with fuse tier — a pyramid roof's ridge accent recolours away from white, geometry (radius) unchanged", () => {
+    // "etc" (cottage/pyramid) carries no decor, so the SVG's lone <circle> at
+    // fuseTier 0 is unambiguously the ridge dot.
+    const tier0 = mountComponent(<PlaceholderBuilding categoryId="etc" variantIndex={0} level={1} />);
+    const ridge0 = tier0.container.querySelector("svg circle") as SVGCircleElement;
+    expect(ridge0.getAttribute("fill")).toBe("#ffffff");
+
+    const tier5 = mountComponent(<PlaceholderBuilding categoryId="etc" variantIndex={0} level={MAX_VISUAL_LEVEL} fuseTier={MAX_FUSE_TIER} />);
+    const ridge5 = tier5.container.querySelector("svg circle") as SVGCircleElement;
+    expect(ridge5.getAttribute("fill")).not.toBe("#ffffff");
+    // the ornament recolours, but its RADIUS (geometry) is untouched — the §4.0 guard.
+    expect(ridge5.getAttribute("r")).toBe(ridge0.getAttribute("r"));
+    tier0.unmount();
+    tier5.unmount();
+  });
+
+  it("a flat roof gets a small inset crown accent only at fuseTier >= 1, never at fuseTier 0", () => {
+    // "health" (clinic/flat) carries a cross decor made of polygons only, so
+    // [data-part='fuse-crown'] is unambiguous.
+    const tier0 = mountComponent(<PlaceholderBuilding categoryId="health" variantIndex={0} level={1} />);
+    expect(tier0.container.querySelector('[data-part="fuse-crown"]')).toBeNull();
+    const tier1 = mountComponent(<PlaceholderBuilding categoryId="health" variantIndex={0} level={1} fuseTier={1} />);
+    expect(tier1.container.querySelector('[data-part="fuse-crown"]')).not.toBeNull();
+    tier0.unmount();
+    tier1.unmount();
+  });
+
+  it("the crown accent's own extent never exceeds the roof's pre-existing top vertex (bounded, cannot move the fill metric)", () => {
+    // The flat-roof crown circle is centred at (cy - h) with r <= hh, so its top
+    // edge (cy - h - r) can never rise above BT's y (cy - hh - h) — the point the
+    // flat roof polygon already reaches at fuseTier 0.
+    const m = mountComponent(<PlaceholderBuilding categoryId="health" variantIndex={0} level={1} fuseTier={MAX_FUSE_TIER} />);
+    const svg = m.container.querySelector("svg")!;
+    const crown = svg.querySelector('[data-part="fuse-crown"]')!;
+    const cy = Number(crown.getAttribute("cy"));
+    const r = Number(crown.getAttribute("r"));
+    const crownTopY = cy - r;
+    // Read every OTHER painted polygon's min-y (walls/roof/decor) — the crown
+    // must never rise above what the building already draws, regardless of
+    // paint order or which polygon happens to be topmost.
+    const allYs = Array.from(svg.querySelectorAll("polygon")).flatMap((el) =>
+      el
+        .getAttribute("points")!
+        .trim()
+        .split(/\s+/)
+        .map((pair) => Number(pair.split(",")[1])),
+    );
+    const topmostExistingY = Math.min(...allYs);
+    expect(crownTopY).toBeGreaterThanOrEqual(topmostExistingY);
+    m.unmount();
+  });
+
+  it("ground glow ring appears only at fuseTier >= 1, at the exact position/radius of the existing shadow ellipse", () => {
+    const tier0 = mountComponent(<PlaceholderBuilding categoryId="etc" variantIndex={0} level={1} />);
+    expect(tier0.container.querySelectorAll("svg ellipse").length).toBe(1); // shadow only
+    const tier3 = mountComponent(<PlaceholderBuilding categoryId="etc" variantIndex={0} level={1} fuseTier={3} />);
+    const ellipses = tier3.container.querySelectorAll("svg ellipse");
+    expect(ellipses.length).toBe(2); // shadow + glow
+    const [shadow, glow] = Array.from(ellipses);
+    expect(glow.getAttribute("rx")).toBe(shadow.getAttribute("rx"));
+    expect(glow.getAttribute("ry")).toBe(shadow.getAttribute("ry"));
+    expect(glow.getAttribute("cx")).toBe(shadow.getAttribute("cx"));
+    expect(glow.getAttribute("cy")).toBe(shadow.getAttribute("cy"));
+    tier0.unmount();
+    tier3.unmount();
+  });
+
+  it("windows relax toward fully lit as fuse tier rises, and MAX_FUSE_TIER is lit end to end", () => {
+    const isDark = (el: Element) => el.getAttribute("fill") === colors.grey200;
+    const darkCount = (fuseTier: number) => {
+      const m = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={MAX_VISUAL_LEVEL} fuseTier={fuseTier} />);
+      const n = Array.from(m.container.querySelectorAll('[data-part="window"]')).filter(isDark).length;
+      m.unmount();
+      return n;
+    };
+    const dark0 = darkCount(0);
+    const darkMax = darkCount(MAX_FUSE_TIER);
+    expect(dark0).toBeGreaterThan(0); // baseline: some panes unlit (existing behaviour)
+    expect(darkMax).toBe(0); // Lv.10: lit end to end
+  });
+
+  it("every fuse tier 1-5 produces a distinguishable SVG from tier 0 and from each other (visible per-rung escalation)", () => {
+    const htmls = [0, 1, 2, 3, 4, 5].map((fuseTier) => {
+      const m = mountComponent(
+        <PlaceholderBuilding categoryId="cafe" variantIndex={0} level={MAX_VISUAL_LEVEL} fuseTier={fuseTier} />,
+      );
+      const html = m.container.querySelector("svg")!.innerHTML;
+      m.unmount();
+      return html;
+    });
+    expect(new Set(htmls).size).toBe(htmls.length);
+  });
+
+  it("fusion never applies to a park or a monument — no fuseTier prop reaches BuildingArt for either (no crash if passed anyway)", () => {
+    const park = mountComponent(<PlaceholderBuilding categoryId="park" variantIndex={0} fuseTier={3} />);
+    const monument = mountComponent(<PlaceholderBuilding categoryId={null} variantIndex={0} monumentPeriod="2026-08" fuseTier={3} />);
+    expect(park.container.querySelector("svg")?.getAttribute("data-archetype")).toBe("park");
+    expect(monument.container.querySelector("svg")?.getAttribute("data-archetype")).toBe("monument");
+    park.unmount();
+    monument.unmount();
   });
 });
