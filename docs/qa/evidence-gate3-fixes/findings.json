@@ -1,0 +1,97 @@
+{
+  "a4": {
+    "emptyDisabled": true,
+    "zeroDisabled": true,
+    "validEnabled": true
+  },
+  "a2": {
+    "tabBar": {
+      "top": 788,
+      "bottom": 844
+    },
+    "toastCard": null,
+    "toastText": null,
+    "banner": {
+      "top": 585,
+      "bottom": 668
+    },
+    "bannerText": "🏠첫 건물이 세워졌어요!기록할 때마다 우리 동네에 건물이 한 채씩 늘어나요×",
+    "tabBarReachable": true,
+    "fabReachable": true,
+    "moveBar": null,
+    "moveBarText": null
+  },
+  "a5a6": {
+    "tabBar": {
+      "top": 788,
+      "bottom": 844
+    },
+    "toastCard": {
+      "top": 598,
+      "bottom": 648
+    },
+    "toastText": "🚌 교통 건물이 생겼어요 (+씨앗 3개 · 모은 6개)",
+    "banner": null,
+    "bannerText": null,
+    "tabBarReachable": true,
+    "fabReachable": true,
+    "moveBar": null,
+    "moveBarText": null
+  },
+  "a5shop": {
+    "balanceChip": "씨앗 6개",
+    "firstPrice": "씨앗 150개"
+  },
+  "a1": {
+    "growDialog": 1,
+    "onEnter": {
+      "tabBar": {
+        "top": 788,
+        "bottom": 844
+      },
+      "toastCard": {
+        "top": 598,
+        "bottom": 648
+      },
+      "toastText": "반짝이는 건물 2채 중에서 키울 건물을 탭하세요",
+      "banner": null,
+      "bannerText": null,
+      "tabBarReachable": true,
+      "fabReachable": "fab-hidden",
+      "moveBar": {
+        "top": 708,
+        "bottom": 764
+      },
+      "moveBarText": "키울 건물을 선택하세요취소"
+    },
+    "candidateCount": 2,
+    "afterStrayTap": {
+      "tabBar": {
+        "top": 788,
+        "bottom": 844
+      },
+      "toastCard": {
+        "top": 598,
+        "bottom": 648
+      },
+      "toastText": "반짝이는 건물 2채 중에서 키울 건물을 탭하세요",
+      "banner": null,
+      "bannerText": null,
+      "tabBarReachable": true,
+      "fabReachable": "fab-hidden",
+      "moveBar": {
+        "top": 708,
+        "bottom": 764
+      },
+      "moveBarText": "표시된 건물 중에서 골라주세요취소"
+    },
+    "afterCancel": {
+      "moveBar": 0,
+      "fab": 1
+    }
+  },
+  "a3": {
+    "consoleErrors": 0,
+    "distinct": []
+  }
+}
