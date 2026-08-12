@@ -73,6 +73,7 @@ import {
   type TerrainKind,
 } from "../townLayout";
 import type { Building, SavingCategoryId } from "../types";
+import { MAX_ART_OVERHANG_PX } from "./buildingArt";
 import { EmptyLot } from "./EmptyLot";
 import { NpcLayer } from "./NpcLayer";
 import { PlaceholderBuilding } from "./PlaceholderBuilding";
@@ -806,6 +807,10 @@ function TownGridImpl({
             gridTemplateRows: GRID_TEMPLATE_ROWS,
             "--town-gap": `${GRID_GAP_PX}px`,
             "--town-grid-pad-x": `${GRID_PADDING_X_PX}px`,
+            // 2026-08-13 — headroom for the tallest building's overhang, so a row-0
+            // building rises inside the grid instead of being clipped by
+            // `.town-viewport` (or reaching the header above it).
+            "--art-overhang": `${MAX_ART_OVERHANG_PX}px`,
             "--district-row-gap": `${DISTRICT_ROW_GAP_PX}px`,
             "--pip-size": `${PIP_SIZE_PX}px`,
             "--pip-gap": `${PIP_GAP_PX}px`,

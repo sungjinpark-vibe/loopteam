@@ -345,7 +345,13 @@ button.town-fab {
    * ADDENDUM-08 §7) — every row is a fixed TILE_HEIGHT_PX track, no
    * grid-auto-rows here (rule R-3: this file must never restate a number
    * townLayout.ts owns). */
-  padding: 8px var(--town-grid-pad-x) 24px; /* the middle 16 is GRID_PADDING_X_PX. No fallback. */
+  /* 2026-08-13 — row 0 of TOWN_MAP holds ground cells (cols 7-12), so a tall
+   * building there overhangs the top of the grid. `--art-overhang` (inline from
+   * TownGrid.tsx = buildingArt.tsx's MAX_ART_OVERHANG_PX, no fallback here, R-3)
+   * reserves exactly the room a Lv.10 building needs, INSIDE the grid box — so it
+   * scales with the zoom transform like everything else, and no building ever
+   * reaches the balance banner above `.town-viewport`. */
+  padding: calc(8px + var(--art-overhang)) var(--town-grid-pad-x) 24px; /* the middle 16 is GRID_PADDING_X_PX. No fallback. */
   /* ADDENDUM-02 §4.3 (break B23): a long-press must not fight the town's
    * scroll — `pan-x pan-y` (was `pan-y` alone; ADDENDUM-08 §7 adds vertical
    * scroll too) keeps native scroll working while still letting the gesture

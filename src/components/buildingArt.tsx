@@ -273,6 +273,44 @@ const HH_MAX_SHARE = 0.3;
 const FLOOR_SQUEEZE = 0.07;
 const RIDGE_R = 3.5;
 
+/**
+ * ── height growth (user instruction 2026-08-13: "레벨이 오를수록 건물이 높아져야 한다") ──
+ *
+ * ADDENDUM-11 §4.0's "커지지 않고 고급화" is REVOKED BY THE USER (see CLAUDE.md).
+ * Height is now the primary level signal; material/crown/glow stay secondary.
+ *
+ * The naive fix — extend `viewH` alone — makes the building SMALLER, not taller:
+ * the art element is tile-sized and `preserveAspectRatio="xMidYMid meet"` scales
+ * by `min(tileW/viewW, tileH/viewH)`, so a taller viewBox inside a same-size
+ * element just shrinks everything. What actually works, and what this implements:
+ * the SVG ELEMENT grows by `growPxFor(level)` real px and is anchored to the
+ * tile's BOTTOM (buildings.css), and the viewBox grows by the SAME px converted
+ * to view units. Both ratios stay 1/ART_UNIT, so the per-unit scale is identical
+ * and the extra height is real extra pixels rising ABOVE the cell.
+ *
+ * The horizontal half of the d8ce379 freeze is untouched: `vw`, `spanW`, `left`
+ * and the ground diamond's `hh` (clamped off `spanHTile`, the TILE's height, not
+ * the grown one) are all byte-identical at every level — the base footprint still
+ * fills its cell and never spills sideways. Only the WALL takes the extra height.
+ */
+export const GROW_PER_LEVEL_PX = 5;
+
+/** Lv.10 = MAX_VISUAL_LEVEL (EXP) + MAX_FUSE_TIER (fusion) — the top of the height ladder. */
+export const MAX_TOTAL_LEVEL = MAX_VISUAL_LEVEL + MAX_FUSE_TIER;
+
+/**
+ * Px of art that rises above the building's own cell at `level`. 0 at Lv.1 (a
+ * Lv.1 building still exactly fills its tile, nothing more), 45 at Lv.10 —
+ * deliberately just under one grid row + gap (TILE_HEIGHT_PX + GRID_GAP_PX = 46),
+ * so even a max-level tower never completely swallows the tile behind it.
+ */
+function growPxFor(level: number): number {
+  return (clamp(Math.trunc(level) || 1, 1, MAX_TOTAL_LEVEL) - 1) * GROW_PER_LEVEL_PX;
+}
+
+/** The tallest any building's art can reach above its cell — what `.town-grid` reserves as top padding so a row-0 building never draws over the header. */
+export const MAX_ART_OVERHANG_PX = growPxFor(MAX_TOTAL_LEVEL);
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
@@ -283,11 +321,21 @@ function tileSpanPx(cells: number, cellPx: number): number {
 }
 
 /** The tile-shaped art box for a footprint, in view units. `spanW`/`spanH` is the
- *  rectangle the drawn geometry must fill; `left`/`top` is the overhang margin. */
-function artBox(w: number, h: number) {
+ *  rectangle the drawn geometry must fill; `left`/`top` is the overhang margin.
+ *  `growPx` (0 for a Lv.1 building, a park or a monument) makes the BOX taller than
+ *  the tile — the caller must grow the rendered element by the same px, bottom-anchored,
+ *  or `meet` will shrink the art instead of raising it. At `growPx === 0` every field is
+ *  byte-identical to the d8ce379 baseline. `spanHTile` is the ungrown height, kept so the
+ *  ground diamond (the base footprint) can stay pinned to the tile at every level. */
+function artBox(w: number, h: number, growPx = 0) {
   const vw = tileSpanPx(w, MIN_TILE_WIDTH_PX) * ART_UNIT;
-  const vh = tileSpanPx(h, TILE_HEIGHT_PX) * ART_UNIT;
-  return { vw, vh, left: (vw * (1 - FILL)) / 2, top: (vh * (1 - FILL)) / 2, spanW: vw * FILL, spanH: vh * FILL };
+  const vhTile = tileSpanPx(h, TILE_HEIGHT_PX) * ART_UNIT;
+  const vh = vhTile + growPx * ART_UNIT;
+  const spanHTile = vhTile * FILL;
+  // `top` is the SAME margin as before, just measured from the taller box's own top
+  // edge — which is what keeps `vh - 2*top === spanH` and so lands the silhouette
+  // exactly on the box floor and ceiling, grown or not.
+  return { vw, vh, left: (vw * (1 - FILL)) / 2, top: (vhTile * (1 - FILL)) / 2, spanW: vw * FILL, spanH: vh - vhTile * (1 - FILL), spanHTile };
 }
 
 /**
@@ -364,11 +412,12 @@ function buildingCube(
   isLandmark: boolean,
   footprint: Footprint,
   fuseTier = 0,
+  growPx = 0,
 ) {
   const { roof } = spec;
   const wide = footprint.w > 1;
   const deep = footprint.h > 1;
-  const box = artBox(footprint.w, footprint.h);
+  const box = artBox(footprint.w, footprint.h, growPx);
 
   // Width: the cube spans the WHOLE box, split between the x-facing (right) and
   // y-facing (left) wall in the footprint's own w:h ratio — so a 2x1 bulges right
@@ -386,15 +435,20 @@ function buildingCube(
   // shorter walls; a tall one the reverse. Total height is identical either way.
   const squat = clamp(spec.hw / DEFAULT_HW / (spec.hBase / DEFAULT_H), 0.75, 1.3) * (isLandmark ? 1.12 : 1);
   const isoHalf = box.spanW / 4; // a true isometric 2:1 ground diamond
+  // 2026-08-13: every term here reads `spanHTile`, the UNGROWN box height, never the
+  // grown `spanH` — the ground diamond IS the base footprint, and the user's revision
+  // lifted the vertical ceiling only. A Lv.10 tower's base is pixel-identical to a
+  // Lv.5 one's; all the extra height goes into `h` (the wall) below.
   const hh = clamp(
-    Math.min(isoHalf, box.spanH * HH_MAX_SHARE) * squat * Math.max(0.6, 1 - FLOOR_SQUEEZE * floors),
-    Math.min(box.spanW / 10, box.spanH * 0.12),
-    box.spanH * HH_MAX_SHARE,
+    Math.min(isoHalf, box.spanHTile * HH_MAX_SHARE) * squat * Math.max(0.6, 1 - FLOOR_SQUEEZE * floors),
+    Math.min(box.spanW / 10, box.spanHTile * 0.12),
+    box.spanHTile * HH_MAX_SHARE,
   );
   // A pyramid apex rises above the cube's back corner; a flat roof's top IS that
   // corner. Whatever is left of the vertical budget is wall — which is what makes
-  // the silhouette land exactly on the box floor and ceiling in both cases.
-  const roofRise = roof === "pyramid" ? box.spanH * 0.1 : 0;
+  // the silhouette land exactly on the box floor and ceiling in both cases. Also
+  // tile-based: the roof is a cap of constant pitch, not a shape that inflates with level.
+  const roofRise = roof === "pyramid" ? box.spanHTile * 0.1 : 0;
   const crown = roof === "pyramid" ? roofRise + RIDGE_R : 0;
   const h = box.spanH - 2 * hh - crown;
   const viewW = box.vw;
@@ -728,6 +782,14 @@ function decorParts(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeo
  */
 function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeof buildingCube>, big: boolean): ReactNode[] {
   const { signAnchor } = geo;
+  // 2026-08-13: sized off the box, not off absolute view units. MEASURED reason —
+  // at the default fit scale the whole 20x20 map renders at ~0.42, so a 1x1 cell is
+  // ~17 screen px and the old fixed 44x18 plate was 10x4 px (1.7px at fit scale):
+  // an invisible speck, and its 22-unit emoji ~2px. A plate that is a fixed SHARE of
+  // the cell instead is ~22x9 px at 100% and ~9x4 px at fit scale, which is the
+  // smallest thing that still reads as a distinct coloured marker on the roof.
+  // Capped at spanW so it can never spill sideways past the tile (the surviving
+  // half of the d8ce379 freeze).
   const plateW = big ? 56 : 44;
   const plateH = big ? 22 : 18;
   const plateCx = signAnchor.x;
@@ -736,6 +798,13 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   const plateCy = Math.max(signAnchor.y - 14, geo.box.top + plateH / 2 + (big ? 5 : 0));
   const plateTop = plateCy - plateH / 2;
   const plateBottom = plateCy + plateH / 2;
+  // The plate is filled with a SATURATED shade of the category's own hue (not the
+  // pale `palette.roofLite` it used to use). At fit scale the emoji is ~4px and
+  // unreadable by any font; the only channel that survives that scale is colour, so
+  // the sign's job there is "this roof carries a bright <hue> board". The white chip
+  // under the glyph is what keeps the emoji legible once the player zooms in — every
+  // sign in the table (including the flat-coloured "✚"/"✳️") reads against white,
+  // and several do not read against a saturated plate.
   const out: ReactNode[] = [
     <line key="post-l" x1={plateCx - 10} y1={plateBottom} x2={plateCx - 10} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
     <line key="post-r" x1={plateCx + 10} y1={plateBottom} x2={plateCx + 10} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
@@ -915,7 +984,8 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
   // occupying a multi-cell footprint (ADDENDUM-08 §7 — a 2x2 must read as a
   // deliberately bigger building, not a 1x1 sprite stretched into a big box).
   const isLandmark = !!spec.landmark || level >= 4 || w * h > 1;
-  const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark, { w, h }, fuse);
+  const growPx = growPxFor(level);
+  const geo = buildingCube(spec, palette, floors, variantIndex, isLandmark, { w, h }, fuse, growPx);
   const decor = decorParts(spec, palette, geo);
   const big2x2 = w === 2 && h === 2;
 
@@ -924,6 +994,14 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
       viewBox={`0 0 ${geo.viewW} ${geo.box.vh}`}
       width="100%"
       height="100%"
+      // The height half of the 2026-08-13 revision. `buildings.css` pins the art to
+      // `bottom: 0` of its tile with `top: auto`, so this taller element rises ABOVE
+      // the cell while the base stays planted; the viewBox grew by the same px
+      // (`artBox`), so `meet`'s scale is unchanged and the art is genuinely taller
+      // rather than the same art shrunk into a taller box. `data-grow-px` is the
+      // measurable handle the height-ladder regression test reads.
+      style={growPx > 0 ? { height: `calc(100% + ${growPx}px)` } : undefined}
+      data-grow-px={growPx || undefined}
       data-archetype={spec.archetype}
       data-fuse-tier={fuse || undefined}
       aria-hidden="true"

@@ -17,6 +17,23 @@
 .building-tile > svg {
   position: absolute;
   inset: 0;
+  /*
+   * 2026-08-13 ("레벨이 오를수록 건물이 높아져야 한다"). Two rules, both load-bearing:
+   *
+   * `top: auto` — buildingArt.tsx gives a grown building an inline
+   * `height: calc(100% + Npx)`. With `top`, `bottom` AND `height` all set the box
+   * is over-constrained and CSS drops `bottom`, which would grow the art DOWNWARD
+   * through the ground. `top: auto` leaves `bottom: 0` (from `inset`) in charge, so
+   * the base stays planted on its own cell and the extra height rises above it.
+   *
+   * `pointer-events: none` — a grown building overhangs the tile ABOVE it. Without
+   * this the overhang is a live hit target that bubbles to the LOWER tile, so a tap
+   * meant for the upper tile silently selects the building in front of it (and the
+   * same for long-press move and ADDENDUM-11's fusion pick). The hit area is the
+   * `.town-tile` div, exactly as before; only the paint overflows.
+   */
+  top: auto;
+  pointer-events: none;
 }
 
 /*

@@ -6,6 +6,7 @@
  * covers the DOM contract: which element exists where, which class it
  * carries, and the gesture/keyboard/move-mode wiring.
  */
+import { readFileSync } from "node:fs";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BALANCE } from "../balance.approved";
@@ -26,6 +27,7 @@ import {
   terrainAtIndex,
 } from "../townLayout";
 import type { Building } from "../types";
+import { MAX_ART_OVERHANG_PX } from "./buildingArt";
 import { TownGrid, type TownGridProps } from "./TownGrid";
 
 let mounted: MountedComponent | null = null;
@@ -321,6 +323,66 @@ describe("TownGrid — the fixed 20x20 map (ADDENDUM-08 §1/§7)", () => {
     }
     const expected = nonVoid + ground + SAVING_CATEGORY_IDS.length + 1;
     expect(grid.children.length).toBe(expected);
+  });
+});
+
+/**
+ * ── 2026-08-13: buildings now overflow ABOVE their own cell (user instruction
+ * "레벨이 오를수록 건물이 높아져야 한다"). Two properties the overflow can silently
+ * break, both pinned here. jsdom has `css: false` and no layout engine, so the
+ * behaviour is asserted where it is actually decided: DOM order (which IS paint
+ * order for auto-z-index siblings) and the stylesheet text.
+ */
+describe("TownGrid — tall-building overflow (occlusion + hit targets)", () => {
+  // cwd is the project root under vitest; `import.meta.url` is rewritten by the
+  // transform here and does not point at this file's real path.
+  const css = (name: string) => readFileSync(`src/${name}`, "utf8");
+
+  it("ground tiles are emitted in row-major order, so a LOWER row's building paints OVER the row above it", () => {
+    // one building per row, down the same column — the exact case where a tall
+    // building in row N hangs over the tile in row N-1
+    const col = cellFromIndex(GROUND_A).col;
+    const rows = [3, 4, 5, 6].filter((r) => isBuildable(r, col));
+    expect(rows.length).toBeGreaterThan(1);
+    const container = mountGrid(
+      rows.map((r, i) => building({ id: `b${i}`, plotIndex: indexFromCell({ row: r, col }) })),
+    );
+    const tiles = [...container.querySelectorAll<HTMLElement>(".town-tile")].filter((t) =>
+      t.querySelector(".building-tile"),
+    );
+    const emitted = tiles.map((t) => Number(String(t.style.gridRow).split("/")[0].trim()));
+    expect(emitted).toEqual([...emitted].sort((a, b) => a - b)); // strictly top-to-bottom
+    // …and nothing lifts an upper tile out of that order with a stacking context.
+    // `.town-tile--moving`'s z-index is the ONE deliberate exception (the tile the
+    // player is dragging is meant to float above everything).
+    const tileRules = css("App.css").split(/^\.town-tile\b/m).slice(1);
+    for (const rule of tileRules) {
+      const block = rule.slice(0, rule.indexOf("}"));
+      if (rule.startsWith("--moving")) continue;
+      expect(block, `an unexpected z-index on .town-tile${rule.slice(0, 20)}`).not.toMatch(/z-index/);
+    }
+  });
+
+  it("the overflowing art never steals a tap from the tile it hangs over", () => {
+    // The art is drawn OUTSIDE its own tile's box above the cell line. Without
+    // pointer-events:none that overhang is a live target that bubbles to the LOWER
+    // tile, so tapping the upper tile would select the building in front of it —
+    // silently breaking selection, long-press move and ADDENDUM-11's fusion pick.
+    // The hit area must stay the `.town-tile` div.
+    expect(css("buildings.css")).toMatch(/\.building-tile > svg\s*\{[^}]*pointer-events:\s*none/);
+    // and the art must be bottom-anchored, or the extra height grows downward instead
+    expect(css("buildings.css")).toMatch(/\.building-tile > svg\s*\{[^}]*top:\s*auto/);
+  });
+
+  it("the grid reserves top padding for the tallest building, so a row-0 building never reaches the header", () => {
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const overhang = Number(grid.style.getPropertyValue("--art-overhang").replace("px", ""));
+    expect(overhang).toBe(MAX_ART_OVERHANG_PX);
+    // row 0 of TOWN_MAP really does hold buildable ground — this is not a theoretical case
+    expect([...Array(GRID_SIZE).keys()].some((c) => isBuildable(0, c))).toBe(true);
+    // App.css must spend the reservation as top padding, with no fallback value (R-3)
+    expect(css("App.css")).toMatch(/padding:\s*calc\(8px \+ var\(--art-overhang\)\)/);
   });
 });
 

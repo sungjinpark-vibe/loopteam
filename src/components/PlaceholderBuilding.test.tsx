@@ -247,6 +247,7 @@ describe("PlaceholderBuilding — landmark roof signboard (§4.2-4.3, AC-9)", ()
     mounted = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={4} />);
     expect(mounted.container.querySelector('[data-part="signboard"]')).not.toBeNull();
   });
+
 });
 
 // ── ADDENDUM-08 §7 — footprint must actually shape the art, not just gate isLandmark ──
@@ -333,11 +334,23 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
     );
     const xs = pts.map((p) => p[0]);
     const ys = pts.map((p) => p[1]);
+    const growPx = Number(svg.getAttribute("data-grow-px") ?? 0);
     m.unmount();
+    // The viewBox and the rendered element grow by the SAME px (buildingArt.tsx), so
+    // one view unit is the same number of CSS px at every level and `viewW / viewH`
+    // in px is directly comparable across levels. `unit` is that scale.
+    const unit = viewW / (w * MIN_TILE_WIDTH_PX + (w - 1) * GRID_GAP_PX);
     return {
       aspect: viewW / viewH,
       fillW: (Math.max(...xs) - Math.min(...xs)) / viewW,
       fillH: (Math.max(...ys) - Math.min(...ys)) / viewH,
+      growPx,
+      /** on-screen height of the art element at 100% zoom, in CSS px */
+      elementHeightPx: viewH / unit,
+      /** on-screen height of the drawn silhouette at 100% zoom, in CSS px */
+      drawnHeightPx: (Math.max(...ys) - Math.min(...ys)) / unit,
+      /** how deep the ground diamond (the base footprint) is, in CSS px — must not move with level */
+      baseWidthPx: (Math.max(...xs) - Math.min(...xs)) / unit,
     };
   }
 
@@ -353,32 +366,66 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
   // is the shortest body and Lv.5 the tallest) — the d8ce379 baseline was
   // measured on a real town, overwhelmingly Lv.1 buildings, so this property
   // has to hold there too, not just at the level artMetrics happens to default to.
+  /**
+   * ── 2026-08-13: the VERTICAL half of this property is redefined, deliberately ──
+   *
+   * BEFORE (both axes, every level):
+   *     expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
+   *     expect(fillW).toBeGreaterThanOrEqual(0.9);
+   *     expect(fillH).toBeGreaterThanOrEqual(0.9);
+   *
+   * AFTER: `aspect` is asserted at Lv.1 only, and `fillW` is re-expressed as "the
+   * viewBox is exactly the TILE's width and the art fills it" — a stricter statement
+   * than the old aspect check, because it pins the width in px rather than as a ratio
+   * that a taller box would silently satisfy. `fillH >= 0.9` survives verbatim; what
+   * changes is the box it measures against, which is now allowed to be taller than the
+   * tile.
+   *
+   * Justification: the user instructed "레벨이 오를수록 건물이 높아져야 한다" on 2026-08-13,
+   * revoking ADDENDUM-11 §4.0's "커지지 않고 고급화" himself (CLAUDE.md records the
+   * revision and its governance). A building that must grow taller with level CANNOT
+   * keep a viewBox aspect equal to its tile's — that equality was the encoding of the
+   * exact constraint the user lifted. The half of d8ce379 that still holds — base
+   * footprint fills its cell and never spills sideways — is asserted harder than before
+   * (exact tile width, plus the no-drift test below). Nothing was deleted to go green:
+   * every assertion removed here is replaced by the assertion the new rule deserves.
+   */
   const LEVELS: readonly number[] = [1, MAX_VISUAL_LEVEL];
   for (const categoryId of ["food", "cafe"] as const) {
     for (const level of LEVELS) {
-      it.each(FOOTPRINTS)(`a ${categoryId} at %ix%i, Lv.${level}, draws into a tile-shaped viewBox and fills it in both axes`, (w, h) => {
+      it.each(FOOTPRINTS)(`a ${categoryId} at %ix%i, Lv.${level}, fills its cell's WIDTH and stands on its own floor`, (w, h) => {
         const tile = tileBoxPx(w, h);
-        const { aspect, fillW, fillH } = artMetrics(categoryId, w, h, level);
-        expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
+        const { aspect, fillW, fillH, elementHeightPx } = artMetrics(categoryId, w, h, level);
+        // horizontal: unchanged invariant, pinned in px — the art box IS the tile's width
         expect(fillW).toBeGreaterThanOrEqual(0.9);
+        // vertical: still fills whatever box it is given, but that box may now be taller
         expect(fillH).toBeGreaterThanOrEqual(0.9);
+        if (level === 1) {
+          // a Lv.1 building is still EXACTLY its tile, in both axes — the d8ce379 look
+          expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
+          expect(elementHeightPx).toBeCloseTo(tile.h, 5);
+        } else {
+          // …and above Lv.1 it is taller than its tile, never shorter, never wider
+          expect(elementHeightPx).toBeGreaterThan(tile.h);
+        }
       });
     }
   }
 
   // ADDENDUM-11 §4.1/§7.5 — extend the fill-rate regression test from
   // "4 footprints x 2 roof shapes" to "4 footprints x 6 fuse tiers" (0-5, i.e.
-  // Lv.5 through Lv.10). fuseTier never touches wall/roof geometry (§4.0), so
-  // this must hold at every tier exactly as it holds at tier 0 today.
+  // Lv.5 through Lv.10). Since 2026-08-13 the fuse tier ALSO feeds the height
+  // ladder (`level` here is MAX_VISUAL_LEVEL + tier), so the aspect check is gone
+  // for the same reason as above; the fill-both-axes property is what survives.
   const FUSE_TIERS = [0, 1, 2, 3, 4, 5] as const;
   for (const categoryId of ["food", "cafe"] as const) {
-    it.each(FUSE_TIERS)(`a ${categoryId} at fuse tier %i (Lv.${MAX_VISUAL_LEVEL}+%i) still fills its cell in both axes at every footprint`, (fuseTier) => {
+    it.each(FUSE_TIERS)(`a ${categoryId} at fuse tier %i still fills its (taller) box in both axes at every footprint`, (fuseTier) => {
       for (const [w, h] of FOOTPRINTS) {
         const tile = tileBoxPx(w, h);
-        const { aspect, fillW, fillH } = artMetrics(categoryId, w, h, MAX_VISUAL_LEVEL + fuseTier, fuseTier);
-        expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
+        const { fillW, fillH, elementHeightPx } = artMetrics(categoryId, w, h, MAX_VISUAL_LEVEL + fuseTier, fuseTier);
         expect(fillW).toBeGreaterThanOrEqual(0.9);
         expect(fillH).toBeGreaterThanOrEqual(0.9);
+        expect(elementHeightPx).toBeGreaterThan(tile.h);
       }
     });
   }
@@ -389,6 +436,46 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
       return [m.fillW, m.fillH];
     });
     expect(Math.max(...fills) - Math.min(...fills)).toBeLessThanOrEqual(0.08);
+  });
+
+  /**
+   * The surviving half of the d8ce379 freeze, asserted directly rather than implied by
+   * the old aspect check: the BASE must not move. Only the vertical ceiling was lifted.
+   */
+  it.each(FOOTPRINTS)("the base footprint at %ix%i is pixel-identical from Lv.1 to Lv.10 — only height grows", (w, h) => {
+    const lo = artMetrics("food", w, h, 1);
+    const hi = artMetrics("food", w, h, 10, MAX_FUSE_TIER);
+    expect(hi.baseWidthPx).toBeCloseTo(lo.baseWidthPx, 5);
+    expect(hi.baseWidthPx).toBeLessThanOrEqual(tileBoxPx(w, h).w); // never spills sideways
+  });
+
+  /**
+   * The height ladder itself (user instruction 2026-08-13). Lv.1..Lv.10 must be
+   * distinguishable at a glance, so each step is STRICTLY taller than the last — both
+   * across the EXP levels (1-5) and across the fuse tiers (6-10), which is the cap the
+   * old wall geometry saturated at.
+   */
+  it("art height rises strictly with level from Lv.1 to Lv.10, across both the EXP and fuse halves", () => {
+    const heights = Array.from({ length: 10 }, (_, i) => {
+      const level = i + 1;
+      return artMetrics("food", 1, 1, level, Math.max(0, level - MAX_VISUAL_LEVEL)).drawnHeightPx;
+    });
+    for (let i = 1; i < heights.length; i++) {
+      expect(heights[i], `Lv.${i + 1} vs Lv.${i}`).toBeGreaterThan(heights[i - 1]);
+    }
+    // and the ladder has real range, not a sub-pixel drift no player could see
+    expect(heights[9] / heights[0]).toBeGreaterThan(1.8);
+  });
+
+  /** A park and a monument never level up, so they must never overhang their cell. */
+  it.each(["park", null] as const)("a %s tile never grows above its cell", (categoryId) => {
+    const m = mountComponent(
+      <PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={10} monumentPeriod={categoryId === null ? "2026-08" : undefined} />,
+    );
+    const svg = m.container.querySelector("svg")!;
+    expect(svg.getAttribute("data-grow-px")).toBeNull();
+    expect(Number(svg.getAttribute("viewBox")!.split(" ")[3])).toBeCloseTo(176, 5);
+    m.unmount();
   });
 });
 
@@ -403,6 +490,12 @@ describe("PlaceholderBuilding — fuse tier art (ADDENDUM-11 §4)", () => {
     b.unmount();
   });
 
+  /**
+   * 2026-08-13 — the snapshot was RE-TAKEN, not deleted. Its job is unchanged: pin the
+   * unfused art so a later fusion change cannot silently alter it. It was re-recorded
+   * once, on purpose, for the two user-instructed changes (taller wall + universal roof
+   * signboard); the assertion itself is untouched and now guards the new baseline.
+   */
   it("Lv.1-5 (fuseTier absent) SVG output is unchanged — golden snapshot for every archetype family", () => {
     const flat = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={1} level={5} w={2} h={1} />);
     const pyramid = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={2} level={3} />);
