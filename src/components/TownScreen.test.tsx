@@ -389,21 +389,19 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
 describe("TownScreen — Gate-3-rerun: tap an ordinary building opens its detail sheet", () => {
   it("tapping a building's tile opens BuildingDetailSheet showing its amount and level, not a silent no-op", async () => {
     await mountAndWaitForBoot();
-    // Gate-3-RE-RUN #2 retune: a single entry's exp is now capped at
-    // `expPerLevel` (Lv.1 max per entry — the round-5 panel's #1/TOP FIX), so
-    // reaching Lv.3 in this test needs two top-tier (>=150,000, gain 3)
-    // entries in the SAME category — one founding, one growing the same
-    // building (exp 3 + 3 = 6 -> Lv.3) — rather than one large amount.
+    // Gate-3-rerun retune: 30,000원 sits in the 20,000-50,000 tier (gain 6)
+    // -> Lv.3 — a mid-range amount that actually demonstrates the
+    // amount->level curve differentiating (the panel's own repro amounts,
+    // 1,500/150,000/2,000,000, are covered directly in selectors.test.ts).
+    //
+    // Restored alongside commit bed6cca (user re-confirmed the director's EXP
+    // table on 2026-08-12): the round-5 per-entry cap this test was rewritten
+    // for was NOT adopted, so one 30,000원 entry reaches Lv.3 again.
     act(() => {
-      latest!.addEntry(cafeExpense(150_000));
+      latest!.addEntry(cafeExpense(30_000));
     });
     expect(latest!.buildingCount).toBe(1);
     const plotIndex = latest!.buildings[0].plotIndex;
-    const hostId = latest!.buildings[0].id;
-    act(() => {
-      latest!.addEntry(cafeExpense(150_000), hostId);
-    });
-    expect(latest!.buildingCount).toBe(1); // grew, not a second lot
 
     tapTile(plotIndex);
     // Flush the `ensureMonthLoaded` effect the sheet's amount lookup depends on.
