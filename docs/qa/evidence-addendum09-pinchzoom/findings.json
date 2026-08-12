@@ -53,7 +53,29 @@
         "dx": 0,
         "dy": 0
       },
-      "npcVsCellCenterOffsetPx": null,
+      "npcVsCellCenterOffsetPx": {
+        "npcFound": true,
+        "terrainCellFound": true,
+        "npcCell": "2,1",
+        "npcRect": {
+          "x": 34.3870964050293,
+          "y": 238.82257080078125,
+          "w": 0,
+          "h": 0
+        },
+        "terrainCellRect": {
+          "x": 26,
+          "y": 230.43548583984375,
+          "w": 19.290321350097656,
+          "h": 16.774185180664062
+        },
+        "offsetPx": {
+          "dx": -1.2580642700195312,
+          "dy": -0.00000762939453125
+        },
+        "scale": 0.419355,
+        "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\17-npc-alignment-fit-scale.png"
+      },
       "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\02-layer-alignment-fit-scale.png"
     },
     "mid": {
@@ -65,7 +87,29 @@
         "dx": 0,
         "dy": 0
       },
-      "npcVsCellCenterOffsetPx": null,
+      "npcVsCellCenterOffsetPx": {
+        "npcFound": true,
+        "terrainCellFound": true,
+        "npcCell": "2,1",
+        "npcRect": {
+          "x": -385.4565124511719,
+          "y": -141.94281005859375,
+          "w": 0,
+          "h": 0
+        },
+        "terrainCellRect": {
+          "x": -416.0222473144531,
+          "y": -172.50857543945312,
+          "w": 70.30123901367188,
+          "h": 61.131500244140625
+        },
+        "offsetPx": {
+          "dx": -4.5848846435546875,
+          "dy": 0.0000152587890625
+        },
+        "scale": 1.52829,
+        "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\18-npc-alignment-mid-zoom.png"
+      },
       "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\04-layer-alignment-mid-zoom.png"
     },
     "max": {
@@ -77,8 +121,124 @@
         "dx": 0,
         "dy": 0
       },
-      "npcVsCellCenterOffsetPx": null,
+      "npcVsCellCenterOffsetPx": {
+        "npcFound": true,
+        "terrainCellFound": true,
+        "npcCell": "2,1",
+        "npcRect": {
+          "x": -749.8440551757812,
+          "y": -472.70269775390625,
+          "w": 0,
+          "h": 0
+        },
+        "terrainCellRect": {
+          "x": -799.8440551757812,
+          "y": -522.7026977539062,
+          "w": 115,
+          "h": 100
+        },
+        "offsetPx": {
+          "dx": -7.5,
+          "dy": 0
+        },
+        "scale": 2.5,
+        "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\19-npc-alignment-max-zoom.png"
+      },
       "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\06-layer-alignment-max-zoom.png"
+    },
+    "npcAlignmentGapFill": {
+      "npcCountOnPage": 12,
+      "note": "Corrected from the previous run: NPCs spawn on walkable/ROAD cells (NpcLayer.tsx SPAWN_CELLS), which never get a `#plot-{index}` element (only \"ground\" cells do) — comparing against `#plot-N` always found nothing (null). Correct comparison is NPC element vs the terrain `.town-cell` at the same row/col, the layer an NPC actually stands on. Measured with `prefers-reduced-motion: reduce` emulated (the app already honors it — NpcLayer.tsx freezes NPCs, npc.css sets `transition:none`) so a slow multi-step gesture cannot straddle the NPC's own ~2.5s walk tick and measure it mid-glide.",
+      "pass": true,
+      "interpretation": "PASS = pinch/pan introduces no ADDITIONAL layer desync beyond this pre-existing, zoom-independent NPC offset.",
+      "localSpaceOffsetPx": {
+        "fit": {
+          "dx": -2.9999982592780134,
+          "dy": -0.000018193164577148242
+        },
+        "mid": {
+          "dx": -3.00000958165969,
+          "dy": 0.000009984223584856278
+        },
+        "max": {
+          "dx": -3,
+          "dy": 0
+        },
+        "spread": {
+          "dx": 0.000011322381676670545,
+          "dy": 0.00002817738816200452
+        }
+      },
+      "spreadTolerancePx": 1,
+      "fitScale": {
+        "npcFound": true,
+        "terrainCellFound": true,
+        "npcCell": "2,1",
+        "npcRect": {
+          "x": 34.3870964050293,
+          "y": 238.82257080078125,
+          "w": 0,
+          "h": 0
+        },
+        "terrainCellRect": {
+          "x": 26,
+          "y": 230.43548583984375,
+          "w": 19.290321350097656,
+          "h": 16.774185180664062
+        },
+        "offsetPx": {
+          "dx": -1.2580642700195312,
+          "dy": -0.00000762939453125
+        },
+        "scale": 0.419355,
+        "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\17-npc-alignment-fit-scale.png"
+      },
+      "midZoom": {
+        "npcFound": true,
+        "terrainCellFound": true,
+        "npcCell": "2,1",
+        "npcRect": {
+          "x": -385.4565124511719,
+          "y": -141.94281005859375,
+          "w": 0,
+          "h": 0
+        },
+        "terrainCellRect": {
+          "x": -416.0222473144531,
+          "y": -172.50857543945312,
+          "w": 70.30123901367188,
+          "h": 61.131500244140625
+        },
+        "offsetPx": {
+          "dx": -4.5848846435546875,
+          "dy": 0.0000152587890625
+        },
+        "scale": 1.52829,
+        "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\18-npc-alignment-mid-zoom.png"
+      },
+      "maxZoom": {
+        "npcFound": true,
+        "terrainCellFound": true,
+        "npcCell": "2,1",
+        "npcRect": {
+          "x": -749.8440551757812,
+          "y": -472.70269775390625,
+          "w": 0,
+          "h": 0
+        },
+        "terrainCellRect": {
+          "x": -799.8440551757812,
+          "y": -522.7026977539062,
+          "w": 115,
+          "h": 100
+        },
+        "offsetPx": {
+          "dx": -7.5,
+          "dy": 0
+        },
+        "scale": 2.5,
+        "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\19-npc-alignment-max-zoom.png"
+      }
     }
   },
   "d_pan_zoomed_in": {
@@ -191,5 +351,18 @@
     "noPhantomMoveAfterFullRelease": true,
     "recognizerStillWorksAfterward": true,
     "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\16-second-finger-cancels-long-press.png"
+  },
+  "g7_no_remount_on_zoom": {
+    "pass": true,
+    "method": "Marked `.town-grid` and one `.town-cell--road` node with a JS-property stamp before a full pinch-in + pan + pinch-out + 전체 보기 toggle cycle, then re-queried the DOM and compared node identity (===) plus marker survival. A remount would create a NEW element (marker gone, `===` false against the saved reference); the memo blowing would only affect TownTerrain's re-render count, but a remount is the observable symptom that would also destroy the marker, which is what this checks directly.",
+    "observed": {
+      "gridStillInDom": true,
+      "gridSameNode": true,
+      "gridMarkIntact": true,
+      "roadStillInDom": true,
+      "roadSameNode": true,
+      "roadMarkIntact": true
+    },
+    "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\20-no-remount-after-full-gesture-cycle.png"
   }
 }
