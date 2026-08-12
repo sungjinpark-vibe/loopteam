@@ -54,6 +54,7 @@ export interface ShopSheetProps {
   purchaseSku: (sku: string, priceSeeds: number) => PurchaseSkuResult;
   applyTownSku: (sku: string | null) => void;
   applyBuildingSku: (buildingId: string, sku: string | null) => void;
+  /** Seed renderer handed down by the PM (rule R-7 — this file never imports a formatter of its own). Currently `formatSeedsWithUnit`, so the balance chip and every price name the unit. */
   formatSeeds: (n: SeedCount) => string;
   /** Opens the 충전소 stub. The parent closes this sheet first — two stacked bottom sheets share one dimmer and one back-guard entry. */
   onOpenCharge: () => void;

@@ -13,7 +13,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Button, ConfirmDialog, useToast } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.approved";
 import { CATEGORY_CONTENT, moodContentFor } from "../content.placeholder";
-import { formatSeeds } from "../economy/format";
+import { formatSeeds, formatSeedsWithUnit } from "../economy/format";
 import { seeds as toSeedCount } from "../economy/types";
 import { BuildingDetailSheet } from "./BuildingDetailSheet";
 import { ChargeSheet } from "./ChargeSheet";
@@ -42,14 +42,20 @@ const noopLongPress = () => false;
 // level-up toast rather than opening a third notification channel (the panel
 // already flagged toast/banner stacking as a defect — a new standalone seed
 // toast would only add to that pile).
-// Gate-3-RE-RUN fix (round-5 panel, UX-researcher/target-player/liveops-pd):
-// "(+3개)" named no unit — a player can't tell buildings from seeds from
-// days. `formatSeeds` itself stays a plain "N개" (economy/format.ts's own
-// R-7 doc: never a currency-like label baked into the shared formatter) —
-// the "씨앗" word belongs to this ONE call site, same as ShopSheet's header
-// already prefixes it by hand.
-function seedSuffix(amount: number): string {
-  return amount > 0 ? ` (+씨앗 ${formatSeeds(toSeedCount(amount))})` : "";
+//
+// Gate-3 follow-up (A5): "(+3개)" named no unit AND showed no balance, so a
+// player could never tell what they were collecting or how much of it they
+// had. The transient reward toast is one of exactly two surfaces
+// ADDENDUM-03 §5.2 rule 6 allows the BALANCE on (the other is the shop
+// header, the place it gets spent) — so it carries both now: the grant, named,
+// and the running total after it.
+//
+// `balanceAfter` is `economy.seeds + seedsGranted` computed by the caller:
+// `store.economy.seeds` read during the same render that just called
+// `addEntry` is the PRE-save value from a stale closure, exactly like
+// `queueLength` (see `AddEntryResult.queueLength`'s doc).
+function seedSuffix(amount: number, balanceAfter: number): string {
+  return amount > 0 ? ` (+${formatSeedsWithUnit(toSeedCount(amount))} · 모은 ${formatSeeds(toSeedCount(balanceAfter))})` : "";
 }
 
 // Toss TDS `openToast`'s default position ignores this app's own
@@ -115,6 +121,9 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
 
   function saveEntry(draft: EntryDraft, growTargetId?: string) {
     const result = store.addEntry(draft, growTargetId);
+    // A5 — the balance AFTER this save. `store.economy.seeds` is the pre-save
+    // value here (stale render closure, same as `queueLength` below).
+    const seedsAfter = store.economy.seeds + result.seedsGranted;
     // F14: a save with zero slots either queues (return-promise toast) or,
     // once the queue itself is full, overflows plainly — never a silent no-op.
     if (result.queued) {
@@ -128,7 +137,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // ADDENDUM-04 §5/§8 — one-line level-up feedback on the same toast
       // channel as F14's notices above; no celebration system (§4's "what
       // was deliberately NOT built" applies to this feedback too).
-      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted)}`, {
+      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted, seedsAfter)}`, {
         gap: TOAST_GAP_ABOVE_TAB_BAR,
       });
     } else if (result.building?.categoryId) {
@@ -141,7 +150,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // `seedSuffix` below is a game-currency count, not money, so it's a
       // different axis from the invariant this note is guarding.
       const content = CATEGORY_CONTENT[result.building.categoryId];
-      openToast(`${content.icon} ${content.label} 건물이 생겼어요${seedSuffix(result.seedsGranted)}`, {
+      openToast(`${content.icon} ${content.label} 건물이 생겼어요${seedSuffix(result.seedsGranted, seedsAfter)}`, {
         gap: TOAST_GAP_ABOVE_TAB_BAR,
       });
     }
@@ -426,7 +435,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         purchaseSku={store.purchaseSku}
         applyTownSku={store.applyTownSku}
         applyBuildingSku={store.applyBuildingSku}
-        formatSeeds={formatSeeds}
+        // A5 — the labelled formatter: every seed number the shop renders
+        // (balance chip and prices alike) now names its unit, so the spend
+        // surface and the earn toast can't disagree about what "N개" means.
+        formatSeeds={formatSeedsWithUnit}
         onOpenCharge={() => {
           // Never both at once — one dimmer, one back-guard entry.
           setShopOpen(false);

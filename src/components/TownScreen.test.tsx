@@ -424,6 +424,42 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
   });
 });
 
+// Gate-3 follow-up (A5): the reward toast — one of exactly two surfaces
+// ADDENDUM-03 §5.2 rule 6 allows the seed BALANCE on — showed a bare "(+3개)":
+// no unit name, no running total.
+describe("TownScreen — Gate-3 follow-up: the reward toast names the currency and its balance", () => {
+  it("shows the grant with its unit AND the balance after it, growing across saves", async () => {
+    await mountAndWaitForBoot();
+    const perBuild = BALANCE.seedAwards.build;
+
+    openSheet();
+    fillAndSave("카페");
+    expect(document.body.textContent).toContain(`+씨앗 ${perBuild}개`);
+    expect(document.body.textContent).toContain(`모은 ${perBuild}개`);
+    expect(latest!.economy.seeds).toBe(perBuild);
+
+    openSheet();
+    fillAndSave("교통");
+    // The running total, not the grant, is what moved.
+    expect(document.body.textContent).toContain(`모은 ${perBuild * 2}개`);
+    expect(latest!.economy.seeds).toBe(perBuild * 2);
+  });
+
+  it("the shop header — the surface the same currency is SPENT on — names the unit too", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    const seedsNow = latest!.economy.seeds;
+    expect(seedsNow).toBeGreaterThan(0);
+
+    act(() => {
+      container.querySelector<HTMLElement>(".shop-fab")!.click();
+    });
+    expect(document.body.querySelector(".shop-balance")?.textContent).toBe(`씨앗 ${seedsNow}개`);
+  });
+});
+
 // Gate-3-rerun fix — every expert's top/near-top finding: a plain tap on an
 // ordinary (non-monument) building was a silent no-op. `tapTile` (defined
 // above) is the SAME helper the grow-dialog suite already drives real taps
