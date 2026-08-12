@@ -317,8 +317,7 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
     };
   }
 
-  function artMetrics(categoryId: BuildingCategoryId, w: 1 | 2, h: 1 | 2, fuseTier = 0) {
-    const level = MAX_VISUAL_LEVEL + fuseTier; // ADDENDUM-11 §2.4: Lv = maxLevel + fuse
+  function artMetrics(categoryId: BuildingCategoryId, w: 1 | 2, h: 1 | 2, level: number = MAX_VISUAL_LEVEL, fuseTier = 0) {
     const m = mountComponent(
       <PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={level} fuseTier={fuseTier} w={w} h={h} />,
     );
@@ -349,15 +348,22 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
     [2, 2],
   ];
   // "food" is a flat-roof archetype, "cafe" a pyramid one — the two roofs take their
-  // vertical budget differently, so both have to land on the box.
+  // vertical budget differently, so both have to land on the box. Levels 1 and
+  // MAX_VISUAL_LEVEL bracket the wall-height range (floors = level - 1, so Lv.1
+  // is the shortest body and Lv.5 the tallest) — the d8ce379 baseline was
+  // measured on a real town, overwhelmingly Lv.1 buildings, so this property
+  // has to hold there too, not just at the level artMetrics happens to default to.
+  const LEVELS: readonly number[] = [1, MAX_VISUAL_LEVEL];
   for (const categoryId of ["food", "cafe"] as const) {
-    it.each(FOOTPRINTS)(`a ${categoryId} at %ix%i draws into a tile-shaped viewBox and fills it in both axes`, (w, h) => {
-      const tile = tileBoxPx(w, h);
-      const { aspect, fillW, fillH } = artMetrics(categoryId, w, h);
-      expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
-      expect(fillW).toBeGreaterThanOrEqual(0.9);
-      expect(fillH).toBeGreaterThanOrEqual(0.9);
-    });
+    for (const level of LEVELS) {
+      it.each(FOOTPRINTS)(`a ${categoryId} at %ix%i, Lv.${level}, draws into a tile-shaped viewBox and fills it in both axes`, (w, h) => {
+        const tile = tileBoxPx(w, h);
+        const { aspect, fillW, fillH } = artMetrics(categoryId, w, h, level);
+        expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
+        expect(fillW).toBeGreaterThanOrEqual(0.9);
+        expect(fillH).toBeGreaterThanOrEqual(0.9);
+      });
+    }
   }
 
   // ADDENDUM-11 §4.1/§7.5 — extend the fill-rate regression test from
@@ -369,7 +375,7 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
     it.each(FUSE_TIERS)(`a ${categoryId} at fuse tier %i (Lv.${MAX_VISUAL_LEVEL}+%i) still fills its cell in both axes at every footprint`, (fuseTier) => {
       for (const [w, h] of FOOTPRINTS) {
         const tile = tileBoxPx(w, h);
-        const { aspect, fillW, fillH } = artMetrics(categoryId, w, h, fuseTier);
+        const { aspect, fillW, fillH } = artMetrics(categoryId, w, h, MAX_VISUAL_LEVEL + fuseTier, fuseTier);
         expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
         expect(fillW).toBeGreaterThanOrEqual(0.9);
         expect(fillH).toBeGreaterThanOrEqual(0.9);
