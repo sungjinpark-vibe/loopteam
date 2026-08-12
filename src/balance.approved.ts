@@ -102,6 +102,13 @@ export const BALANCE = {
     build: 3, // per entry-sourced build, including a queue drain (§F-ECON table row 1)
     nospend: 8, // larger than a build — the behaviour the app most wants to reward
     tier: 25, // reuses the existing streak-tier threshold crossing, no new counter
+    // --- ADDENDUM-11 §5.3 (building fusion). NEW dial, not director-confirmed
+    // — same discipline as `primeLot`/`primeLotMax` below. Sits between
+    // `nospend` (8) and `tier` (25): a fusion is rarer and more deliberate
+    // than a no-spend day, less momentous than a tier crossing. Does not
+    // touch `expAmountTiers`/`expPerLevel`/`maxLevel`, which stay exactly as
+    // re-confirmed 2026-08-12.
+    fuse: 12,
     // Indexed by `MonthSummary.outcomeBucket` (settlementActions.ts's own
     // convention: 0 = no data, 1 = best pace .. 3 = worst pace). Scales DOWN
     // as the outcome worsens — a below-budget month is rewarded more than an

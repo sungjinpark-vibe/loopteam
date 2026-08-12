@@ -22,6 +22,11 @@ export type AwardEvent =
   | { kind: "build"; buildingId: string }
   | { kind: "nospend"; date: string }
   | { kind: "tier"; tier: number }
+  // ADDENDUM-11 §5.3 — one fusion act. The idempotency key carries the
+  // RESULTING fuse tier, not just the survivor's id: the same building fuses
+  // again on its way to Lv.10, and an id-only key would treat that Lv.7 as an
+  // already-paid Lv.6 and silently pay nothing for every rung after the first.
+  | { kind: "fuse"; buildingId: string; fuseTier: number }
   | { kind: "settlement"; period: string; outcomeBucket: number; primeLotCount: number };
 
 export interface SeedAward {
@@ -40,6 +45,8 @@ export function awardFor(event: AwardEvent): SeedAward {
       return { eventKey: `seed:nospend:${event.date}`, amount: BALANCE.seedAwards.nospend };
     case "tier":
       return { eventKey: `seed:tier:${event.tier}`, amount: BALANCE.seedAwards.tier };
+    case "fuse":
+      return { eventKey: `seed:fuse:${event.buildingId}:${event.fuseTier}`, amount: BALANCE.seedAwards.fuse };
     case "settlement":
       return {
         eventKey: `seed:settlement:${event.period}`, // UNCHANGED — same idempotency key
