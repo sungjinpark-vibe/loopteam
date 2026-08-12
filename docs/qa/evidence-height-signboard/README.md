@@ -86,7 +86,19 @@ deliberate exception).
 hanging over the tile above is a live target that bubbles to the LOWER tile, so
 a tap meant for the upper tile selects the building in front of it — and the
 same for long-press move and the fusion pick. The hit area is still the
-`.town-tile` div. Pinned by "the overflowing art never steals a tap…".
+`.town-tile` div. Pinned by "the overflowing art never steals a tap…" in
+`TownGrid.test.tsx`, and verified with real layout by `tap-target-check.mjs`
+(`tap-target-check.out.txt`), which jsdom cannot do:
+
+```
+overhangHeightPx        39      a Lv.10 building overhangs 39px into the tile above
+lowerArtRisesPx         45
+hitOwnerPlot            65      a tap in that overlap resolves to the UPPER tile ✓
+lowerCentreOwner        85      the lower tile still owns its own centre ✓
+samePointWithoutTheGuard 85     same pixel with pointer-events re-enabled: STOLEN
+```
+
+The last line is the counter-check — the guard is load-bearing, not incidental.
 
 **The top row** — `04-top-row-clear-of-header-after.png`. `TOWN_MAP` row 0 holds
 ground at cols 7-12, so `.town-grid` reserves `--art-overhang` (45px) as top

@@ -1,0 +1,11 @@
+{
+  "overhangHeightPx": 39,
+  "lowerArtRisesPx": 45,
+  "probeInsideUpperTile": true,
+  "hitTag": "DIV",
+  "hitOwnerPlot": "65",
+  "expectedPlot": "65",
+  "lowerCentreOwner": "85",
+  "samePointWithoutTheGuard": "85"
+}
+PASS — guard holds, and removing it reproduces the stolen tap
