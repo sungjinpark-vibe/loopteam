@@ -31,6 +31,25 @@
   seeds approved (B4). **Do not re-open these.**
   **Next**: Gate 3 re-run. `state/gate3-args.json` is current — it now records the settled EXP decision, the
   A0-A8 fixes, the newly verified coverage, the fusion feature, and mandatory multi-touch QA harness rules.
+
+  ### B3 fusion — all three stages COMPLETE and pushed (2026-08-12)
+  | Stage | Commits | Notes |
+  |---|---|---|
+  | Core (model/persistence/selectors/economy) | `aeee0b5` `cf09853` `85f0fed` `f5204e9` | `fuse` is optional so no migration; atomicity proven by simulating interruption at 5 write points and asserting exactly one legal state + idempotent boot repair; dangling refs remapped to the survivor BEFORE the write; `placement.ts` untouched. 41 new tests, **zero edits to existing ones**. |
+  | Art Lv.6-10 | `d0e7abc` `87241b4` | Roof material progression + crown accents + window lighting + ground glow. **Silhouette unchanged** — fill stays 93.97-93.99% across 4 footprints × 6 tiers, so the `d8ce379` baseline holds. Lv.1-5 locked by an identical-markup test AND a golden snapshot; fill is asserted as a *property* at both Lv.1 and Lv.5 (`87241b4` — the snapshot alone was not enough, since snapshots get regenerated reflexively). |
+  | UI/interaction | `c5beb10` `9342b12` `9e194d0` | Reuses grow-pick via a `pickPurpose` branch (no second pick mode). CTA only when a legal partner exists; two-step confirm before anything is consumed; cancel at both steps + Escape/back resets `pickPurpose` (regression test guards against mis-wiring a later grow commit). Badges/sheets/toasts switched to `totalLevelOf` so Lv.6-10 display correctly. PLAY_GUIDE §7.19 written. |
+
+  **Handoff — what is NOT done:**
+  - **Fusion before/after screenshots WITH the final art** were still being captured when the session
+    closed. The committed `docs/qa/evidence-fusion-ui/` shots were taken BEFORE the art landed, so the fused
+    building there shows the old look. If `docs/qa/evidence-fusion-final/` exists on the next session, the
+    recapture finished and committed itself; if not, re-run `docs/qa/evidence-fusion-ui/capture.mjs`. **The
+    user has not yet seen fusion with its real art** — show him that before anything else builds on it.
+  - **Gate 3 re-run NOT started** — deliberately. User's call next session; HQ runs it.
+  - Art evidence the user can be shown today: `app_in_toss/docs/qa/evidence-fusion-art/row-A.png`,
+    `row-B.png`, `all-levels-overview.png` (the Lv.1→Lv.10 ladder).
+  **Start here next session**: confirm the recapture landed → show the user the fusion ladder + before/after
+  → get his go-ahead → HQ runs Gate 3 with `state/gate3-args.json` as-is.
 - **Status (2026-08-11, end of day — handoff)**: `app_in_toss` pinch-zoom (ADDENDUM-09, Phase 3 of the
   2026-08-11 art/UX work: Phase 1 building art → Phase 2 street props → **Phase 3 pinch zoom**) is
   **code-complete, committed and pushed** on `app_in_toss` HEAD `56ed417` ("ADDENDUM-09: pinch zoom + pan,
