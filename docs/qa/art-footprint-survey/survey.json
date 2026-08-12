@@ -1,0 +1,42 @@
+{
+  "1x1": {
+    "found": true,
+    "plotIndex": "7",
+    "archetype": "gift",
+    "renderedPixelWidth": 16.774200439453125,
+    "renderedPixelHeight": 16.774185180664062,
+    "aspectRatio": 1,
+    "svgViewBox": "0 0 120 176",
+    "footprintEncoding": "Parent [data-plot-index] div gets inline style `gridColumn: col+1 / span w` / `gridRow: row+1 / span h` (TownGrid.tsx). PlaceholderBuilding renders BuildingArt with w/h props forwarded from footprintOf(building) (placement.ts). BuildingArt reads w/h to pick isometric cube geometry + viewBox width (buildingArt.tsx viewWidthFor/buildingCube); no separate data-w/data-h DOM attribute exists, only data-archetype on .building-tile."
+  },
+  "1x2": {
+    "found": true,
+    "plotIndex": "61",
+    "archetype": "townhouse",
+    "renderedPixelWidth": 16.774192810058594,
+    "renderedPixelHeight": 36.06451416015625,
+    "aspectRatio": 0.4651,
+    "svgViewBox": "0 0 120 176",
+    "footprintEncoding": "Parent [data-plot-index] div gets inline style `gridColumn: col+1 / span w` / `gridRow: row+1 / span h` (TownGrid.tsx). PlaceholderBuilding renders BuildingArt with w/h props forwarded from footprintOf(building) (placement.ts). BuildingArt reads w/h to pick isometric cube geometry + viewBox width (buildingArt.tsx viewWidthFor/buildingCube); no separate data-w/data-h DOM attribute exists, only data-archetype on .building-tile."
+  },
+  "2x1": {
+    "found": true,
+    "plotIndex": "8",
+    "archetype": "transport",
+    "renderedPixelWidth": 36.06451416015625,
+    "renderedPixelHeight": 16.774185180664062,
+    "aspectRatio": 2.15,
+    "svgViewBox": "0 0 240 176",
+    "footprintEncoding": "Parent [data-plot-index] div gets inline style `gridColumn: col+1 / span w` / `gridRow: row+1 / span h` (TownGrid.tsx). PlaceholderBuilding renders BuildingArt with w/h props forwarded from footprintOf(building) (placement.ts). BuildingArt reads w/h to pick isometric cube geometry + viewBox width (buildingArt.tsx viewWidthFor/buildingCube); no separate data-w/data-h DOM attribute exists, only data-archetype on .building-tile."
+  },
+  "2x2": {
+    "found": true,
+    "plotIndex": "74",
+    "archetype": "cafe",
+    "renderedPixelWidth": 36.06451416015625,
+    "renderedPixelHeight": 36.06451416015625,
+    "aspectRatio": 1,
+    "svgViewBox": "0 0 120 176",
+    "footprintEncoding": "Parent [data-plot-index] div gets inline style `gridColumn: col+1 / span w` / `gridRow: row+1 / span h` (TownGrid.tsx). PlaceholderBuilding renders BuildingArt with w/h props forwarded from footprintOf(building) (placement.ts). BuildingArt reads w/h to pick isometric cube geometry + viewBox width (buildingArt.tsx viewWidthFor/buildingCube); no separate data-w/data-h DOM attribute exists, only data-archetype on .building-tile."
+  }
+}
