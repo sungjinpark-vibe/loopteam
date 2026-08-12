@@ -1,0 +1,66 @@
+{
+  "tag": "after",
+  "fixture": "mixedFootprints",
+  "grid": {
+    "cellW": 40,
+    "cellH": 40,
+    "gap": 6,
+    "zoom": 0.4193548349233774
+  },
+  "buildingsMeasured": 133,
+  "summary": {
+    "1x1": {
+      "buildings": 92,
+      "tilePx": "16.77 x 16.77",
+      "viewBox": "0 0 176 176",
+      "viewBoxAspect": 1,
+      "tileAspect": 1,
+      "meanFillW": 0.9409,
+      "meanFillH": 0.9418,
+      "minFillW": 0.9398,
+      "minFillH": 0.9399,
+      "sampleArchetype": "gift",
+      "samplePlotIndex": "7"
+    },
+    "2x1": {
+      "buildings": 23,
+      "tilePx": "36.06 x 16.77",
+      "viewBox": "0 0 378.40000000000003 176",
+      "viewBoxAspect": 2.15,
+      "tileAspect": 2.1503,
+      "meanFillW": 0.9414,
+      "meanFillH": 0.9444,
+      "minFillW": 0.9397,
+      "minFillH": 0.9399,
+      "sampleArchetype": "transport",
+      "samplePlotIndex": "8"
+    },
+    "1x2": {
+      "buildings": 11,
+      "tilePx": "16.77 x 36.06",
+      "viewBox": "0 0 176 378.40000000000003",
+      "viewBoxAspect": 0.4651,
+      "tileAspect": 0.4651,
+      "meanFillW": 0.9407,
+      "meanFillH": 0.9428,
+      "minFillW": 0.9398,
+      "minFillH": 0.9399,
+      "sampleArchetype": "townhouse",
+      "samplePlotIndex": "61"
+    },
+    "2x2": {
+      "buildings": 7,
+      "tilePx": "36.06 x 36.06",
+      "viewBox": "0 0 378.40000000000003 378.40000000000003",
+      "viewBoxAspect": 1,
+      "tileAspect": 1,
+      "meanFillW": 0.9397,
+      "meanFillH": 0.9411,
+      "minFillW": 0.9397,
+      "minFillH": 0.9399,
+      "sampleArchetype": "cafe",
+      "samplePlotIndex": "74"
+    }
+  },
+  "consoleErrors": []
+}

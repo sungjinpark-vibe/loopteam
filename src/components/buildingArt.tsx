@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 import { colors } from "@toss/tds-colors";
 import type { BuildingCategoryId, SavingCategoryId } from "../types";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
+import { GRID_GAP_PX, MIN_TILE_WIDTH_PX, TILE_HEIGHT_PX } from "../townLayout";
 
 /**
  * The categories that actually own building art. Savings are excluded on purpose:
@@ -189,33 +190,75 @@ const ARCHETYPES: Record<ArchetypeCategoryId, ArchetypeSpec> = {
 
 /** Cosmetic cap on the level-growth visual (ADDENDUM-04 §8's maxLevel dial). */
 export const MAX_VISUAL_LEVEL = 5;
-const FLOOR_STEP = 9;
-const VIEW_W = 120;
-const VIEW_H = 176;
-const CX = 60;
-const CY = 142;
 
 function floorsFor(level: number): number {
   return Math.max(0, Math.min(level, MAX_VISUAL_LEVEL) - 1);
 }
 
 /**
- * Footprint-differentiation fix (visual verification: 2x1 scored 2/5 — it rendered
- * only +67% wider than 1x1 despite occupying a tile more than double the width).
- * Root cause: `preserveAspectRatio="meet"`'s scale is `min(tileW/VIEW_W, tileH/VIEW_H)`.
- * Every footprint with h=1 has a 40px-tall tile, so `40/176=0.227` always binds —
- * widening the cube inside a FIXED-width viewBox can't widen the rendered pixels
- * proportionally, and risks clipping past VIEW_W.
+ * ── the tile-shaped art box (2026-08-12 "fill the cell" fix) ──
  *
- * Only footprints wider than they are deep (2x1, not 1x1/1x2/2x2) get a wider
- * viewBox — `w > h` is false for all three currently-passing cases, so this
- * returns the untouched base width for them (proof: `120 * (w/h) === 120` only
- * when w===h, and the `w > h` guard skips the formula entirely for 1x2 where
- * w<h). VIEW_H stays fixed on purpose — that keeps the height-bound scale
- * (and therefore the approved 1x1 vertical proportions) unchanged.
+ * Every footprint's viewBox now carries its TILE's aspect ratio. The default
+ * `preserveAspectRatio="xMidYMid meet"` scales by `min(tileW/viewW, tileH/viewH)`
+ * and centres the remainder, so a viewBox whose aspect differs from the tile's
+ * ALWAYS leaves slack in one axis. Before this fix every footprint drew into a
+ * fixed 120x176 box (aspect 0.68) except 2x1 (240x176, 1.36), against tiles of
+ * aspect 1.0 / 2.15 / 0.465 / 1.0 — so a building floated in a large empty box
+ * (measured: a 1x1's drawn geometry covered 36% x 64% of its 40x40 cell).
+ *
+ * Two things had to change together, and widening the box alone would have been
+ * the "more empty margin" non-fix: the box aspect matches the tile AND the cube's
+ * own `ux`/`uy`/`hh`/`h` are derived FROM the box instead of from fixed constants,
+ * so the drawn silhouette spans it.
+ *
+ * `ART_UNIT` (view units per tile px) is a constant, so the rendered scale is
+ * identical for every footprint (40/176 === 86/378.4 === 0.227, the pre-fix
+ * value). That is what lets every absolute decor size below — signboard plate,
+ * chimney, clock, emoji font-size — keep the exact on-screen pixel size it has
+ * today while the building's extents change underneath them.
+ *
+ * ponytail: CELL/GAP are imported from townLayout.ts, the single owner of the
+ * grid metrics that App.css consumes as `--town-gap` and as the inline
+ * `grid-template-rows: 40px` / `grid-template-columns: minmax(40px,1fr)` tracks
+ * (App.css rule R-3 forbids restating them, and so does this file). Known
+ * ceiling: those columns are `minmax(40px,1fr)`, so on a viewport wide enough
+ * for the 20-column grid to stretch past its minimum (946px — never a phone,
+ * and the app is a Toss in-app webview) the real cell would be wider than 40px
+ * and a sliver of horizontal slack returns. Upgrade path if a tablet layout
+ * ever ships: measure the tile with ResizeObserver and pass the aspect in.
  */
-function viewWidthFor(w: number, h: number): number {
-  return w > h ? VIEW_W * (w / h) : VIEW_W;
+const VIEW_H_1X1 = 176; // the pre-fix viewBox height — kept so the rendered art scale is unchanged
+const ART_UNIT = VIEW_H_1X1 / TILE_HEIGHT_PX;
+/** The art spans 94% of its box. The 6% is overhang room for decor that draws past the
+ *  wall faces on purpose (doorstep, platform canopy, chimney) — an `<svg>` root clips to
+ *  its viewBox — not letterboxing: the drawn geometry still measures 94-96% of the cell. */
+const FILL = 0.94;
+/** Cap on the ground diamond's half-height as a share of the art's height. A true
+ *  isometric diamond is 2:1 (`spanW/4`), but a 2x1 tile is 86x40 — a full-width 2:1
+ *  diamond alone would be 43px tall there, taller than the tile. Wide footprints get a
+ *  slightly flatter projection instead of a building that cannot fit its own base. */
+const HH_MAX_SHARE = 0.3;
+/** Level growth: the box is the tile now, so a floor can no longer add absolute height —
+ *  it trades ground-diamond depth for wall height (the building rises as its footprint
+ *  flattens). The floor belts and window rows below carry the rest of the growth signal. */
+const FLOOR_SQUEEZE = 0.07;
+const RIDGE_R = 3.5;
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+/** px a `cells`-long footprint occupies, including the gaps between the cells it spans. */
+function tileSpanPx(cells: number, cellPx: number): number {
+  return cells * cellPx + (cells - 1) * GRID_GAP_PX;
+}
+
+/** The tile-shaped art box for a footprint, in view units. `spanW`/`spanH` is the
+ *  rectangle the drawn geometry must fill; `left`/`top` is the overhang margin. */
+function artBox(w: number, h: number) {
+  const vw = tileSpanPx(w, MIN_TILE_WIDTH_PX) * ART_UNIT;
+  const vh = tileSpanPx(h, TILE_HEIGHT_PX) * ART_UNIT;
+  return { vw, vh, left: (vw * (1 - FILL)) / 2, top: (vh * (1 - FILL)) / 2, spanW: vw * FILL, spanH: vh * FILL };
 }
 
 /**
@@ -281,21 +324,38 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
   const { roof } = spec;
   const wide = footprint.w > 1;
   const deep = footprint.h > 1;
-  // §4.2: a landmark is broader + squatter than its neighbours inside the same tile.
-  const landmarkMult = isLandmark ? 1.3 : 1;
-  // right face (x-facing) extent. `w>h` (2x1, not 2x2 where w===h) swaps the
-  // flat 1.28x "wide" bump for the actual w:h ratio, so a 2x1 stretches ~2x —
-  // 1x1/1x2/2x2 all have w<=h and fall through to the untouched 1x/1.28x path.
-  const wideMult = wide ? (footprint.w > footprint.h ? footprint.w / footprint.h : 1.28) : 1;
-  const ux = spec.hw * landmarkMult * wideMult;
-  const uy = spec.hw * landmarkMult * (deep ? 1.28 : 1); // left face (y-facing) extent
-  let hBase = isLandmark ? spec.hBase * 0.82 : spec.hBase;
-  if (wide && deep) hBase *= 1.18; // 2x2 must read as genuinely bigger, not just wide+squat
-  const h = hBase + floors * FLOOR_STEP;
-  const hh = (ux + uy) / 4;
-  const viewW = viewWidthFor(footprint.w, footprint.h);
-  const cx = viewW / 2;
-  const cy = CY;
+  const box = artBox(footprint.w, footprint.h);
+
+  // Width: the cube spans the WHOLE box, split between the x-facing (right) and
+  // y-facing (left) wall in the footprint's own w:h ratio — so a 2x1 bulges right
+  // and reads genuinely wide, a 1x2 bulges left and reads deep, and both still sum
+  // to the same total width their tile gives them. (Replaces the old fixed
+  // `spec.hw * 1.3 * 1.28` extents, which were sized in absolute view units and so
+  // could never track a tile they knew nothing about.)
+  const ux = (box.spanW * footprint.w) / (footprint.w + footprint.h);
+  const uy = box.spanW - ux;
+
+  // §4.2 + the archetype's own character (transport is wide/low at hw 42 hBase 32,
+  // salary narrow/tall at 24/66) survive as a diamond-vs-wall SPLIT of the fixed
+  // vertical budget rather than as a silhouette size — the silhouette belongs to
+  // the tile now. A squat archetype/landmark gets a deeper ground diamond and
+  // shorter walls; a tall one the reverse. Total height is identical either way.
+  const squat = clamp(spec.hw / DEFAULT_HW / (spec.hBase / DEFAULT_H), 0.75, 1.3) * (isLandmark ? 1.12 : 1);
+  const isoHalf = box.spanW / 4; // a true isometric 2:1 ground diamond
+  const hh = clamp(
+    Math.min(isoHalf, box.spanH * HH_MAX_SHARE) * squat * Math.max(0.6, 1 - FLOOR_SQUEEZE * floors),
+    Math.min(box.spanW / 10, box.spanH * 0.12),
+    box.spanH * HH_MAX_SHARE,
+  );
+  // A pyramid apex rises above the cube's back corner; a flat roof's top IS that
+  // corner. Whatever is left of the vertical budget is wall — which is what makes
+  // the silhouette land exactly on the box floor and ceiling in both cases.
+  const roofRise = roof === "pyramid" ? box.spanH * 0.1 : 0;
+  const crown = roof === "pyramid" ? roofRise + RIDGE_R : 0;
+  const h = box.spanH - 2 * hh - crown;
+  const viewW = box.vw;
+  const cx = box.left + uy; // puts LB on the box's left edge and RB on its right
+  const cy = box.vh - box.top - hh; // puts FB (front corner) on the box floor
 
   const FB: Vec = { x: cx, y: cy + hh };
   const RB: Vec = { x: cx + ux, y: cy };
@@ -305,13 +365,25 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
   const LT: Vec = { x: cx - uy, y: cy - h };
   const BT: Vec = { x: cx, y: cy - hh - h };
 
-  const roofH = roof === "pyramid" ? 22 : 10;
+  // apex height above the wall top: the back corner (hh) plus the rise, so the
+  // roof always reads as a roof no matter how deep the ground diamond got.
+  const roofH = hh + roofRise;
 
   const parts: ReactNode[] = [];
 
-  // ground shadow
+  // Ground shadow — the ellipse inscribed in the ground diamond, nudged forward so
+  // it reads as contact shade. It used to sit a further `hh + 6` BELOW the front
+  // corner, which cost the art a chunk of its vertical budget for nothing; now its
+  // lowest point is exactly the front corner, i.e. the box floor.
   parts.push(
-    <ellipse key="shadow" cx={cx} cy={cy + hh + 6} rx={Math.max(ux, uy) * 1.02} ry={hh * 0.7} fill="rgba(90,74,106,0.14)" />,
+    <ellipse
+      key="shadow"
+      cx={cx + (ux - uy) / 2}
+      cy={cy + hh * 0.28}
+      rx={(box.spanW / 2) * 0.98}
+      ry={hh * 0.72}
+      fill="rgba(90,74,106,0.14)"
+    />,
   );
 
   // walls
@@ -356,10 +428,13 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
     <polygon key="lintel" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.2, 0.34, 0.55, 0.6))} fill={colors.yellow200} />,
   );
   // doorstep/stoop — a small slab just outside the threshold, protruding past
-  // the wall base (v < 0 extrapolates beyond the FB-RB ground edge on purpose)
+  // the wall base (v < 0 extrapolates beyond the FB-RB ground edge on purpose).
+  // Scaled off `hh`, not off the wall height: a 1x2 tower's wall is 4x a 1x1's,
+  // and a fixed -0.07 of it would push the stoop clean out of the viewBox.
   const doorMidU = (0.14 + doorU1) / 2;
+  const stoopV = -(hh * 0.1) / h;
   parts.push(
-    <polygon key="stoop" points={pointsAttr(quadPts(FB, RB, RT, FT, doorMidU - 0.09, doorMidU + 0.09, -0.07, 0.02))} fill={palette.roofDark} opacity={0.5} />,
+    <polygon key="stoop" points={pointsAttr(quadPts(FB, RB, RT, FT, doorMidU - 0.09, doorMidU + 0.09, stoopV, 0.02))} fill={palette.roofDark} opacity={0.5} />,
   );
   // right-face window grid starts clear of the door quad (doorU1 max is 0.48)
   const rightWinBase = doorU1 + 0.12;
@@ -389,7 +464,7 @@ function buildingCube(spec: ArchetypeSpec, palette: Palette, floors: number, var
 
   const signAnchor: Vec = roof === "pyramid" ? { x: cx, y: cy - h - roofH * 0.42 } : { x: cx, y: cy - h + 8 };
 
-  return { parts, FB, FT, RT, LT, BT, RB, LB, cx, cy, h, hh, ux, uy, viewW, signAnchor };
+  return { parts, FB, FT, RT, LT, BT, RB, LB, cx, cy, h, hh, ux, uy, viewW, box, roofH, signAnchor };
 }
 
 function decorParts(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeof buildingCube>): ReactNode[] {
@@ -416,9 +491,12 @@ function decorParts(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeo
   if (d.chimney) {
     const cxOff = d.chimney === "side" ? -uy * 0.6 : ux * 0.15;
     const chimX = cx + cxOff;
-    const chimY = cy - h - 8;
-    out.push(<rect key="chimney" x={chimX - 4} y={chimY - 14} width={8} height={14} fill={colors.grey600} />);
-    out.push(<circle key="smoke" cx={chimX} cy={chimY - 20} r={4} fill={colors.grey200} opacity={0.7} />);
+    // the stack now runs from the wall top to just under the ridge — a fixed 14-tall
+    // one would be swallowed whole by a roof that scales with the ground diamond
+    const chimTop = cy - h - geo.roofH + 2;
+    const chimW = 8 + geo.hh * 0.1;
+    out.push(<rect key="chimney" x={chimX - chimW / 2} y={chimTop} width={chimW} height={cy - h - chimTop} fill={colors.grey600} />);
+    out.push(<circle key="smoke" cx={chimX} cy={chimTop - 5} r={3.5} fill={colors.grey200} opacity={0.7} />);
   }
 
   if (d.windowBoxes) {
@@ -494,7 +572,9 @@ function decorParts(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeo
   }
 
   if (d.canopy) {
-    const band = quadPts(FB, RB, RT, FT, -0.05, 1.05, 0.92, 1.0);
+    // ±0.03, not the old ±0.05: `ux` is now tile-sized, and on a 2x1 a 5% overhang
+    // past RB is wider than the box's whole overhang margin (the svg would clip it)
+    const band = quadPts(FB, RB, RT, FT, -0.03, 1.03, 0.92, 1.0);
     out.push(<polygon key="canopy" points={pointsAttr(band)} fill={palette.roofDark} opacity={0.85} />);
   }
 
@@ -570,7 +650,9 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   const plateW = big ? 56 : 44;
   const plateH = big ? 22 : 18;
   const plateCx = signAnchor.x;
-  const plateCy = signAnchor.y - 14;
+  // clamped to the box ceiling: on a flat roof the plate hangs 14+plateH/2 above the
+  // roof deck, which used to be free space and is now the top of the art
+  const plateCy = Math.max(signAnchor.y - 14, geo.box.top + plateH / 2 + (big ? 5 : 0));
   const plateTop = plateCy - plateH / 2;
   const plateBottom = plateCy + plateH / 2;
   const out: ReactNode[] = [
@@ -603,52 +685,85 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   return out;
 }
 
-/** F15 무지출 데이 — a park, not a building: trees + a bench. Kept the most distinct tile. */
-function ParkArt({ variantIndex }: { variantIndex: number }) {
+/**
+ * F15 무지출 데이 — a park, not a building: trees + a bench. Kept the most distinct
+ * tile. Laid out from `artBox` like the cube is: the lawn is the ground diamond's
+ * inscribed ellipse spanning the box's full width, and the first (tallest) tree
+ * reaches the box ceiling — so a park fills its cell the same way a building does
+ * instead of being the one tile that still floats.
+ */
+function ParkArt({ variantIndex, w, h }: { variantIndex: number; w: number; h: number }) {
+  const box = artBox(w, h);
+  const hh = Math.min(box.spanW / 4, box.spanH * HH_MAX_SHARE);
+  const cx = box.vw / 2;
+  const cy = box.vh - box.top - hh; // lawn centre — its front edge lands on the box floor
   const treeCount = 2 + (variantIndex % 2); // 2 or 3 trees for a little variety
   const trunks = colors.orange700;
   const canopy = [colors.green500, colors.green600, colors.green400];
   const trees = Array.from({ length: treeCount }, (_, i) => {
-    const x = 30 + i * (60 / Math.max(treeCount - 1, 1));
-    const y = 150 - (i % 2) * 10;
-    const r = 16 - i * 2;
+    const x = box.left + (box.spanW * (i + 0.5)) / treeCount;
+    const base = cy + hh * (i % 2 === 0 ? 0.25 : -0.15);
+    const tall = (base - box.top) * (i === 0 ? 1 : 0.78 - (i - 1) * 0.12);
+    const r = tall * 0.34;
     return (
       <g key={i}>
-        <rect x={x - 2} y={y - 4} width={4} height={16} fill={trunks} />
-        <circle cx={x} cy={y - r} r={r} fill={canopy[i % canopy.length]} />
+        <rect x={x - r * 0.14} y={base - tall + r} width={r * 0.28} height={tall - r} fill={trunks} />
+        <circle cx={x} cy={base - tall + r} r={r} fill={canopy[i % canopy.length]} />
       </g>
     );
   });
+  const benchW = box.spanW * 0.18;
+  const benchY = cy + hh * 0.42;
   return (
-    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" height="100%" data-archetype="park" aria-hidden="true">
-      <ellipse cx={CX} cy={158} rx={44} ry={14} fill={colors.green100} />
+    <svg viewBox={`0 0 ${box.vw} ${box.vh}`} width="100%" height="100%" data-archetype="park" aria-hidden="true">
+      <ellipse cx={cx} cy={cy} rx={box.spanW / 2} ry={hh} fill={colors.green100} />
       {trees}
-      <rect x={CX - 14} y={150} width={28} height={5} fill={colors.orange700} />
-      <rect x={CX - 12} y={155} width={3} height={8} fill={colors.orange700} />
-      <rect x={CX + 9} y={155} width={3} height={8} fill={colors.orange700} />
+      <rect x={cx - benchW / 2} y={benchY} width={benchW} height={hh * 0.12} fill={colors.orange700} />
+      <rect x={cx - benchW * 0.42} y={benchY + hh * 0.12} width={hh * 0.08} height={hh * 0.22} fill={colors.orange700} />
+      <rect x={cx + benchW * 0.34} y={benchY + hh * 0.12} width={hh * 0.08} height={hh * 0.22} fill={colors.orange700} />
     </svg>
   );
 }
 
-/** F16 — a monument: obelisk + engraved plaque. Never grows, never uses the cube renderer. */
-function MonumentArt({ monumentPeriod }: { monumentPeriod?: string }) {
+/**
+ * F16 — a monument: obelisk + engraved plaque. Never grows, never uses the cube
+ * renderer. The obelisk alone is far narrower than any cell, so it now stands on a
+ * full-width isometric stone plinth: the monument occupies its whole footprint
+ * (2x2 monuments exist — `rollFootprint` applies to every building) while the shaft
+ * keeps its own slender proportions. Plinth front edge on the box floor, tip on the
+ * box ceiling. The engraved YYYY-MM plaque is unchanged and still absolute-sized, so
+ * the label renders at exactly the pixel size it does today.
+ */
+function MonumentArt({ monumentPeriod, w, h }: { monumentPeriod?: string; w: number; h: number }) {
+  const box = artBox(w, h);
   const stone = colors.grey500;
   const stoneDark = colors.grey700;
   const stoneLite = colors.grey300;
-  const top = { x: CX, y: 40 };
-  const topL = { x: CX - 10, y: 56 };
-  const topR = { x: CX + 10, y: 56 };
-  const baseL = { x: CX - 18, y: 140 };
-  const baseR = { x: CX + 18, y: 140 };
+  const halfW = box.spanW / 2;
+  const hh = Math.min(box.spanW / 4, box.spanH * HH_MAX_SHARE);
+  const plinthH = Math.min(hh * 0.5, box.spanH * 0.08);
+  const cx = box.vw / 2;
+  const cy = box.vh - box.top - hh - plinthH; // plinth top-face centre
+  const F = { x: cx, y: cy + hh };
+  const R = { x: cx + halfW, y: cy };
+  const B = { x: cx, y: cy - hh };
+  const L = { x: cx - halfW, y: cy };
+  const drop = (p: Vec): Vec => ({ x: p.x, y: p.y + plinthH });
+  const baseHalf = Math.max(halfW * 0.26, 18);
+  const shaftHalf = baseHalf * 0.55;
+  const tip = { x: cx, y: box.top };
+  const shoulderY = tip.y + (cy - tip.y) * 0.16;
   return (
-    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} width="100%" height="100%" data-archetype="monument" aria-hidden="true">
-      <ellipse cx={CX} cy={148} rx={30} ry={9} fill="rgba(90,74,106,0.14)" />
-      <polygon points={pointsAttr([topL, baseL, { x: CX, y: 140 }, top])} fill={stoneDark} />
-      <polygon points={pointsAttr([topR, baseR, { x: CX, y: 140 }, top])} fill={stoneLite} />
-      <polygon points={pointsAttr([topL, top, topR, { x: CX, y: 62 }])} fill={stone} />
-      <rect x={CX - 16} y={118} width={32} height={20} rx={2} fill={colors.grey100} stroke={colors.grey400} />
+    <svg viewBox={`0 0 ${box.vw} ${box.vh}`} width="100%" height="100%" data-archetype="monument" aria-hidden="true">
+      <polygon points={pointsAttr([L, F, drop(F), drop(L)])} fill={stoneDark} />
+      <polygon points={pointsAttr([F, R, drop(R), drop(F)])} fill={stone} />
+      <polygon points={pointsAttr([F, R, B, L])} fill={stoneLite} />
+      <polygon points={pointsAttr([{ x: cx - shaftHalf, y: shoulderY }, { x: cx - baseHalf, y: cy }, { x: cx, y: cy }, tip])} fill={stoneDark} />
+      <polygon points={pointsAttr([{ x: cx + shaftHalf, y: shoulderY }, { x: cx + baseHalf, y: cy }, { x: cx, y: cy }, tip])} fill={stoneLite} />
+      <polygon points={pointsAttr([{ x: cx - shaftHalf, y: shoulderY }, tip, { x: cx + shaftHalf, y: shoulderY }, { x: cx, y: shoulderY + 6 }])} fill={stone} />
+      <rect x={cx - 16} y={cy - 28} width={32} height={20} rx={2} fill={colors.grey100} stroke={colors.grey400} />
       {monumentPeriod && (
-        <text x={CX} y={131} fontSize={9} textAnchor="middle" fill={colors.grey800}>
+        <text x={cx} y={cy - 15} fontSize={9} textAnchor="middle" fill={colors.grey800}>
           {monumentPeriod}
         </text>
       )}
@@ -686,20 +801,20 @@ export function archetypeFor(categoryId: BuildingCategoryId | null, monumentPeri
   return ARCHETYPES[categoryId].archetype;
 }
 
-/** Inline SVG building/park/monument art. `width/height: 100%` — never clips regardless of
- * tile size (52/56/64/72px all verified: `preserveAspectRatio`'s default `meet` always fits
- * the whole viewBox inside the box). The viewBox width is fixed at 120 EXCEPT for footprints
- * wider than they are deep (2x1), where `viewWidthFor` widens it proportionally so the cube's
- * extra width isn't clipped and can actually render wider (see `viewWidthFor` for why). */
+/** Inline SVG building/park/monument art. `width/height: 100%` with the default
+ * `preserveAspectRatio="xMidYMid meet"`, and a viewBox carrying the footprint's own TILE
+ * aspect (`artBox`) — so `meet` has no slack to centre away and the art fills the cell in
+ * BOTH axes, at one rendered scale shared by every footprint. See `artBox` for why the box
+ * aspect and the cube's re-derived extents had to change together. */
 export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w = 1, h = 1 }: BuildingArtProps) {
   if (monumentPeriod || categoryId === null) {
-    return <MonumentArt monumentPeriod={monumentPeriod} />;
+    return <MonumentArt monumentPeriod={monumentPeriod} w={w} h={h} />;
   }
   if (categoryId === "park") {
-    return <ParkArt variantIndex={variantIndex} />;
+    return <ParkArt variantIndex={variantIndex} w={w} h={h} />;
   }
   if (!hasArchetype(categoryId)) {
-    return <MonumentArt monumentPeriod={monumentPeriod} />;
+    return <MonumentArt monumentPeriod={monumentPeriod} w={w} h={h} />;
   }
 
   const spec = ARCHETYPES[categoryId];
@@ -715,7 +830,7 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
   const big2x2 = w === 2 && h === 2;
 
   return (
-    <svg viewBox={`0 0 ${geo.viewW} ${VIEW_H}`} width="100%" height="100%" data-archetype={spec.archetype} aria-hidden="true">
+    <svg viewBox={`0 0 ${geo.viewW} ${geo.box.vh}`} width="100%" height="100%" data-archetype={spec.archetype} aria-hidden="true">
       {geo.parts}
       {decor}
       {isLandmark ? (

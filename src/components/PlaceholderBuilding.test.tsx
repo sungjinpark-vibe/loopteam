@@ -17,6 +17,7 @@ import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import { afterEach, describe, expect, it } from "vitest";
 import { PlaceholderBuilding } from "./PlaceholderBuilding";
 import { MAX_VISUAL_LEVEL } from "./buildingArt";
+import { GRID_GAP_PX, MIN_TILE_WIDTH_PX, TILE_HEIGHT_PX } from "../townLayout";
 import type { BuildingCategoryId } from "../types";
 
 let mounted: MountedComponent | null = null;
@@ -290,53 +291,76 @@ describe("PlaceholderBuilding — footprint scaling (ADDENDUM-08 §7)", () => {
   });
 
   /**
-   * Regression test for a visual-verification failure: a 2x1 (wide) building rendered
-   * only +67% wider than 1x1 despite its tile being +115% wider (86px vs 40px), because
-   * the SVG's `viewBox` width was a fixed 120 regardless of footprint — widening the cube
-   * inside a fixed-width viewBox can't widen the rendered pixels (the `preserveAspectRatio
-   * ="meet"` scale is `min(tileW/viewBoxW, tileH/viewBoxH)`, and every h=1 footprint is
-   * height-bound at 40/176 no matter how wide the tile is). Node-count/markup-distinctness
-   * assertions above do NOT catch this class of defect — the broken build passed those too.
-   * This test asserts on actual rendered geometry instead.
+   * Regression test for the "art does not fill its cell" defect (user report 2026-08-12:
+   * "건물 이미지 사이즈는 1×1인데 위치를 2×2, 2×1의 가운데 배치했어" — the art was 1x1-sized
+   * and merely centred inside the bigger cells).
+   *
+   * Root cause: `preserveAspectRatio="xMidYMid meet"` scales by
+   * `min(tileW/viewW, tileH/viewH)` and centres the remainder, so ANY viewBox whose
+   * aspect differs from the tile's leaves slack in one axis. Every footprint drew into
+   * 120x176 (aspect 0.68) except 2x1 (240x176, 1.36), against tiles of aspect
+   * 1.0 / 2.15 / 0.465 / 1.0.
+   *
+   * jsdom has no layout, so this asserts the computed geometry, not rendered pixels:
+   * (a) the viewBox aspect equals the footprint's TILE aspect — the necessary half — and
+   * (b) the drawn polygon silhouette spans >= 90% of that viewBox in BOTH axes — the
+   * sufficient half. (b) is what a "widen the canvas, keep the tiny building" non-fix
+   * fails, and that non-fix is exactly what the user rejected ("빈 여백을 늘리는 눈속임 금지").
+   * The node-count / markup-distinctness assertions above do NOT catch this class of
+   * defect — the broken build passed those too.
    */
-  function svgMeta(w: 1 | 2, h: 1 | 2) {
-    const m = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={1} w={w} h={h} />);
+  function tileBoxPx(w: number, h: number) {
+    return {
+      w: w * MIN_TILE_WIDTH_PX + (w - 1) * GRID_GAP_PX,
+      h: h * TILE_HEIGHT_PX + (h - 1) * GRID_GAP_PX,
+    };
+  }
+
+  function artMetrics(categoryId: BuildingCategoryId, w: 1 | 2, h: 1 | 2) {
+    const m = mountComponent(<PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={1} w={w} h={h} />);
     const svg = m.container.querySelector("svg")!;
-    const viewBoxWidth = Number(svg.getAttribute("viewBox")!.split(" ")[2]);
-    // rightmost x-coordinate the cube actually draws to, across every wall/roof/eave
-    // polygon — this is what must fill the (possibly wider) viewBox, not just the
-    // viewBox's own width, or a fix could "pass" by growing the canvas around a
-    // building that stayed the same size.
-    const xs = Array.from(svg.querySelectorAll("polygon")).flatMap((el) =>
+    const [, , viewW, viewH] = svg.getAttribute("viewBox")!.split(" ").map(Number);
+    // every wall / roof / eave / window / decor polygon vertex the art actually draws
+    const pts = Array.from(svg.querySelectorAll("polygon")).flatMap((el) =>
       el
         .getAttribute("points")!
         .trim()
         .split(/\s+/)
-        .map((pair) => Number(pair.split(",")[0])),
+        .map((pair) => pair.split(",").map(Number)),
     );
-    const rightExtent = Math.max(...xs);
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
     m.unmount();
-    return { viewBoxWidth, fill: rightExtent / viewBoxWidth };
+    return {
+      aspect: viewW / viewH,
+      fillW: (Math.max(...xs) - Math.min(...xs)) / viewW,
+      fillH: (Math.max(...ys) - Math.min(...ys)) / viewH,
+    };
   }
 
-  it("a 2x1 (wide) footprint widens the viewBox in proportion to its w:h ratio, and the cube fills it at least as well as 1x1 fills its own — the footprint-differentiation fix", () => {
-    const oneByOne = svgMeta(1, 1);
-    const twoByOne = svgMeta(2, 1);
-    const oneByTwo = svgMeta(1, 2);
-    const twoByTwo = svgMeta(2, 2);
+  const FOOTPRINTS: [1 | 2, 1 | 2][] = [
+    [1, 1],
+    [2, 1],
+    [1, 2],
+    [2, 2],
+  ];
+  // "food" is a flat-roof archetype, "cafe" a pyramid one — the two roofs take their
+  // vertical budget differently, so both have to land on the box.
+  for (const categoryId of ["food", "cafe"] as const) {
+    it.each(FOOTPRINTS)(`a ${categoryId} at %ix%i draws into a tile-shaped viewBox and fills it in both axes`, (w, h) => {
+      const tile = tileBoxPx(w, h);
+      const { aspect, fillW, fillH } = artMetrics(categoryId, w, h);
+      expect(aspect).toBeCloseTo(tile.w / tile.h, 5);
+      expect(fillW).toBeGreaterThanOrEqual(0.9);
+      expect(fillH).toBeGreaterThanOrEqual(0.9);
+    });
+  }
 
-    // the actual bug: a footprint wider than it is deep must get a proportionally
-    // wider viewBox (this is what the fixed VIEW_W=120 violated for 2x1).
-    expect(twoByOne.viewBoxWidth).toBe(oneByOne.viewBoxWidth * 2);
-    // footprints that are square or deeper-than-wide must be byte-identical to the
-    // approved baseline (commit afc7cd6) — no incidental distortion from this fix.
-    expect(oneByTwo.viewBoxWidth).toBe(oneByOne.viewBoxWidth);
-    expect(twoByTwo.viewBoxWidth).toBe(oneByOne.viewBoxWidth);
-
-    // a wider viewBox alone would be a regression (more empty canvas, same tiny
-    // building) — the cube must fill at least as much of its (now wider) viewBox
-    // as the 1x1 baseline fills its own, proving the building itself got wider,
-    // not just the empty space around it.
-    expect(twoByOne.fill).toBeGreaterThanOrEqual(oneByOne.fill);
+  it("all four footprints fill their cell by the same margin — no footprint is the odd one out", () => {
+    const fills = FOOTPRINTS.flatMap(([w, h]) => {
+      const m = artMetrics("food", w, h);
+      return [m.fillW, m.fillH];
+    });
+    expect(Math.max(...fills) - Math.min(...fills)).toBeLessThanOrEqual(0.08);
   });
 });
