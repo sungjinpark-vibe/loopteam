@@ -79,6 +79,44 @@ export function levelOf(b: Pick<Building, "exp">, expPerLevel: number, maxLevel:
   return Math.min(maxLevel, 1 + Math.floor(expOf(b) / expPerLevel));
 }
 
+/** ADDENDUM-11 §2.4 — read discipline for `Building.fuse`, same rule `expOf` sets: never open-code `?? 0`. */
+export function fuseOf(b: Pick<Building, "fuse">): number {
+  return b.fuse ?? 0;
+}
+
+/**
+ * ADDENDUM-11 §2.4 — the level a player SEES: `levelOf` (EXP, capped at
+ * `maxLevel`) plus the fuse tier. `levelOf` itself is deliberately NOT
+ * modified — every existing caller keeps its current meaning and its current
+ * cap; only the display/art path and the fusion condition read this.
+ */
+export function totalLevelOf(b: Pick<Building, "exp" | "fuse">, expPerLevel: number, maxLevel: number): number {
+  return levelOf(b, expPerLevel, maxLevel) + fuseOf(b);
+}
+
+/**
+ * ADDENDUM-11 §5.1.3 — the town's size in Lv.5-equivalents: a fused building
+ * counts as the buildings it absorbed (`Σ 2 ** fuseOf(b)`).
+ *
+ * This is what feeds BOTH `tier()` and the header's "건물 N채", through the
+ * single `TownStore.buildingCount` accessor — the Gate-3-rerun invariant
+ * (`entryActions.ts:112-124`) is that the gate and the display are ONE number
+ * reached through ONE accessor, which is exactly why this is not introduced as
+ * a second number sitting beside the count.
+ *
+ * Two consequences, both intended: fusion is exactly tier-neutral (two Lv.5s,
+ * scale 2, become one Lv.6, scale 2 — never a regression at any rung), and the
+ * top threshold (200) becomes reachable on a 193-cell map for the first time
+ * (§5.1.1's pre-existing arithmetic defect). For a town with nothing fused
+ * every building reads `2 ** 0 = 1`, so this equals `buildings.length`
+ * exactly and an existing save's tier is unchanged on first load.
+ */
+export function townScale(buildings: readonly Building[]): number {
+  let scale = 0;
+  for (const b of buildings) scale += 2 ** fuseOf(b);
+  return scale;
+}
+
 /**
  * ADDENDUM-04 §3 — what every *tier* call site now feeds `tier()` instead of
  * `buildings.length`. A new building and a grow each add exactly 1 (one via

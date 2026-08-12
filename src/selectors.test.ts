@@ -9,6 +9,9 @@ import {
   dayGroups,
   expGainFor,
   expOf,
+  fuseOf,
+  totalLevelOf,
+  townScale,
   growCandidates,
   grownStructures,
   growthScore,
@@ -86,6 +89,58 @@ describe("growthScore", () => {
   it("adds every building's exp on top of the count", () => {
     const buildings = [makeBuilding(1), { ...makeBuilding(2), exp: 5 }, { ...makeBuilding(3), exp: 2 }];
     expect(growthScore(buildings)).toBe(3 + 5 + 2);
+  });
+});
+
+// ── ADDENDUM-11 — building fusion ──
+describe("fuseOf / totalLevelOf", () => {
+  it("reads 0 for a building with no fuse field (the migration guarantee)", () => {
+    expect(fuseOf(makeBuilding(1))).toBe(0);
+    expect(totalLevelOf({ ...makeBuilding(1), exp: 12 }, 3, 5)).toBe(5); // unfused: exactly levelOf
+  });
+  it("adds the fuse tier on top of the capped EXP level — Lv.6..Lv.10", () => {
+    expect(totalLevelOf({ ...makeBuilding(1), exp: 12, fuse: 1 }, 3, 5)).toBe(6);
+    expect(totalLevelOf({ ...makeBuilding(1), exp: 999, fuse: 5 }, 3, 5)).toBe(10);
+  });
+});
+
+describe("townScale", () => {
+  // §5.1.3 / §7.8 — the compatibility guarantee: an existing save's tier and
+  // header must be BYTE-identical on first load after this work ships.
+  it("equals buildings.length exactly when nothing is fused", () => {
+    const buildings = [1, 2, 3].map((i) => makeBuilding(i));
+    expect(townScale(buildings)).toBe(3);
+    expect(townScale(buildings)).toBe(buildingCount(buildings));
+    expect(townScale([])).toBe(0);
+    // ...and therefore the tier it drives is unchanged too.
+    expect(tier(townScale(buildings), [0, 10, 30, 80, 200])).toBe(tier(buildings.length, [0, 10, 30, 80, 200]));
+  });
+
+  it("counts a fused building as the Lv.5 buildings it absorbed (2**fuse)", () => {
+    expect(townScale([{ ...makeBuilding(1), fuse: 1 }])).toBe(2);
+    expect(townScale([{ ...makeBuilding(1), fuse: 3 }])).toBe(8);
+    expect(townScale([{ ...makeBuilding(1), fuse: 5 }])).toBe(32);
+    expect(townScale([{ ...makeBuilding(1), fuse: 2 }, makeBuilding(2)])).toBe(5);
+  });
+
+  it("is exactly tier-neutral across a fusion, at every rung — never a regression (§5.1.3)", () => {
+    for (let t = 0; t < 5; t++) {
+      const fuse = t === 0 ? undefined : (t as 1 | 2 | 3 | 4);
+      const before = [{ ...makeBuilding(1), fuse }, { ...makeBuilding(2), fuse }];
+      const after = [{ ...makeBuilding(1), fuse: (t + 1) as 1 | 2 | 3 | 4 | 5 }];
+      expect(townScale(after)).toBe(townScale(before));
+    }
+  });
+
+  it("makes the top tier reachable on the 193-cell map, which the raw count cannot (§5.1.1)", () => {
+    const thresholds = [0, 10, 30, 80, 200];
+    const oneLv10 = [{ ...makeBuilding(1), fuse: 5 as const }];
+    // 193 ground cells < 200, so a literal count can never cross tier 4.
+    expect(tier(193, thresholds)).toBe(3);
+    // Six Lv.10 towers plus a handful of ordinary buildings do, on 6..30 cells.
+    const town = [...Array(6)].map((_, i) => ({ ...makeBuilding(i), fuse: 5 as const }));
+    expect(townScale(oneLv10)).toBe(32);
+    expect(tier(townScale(town) + 8, thresholds)).toBe(4);
   });
 });
 

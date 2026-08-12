@@ -94,6 +94,20 @@ export interface Building {
   // Read through `footprintOf` (placement.ts) rather than raw at call sites.
   w?: 1 | 2; // footprint width in cells; absent === 1
   h?: 1 | 2; // footprint height in cells; absent === 1
+  // ADDENDUM-11 §2.4 — fuse tier. `levelOf` caps at `maxLevel` (frozen at 5),
+  // so EXP cannot express Lv.6+; a fusion stores the extra rungs here instead.
+  // OPTIONAL, absent === 0, no migration — the same absent-means-zero
+  // discipline `exp`/`w`/`h` above already set. Read through `fuseOf`
+  // (selectors.ts), never `?? 0` at a call site. Visible level is
+  // `totalLevelOf` = `levelOf` + `fuse`, capped at 5 + 5 = Lv.10.
+  fuse?: 1 | 2 | 3 | 4 | 5;
+  // ADDENDUM-11 §3.1 — id of the building this fusion still has to consume.
+  // Present ONLY inside the window between a cross-month fusion's two chunk
+  // writes; absent on every settled building, so old JSON parses unchanged.
+  // Boot repair (`repairPendingFusions`, fusionActions.ts) deletes that id if
+  // it still exists and clears this field, which is what makes an interrupted
+  // cross-chunk fusion self-heal instead of losing or duplicating a building.
+  fusePending?: string;
 }
 
 /** Pending material — an over-cap entry waiting for tomorrow (F14). */
