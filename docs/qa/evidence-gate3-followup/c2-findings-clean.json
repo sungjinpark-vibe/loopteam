@@ -1,0 +1,74 @@
+{
+  "initial_grid_rect": {
+    "x": 0,
+    "y": 188.5,
+    "width": 163.5483856201172,
+    "height": 396.70965576171875,
+    "top": 188.5,
+    "right": 163.5483856201172,
+    "bottom": 585.2096557617188,
+    "left": 0
+  },
+  "after_pinch": {
+    "transform": "scale(0.676379) translate(-75.8096px, -177.154px)",
+    "rect": {
+      "x": -51.27598571777344,
+      "y": 68.67693328857422,
+      "width": 263.7877502441406,
+      "height": 639.8543701171875,
+      "top": 68.67693328857422,
+      "right": 212.5117645263672,
+      "bottom": 708.5313034057617,
+      "left": -51.27598571777344
+    }
+  },
+  "constant_separation_pan_test": {
+    "hitTestBothInsideGrid": {
+      "left": true,
+      "right": true
+    },
+    "before": "scale(0.676379) translate(-75.8096px, -177.154px)",
+    "after": "scale(0.560162) translate(-75.62px, -115.774px)",
+    "eventCounts": {
+      "down": 2,
+      "move": 6,
+      "up": 1,
+      "distinctDownIds": 2
+    },
+    "perStep": [
+      {
+        "i": 1,
+        "fx": 75.30224355061848,
+        "t": "scale(0.676379) translate(-75.8096px, -177.154px)"
+      },
+      {
+        "i": 2,
+        "fx": 69.98659769694011,
+        "t": "scale(0.653135) translate(-75.7771px, -166.625px)"
+      },
+      {
+        "i": 3,
+        "fx": 64.67095184326172,
+        "t": "scale(0.629892) translate(-75.7421px, -155.32px)"
+      },
+      {
+        "i": 4,
+        "fx": 59.35530598958333,
+        "t": "scale(0.606649) translate(-75.7046px, -143.148px)"
+      },
+      {
+        "i": 5,
+        "fx": 54.03966013590495,
+        "t": "scale(0.583405) translate(-75.664px, -130.007px)"
+      },
+      {
+        "i": 6,
+        "fx": 48.72401428222656,
+        "t": "scale(0.560162) translate(-75.62px, -115.774px)"
+      }
+    ],
+    "dx": 31.893875122070312,
+    "dy": 0,
+    "panSep": 160
+  }
+}

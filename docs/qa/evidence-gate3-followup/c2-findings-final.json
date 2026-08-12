@@ -1,0 +1,44 @@
+{
+  "viewportCenter": {
+    "cx": 195,
+    "cy": 386.8515625
+  },
+  "after_pinch_zoom": {
+    "transform": "scale(0.758632) translate(-208.83px, -208.197px)"
+  },
+  "test1_REUSED_ids_artifact": {
+    "before": "scale(0.758632) translate(-208.83px, -208.197px)",
+    "after": "scale(0.825681) translate(-339.75px, -318.138px)",
+    "eventCounts": {
+      "down": 2,
+      "move": 16,
+      "up": 2,
+      "distinctDownIds": 2
+    },
+    "note": "ids 1,2 reused from the earlier pinch gesture"
+  },
+  "after_second_pinch_zoom": {
+    "transform": "scale(0.825681) translate(-339.75px, -318.138px)"
+  },
+  "test2_FRESH_ids_corrected": {
+    "before": "scale(0.825681) translate(-339.75px, -318.138px)",
+    "after": "scale(2.5) translate(-467.307px, -486.483px)",
+    "eventCounts": {
+      "down": 1,
+      "move": 8,
+      "up": 1,
+      "distinctDownIds": 1
+    },
+    "perStep": [
+      "scale(0.825681) translate(-339.75px, -318.138px)",
+      "scale(1.14067) translate(-390.955px, -386.508px)",
+      "scale(1.46399) translate(-420.509px, -426.022px)",
+      "scale(1.79115) translate(-439.52px, -451.459px)",
+      "scale(2.12037) translate(-452.713px, -469.121px)",
+      "scale(2.45082) translate(-462.384px, -482.072px)",
+      "scale(2.5) translate(-465.307px, -484.983px)",
+      "scale(2.5) translate(-467.307px, -486.483px)"
+    ],
+    "note": "ids 20,21, never used before — both register as distinct pointers"
+  }
+}

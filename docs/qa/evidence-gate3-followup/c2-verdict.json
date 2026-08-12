@@ -1,0 +1,35 @@
+{
+  "question": "Is constant-separation two-finger pan while zoomed in genuinely dead in useTileGestures.ts/TownGrid.tsx, or was one QA pass's measurement a test-harness artifact?",
+  "verdict": "NOT dead by design. No code path in TownGrid.tsx's handlePinchMove gates the translate update on scale/distance changing. Every 'byte-identical / frozen transform' result we could reproduce traced to a test-harness defect (touch never registered on both fingers), not to the app ignoring a genuine constant-separation drag. A separate, real, smaller bug was found along the way: same-tick dual pointermove handling reads a stale bounding rect, causing measurable scale/translate drift ('jitter') during pan.",
+  "code_reading": {
+    "file": "src/components/TownGrid.tsx",
+    "function": "handlePinchMove (around line 489)",
+    "relevant_logic": "rawScale = scale0 * (distance / prevSample.distance); nextScale = clamp(fitScale, MAX_PINCH_SCALE, rawScale); if (nextScale <= fitScale) return floor-pinned state; ELSE compute anchor-preserving translate from (midX, midY) vs the previous sample's midpoint.",
+    "finding": "When distance is held exactly constant (distance/prevSample.distance === 1), nextScale === scale0 (unchanged) and this does NOT trigger the fitScale floor early-return (since scale0 is already above fitScale once genuinely zoomed in). Execution falls through to the SAME anchor-preserving translate math pinch itself uses, driven purely by midX/midY deltas. There is no branch that requires scale to change before translate is applied. This directly contradicts a claim that pan is dead 'by design' whenever separation is held constant."
+  },
+  "reproduction_summary": [
+    {
+      "case": "Reused CDP touch-point ids across two consecutive 2-finger gestures",
+      "file": "c2-findings.json (testA_constant_separation_single_dispatch), c2-findings-final.json (test... distinctDownIds=1)",
+      "result": "Transform frozen byte-identical across the whole drag.",
+      "mechanism": "Chromium silently dropped the reused id's new touchstart -- only ONE pointerdown reached the app (verified via pointerdown-id-count instrumentation: distinctDownIds=1, not 2). With only 1 active pointer, useTileGestures.ts's pointers.size never reaches 2, pinchActive never engages, and onPinchMove/handlePinchMove are NEVER CALLED AT ALL. The transform is frozen because the gesture layer never saw a pinch, not because it computed a zero delta."
+    },
+    {
+      "case": "Fixed screen-space touch coordinates chosen before the zoom, then reused after the grid's on-screen box shifted",
+      "result": "One or both touch points landed on '.town-viewport' (outside '.town-grid'’s live bounding box) per document.elementFromPoint, instead of on grid or a descendant.",
+      "mechanism": "useTileGestures attaches its pointerdown/pointermove listeners directly to the grid element (not a full-viewport overlay). A touch that starts (or the gesture system never even sees, since pointerdown targets an ancestor/sibling) outside grid's CURRENT rendered box is invisible to the recognizer -- same failure mode as above, for a different underlying cause. Any methodology that doesn't re-query the grid's live bounding box after a prior zoom step is exposed to this."
+    },
+    {
+      "case": "Fresh, unique touch ids per gesture + both start points verified (pointerdown fired for 2 distinct ids, elementFromPoint confirms both are inside grid) + touch points kept inside the grid's live box for the whole drag",
+      "file": "c2-findings-clean.json, c2-clean-final.png",
+      "result": "Transform genuinely moved: tx/ty changed across every one of 6 move steps (monotonic, non-zero), never frozen.",
+      "mechanism": "This is the correctly-driven case. Pan works -- it is not dead."
+    }
+  ],
+  "secondary_finding_not_the_headline_claim": {
+    "description": "During the verified-correct constant-separation drag above (c2-findings-clean.json), transform drifted more than intended: a request for a PURE horizontal drag (dy=0, x-separation held at exactly 160px throughout) produced scale sliding from 0.676379 to 0.560162 (-17%) and ty moving by ~61px, while tx (the axis that should have carried nearly all the motion) moved less than 1px.",
+    "root_cause_hypothesis": "Chromium/Pointer Events NEVER coalesce a synchronized two-finger move into one event -- confirmed directly by instrumenting grid's pointermove listener: a 2-finger CDP touchMove consistently produces TWO separate, same-tick pointermove events (one per pointerId), a few tenths of a millisecond apart, not one combined event. This is true for any two-finger drag, synthetic or real hardware, because it's how the Pointer Events spec delivers multi-touch. TownGrid.tsx's handlePinchMove is invoked once per pointermove and reads `grid.getBoundingClientRect()` synchronously inside its setPinch functional updater to derive the anchor's pre-transform layout position (`layoutLeft = rect.left - scale0 * tx0`). React 18 batches both same-tick setPinch calls into one render pass and calls both updater functions back-to-back BEFORE committing either to the DOM -- so the SECOND updater's getBoundingClientRect() read is stale (reflects the transform from before EITHER of this tick's two samples), even though it is combined with the FRESH scale0/tx0 the first updater's chained result already produced. That rect/scale mismatch is consistent with the drift measured above, and is a plausible reason our own earlier PASS (evidence-addendum09) wasn't perfectly 1:1 either (travelRatio 1.06x/1.08x rather than exactly 1.00x).",
+    "severity_note": "This is a real, verifiable jitter/drift bug, NOT the 'pan is categorically dead' claim. Not fixed per instructions -- reported only."
+  },
+  "conclusion_for_the_director": "OUR earlier PASS (evidence-addendum09/findings.json d_pan_zoomed_in) is the accurate read of the app's behavior: pan works while zoomed in. The Gate 3 panel's 'dead, byte-identical, 3 independent methodologies' result was not reproducible against a correctly-driven gesture; every frozen-transform reproduction we obtained traced to one of two concrete test-harness defects (a dropped/reused touch id, or touch coordinates that drifted outside the live grid box after zooming) that stop the gesture recognizer from ever registering a second finger -- which would indeed look byte-identical no matter how many 'independent methodologies' repeat the same mistake, since they'd all share the same root cause if they all used fixed pre-zoom screen coordinates or non-unique touch ids. Separately, we found and are flagging (not fixing) a real drift/jitter bug in the same-tick dual-pointermove handling."
+}

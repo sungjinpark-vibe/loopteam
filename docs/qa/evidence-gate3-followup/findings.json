@@ -1,0 +1,38 @@
+{
+  "C2_pan_while_zoomed_contradiction": {
+    "priority": "TOP",
+    "verdict": "OUR earlier PASS was correct. The Gate 3 panel's 'dead, byte-identical' finding does not hold against direct code reading or against a correctly-driven repro; it was reproduced only via demonstrable test-harness defects.",
+    "details_file": "c2-verdict.json",
+    "supporting_data": ["c2-findings.json (artifact repro)", "c2-findings-final.json (artifact vs corrected side-by-side)", "c2-findings-clean.json (verified-correct pan, real translate movement)"],
+    "screenshots": ["c2-final.png", "c2-clean-final.png"],
+    "summary": "handlePinchMove (TownGrid.tsx ~line 489) has no branch that requires distance/scale to change before translate updates -- the anchor-preserving translate math runs off midX/midY deltas alone whenever nextScale > fitScale. Every frozen-transform reproduction we obtained traced to the touch gesture never being seen as a 2-pointer gesture at all (a reused CDP touch-point id that Chromium silently dropped, or a fixed screen coordinate that fell outside the already-zoomed grid's live bounding box) -- not to the app ignoring a genuine constant-separation drag. When both fingers were verified registered and kept inside the grid's live box, translate moved on every step, never frozen. Secondary (smaller, separately flagged) real bug found along the way: same-tick dual pointermove handling reads a stale getBoundingClientRect() inside the chained setPinch functional updater, causing measurable scale/translate drift/jitter during a pan -- not fixed, reported only."
+  },
+  "C1_history_tab": {
+    "verdict": "PASS",
+    "checked": ["month totals (지출/수입/저축/순액)", "day grouping rows", "category donut + legend + percentages", "month navigation (prev/next, forward-clamped at current month)"],
+    "evidence": "coverage-findings.json#C1_history_tab",
+    "screenshots": ["c1-01-history-initial.png", "c1-02-history-prev-month.png", "c1-03-history-back-to-current-clamped.png"],
+    "notes": "oneMonth fixture (paired with __aitSetTimeTravelDate('2026-07-31'), its own `today`) showed: totals 지출1,391,533/수입13,525,155/저축729,922/순액12,133,622 (순액 = 수입-지출, verified consistent); 91 day rows; 10-category donut with % breakdown, total matches expense sum; prev-month nav (July->June) correctly showed an empty state ('이 달엔 기록이 없어요') since June has no seeded data; forward ('다음 달') button is correctly disabled/clamped at the current month so the UI cannot navigate into the future."
+  },
+  "C3_savings_income_entry_paths": {
+    "verdict": "PASS",
+    "checked": ["수입 (income) entry end-to-end", "저축 (saving) entry end-to-end", "whether each type founds a building", "history totals reflect both"],
+    "evidence": "coverage-findings.json#C3_savings_income_paths",
+    "screenshots": ["c3-00-income-filled.png", "c3-01-after-income-save.png", "c3-02-saving-filled.png", "c3-03-after-saving-save.png", "c3-04-history-after-income-saving.png"],
+    "notes": "수입 50,000원 save: building count 0->1, slot 10/10->9/10, toast '기타수입 건물이 생겼어요 (+씨앗 3개)' -- income founds a building exactly like an expense. 저축 30,000원 save: building count and slot count UNCHANGED (still 1 / 9/10) -- confirms the code comment '저축 never builds a plot' in practice, not just in a source comment. History screen after both: 수입 50,000원, 저축 30,000원 correctly tallied."
+  },
+  "C4_daily_cap_and_deferral": {
+    "verdict": "PASS",
+    "checked": ["10th build succeeds, slots reach 0/10", "11th save is accepted but deferred (not built)", "deferral toast + queue-promise header line", "day rollover via TimeTravel drains the queue on reopen"],
+    "evidence": "coverage-findings.json#C4_daily_cap",
+    "screenshots": ["c4-09-after-save-10.png", "c4-010-after-save-11.png", "c4-10-after-day-rollover.png"],
+    "notes": "Saves 1-10: building count and remaining-slot counter tracked 1..10 / 9..0 exactly, one slot per save. Save 11 (still a valid, saveable entry): building count stayed at 10, slots stayed 0/10, header line '내일 지을 건물 1개 대기 중' appeared, toast '오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 1개)' fired -- the entry itself still saved (ledger-only, per F14), it just didn't found a lot. TimeTravel to the next day + reload: building count 10->11 (the queued one drained), slots reset to 9/10 (10 fresh minus 1 spent on the drain), toast '밀렸던 건물 1채가 오늘 아침에 완성됐어요!' fired -- matches spec F4/F14 exactly."
+  },
+  "C5_rapid_submit_and_edge_amounts": {
+    "verdict": "PASS",
+    "checked": ["rapid triple-tap on 저장 with a VALID non-empty amount", "negative amount entry", "decimal amount entry", "extreme (very large) amount entry"],
+    "evidence": "coverage-findings.json#C5_multitap_and_amounts",
+    "screenshots": ["c5-00-after-triple-tap.png", "c5-01-extreme-amount-filled.png", "c5-02-after-extreme-save.png"],
+    "notes": "3 native click events dispatched synchronously on the real 저장 button DOM node (bypassing Playwright's serialized-click waits, to genuinely test near-simultaneous taps) with amount=5,000/카테고리=식비: building count went 0->1, not 0->3 -- the savedRef in-flight guard (EntrySheet.tsx) correctly blocks duplicate submits for a VALID amount too, not only the previously-tested empty-amount case. Negative/decimal amounts are structurally impossible: the amount field is a fixed 0-9 + backspace TDS NumberKeypad (keys enumerated: 1,2,3,4,5,6,7,8,9,0,지우기) with no '-' or '.' key anywhere in the UI -- observed-behaviour-with-no-spec-to-judge-it-against, but effectively a PASS by construction (there is no path to enter one). Extreme amount: typed 12 digits ('123456789012'); the app's own AMOUNT_DIGITS_MAX=10 cap silently ignored digits past the 10th, displaying/saving 1,234,567,890원 (~12.3억) -- saved successfully, building count incremented normally."
+  }
+}

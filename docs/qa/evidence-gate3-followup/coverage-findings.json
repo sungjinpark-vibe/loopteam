@@ -1,0 +1,173 @@
+{
+  "C1_history_tab": {
+    "monthNavText": "‹\n2026년 7월\n›",
+    "totalsRow": [
+      "지출",
+      "수입",
+      "저축",
+      "순액"
+    ],
+    "totalsValues": [
+      {
+        "label": "지출",
+        "siblingText": "지출1,391,533원"
+      },
+      {
+        "label": "수입",
+        "siblingText": "수입13,525,155원"
+      },
+      {
+        "label": "저축",
+        "siblingText": "저축729,922원"
+      },
+      {
+        "label": "순액",
+        "siblingText": "순액12,133,622원"
+      }
+    ],
+    "dayRows": 91,
+    "noSpendMarkers": 0,
+    "donutPresent": 1,
+    "donutEmptyMsg": 0,
+    "donutLegendItems": 10,
+    "donutTotalText": "총 1,391,533원",
+    "nextBtnDisabledAtCurrentMonth": true,
+    "prevMonthNav": {
+      "beforeNavText": "‹\n2026년 7월\n›",
+      "afterNavText": "‹\n2026년 6월\n›",
+      "changed": true
+    },
+    "prevMonthContent": {
+      "dayRows": 0,
+      "noSpendMarkers": 0
+    },
+    "backToCurrentMonth": {
+      "afterBackText": "‹\n2026년 7월\n›",
+      "matchesOriginal": true
+    },
+    "nextBtnDisabledAgain": true
+  },
+  "C3_savings_income_paths": {
+    "income": {
+      "canSaveIncome": true,
+      "beforeBuildings": 0,
+      "afterBuildings": 1,
+      "builtOne": true,
+      "toastText": []
+    },
+    "saving": {
+      "canSaveSaving": true,
+      "beforeBuildings": 1,
+      "afterBuildings": 1,
+      "neverBuilds": true
+    },
+    "historyTotals": [
+      "지출0원",
+      "수입50,000원",
+      "저축30,000원",
+      "순액50,000원"
+    ]
+  },
+  "C4_daily_cap": {
+    "perSave": [
+      {
+        "n": 1,
+        "stats": "건물 1채\n·\n남은 건축 슬롯 9/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 2,
+        "stats": "건물 2채\n·\n남은 건축 슬롯 8/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 3,
+        "stats": "건물 3채\n·\n남은 건축 슬롯 7/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 4,
+        "stats": "건물 4채\n·\n남은 건축 슬롯 6/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 5,
+        "stats": "건물 5채\n·\n남은 건축 슬롯 5/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 6,
+        "stats": "건물 6채\n·\n남은 건축 슬롯 4/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 7,
+        "stats": "건물 7채\n·\n남은 건축 슬롯 3/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 8,
+        "stats": "건물 8채\n·\n남은 건축 슬롯 2/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 9,
+        "stats": "건물 9채\n·\n남은 건축 슬롯 1/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 10,
+        "stats": "건물 10채\n·\n남은 건축 슬롯 0/10\n·\n연속 1일",
+        "toastMentionsDeferral": []
+      },
+      {
+        "n": 11,
+        "stats": "건물 10채\n·\n남은 건축 슬롯 0/10\n·\n연속 1일",
+        "toastMentionsDeferral": [
+          "내일 지을 건물 1개 대기 중",
+          "오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 1개)",
+          "오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 1개)"
+        ]
+      }
+    ],
+    "afterRollover": {
+      "stats": "건물 11채\n·\n남은 건축 슬롯 9/10\n·\n연속 1일",
+      "drainToast": [
+        "밀렸던 건물 1채가 오늘 아침에 완성됐어요!",
+        "밀렸던 건물 1채가 오늘 아침에 완성됐어요!"
+      ]
+    }
+  },
+  "C5_multitap_and_amounts": {
+    "tripleTapValidAmount": {
+      "statsBefore": "건물 0채\n·\n남은 건축 슬롯 10/10\n·\n연속 0일",
+      "statsAfterTriple": "건물 1채\n·\n남은 건축 슬롯 9/10\n·\n연속 1일",
+      "tapResult": {
+        "found": true,
+        "count": 1
+      },
+      "expectOneBuildingIncrease": true
+    },
+    "keypadKeys": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "0",
+      "지우기"
+    ],
+    "negativeAmountPossible": false,
+    "decimalAmountPossible": false,
+    "extremeAmount": {
+      "typedDigits": "123456789012",
+      "displayedValue": "1,234,567,890",
+      "canSave": true,
+      "statsAfter": "건물 2채\n·\n남은 건축 슬롯 8/10\n·\n연속 1일"
+    }
+  }
+}

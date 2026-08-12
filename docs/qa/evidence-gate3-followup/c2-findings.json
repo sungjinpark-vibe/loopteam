@@ -1,0 +1,92 @@
+{
+  "after_pinch_zoom": {
+    "transform": "matrix(1.38387, 0, 0, 1.38387, -444.187, -466.821)",
+    "inlineTransform": "scale(1.38387) translate(-320.974px, -337.33px)",
+    "scrollLeft": 0,
+    "scrollTop": 0,
+    "parsed": {
+      "scaleX": 1.38387,
+      "scaleY": 1.38387,
+      "tx": -444.187,
+      "ty": -466.821
+    }
+  },
+  "testA_constant_separation_single_dispatch": {
+    "before": {
+      "transform": "matrix(1.38387, 0, 0, 1.38387, -444.187, -466.821)",
+      "inlineTransform": "scale(1.38387) translate(-320.974px, -337.33px)",
+      "scrollLeft": 0,
+      "scrollTop": 0,
+      "parsed": {
+        "scaleX": 1.38387,
+        "scaleY": 1.38387,
+        "tx": -444.187,
+        "ty": -466.821
+      }
+    },
+    "after": {
+      "transform": "matrix(1.38387, 0, 0, 1.38387, -444.187, -466.821)",
+      "inlineTransform": "scale(1.38387) translate(-320.974px, -337.33px)",
+      "scrollLeft": 0,
+      "scrollTop": 0,
+      "parsed": {
+        "scaleX": 1.38387,
+        "scaleY": 1.38387,
+        "tx": -444.187,
+        "ty": -466.821
+      }
+    }
+  },
+  "testB_constant_separation_split_dispatch": {
+    "before": {
+      "transform": "matrix(1.38387, 0, 0, 1.38387, -444.187, -466.821)",
+      "inlineTransform": "scale(1.38387) translate(-320.974px, -337.33px)",
+      "scrollLeft": 0,
+      "scrollTop": 0,
+      "parsed": {
+        "scaleX": 1.38387,
+        "scaleY": 1.38387,
+        "tx": -444.187,
+        "ty": -466.821
+      }
+    },
+    "after": {
+      "transform": "matrix(2.5, 0, 0, 2.5, -1092.65, -981.981)",
+      "inlineTransform": "scale(2.5) translate(-437.062px, -392.792px)",
+      "scrollLeft": 0,
+      "scrollTop": 0,
+      "parsed": {
+        "scaleX": 2.5,
+        "scaleY": 2.5,
+        "tx": -1092.65,
+        "ty": -981.981
+      }
+    }
+  },
+  "testC_varying_separation": {
+    "before": {
+      "transform": "matrix(2.5, 0, 0, 2.5, -1092.65, -981.981)",
+      "inlineTransform": "scale(2.5) translate(-437.062px, -392.792px)",
+      "scrollLeft": 0,
+      "scrollTop": 0,
+      "parsed": {
+        "scaleX": 2.5,
+        "scaleY": 2.5,
+        "tx": -1092.65,
+        "ty": -981.981
+      }
+    },
+    "after": {
+      "transform": "matrix(2.5, 0, 0, 2.5, -1136.4, -1011.98)",
+      "inlineTransform": "scale(2.5) translate(-454.562px, -404.792px)",
+      "scrollLeft": 0,
+      "scrollTop": 0,
+      "parsed": {
+        "scaleX": 2.5,
+        "scaleY": 2.5,
+        "tx": -1136.4,
+        "ty": -1011.98
+      }
+    }
+  }
+}
