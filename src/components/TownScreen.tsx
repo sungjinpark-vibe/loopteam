@@ -193,6 +193,13 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     // 2+ candidates — grid pick mode (§4). `growDraft` stays held; the
     // ConfirmDialog closes on its own via `growDialogOpen` above.
     growPick.start(new Set(candidates.map((c) => c.id)));
+    // Gate-3 follow-up (A1) — the third affordance move mode has and pick
+    // mode did not. Move mode teaches its own gesture with a one-shot hint
+    // toast (`Notice.moveHint`); pick mode hid the FAB with nothing but a
+    // highlight to explain why, so a player who missed the highlight read it
+    // as "the primary button vanished". Same transient toast channel every
+    // other TownScreen feedback line already uses — no new surface.
+    openToast(`반짝이는 건물 ${candidates.length}채 중에서 키울 건물을 탭하세요`, { gap: TOAST_GAP_ABOVE_TAB_BAR });
   }
 
   function handleGrowPickCancel() {
@@ -362,7 +369,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         </div>
       ) : pickModeActive ? (
         <div className="town-move-bar" role="status">
-          <span>키울 건물을 선택하세요</span>
+          {/* Gate-3 follow-up (A1): reads `rejectMessage ?? instruction`,
+              exactly like the move-mode banner one branch up, so a tap on a
+              non-candidate answers instead of doing nothing. */}
+          <span>{growPick.rejectMessage ?? "키울 건물을 선택하세요"}</span>
           <Button as="button" color="primary" variant="weak" size="small" onClick={handleGrowPickCancel}>
             취소
           </Button>

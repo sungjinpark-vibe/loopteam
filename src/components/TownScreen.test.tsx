@@ -309,6 +309,10 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     expect(container.querySelector(".town-move-bar")?.textContent).toContain("키울 건물을 선택하세요");
     expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(2);
     expect(container.querySelector(".town-fab")).toBeNull(); // FAB hides during pick mode too
+    // Gate-3 follow-up (A1) — the entry hint toast, move mode's third
+    // affordance (it teaches long-press the same way): the FAB disappearing
+    // now comes with an instruction, not just a highlight.
+    expect(document.body.textContent).toContain("키울 건물을 탭하세요");
 
     tapTile(second.plotIndex);
 
@@ -320,6 +324,44 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     expect(latest!.buildings.find((b) => b.id === second.id)!.exp ?? 0).toBe(0);
     expect(latest!.buildings.find((b) => b.id === first.id)!.exp ?? 0).toBe(0);
     expect(monthEntryCount()).toBe(entriesBefore + 1);
+  });
+
+  // Gate-3 follow-up (A1): pick mode hides the FAB, so a tap that lands
+  // outside the highlighted candidates has to answer — silently doing nothing
+  // there is what the panel read as "the primary button is gone and there's no
+  // way out". Mirrors `useMoveMode`'s occupied-lot reject: inline hint in the
+  // same banner, mode stays open, 취소 still there.
+  it("tapping a NON-candidate in pick mode shows an inline hint instead of doing nothing, and stays in pick mode", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    act(() => {
+      latest!.addEntry(cafeExpense(2_000));
+    });
+    const occupied = new Set(latest!.buildings.map((b) => b.plotIndex));
+    const entriesBefore = monthEntryCount();
+
+    openSheet();
+    fillAndSave("카페");
+    act(() => {
+      findButton("키우기")!.click();
+    });
+    expect(container.querySelector(".town-move-bar")?.textContent).toContain("키울 건물을 선택하세요");
+
+    const emptyPlot = [...container.querySelectorAll<HTMLElement>("[data-plot-index]")]
+      .map((el) => Number(el.getAttribute("data-plot-index")))
+      .find((i) => !occupied.has(i));
+    expect(emptyPlot).not.toBeUndefined();
+    tapTile(emptyPlot!);
+
+    expect(container.querySelector(".town-move-bar")?.textContent).toContain("표시된 건물 중에서 골라주세요");
+    expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(2); // still in pick mode
+    expect(monthEntryCount()).toBe(entriesBefore); // nothing committed by a stray tap
+    const cancelStillThere = [...container.querySelectorAll<HTMLButtonElement>(".town-move-bar button")].some(
+      (b) => b.textContent === "취소",
+    );
+    expect(cancelStillThere).toBe(true);
   });
 
   it("cancelling pick mode (취소) saves nothing and leaves no state stuck", async () => {
