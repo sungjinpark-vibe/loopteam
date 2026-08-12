@@ -27,6 +27,7 @@ function baseProps(overrides: Partial<TownHeaderProps> = {}): TownHeaderProps {
     streakDays: 5,
     queueLength: 0,
     moodLabel: "이번 달 페이스가 좋아요",
+    moodIcon: "☀️",
     budgetUnset: false,
     onOpenSettings: () => {},
     bgmMuted: false,

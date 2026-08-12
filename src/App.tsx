@@ -44,6 +44,11 @@ function noticeToastMessage(notice: Exclude<Notice, { kind: "tier" | "settlement
 
 type Tab = "town" | "history";
 
+// Mirrors `TownScreen.tsx`'s own constant/doc — TDS `openToast` doesn't know
+// about this app's fixed `.bottom-tab-bar` (56px, App.css), so every toast
+// here needs the same bottom clearance (liveops-pd finding, round-5).
+const TOAST_GAP_ABOVE_TAB_BAR = 80;
+
 /**
  * Root shell: one `useTownStore()` instance (one storage client, one
  * debounce buffer — see `TownScreen.tsx`'s doc for why this must not be
@@ -101,7 +106,7 @@ function App() {
     if (notice === null || notice.kind === "tier" || notice.kind === "settlement") return;
     if (shownNoticeRef.current === notice) return;
     shownNoticeRef.current = notice;
-    openToast(noticeToastMessage(notice));
+    openToast(noticeToastMessage(notice), { gap: TOAST_GAP_ABOVE_TAB_BAR });
     dismissNotice();
   }, [notice, dismissNotice, openToast]);
 

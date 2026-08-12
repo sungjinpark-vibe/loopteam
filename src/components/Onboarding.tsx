@@ -49,7 +49,17 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
   }, []);
 
   function finish() {
-    const budget = budgetDigits === "" ? null : Number(budgetDigits);
+    // Gate-3-RE-RUN fix (round-5 panel, all 5 experts flagged "시작하기 stays
+    // enabled at budget=0"): the field is deliberately optional (label: "월
+    // 예산 (선택)") — 시작하기 staying tappable is correct, not a bug (there's
+    // nothing to validate for an optional field). But typing literally "0"
+    // and persisting it as a real budget is indistinguishable from "unset"
+    // downstream (`selectors.budgetPace` already returns `null` pace for a
+    // 0 budget, same as no budget) while showing the WRONG header copy — the
+    // "정하면 날씨가 생겨요" neutral nudge would render for a player who thinks
+    // they already set one. Treat 0 the same as empty: genuinely unset.
+    const digits = Number(budgetDigits);
+    const budget = budgetDigits === "" || digits === 0 ? null : digits;
     if (budget !== null) onSetBudget(budget);
     onComplete();
   }

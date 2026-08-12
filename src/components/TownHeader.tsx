@@ -21,6 +21,8 @@ export interface TownHeaderProps {
   queueLength: number;
   /** F6 — one-line mood status ("이번 달 페이스가 ..." or the null-budget nudge). Pure content, computed by the caller from `selectors.moodTier`. */
   moodLabel: string;
+  /** F6 — weather emoji for the same mood tier (content.placeholder.ts's `MoodContent.icon`) — makes "동네 날씨" (onboarding step 3) legible next to the text, not just the S2 sky-gradient background. */
+  moodIcon: string;
   /** True when `moodLabel` is the null-budget nudge (`moodTier === -1`) — the caller already knows this from computing `moodLabel`, so it's cheaper to pass than to re-match the string here. Makes the nudge itself tappable straight into 설정 (ux-researcher/liveops-pd finding, playtest round 1: the mood line asks the player to set a budget but offered no way to). */
   budgetUnset: boolean;
   /** S6 설정 is also reachable straight from the Town tab now, not only via 기록. */
@@ -40,6 +42,7 @@ export function TownHeader({
   streakDays,
   queueLength,
   moodLabel,
+  moodIcon,
   budgetUnset,
   onOpenSettings,
   bgmMuted,
@@ -78,10 +81,12 @@ export function TownHeader({
       {/* F6 — ambient only: never removes/greys/downgrades a building, just this one line of text. Tappable straight into 설정 when there's no budget yet, since the copy itself asks the player to set one (playtest round 1). */}
       {budgetUnset ? (
         <button type="button" className="town-header-mood town-header-mood--link" onClick={onOpenSettings}>
-          {moodLabel} ›
+          <span aria-hidden="true">{moodIcon}</span> {moodLabel} ›
         </button>
       ) : (
-        <p className="town-header-mood">{moodLabel}</p>
+        <p className="town-header-mood">
+          <span aria-hidden="true">{moodIcon}</span> {moodLabel}
+        </p>
       )}
       {queueLength > 0 && <div className="town-header-queue-promise">내일 지을 건물 {queueLength}개 대기 중</div>}
     </header>

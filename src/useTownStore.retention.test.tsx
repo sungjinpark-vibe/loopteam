@@ -139,11 +139,12 @@ describe("F4 daily slot reset + F14 queue drain, across a real reload", () => {
     const queuedEntry = latest!.getMonthEntries("2026-08").find((e) => e.memo === "big");
     expect(queuedEntry?.buildingId).not.toBeNull();
     const drainedBuilding = latest!.buildings.find((b) => b.id === queuedEntry?.buildingId);
-    // 250,000 -> gain 12 (BALANCE.expAmountTiers' [Infinity, 12] tier) ->
-    // founding exp = the full gain (Gate-3-rerun fix: no longer `gain - 1`),
-    // same parity rule a same-day founding save gets (ADDENDUM-04 §5/§7) —
-    // never the old flat implicit gain 1 this task closed.
-    expect(drainedBuilding?.exp).toBe(12);
+    // 250,000 -> gain 3 (BALANCE.expAmountTiers' [Infinity, 3] tier, capped
+    // at `expPerLevel` since the Gate-3-RE-RUN #2 retune) -> founding exp =
+    // the full gain (Gate-3-rerun fix: no longer `gain - 1`), same parity
+    // rule a same-day founding save gets (ADDENDUM-04 §5/§7) — never the old
+    // flat implicit gain 1 this task closed.
+    expect(drainedBuilding?.exp).toBe(3);
     expect(BALANCE.expAmountTiers).not.toBeNull(); // sanity: the dial this test depends on is actually on
   });
 });

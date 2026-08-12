@@ -42,9 +42,23 @@ const noopLongPress = () => false;
 // level-up toast rather than opening a third notification channel (the panel
 // already flagged toast/banner stacking as a defect — a new standalone seed
 // toast would only add to that pile).
+// Gate-3-RE-RUN fix (round-5 panel, UX-researcher/target-player/liveops-pd):
+// "(+3개)" named no unit — a player can't tell buildings from seeds from
+// days. `formatSeeds` itself stays a plain "N개" (economy/format.ts's own
+// R-7 doc: never a currency-like label baked into the shared formatter) —
+// the "씨앗" word belongs to this ONE call site, same as ShopSheet's header
+// already prefixes it by hand.
 function seedSuffix(amount: number): string {
-  return amount > 0 ? ` (+${formatSeeds(toSeedCount(amount))})` : "";
+  return amount > 0 ? ` (+씨앗 ${formatSeeds(toSeedCount(amount))})` : "";
 }
+
+// Toss TDS `openToast`'s default position ignores this app's own
+// `.bottom-tab-bar` (fixed, 56px, spec-owned — App.css `--tab-bar-h`), so a
+// toast with no `gap` sits low enough to occlude both tab labels (liveops-pd
+// finding, round-5: the level-up toast covered "우리 동네"/"기록"). `gap` is
+// TDS's own offset-from-bottom option (`BaseToastOptions.gap`) — bump it
+// clear of the tab bar plus a small margin.
+const TOAST_GAP_ABOVE_TAB_BAR = 80;
 
 export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -107,14 +121,16 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // `result.queueLength` is the queue's length AFTER this save (post-push) —
       // `store.queueLength` would read the PRE-save value here, from the
       // render closure captured before `addEntry`'s state commit re-renders.
-      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`);
+      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)`, { gap: TOAST_GAP_ABOVE_TAB_BAR });
     } else if (result.queueOverflow) {
-      openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
+      openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.", { gap: TOAST_GAP_ABOVE_TAB_BAR });
     } else if (result.grew) {
       // ADDENDUM-04 §5/§8 — one-line level-up feedback on the same toast
       // channel as F14's notices above; no celebration system (§4's "what
       // was deliberately NOT built" applies to this feedback too).
-      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted)}`);
+      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted)}`, {
+        gap: TOAST_GAP_ABOVE_TAB_BAR,
+      });
     } else if (result.building?.categoryId) {
       // Gate-3-rerun fix (ux-researcher/target-player TOP FIX): the reward
       // used to resolve as a silent speck somewhere in an already-dense map
@@ -125,7 +141,9 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // `seedSuffix` below is a game-currency count, not money, so it's a
       // different axis from the invariant this note is guarding.
       const content = CATEGORY_CONTENT[result.building.categoryId];
-      openToast(`${content.icon} ${content.label} 건물이 생겼어요${seedSuffix(result.seedsGranted)}`);
+      openToast(`${content.icon} ${content.label} 건물이 생겼어요${seedSuffix(result.seedsGranted)}`, {
+        gap: TOAST_GAP_ABOVE_TAB_BAR,
+      });
     }
   }
 
@@ -233,6 +251,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     if (claimed) {
       openToast(
         BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.",
+        { gap: TOAST_GAP_ABOVE_TAB_BAR },
       );
     }
   }
@@ -273,6 +292,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         streakDays={store.streakDays}
         queueLength={store.queueLength}
         moodLabel={moodContent.headerLabel}
+        moodIcon={moodContent.icon}
         budgetUnset={mood === -1}
         onOpenSettings={onOpenSettings}
         bgmMuted={store.bgmMuted}

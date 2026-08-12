@@ -699,7 +699,13 @@ function TownGridImpl({
   }, [justBuiltId]);
   useEffect(() => {
     if (justBuiltId === null) return;
-    newestTileRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Gate-3-RE-RUN fix (round-5 panel, 4/5 experts independently): `inline`
+    // was left unset, which defaults to "nearest" — if the new tile was
+    // already even 1px inside the viewport (common right after a zoom), it
+    // got nudged the minimum distance instead of centered, landing at the
+    // frame edge under the FAB/전체보기 chrome exactly as the panel's
+    // screenshots showed. Both axes now explicitly center.
+    newestTileRef.current?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
   }, [justBuiltId, zoomedOut]);
 
   // Inline viewport height is a fit-to-screen concern only (§7). A pinch

@@ -131,14 +131,18 @@ describe("TownScreen — F6 sky mood, all 4 states verified in the mounted DOM",
     // string doesn't — `.startsWith` keeps this assertion about the COPY,
     // not this presentational detail.
     expect(moodClass()).toBe(`town-screen--mood-${MOOD_NEUTRAL.skyClass}`);
-    expect(moodHeaderText()?.startsWith(MOOD_NEUTRAL.headerLabel)).toBe(true);
+    // Gate-3-RE-RUN fix (round-5 panel, near-unanimous "weather never
+    // observed" finding): the header now also carries `MOOD_NEUTRAL.icon`
+    // ahead of the label, so this is `.toContain` rather than `.startsWith`.
+    expect(moodHeaderText()).toContain(MOOD_NEUTRAL.headerLabel);
+    expect(moodHeaderText()).toContain(MOOD_NEUTRAL.icon);
 
     // 2. Budget set, nothing spent yet — pace 0, tier 0 (clear).
     act(() => {
       latest!.setBudget(600_000);
     });
     expect(moodClass()).toBe(`town-screen--mood-${MOOD_CONTENT[0].skyClass}`);
-    expect(moodHeaderText()).toBe(MOOD_CONTENT[0].headerLabel);
+    expect(moodHeaderText()).toBe(`${MOOD_CONTENT[0].icon} ${MOOD_CONTENT[0].headerLabel}`);
 
     // 3. 300,000 spent — pace = 300,000 / (600,000 * 15/30) = 1.0 -> tier 1 (cloudy),
     // the exact bucket round-2's own finding said was never observed.
@@ -146,14 +150,14 @@ describe("TownScreen — F6 sky mood, all 4 states verified in the mounted DOM",
       latest!.addEntry(cafeExpense(300_000));
     });
     expect(moodClass()).toBe(`town-screen--mood-${MOOD_CONTENT[1].skyClass}`);
-    expect(moodHeaderText()).toBe(MOOD_CONTENT[1].headerLabel);
+    expect(moodHeaderText()).toBe(`${MOOD_CONTENT[1].icon} ${MOOD_CONTENT[1].headerLabel}`);
 
     // 4. 100,000 more (400,000 total) — pace = 400,000 / 300,000 = 1.333 -> tier 2 (rain).
     act(() => {
       latest!.addEntry(cafeExpense(100_000));
     });
     expect(moodClass()).toBe(`town-screen--mood-${MOOD_CONTENT[2].skyClass}`);
-    expect(moodHeaderText()).toBe(MOOD_CONTENT[2].headerLabel);
+    expect(moodHeaderText()).toBe(`${MOOD_CONTENT[2].icon} ${MOOD_CONTENT[2].headerLabel}`);
 
     // F6 AC / design invariant 4 (spec §7): mood swinging from clear to rain
     // across this whole run never removed, greyed, or downgraded a building —
@@ -385,15 +389,21 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
 describe("TownScreen — Gate-3-rerun: tap an ordinary building opens its detail sheet", () => {
   it("tapping a building's tile opens BuildingDetailSheet showing its amount and level, not a silent no-op", async () => {
     await mountAndWaitForBoot();
-    // Gate-3-rerun retune: 30,000원 sits in the 20,000-50,000 tier (gain 6)
-    // -> Lv.3 — a mid-range amount that actually demonstrates the
-    // amount->level curve differentiating (the panel's own repro amounts,
-    // 1,500/150,000/2,000,000, are covered directly in selectors.test.ts).
+    // Gate-3-RE-RUN #2 retune: a single entry's exp is now capped at
+    // `expPerLevel` (Lv.1 max per entry — the round-5 panel's #1/TOP FIX), so
+    // reaching Lv.3 in this test needs two top-tier (>=150,000, gain 3)
+    // entries in the SAME category — one founding, one growing the same
+    // building (exp 3 + 3 = 6 -> Lv.3) — rather than one large amount.
     act(() => {
-      latest!.addEntry(cafeExpense(30_000));
+      latest!.addEntry(cafeExpense(150_000));
     });
     expect(latest!.buildingCount).toBe(1);
     const plotIndex = latest!.buildings[0].plotIndex;
+    const hostId = latest!.buildings[0].id;
+    act(() => {
+      latest!.addEntry(cafeExpense(150_000), hostId);
+    });
+    expect(latest!.buildingCount).toBe(1); // grew, not a second lot
 
     tapTile(plotIndex);
     // Flush the `ensureMonthLoaded` effect the sheet's amount lookup depends on.

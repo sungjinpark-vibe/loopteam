@@ -46,27 +46,29 @@ export const BALANCE = {
   // ("overspending has zero mechanical consequence") is now a required
   // follow-up, not just an open caveat — see the doc.
   //
-  // Gate-3-RERUN retune (2026-08-12) — the bands below (not `expPerLevel`/
-  // `maxLevel`, both untouched) superseded per every one of the 5 panelists'
-  // #1/TOP FIX finding: combined with the `entryActions.ts` founding-exp fix
-  // (the real bug — founding used to store `expGain - 1`, silently eating a
-  // whole level), the OLD 10k/50k/200k bands still left every realistic
-  // Korean spend below ~50,000원 rendering as an identical Lv.1, because
-  // `expPerLevel=3` only has 5 discrete rungs (0/3/6/9/12 exp) and the old
-  // table only ever produced exp 1/2/3/5 — never enough to clear more than
-  // one rung. These 5 bands map directly onto the panel's own suggested
-  // "5k/20k/50k/150k" ladder, one exp rung apart, so a coffee, a lunch, a
-  // dinner, and a grocery run each land on a VISIBLY different building
-  // within a single day of normal use; 150,000원+ reaches the top rung
-  // (Lv.5, `maxLevel`'s hard visual cap — a 150,000원 dinner and a
-  // 2,000,000원 purchase read the same from here up, same as any capped
-  // system, and is not the flatness the panel flagged).
+  // Gate-3-RERUN retune #2 (2026-08-12) — supersedes this same table's
+  // previous form. `expPerLevel`/`maxLevel` (3/5) are still the
+  // director-confirmed dials above and stay untouched; only this specific
+  // table (same tunable-dial status as ADDENDUM-05's `seedAwards` further
+  // down — a dev dial, not director-locked) changes again here. Round-5
+  // panel's #1/TOP FIX (game-designer -5, echoed by QA/target-player/
+  // liveops-pd): the FIRST retune fixed "every spend looks the same" but
+  // reopened the original Gate-3 defect from the other direction — exp 12 =
+  // `maxLevel` in ONE entry, so any single >=150,000원 record (rent, a card
+  // bill, a grocery run — exactly the amounts Koreans actually log large)
+  // founds a building already at its visual ceiling, spending the entire
+  // 5-level "watch it grow" arc in one tap. Fix: cap a single entry's exp at
+  // `expPerLevel` (3) — one entry can never clear more than one rung — while
+  // keeping 4 distinct bands below that ceiling so a coffee/lunch/dinner/big
+  // purchase still each read as a visibly different exp gain. Reaching
+  // Lv.5 now needs repeat records in the same category, same as founding a
+  // building has always needed a real entry in the first place.
   expAmountTiers: [
     [5_000, 0],
-    [20_000, 3],
-    [50_000, 6],
-    [150_000, 9],
-    [Infinity, 12],
+    [20_000, 1],
+    [50_000, 2],
+    [150_000, 3],
+    [Infinity, 3],
   ] as readonly (readonly [number, number])[] | null,
 
   // --- ADDENDUM-05 (F-ECON earn loop). PM-DECISIONS §F-ECON, 2026-08-10. ---

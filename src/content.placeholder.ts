@@ -183,6 +183,17 @@ export interface MoodContent {
   skyClass: string;
   /** One-line status shown in the S2 town header. */
   headerLabel: string;
+  /**
+   * Gate-3-RE-RUN fix (round-5 panel, near-unanimous #1/#2 finding across
+   * all five experts): the sky-gradient background (App.css) is the ONLY
+   * evidence the promised "동네 날씨" (onboarding step 3: "맑음·흐림·비로
+   * 바뀌어요") ever existed, and it's a subtle 260px top tint nobody in the
+   * panel noticed or screenshotted as weather. This emoji is the same mood,
+   * made legible as an actual glyph next to the header text — no new
+   * mechanic, no new state, reuses the exact `moodTier`/`moodContentFor`
+   * this file already computes.
+   */
+  icon: string;
 }
 
 /**
@@ -193,14 +204,15 @@ export interface MoodContent {
  * placeholder content only, safe to rename without touching any selector.
  */
 export const MOOD_CONTENT: MoodContent[] = [
-  { skyClass: "clear", headerLabel: "이번 달 페이스가 여유로워요" },
-  { skyClass: "cloudy", headerLabel: "이번 달 페이스가 딱 맞아요" },
-  { skyClass: "rain", headerLabel: "이번 달 페이스가 빠듯해요" },
+  { skyClass: "clear", headerLabel: "이번 달 페이스가 여유로워요", icon: "☀️" },
+  { skyClass: "cloudy", headerLabel: "이번 달 페이스가 딱 맞아요", icon: "⛅" },
+  { skyClass: "rain", headerLabel: "이번 달 페이스가 빠듯해요", icon: "🌧️" },
 ];
 
 export const MOOD_NEUTRAL: MoodContent = {
   skyClass: "neutral",
   headerLabel: "예산을 정하면 우리 동네 날씨가 생겨요",
+  icon: "🌤️",
 };
 
 /** `moodTier`'s return value (-1..thresholds.length) -> the content to render. Never touches building state (spec F6 AC) — sky/header only. */
