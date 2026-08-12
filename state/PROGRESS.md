@@ -5,6 +5,32 @@
 > 2026-07-19 restructure).
 
 ## Current State
+- **Status (2026-08-12, end of session)**: a long `app_in_toss` stretch. Suite went **695 → 824**, `eslint`
+  + `tsc` clean throughout, everything pushed to `origin/app_in_toss`. In order:
+  1. **ADDENDUM-09 pinch zoom finished** — browser touch-emulation QA, all 8 acceptance criteria evidenced,
+     one real fix (a ~150px anchor jump when a pinch started from the zoomed-out state).
+  2. **Building art now fills its cell** (`d8ce379`) — the user's *"모든 칸에 꽉 들어차는 건물 이미지"*. Art
+     filled only 41-69% of cell width because one portrait viewBox was used for every footprint; now the
+     viewBox aspect matches the tile aspect and the body was re-derived to span it. **94% ±0.5pp, uniform.**
+     User approved: *"지금 느낌 좋아"* → **`d8ce379` is a frozen baseline alongside `afc7cd6`** (CLAUDE.md).
+  3. **Gate 3 re-run: FAIL, avg 74.2** (was 64.4). Findings triaged A/B/C; see the Gate 3 entry below.
+  4. **A0-A8 defect fixes** — grow-pick cancel/hint, first-building celebration, `getSafeAreaInsets` fixed at
+     source (console errors 16→0, a `console.error` monkey-patch that was HIDING them got deleted), budget
+     CTA validation, seed unit labels, toast/tab-bar overlap, pinch pan drift (travel ratio 1.65→1.00), and
+     pan no longer discarded when a sample grazes the fit-scale floor.
+  5. **B4 seeds** (`784d00a`) — root cause was seeds paying only on *founding*, so a mature town earned
+     almost nothing. Shop now reachable in ~7 days at 3 entries/day; same-day purchase still impossible.
+  6. **B3 building fusion built** (ADDENDUM-11) — user's new feature. Two Lv.5 buildings of the same
+     footprint AND category fuse into a Lv.6, geometrically up to Lv.10, with per-level art. Fixed a real
+     pre-existing bug on the way: **the top tier was unreachable** (threshold 200 > the map's max 193
+     buildings) because tier counted raw building count; it now counts Lv.5-equivalents
+     (`townScale = Σ 2^fuseTier`), making fusion tier-neutral and the top tier reachable. Existing saves see
+     zero tier change.
+  **User decisions this session**: EXP curve KEPT as-is (a big entry founding a high-level building is
+  intended — B1, `bed6cca` reverted a fix round's unauthorised retune); fusion approved (B3); play-earned
+  seeds approved (B4). **Do not re-open these.**
+  **Next**: Gate 3 re-run. `state/gate3-args.json` is current — it now records the settled EXP decision, the
+  A0-A8 fixes, the newly verified coverage, the fusion feature, and mandatory multi-touch QA harness rules.
 - **Status (2026-08-11, end of day — handoff)**: `app_in_toss` pinch-zoom (ADDENDUM-09, Phase 3 of the
   2026-08-11 art/UX work: Phase 1 building art → Phase 2 street props → **Phase 3 pinch zoom**) is
   **code-complete, committed and pushed** on `app_in_toss` HEAD `56ed417` ("ADDENDUM-09: pinch zoom + pan,
@@ -112,7 +138,20 @@
    see `app_in_toss/CLAUDE.md`.** Note filling the cell made buildings chunkier by geometric necessity;
    the user saw this in screenshots and approved it (*"지금 느낌 좋아"*), so do not "restore" the older
    slimmer silhouettes.
-1. **Re-run Gate 3** (5-expert playtest, `playtest.js`) — every finding from the 64.4 fail now has real
+0c. **Gate 3 re-run #2 — READY, awaiting the user's go-ahead.** Re-run #1 (2026-08-12) FAILED at avg 74.2
+   (up from 64.4, but 5 rounds exhausted against a 90-average/80-floor bar). Every A and C item from that
+   triage is now landed and verified; B1/B2/B3/B4 are all decided and built. **Two lessons are baked into
+   `state/gate3-args.json` — do not re-run without them**: (a) the panel's "two-finger pan is completely
+   dead across 3 independent methodologies" was **FALSE**, a harness defect — reused CDP touch ids meant
+   only ONE pointerdown ever reached the app, so the recogniser never engaged; the args now mandate fresh
+   touch ids, re-querying the live grid box after a zoom, and asserting two pointerdowns fired before
+   trusting any negative result. (b) A fix round rewrote the user-confirmed EXP table on its own authority
+   and called it a "dev dial" — the args now mark that table settled and off-limits. Also note the workflow
+   itself needed `agentType` → `model` edits to run from the HQ session (uncommitted in the engine repo at
+   session end — see Open Items).
+1. ~~**Re-run Gate 3** (5-expert playtest, `playtest.js`)~~ — superseded by 0c above; the original entry's
+   rationale (T019-T022 work landed) still holds, plus everything from 2026-08-12.
+   Original detail: **Re-run Gate 3** (5-expert playtest, `playtest.js`) — every finding from the 64.4 fail now has real
    work landed against it (T019-T022): #1 reward/money-decoupling → T021 amount-proportional EXP; #3
    onboarding → S1 built + verified; #4 F16 settlement/monuments → built T021; #5 blocking tier modal →
    non-blocking banner. #2 overspend penalty was excluded by the director (2026-08-09, ADDENDUM-04 §7);
@@ -127,6 +166,19 @@
    priority while app_in_toss has momentum.
 
 ## Open Items
+- **Uncommitted engine changes (2026-08-12), not mine to commit**: `.claude/workflows/playtest.js` has
+  `agentType` → `model` edits (5 places) that HQ made so the workflow could run from the HQ session, where
+  loop_engine's agent types are not registered. HQ said it may be committed; if a loop_engine-session run
+  ever needs the `agentType` form back, note both in a comment rather than branching on session type.
+  `.claude/settings.json` also has +26 lines adding two `code-review-graph` hooks (PostToolUse on Edit|Write,
+  SessionStart) — read-only indexing, no permission changes, defensively written. **They are not actually
+  firing**: the graph's last build was 2026-08-11 and a semantic query returned `search_mode: "none"` with
+  0 results, so `code-review-graph` is likely not on PATH and the hooks silently `exit 0`. Left untouched —
+  hooks/permissions are the user's call, not an agent's.
+- **A pinch-zoom scale-drift edge case remains**, flagged during A7 and deliberately not fixed: an
+  intermediate sample that trips the fit-scale floor branch can still perturb scale. A8 fixed the pan half
+  (translate is no longer discarded); the scale half is untouched and unmeasured. Low severity, no user
+  report — listed so it is not rediscovered as a new bug.
 - **Discord reply-drain gap** (2026-07-18, twice): with the loop paused, a Discord reply sits unread
   until the director prompts in-session. Real fix: resume the autonomous loop (`paused: false`) —
   flagged to the director, his call.
