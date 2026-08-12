@@ -1,0 +1,31 @@
+{
+  "base": "http://localhost:5173",
+  "today": "2026-08-13",
+  "primaryFusion": {
+    "beforeLevel": "Lv.5",
+    "afterLevel": [
+      "Lv.6",
+      "2026-08-13"
+    ],
+    "freedCell": 8,
+    "freedCellEmptyAfter": true
+  },
+  "optionalHigherTierFusion": {
+    "beforeLevel": "Lv.6",
+    "afterLevel": [
+      "Lv.7",
+      "2026-08-13"
+    ],
+    "freedCell": 10,
+    "freedCellEmptyAfter": true
+  },
+  "consoleErrorCount": 0,
+  "consoleErrors": [],
+  "shots": [
+    "01-before-two-lv5",
+    "02-confirm",
+    "03-after-lv6",
+    "04-town-overview",
+    "05-optional-lv7"
+  ]
+}
