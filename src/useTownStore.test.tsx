@@ -119,7 +119,12 @@ describe("useTownStore.addEntry — ADDENDUM-04 grow, then reload", () => {
   it("grows an existing building instead of placing a new one, and the exp round-trips through storage", async () => {
     await mountAndWaitForBoot();
 
-    const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
+    // Gate-3-rerun retune: the first (< 5,000, BALANCE.expAmountTiers'
+    // bottom tier) entry founds with gain 0 — "migration guarantee: no exp
+    // yet -> same as buildingCount" below. The second (5,000-20,000 tier,
+    // gain 3) then grows the SAME host, proving a real nonzero exp round-
+    // trips through storage rather than just a flat legacy 1.
+    const coffee: EntryDraft = { type: "expense", amountKrw: 3_200, categoryId: "cafe", occurredOn: TODAY };
     act(() => {
       latest!.addEntry(coffee);
     });
@@ -128,17 +133,17 @@ describe("useTownStore.addEntry — ADDENDUM-04 grow, then reload", () => {
     const hostId = latest!.buildings[0].id;
     expect(latest!.growCandidates("cafe")).toEqual([latest!.buildings[0]]);
 
-    const secondCoffee: EntryDraft = { type: "expense", amountKrw: 3_200, categoryId: "cafe", occurredOn: TODAY };
+    const secondCoffee: EntryDraft = { type: "expense", amountKrw: 8_000, categoryId: "cafe", occurredOn: TODAY };
     let addResult: AddEntryResult | undefined;
     act(() => {
       addResult = latest!.addEntry(secondCoffee, hostId);
     });
     expect(addResult?.building).toBeNull(); // grew, not built
     expect(addResult?.grew?.id).toBe(hostId);
-    expect(addResult?.grew?.exp).toBe(1);
+    expect(addResult?.grew?.exp).toBe(3); // gain 3 (5,000-20,000 tier), full gain, not gain - 1
     expect(latest?.buildingCount).toBe(1); // still one building — a grow opens no lot
-    expect(latest?.growthScore).toBe(2); // 1 (length) + 1 (exp) — both acts add exactly 1
-    expect(latest?.buildings[0].exp).toBe(1);
+    expect(latest?.growthScore).toBe(4); // 1 (length) + 3 (exp)
+    expect(latest?.buildings[0].exp).toBe(3);
 
     // Hard reload — the exp must round-trip through storage exactly like
     // plotIndex/categoryId already do in the sibling test above.
@@ -149,7 +154,7 @@ describe("useTownStore.addEntry — ADDENDUM-04 grow, then reload", () => {
     await mountAndWaitForBoot();
     expect(latest?.buildingCount).toBe(1);
     expect(latest?.buildings[0]?.id).toBe(hostId);
-    expect(latest?.buildings[0]?.exp).toBe(1);
-    expect(latest?.growthScore).toBe(2);
+    expect(latest?.buildings[0]?.exp).toBe(3);
+    expect(latest?.growthScore).toBe(4);
   });
 });

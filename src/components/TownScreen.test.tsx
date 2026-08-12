@@ -278,7 +278,11 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     // No pick-mode bar — a single candidate grows straight away.
     expect(container.querySelector(".town-move-bar")).toBeNull();
     expect(latest!.buildingCount).toBe(1); // still one building — grown, not built
-    expect(latest!.buildings.find((b) => b.id === hostId)!.exp).toBe(1);
+    // Gate-3-rerun retune: `fillAndSave`'s amount (1원) is under
+    // `BALANCE.expAmountTiers`' bottom tier (5,000) — gain 0, so exp stays 0
+    // through the grow. The mechanic under test here is "grows, doesn't
+    // build a second lot", not the exp curve itself.
+    expect(latest!.buildings.find((b) => b.id === hostId)!.exp ?? 0).toBe(0);
   });
 
   it("2+ candidates enters pick mode; tapping a candidate grows exactly that building", async () => {
@@ -307,7 +311,9 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     expect(container.querySelector(".town-move-bar")).toBeNull(); // pick mode exited
     expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(0);
     expect(latest!.buildingCount).toBe(2); // no new building — grew in place
-    expect(latest!.buildings.find((b) => b.id === second.id)!.exp).toBe(1);
+    // Gate-3-rerun retune: all amounts here (1,000/2,000/1원) are under
+    // `BALANCE.expAmountTiers`' bottom tier (5,000) — gain 0 throughout.
+    expect(latest!.buildings.find((b) => b.id === second.id)!.exp ?? 0).toBe(0);
     expect(latest!.buildings.find((b) => b.id === first.id)!.exp ?? 0).toBe(0);
     expect(monthEntryCount()).toBe(entriesBefore + 1);
   });
@@ -369,5 +375,82 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
 
     expect(findButton("키우기")).toBeUndefined();
     expect(latest!.buildingCount).toBe(0);
+  });
+});
+
+// Gate-3-rerun fix — every expert's top/near-top finding: a plain tap on an
+// ordinary (non-monument) building was a silent no-op. `tapTile` (defined
+// above) is the SAME helper the grow-dialog suite already drives real taps
+// through `TownGrid`'s delegated click listener with.
+describe("TownScreen — Gate-3-rerun: tap an ordinary building opens its detail sheet", () => {
+  it("tapping a building's tile opens BuildingDetailSheet showing its amount and level, not a silent no-op", async () => {
+    await mountAndWaitForBoot();
+    // Gate-3-rerun retune: 30,000원 sits in the 20,000-50,000 tier (gain 6)
+    // -> Lv.3 — a mid-range amount that actually demonstrates the
+    // amount->level curve differentiating (the panel's own repro amounts,
+    // 1,500/150,000/2,000,000, are covered directly in selectors.test.ts).
+    act(() => {
+      latest!.addEntry(cafeExpense(30_000));
+    });
+    expect(latest!.buildingCount).toBe(1);
+    const plotIndex = latest!.buildings[0].plotIndex;
+
+    tapTile(plotIndex);
+    // Flush the `ensureMonthLoaded` effect the sheet's amount lookup depends on.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const title = document.body.querySelector(".entry-sheet-title")?.textContent;
+    expect(title).toBe("카페");
+    const values = [...document.body.querySelectorAll(".history-total-value")].map((el) => el.textContent);
+    expect(values).toContain("Lv.3");
+    expect(document.body.querySelector(".history-pace-label")?.textContent).toContain("Lv.3");
+  });
+
+  it("tapping empty ground still does nothing (not every tap opens a sheet)", async () => {
+    await mountAndWaitForBoot();
+    const emptyLot = container.querySelector<HTMLElement>(".town-tile:not(.town-tile--droppable)");
+    expect(emptyLot).not.toBeNull();
+    act(() => {
+      emptyLot!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(document.body.querySelector(".entry-sheet-title")).toBeNull();
+  });
+});
+
+// Gate-3-rerun fix — E5, every expert on the panel: 5 concurrent (non-forced,
+// actionability-checked) `.click()`s on one filled entry sheet's 저장 button
+// each independently ran `handleSave` -> `onSave` before React re-rendered
+// `open=false`, producing 5 distinct LedgerEntry/Building ids from one
+// intended save (confirmed in raw localStorage by the panel). Reproduces the
+// same shape here: fire 저장 5 times in a row with NO `act()`/render boundary
+// between clicks (mirrors the un-awaited concurrent taps), then assert
+// exactly one building/entry landed.
+describe("TownScreen — Gate-3-rerun: entry-sheet Save multi-submit guard", () => {
+  it("firing 저장 5 times back-to-back on one filled sheet only ever saves once", async () => {
+    await mountAndWaitForBoot();
+
+    openSheet();
+    pressDigit("1");
+    const categoryButton = [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes("카페"));
+    act(() => {
+      categoryButton!.click();
+    });
+
+    const saveButton = findButton("저장")!;
+    act(() => {
+      // No render/`act` boundary between these — the exact gap that let 5
+      // independent click events each reach `onSave` before this component
+      // ever re-rendered with the sheet closed.
+      saveButton.click();
+      saveButton.click();
+      saveButton.click();
+      saveButton.click();
+      saveButton.click();
+    });
+
+    expect(latest!.buildingCount).toBe(1);
+    expect(monthEntryCount()).toBe(1);
   });
 });

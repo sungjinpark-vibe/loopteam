@@ -13,7 +13,7 @@
  * follows the same pure-function-then-storage-side-effects split that
  * `entryActions.ts`/`useTownStore.ts` already use for a normal save.
  */
-import { expGainFor, expOf, slotsRemainingToday, tier } from "./selectors";
+import { expGainFor, slotsRemainingToday, tier } from "./selectors";
 import type { Placed } from "./placement";
 import type { Building, QueuedMaterial, TownState } from "./types";
 
@@ -66,6 +66,13 @@ export function drainQueue(
   // ADDENDUM-04 §6/§7 parity fix: a material queued without `amountKrw`
   // (pre-existing data, migration-safe) reads gain 1 via `expGainFor`'s own
   // `null`-tiers contract — exactly today's behaviour, never a crash.
+  //
+  // Gate-3-rerun fix: `exp` is the FULL `gain`, not `gain - 1` — same root
+  // cause and same fix as `entryActions.ts`'s founding path (search that
+  // file's `BuildOrQueueArgs` doc for the full story). A next-morning
+  // drained building was under-leveled by the same one-rung offset as a
+  // same-day founding one; both call sites needed the fix, not just the one
+  // the panel's repro happened to exercise.
   const drained = toDrain.map((material, i) => {
     const gain = material.amountKrw !== undefined ? expGainFor(material.amountKrw, expAmountTiers) : 1;
     const building: Building = {
@@ -78,13 +85,16 @@ export function drainQueue(
       h: placements[i].h,
       builtOn: today,
       createdAt,
-      ...(gain > 1 ? { exp: gain - 1 } : {}),
+      ...(gain > 1 ? { exp: gain } : {}),
     };
     return { material, building };
   });
 
-  const growthScoreGain = drained.reduce((sum, d) => sum + 1 + expOf(d.building), 0);
-  const buildingCount = existingBuildingCount + growthScoreGain;
+  // Gate-3-rerun fix: this used to sum `1 + expOf(building)` per drained
+  // item (a growth score) into a variable literally named `buildingCount` —
+  // the exact mislabeled-number bug the panel caught elsewhere. A drain
+  // places exactly `actualCount` new buildings; that's the count.
+  const buildingCount = existingBuildingCount + actualCount;
   const newTier = tier(buildingCount, tierThresholds);
   const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
 

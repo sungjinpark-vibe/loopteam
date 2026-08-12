@@ -407,7 +407,11 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
     expect(result.town.lastActOn).toBe("2026-08-02");
   });
 
-  it("a new build and a grow each add exactly 1 to the growth score — both cross the same tier", () => {
+  // Gate-3-rerun fix: tier tracks the literal building count now (see
+  // `entryActions.ts`'s `buildingCountBeforeThis` doc), so a build crosses a
+  // threshold a grow of the SAME 9 pre-existing buildings never does — a
+  // grow places no new building, the count `TownHeader` shows never moves.
+  it("a new build crosses the tier; a grow of the same town does not, because the count never moves", () => {
     const nineNoExp: Building[] = Array.from({ length: 9 }, (_, i) => ({
       id: `b${i}`,
       source: { kind: "entry", entryId: `e${i}` },
@@ -425,7 +429,7 @@ describe("applyNewEntry — ADDENDUM-04 grow", () => {
     const grown = applyNewEntry(
       callArgs({ town, buildings: nineNoExp, entryId: "eg", buildingId: "bg", growTargetId: nineNoExp[0].id, expGain: 1 }),
     );
-    expect(grown.celebrateTier).toBe(1); // 9 + 1 (grow gain) = 10, same threshold
+    expect(grown.celebrateTier).toBeNull(); // still 9 buildings — no new plot, no tier
   });
 
   it("no free slot: a growTargetId still queues — grow is never a free bypass of the F4 daily cap", () => {
@@ -475,13 +479,23 @@ describe("applyNewEntry — ADDENDUM-04 §7 founding parity (expGain > 1)", () =
     expect(result.building).not.toHaveProperty("exp");
   });
 
-  it("expGain > 1 founds a building with exp = expGain - 1", () => {
+  // Gate-3-rerun fix: founding exp is the FULL gain now, not `gain - 1` (see
+  // `entryActions.ts`'s doc on the new `Building` construction) — the `-1`
+  // used to hide the amount from `levelOf`, which produced the exact
+  // "1,500원 and 150,000원 both show Lv.1" flatness every expert flagged.
+  it("expGain > 1 founds a building with exp = expGain (full amount, not amount - 1)", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(callArgs({ town, entryId: "e31", buildingId: "b31", expGain: 5 }));
-    expect(result.building?.exp).toBe(4);
+    expect(result.building?.exp).toBe(5);
   });
 
-  it("§3 parity: founding and growing with the same expGain contribute the same growth score", () => {
+  // §7's exp parity is now exact, not offset by one: founding and growing
+  // with the same `expGain` leave the SAME total exp on the affected
+  // building (which drives its own visual Lv./size). §3's tier parity claim
+  // doesn't survive the Gate-3-rerun fix, though: exp no longer feeds tier
+  // at all, only the literal count does, so founding (a new plot) crosses a
+  // threshold a grow (no new plot) never does regardless of expGain.
+  it("exp parity holds for level; tier now only ever moves on an actual new building", () => {
     const nineNoExp: Building[] = Array.from({ length: 9 }, (_, i) => ({
       id: `q${i}`,
       source: { kind: "entry", entryId: `qe${i}` },
@@ -494,13 +508,13 @@ describe("applyNewEntry — ADDENDUM-04 §7 founding parity (expGain > 1)", () =
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0, highestTierSeen: 0 });
 
     const founded = applyNewEntry(callArgs({ town, buildings: nineNoExp, entryId: "ef", buildingId: "bf", expGain: 3 }));
-    expect(founded.building?.exp).toBe(2); // 1 (.length) + 2 (exp) === 3, same as a grow of gain 3
-    expect(founded.celebrateTier).toBe(1); // 9 + 3 = 12 -> tierThresholds[1]
+    expect(founded.building?.exp).toBe(3); // full gain, same exp a grow of gain 3 would add
+    expect(founded.celebrateTier).toBe(1); // 9 + 1 (one new building, regardless of expGain) = 10 -> tierThresholds[1]
 
     const grown = applyNewEntry(
       callArgs({ town, buildings: nineNoExp, entryId: "eg3", buildingId: "bg3", growTargetId: nineNoExp[0].id, expGain: 3 }),
     );
     expect(grown.grownBuilding?.exp).toBe(3);
-    expect(grown.celebrateTier).toBe(1); // 9 + 3 = 12, same threshold — neither branch is punished
+    expect(grown.celebrateTier).toBeNull(); // still 9 buildings — no new plot, no tier, regardless of expGain
   });
 });

@@ -38,18 +38,35 @@ export const BALANCE = {
   noSpendDayCostsSlot: true, // unchanged from placeholder — D-15
 
   // --- ADDENDUM-04 (building EXP). director-confirmed, 2026-08-09. ---
-  expPerLevel: 3, // director-confirmed, 2026-08-09 — EXP needed per visible level
-  maxLevel: 5, // director-confirmed, 2026-08-09 — visual cap only; EXP past it still counts toward tier
+  expPerLevel: 3, // director-confirmed, 2026-08-09 — EXP needed per visible level, untouched
+  maxLevel: 5, // director-confirmed, 2026-08-09 — visual cap only, untouched
   // ADDENDUM-04 §7 — CLOSED, 2026-08-09: director chose Option 3. EXP scales
   // with amount for ALL entry types (저축/수입/지출 alike — `expGainFor` stays
   // type-agnostic, no per-type branching anywhere). Gate-3 finding #2
   // ("overspending has zero mechanical consequence") is now a required
   // follow-up, not just an open caveat — see the doc.
+  //
+  // Gate-3-RERUN retune (2026-08-12) — the bands below (not `expPerLevel`/
+  // `maxLevel`, both untouched) superseded per every one of the 5 panelists'
+  // #1/TOP FIX finding: combined with the `entryActions.ts` founding-exp fix
+  // (the real bug — founding used to store `expGain - 1`, silently eating a
+  // whole level), the OLD 10k/50k/200k bands still left every realistic
+  // Korean spend below ~50,000원 rendering as an identical Lv.1, because
+  // `expPerLevel=3` only has 5 discrete rungs (0/3/6/9/12 exp) and the old
+  // table only ever produced exp 1/2/3/5 — never enough to clear more than
+  // one rung. These 5 bands map directly onto the panel's own suggested
+  // "5k/20k/50k/150k" ladder, one exp rung apart, so a coffee, a lunch, a
+  // dinner, and a grocery run each land on a VISIBLY different building
+  // within a single day of normal use; 150,000원+ reaches the top rung
+  // (Lv.5, `maxLevel`'s hard visual cap — a 150,000원 dinner and a
+  // 2,000,000원 purchase read the same from here up, same as any capped
+  // system, and is not the flatness the panel flagged).
   expAmountTiers: [
-    [10_000, 1],
-    [50_000, 2],
-    [200_000, 3],
-    [Infinity, 5],
+    [5_000, 0],
+    [20_000, 3],
+    [50_000, 6],
+    [150_000, 9],
+    [Infinity, 12],
   ] as readonly (readonly [number, number])[] | null,
 
   // --- ADDENDUM-05 (F-ECON earn loop). PM-DECISIONS §F-ECON, 2026-08-10. ---

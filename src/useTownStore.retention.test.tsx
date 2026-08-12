@@ -116,10 +116,10 @@ describe("F4 daily slot reset + F14 queue drain, across a real reload", () => {
 
   it("ADDENDUM-04 §6 — a queued material carries its amount through the drain and founds at the matching level", async () => {
     await mountAndWaitForBoot();
-    // Fill every slot with small (< 10,000, flat gain 1) entries so the cap
-    // is hit with nothing else scaling exp, then one more — large enough
-    // (>= 200,000) to land in `BALANCE.expAmountTiers`' top tier (gain 5) —
-    // that must queue instead of building today.
+    // Fill every slot with small entries (their own exp doesn't matter here)
+    // so the cap is hit, then one more — large enough (>= 150,000) to land
+    // in `BALANCE.expAmountTiers`' top tier (gain 12) — that must queue
+    // instead of building today.
     for (let i = 0; i < BALANCE.dailyBuildSlots; i++) {
       act(() => {
         latest!.addEntry(expenseDraft(DAY1, `fill${i}`));
@@ -139,10 +139,11 @@ describe("F4 daily slot reset + F14 queue drain, across a real reload", () => {
     const queuedEntry = latest!.getMonthEntries("2026-08").find((e) => e.memo === "big");
     expect(queuedEntry?.buildingId).not.toBeNull();
     const drainedBuilding = latest!.buildings.find((b) => b.id === queuedEntry?.buildingId);
-    // 250,000 -> gain 5 (BALANCE.expAmountTiers' [Infinity, 5] tier) -> founding exp = 5 - 1 = 4,
+    // 250,000 -> gain 12 (BALANCE.expAmountTiers' [Infinity, 12] tier) ->
+    // founding exp = the full gain (Gate-3-rerun fix: no longer `gain - 1`),
     // same parity rule a same-day founding save gets (ADDENDUM-04 §5/§7) —
     // never the old flat implicit gain 1 this task closed.
-    expect(drainedBuilding?.exp).toBe(4);
+    expect(drainedBuilding?.exp).toBe(12);
     expect(BALANCE.expAmountTiers).not.toBeNull(); // sanity: the dial this test depends on is actually on
   });
 });
@@ -296,36 +297,31 @@ function pastEntry(occurredOn: string, amountKrw: number): LedgerEntry {
 }
 
 describe("F16 monthly settlement, through the store", () => {
-  it("settles an unsettled 3-month gap into exactly 3 monuments (a zero-entry month landing in the 'no data' bucket, no crash), and reopening mints nothing further", async () => {
+  it("settles an unsettled 3-month gap, minting a monument only for the month that has entries (Gate-3-rerun fix: zero-activity months settle with no monument), and reopening mints nothing further", async () => {
     // lastSettledPeriod stale by 3 -> unsettled: 2026-05, 06, 07 (today, DAY1, is 2026-08-02).
-    // 2026-05 gets a real entry; 06/07 stay empty (the zero-entry AC).
+    // 2026-05 gets a real entry; 06/07 stay empty (the zero-entry AC) and earn no monument.
     seedUnsettled("2026-04", 300_000, { "2026-05": [pastEntry("2026-05-10", 50_000)] });
     await mountAndWaitForBoot();
 
     const monuments = latest!.buildings.filter((b) => b.source.kind === "monument");
-    expect(monuments).toHaveLength(3);
-    const byPeriod = new Map(monuments.map((b) => [(b.source as { period: string }).period, b]));
-    expect([...byPeriod.keys()].sort()).toEqual(["2026-05", "2026-06", "2026-07"]);
-    // Each monument lands on its own, distinct plot (allocatePlots' own
-    // no-collision contract — placement.test.ts covers the allocator itself,
-    // this only proves the F16 wiring actually threads a real allocator through).
-    expect(new Set(monuments.map((b) => b.plotIndex)).size).toBe(3);
-    expect(monuments.every((b) => b.categoryId === null)).toBe(true);
-    expect(monuments.every((b) => b.builtOn === DAY1)).toBe(true);
+    expect(monuments).toHaveLength(1);
+    expect((monuments[0].source as { period: string }).period).toBe("2026-05");
+    expect(monuments[0].categoryId).toBeNull();
+    expect(monuments[0].builtOn).toBe(DAY1);
+    expect(monuments[0].monumentSummary?.outcomeBucket).not.toBe(0); // has an entry + a budget
 
-    expect(byPeriod.get("2026-05")?.monumentSummary?.outcomeBucket).not.toBe(0); // has an entry + a budget
-    expect(byPeriod.get("2026-06")?.monumentSummary?.outcomeBucket).toBe(0); // zero entries — "no data", no crash
-    expect(byPeriod.get("2026-07")?.monumentSummary?.outcomeBucket).toBe(0);
-
-    // Idempotent: reopening the same day mints nothing further (this alone
-    // proves `lastSettledPeriod` actually advanced to 2026-07 — a re-run
-    // that hadn't would mint the same 3 months again).
+    // All 3 months are still marked settled (06/07 just claimed no plot) —
+    // proven by nothing minting again on a same-day reopen.
     await remount();
-    expect(latest?.buildings.filter((b) => b.source.kind === "monument")).toHaveLength(3);
+    expect(latest?.buildings.filter((b) => b.source.kind === "monument")).toHaveLength(1);
   });
 
   it("shows a one-time 지난달 결산 card for the most recently settled month, which does not reappear after dismissal — even across a reload", async () => {
-    seedUnsettled("2026-06", 300_000); // one unsettled month: 2026-07
+    // Gate-3-rerun fix: a monument-less (zero-activity) month no longer
+    // carries a summary at all, so a real entry is needed here to still
+    // exercise the card's own one-time/dedup mechanism (below covers the
+    // zero-activity case separately).
+    seedUnsettled("2026-06", 300_000, { "2026-07": [pastEntry("2026-07-10", 20_000)] }); // one unsettled month: 2026-07
     await mountAndWaitForBoot();
 
     expect(latest?.notice).toMatchObject({ kind: "settlement", summary: { period: "2026-07" } });
@@ -334,6 +330,16 @@ describe("F16 monthly settlement, through the store", () => {
 
     await remount(); // reload — settlement is idempotent, so nothing new to announce
     expect(latest?.notice?.kind).not.toBe("settlement");
+  });
+
+  // Gate-3-rerun fix — companion to the monument fix above: a month with
+  // nothing in it settles silently (no monument, no "결산" card either) so
+  // it never reads as a finished result for a month the player didn't live.
+  it("a zero-activity settled month shows no 지난달 결산 card at all", async () => {
+    seedUnsettled("2026-06", 300_000); // one unsettled month: 2026-07, no entries seeded
+    await mountAndWaitForBoot();
+    expect(latest?.notice?.kind).not.toBe("settlement");
+    expect(latest?.buildings.filter((b) => b.source.kind === "monument")).toHaveLength(0);
   });
 });
 

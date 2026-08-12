@@ -13,7 +13,7 @@ import { NPC_MAX_VISIBLE, NPC_SLOT_SKU } from "./economy/types";
 import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
-import { useTownStore } from "./useTownStore";
+import { useTownStore, type AddEntryResult } from "./useTownStore";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -56,11 +56,16 @@ describe("seed earn loop", () => {
     expect(latest?.economy.seeds).toBe(0);
 
     const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
+    let addResult: AddEntryResult | undefined;
     act(() => {
-      latest!.addEntry(coffee);
+      addResult = latest!.addEntry(coffee);
     });
     expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.build);
     expect(latest?.economy.grantedEventKeys).toEqual([`seed:build:${latest!.buildings[0].id}`]);
+    // Gate-3-rerun fix — the caller (TownScreen) folds this into the
+    // build toast; see `AddEntryResult.seedsGranted`'s doc for why the grant
+    // needs to be surfaced at all (it silently existed before, per the panel).
+    expect(addResult?.seedsGranted).toBe(BALANCE.seedAwards.build);
   });
 
   it("a no-spend claim grants BALANCE.seedAwards.nospend seeds", async () => {

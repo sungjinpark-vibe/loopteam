@@ -10,7 +10,7 @@
  * normal 지출 save (logging an expense on an already-claimed date), not on a
  * dedicated user action, so it has to run as part of this same save.
  */
-import { advanceStreak, expOf, growthScore, slotsRemainingToday, tier } from "./selectors";
+import { advanceStreak, expOf, slotsRemainingToday, tier } from "./selectors";
 import { savingsBucketOf } from "./savingsBuckets";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
@@ -55,10 +55,13 @@ export interface ApplyNewEntryArgs {
    * the caller via `expGainFor(draft.amountKrw, BALANCE.expAmountTiers)`
    * (selectors.ts) — this module stays balance-free like every other dial
    * here. Feeds whichever branch `decideBuildOrQueue` actually takes: added
-   * to the grow target's exp when `growTargetId` resolves, or split into a
-   * founding exp of `expGain - 1` on the new Building otherwise — either way
-   * the growth-score contribution is exactly `expGain`, so founding and
-   * growing are never a strictly-better choice than the other (§3 parity).
+   * to the grow target's exp when `growTargetId` resolves, or set as the
+   * founding exp of the new Building otherwise (Gate-3-rerun fix — used to
+   * store `expGain - 1` for growth-score parity with the tier check; now
+   * that tier reads the literal building count instead (see
+   * `buildingCountBeforeThis` below), that offset only served to hide the
+   * amount from `levelOf`, which is exactly the "same level regardless of
+   * amount" defect every expert on the panel flagged as the #1 finding).
    * Missing/undefined defaults to 1 (flat), same as the dial-off shape.
    */
   expGain?: number;
@@ -102,8 +105,23 @@ export function adjustSavings(town: TownState, categoryId: string, deltaKrw: num
 
 export interface BuildOrQueueArgs {
   town: TownState;
-  /** Growth score BEFORE this act (post any F15 revocation the caller already applied) — used for the F5 tier check (ADDENDUM-04 §3: `growthScore(buildings)`, not a raw count). */
-  growthScoreBeforeThis: number;
+  /**
+   * Literal building count BEFORE this act (post any F15 revocation the
+   * caller already applied) — used for the F5 tier check.
+   *
+   * Gate-3-rerun fix (every expert's confirmed defect): ADDENDUM-04 §3 used
+   * to feed `tier()` `growthScore(buildings)` (count + Σexp) instead, so the
+   * number that gated a tier-up could run ahead of `TownHeader`'s literal
+   * "건물 N채" — the panel's exact repro (tier fired at growthScore 10 while
+   * the header read 6 buildings, and the celebration banner's own "N채 더"
+   * math, computed from the literal count, didn't reconcile with either).
+   * Reverted to the literal count so the SAME number drives both the header
+   * display and the tier gate everywhere — no accessor can drift from the
+   * other because there is only one. The money->reward mechanic this was
+   * layering onto tier stays intact where it actually lives: `levelOf`
+   * (per-building Lv./size) still reads `exp` directly, untouched.
+   */
+  buildingCountBeforeThis: number;
   today: string;
   dailyBuildSlots: number;
   materialQueueMax: number;
@@ -160,7 +178,7 @@ export interface BuildOrQueueResult {
 export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
   const {
     town,
-    growthScoreBeforeThis,
+    buildingCountBeforeThis,
     today,
     dailyBuildSlots,
     materialQueueMax,
@@ -189,8 +207,9 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
     // exactly like building, but creates no Building and opens no lot.
     if (growTarget) {
       const grownBuilding: Building = { ...growTarget, exp: expOf(growTarget) + gain };
-      const newScore = growthScoreBeforeThis + gain;
-      const newTier = tier(newScore, tierThresholds);
+      // Growing an existing building places no new one, so the literal count
+      // (and therefore the tier gate) never moves from this branch alone.
+      const newTier = tier(buildingCountBeforeThis, tierThresholds);
       const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
       const newTown: TownState = {
         ...town,
@@ -202,11 +221,17 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       return { building: null, grownBuilding, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
     }
 
-    // ADDENDUM-04 §3/§7 parity: a new building's growth-score contribution
-    // must equal a grow of the same amount (`gain`) — 1 from `.length` + a
-    // founding exp of `gain - 1`. `exp` is omitted (not written as 0) when
-    // `gain === 1` (dial off, or a small amount) so an untouched building is
-    // byte-identical to before this dial existed (ADDENDUM-04 §2).
+    // Gate-3-rerun fix: founding exp is the FULL amount-derived gain, not
+    // `gain - 1`. The `-1` used to exist so a new building's growth-score
+    // contribution (1 from `.length` + founding exp) matched a same-amount
+    // grow — but growth-score no longer drives anything (tier reads the
+    // literal count, see `buildingCountBeforeThis`), so that offset was
+    // pure cost with no remaining benefit: it made `levelOf` (which reads
+    // `exp` directly) under-report every founding building by a full level,
+    // which is the exact "1,500원 and 150,000원 both show Lv.1" bug the
+    // panel reproduced. `exp` is still omitted (not written as 0) when
+    // `gain === 1` (dial off, or the smallest amount band) so the smallest
+    // entries stay byte-identical to before this dial existed.
     const building: Building = {
       id: buildingId,
       source: { kind: "entry", entryId },
@@ -217,10 +242,9 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       h,
       builtOn: today,
       createdAt,
-      ...(gain > 1 ? { exp: gain - 1 } : {}),
+      ...(gain > 1 ? { exp: gain } : {}),
     };
-    const newScore = growthScoreBeforeThis + gain;
-    const newTier = tier(newScore, tierThresholds);
+    const newTier = tier(buildingCountBeforeThis + 1, tierThresholds);
     const celebrateTier = newTier > town.highestTierSeen ? newTier : null;
     const newTown: TownState = {
       ...town,
@@ -278,9 +302,9 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
   // was never spendable "now" and there is nothing to hand back.
   let town = args.town;
   let revokedNoSpend: ApplyNewEntryResult["revokedNoSpend"] = null;
-  // ADDENDUM-04 §3: the revoked park tile's own contribution to the growth
-  // score (1 + its exp, though a park tile never actually grows — kept
-  // general so this reads correctly even if that ever changes).
+  // The revoked park tile's own contribution to the literal building count
+  // — 1 when a park tile actually existed to revoke, else 0 — subtracted
+  // below so a same-save revocation is scored as if that tile never counted.
   let revokedContribution = 0;
   if (draft.type === "expense" && town.noSpendDays.includes(draft.occurredOn)) {
     const revokedBuilding = buildings.find((b) => b.source.kind === "nospend" && b.source.date === draft.occurredOn);
@@ -291,7 +315,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
       slotsUsedToday: refund ? Math.max(0, town.slotsUsedToday - 1) : town.slotsUsedToday,
     };
     revokedNoSpend = { date: draft.occurredOn, buildingId: revokedBuilding?.id ?? null };
-    revokedContribution = revokedBuilding ? 1 + expOf(revokedBuilding) : 0;
+    revokedContribution = revokedBuilding ? 1 : 0;
   }
 
   const baseEntry = {
@@ -341,7 +365,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
   // increases — round-2 finding C2 #1).
   const decision = decideBuildOrQueue({
     town,
-    growthScoreBeforeThis: growthScore(buildings) - revokedContribution,
+    buildingCountBeforeThis: buildings.length - revokedContribution,
     today,
     dailyBuildSlots,
     materialQueueMax,

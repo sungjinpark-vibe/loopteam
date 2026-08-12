@@ -35,6 +35,12 @@ afterEach(() => {
   mounted = null;
 });
 
+// jsdom has no layout engine and doesn't implement scrollIntoView at all —
+// same class of stub as the ResizeObserver/matchMedia polyfills the other
+// BottomSheet-mounting test files already carry. Only exercised by the
+// justBuiltId zoom/scroll test below.
+Element.prototype.scrollIntoView ??= () => {};
+
 // ── map-derived fixtures (never hand-picked magic numbers — computed from
 // the same townLayout.ts functions the component itself reads) ──
 
@@ -487,6 +493,24 @@ describe("TownGrid — 명당 (prime lot) on the dynamic layer", () => {
   });
 });
 
+// Gate-3-rerun fix (QA lead E4): a monument used to render the exact same
+// aria-label as an ordinary building, so a screen-reader user had no way to
+// tell a month's F16 monument apart from a regular building tile.
+describe("TownGrid — Gate-3-rerun: monument tiles get their own aria-label", () => {
+  it("a monument tile's aria-label says 기념비, not 건물", () => {
+    const monument = building({ id: "m1", source: { kind: "monument", period: "2026-07" }, categoryId: null });
+    const container = mountGrid([monument]);
+    const tile = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+    expect(tile.getAttribute("aria-label")).toBe("기념비, 눌러서 정보 보기, 길게 눌러 옮기기");
+  });
+
+  it("an ordinary building tile keeps the plain 건물 aria-label", () => {
+    const container = mountGrid([building()]);
+    const tile = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+    expect(tile.getAttribute("aria-label")).toBe("건물, 눌러서 정보 보기, 길게 눌러 옮기기");
+  });
+});
+
 describe("TownGrid — long-press gesture (AC-M8/AC-M9)", () => {
   function pointerDown(tile: HTMLElement, x = 0, y = 0) {
     tile.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: x, clientY: y }));
@@ -559,6 +583,54 @@ describe("TownGrid — long-press gesture (AC-M8/AC-M9)", () => {
     pointerUp(tile);
     tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onPlotTap).toHaveBeenCalledWith(GROUND_A);
+  });
+
+  // Gate-3-rerun fix — every expert's near-top finding: a long-press-then-
+  // continuous-drag-then-release used to do nothing at all, contradicting
+  // the highlighted droppable tiles' own affordance; committing required
+  // releasing first and then a SEPARATE discrete tap. `pointerUpAt` (the
+  // pinch suite's own helper, reused here) dispatches ON the drop tile,
+  // matching a real touch's hit-test once `onPointerDown` releases implicit
+  // pointer capture — see `useTileGestures.ts`'s own doc.
+  it("a long-press then a continuous drag-and-release onto a droppable tile commits the move immediately — no separate tap needed", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn(() => true); // grabbed something
+      const onPlotTap = vi.fn();
+      const container = mountGrid([building()], { onPlotLongPress, onPlotTap });
+      const from = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+      const to = container.querySelector(`[data-plot-index="${GROUND_B}"]`) as HTMLElement;
+
+      pointerDown(from, 0, 0);
+      vi.advanceTimersByTime(LONG_PRESS_MS); // long-press fires, grabs the building
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
+
+      // Continuous drag, still held, then release ON the destination tile,
+      // well past LONG_PRESS_TOLERANCE_PX from the start point — no
+      // intervening pointerup/click anywhere else.
+      to.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientX: 200, clientY: 0 }));
+      expect(onPlotTap).toHaveBeenCalledTimes(1);
+      expect(onPlotTap).toHaveBeenCalledWith(GROUND_B);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releasing in place (no real movement) after a long-press does NOT auto-commit — the original 'grab, lift, tap later' flow still works", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn(() => true);
+      const onPlotTap = vi.fn();
+      const container = mountGrid([building()], { onPlotLongPress, onPlotTap });
+      const tile = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+
+      pointerDown(tile, 0, 0);
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      pointerUp(tile); // released essentially where it started
+      expect(onPlotTap).not.toHaveBeenCalled(); // still in move mode, waiting for a later tap
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -653,6 +725,37 @@ describe("TownGrid — zoom-to-fit toggle (ADDENDUM-08 §7)", () => {
     expect(button.textContent).toBe("전체 보기");
     const grid = container.querySelector(".town-grid") as HTMLElement;
     expect(grid.style.transform).toBe("");
+  });
+
+  // Gate-3-rerun fix (ux-researcher/target-player TOP FIX): a fresh build
+  // used to only scroll-into-view at whatever zoom the player already had —
+  // at the default fit-to-screen zoom the new tile is a ~17px speck. A
+  // build now also zooms to native scale so the tile is actually legible.
+  it("a fresh justBuiltId zooms to native scale (전체 보기), even starting from the default fit-to-screen zoom", () => {
+    const b = building({ id: "fresh1" });
+    mountGrid([b], {}, { justBuiltId: null });
+    const toggle = () => mounted!.container.querySelector(".town-zoom-toggle") as HTMLButtonElement;
+    expect(toggle().getAttribute("aria-pressed")).toBe("true"); // starts zoomed-out (fit), as before
+
+    act(() => {
+      mounted!.root.render(
+        <TownGrid
+          buildings={[b]}
+          justBuiltId="fresh1"
+          savingsByCategoryKrw={undefined}
+          ladder={BALANCE.savingsTowerSegments}
+          ladderOverrides={{}}
+          expPerLevel={BALANCE.expPerLevel}
+          maxLevel={BALANCE.maxLevel}
+          justGrew={null}
+          onRiseSettled={() => {}}
+          npcCount={0}
+          {...NOOP_MOVE_PROPS}
+        />,
+      );
+    });
+    expect(toggle().getAttribute("aria-pressed")).toBe("false"); // zoomed to native scale
+    expect(toggle().textContent).toBe("전체 보기");
   });
 
   it(".town-zoom-toggle sits inside .town-viewport as a sibling of .town-grid, never a .town-grid child", () => {
@@ -873,6 +976,55 @@ describe("TownGrid — pinch zoom & pan (ADDENDUM-09 §3.2/§3.3)", () => {
     });
 
     expect(viewport.style.height).not.toBe(""); // must stay pinned — no reflow mid-pinch
+  });
+
+  // Gate-3-rerun investigation (every expert's E5/E2/E3, QA's own TOP FIX):
+  // a second, independent two-finger gesture (pinch or pan) after a prior
+  // one ended was reported inert (byte-identical transform) until the
+  // 전체 보기 toggle was tapped. Reproduced here across several session-
+  // boundary shapes (zoom-then-lift-then-pan, zoom-out-to-floor-then-pan,
+  // new pointer ids) — none leave the transform stuck; a real-browser CDP
+  // touch repro against a live dev server (Playwright, matching the app's
+  // actual gesture stack) also showed the second session's translate
+  // continuing to move. Kept as a standing regression guard for the
+  // specific mechanism this file's own code could plausibly get wrong
+  // (`pinchSampleRef`/`pinch` state not resetting between sessions).
+  it("a second, independent pinch/pan session after the first ends is NOT inert — transform keeps moving", () => {
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    // Session 1: pinch IN then back OUT to exactly fitScale, then lift —
+    // the specific shape most likely to leave `pinch.scale` pinned at the
+    // floor for the next session to inherit.
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+      pointerMoveAt(grid, 1, 0, 0); // baseline, distance 100
+    });
+    act(() => {
+      pointerMoveAt(grid, 1, -50, 0); // distance 150 -> zoom in
+    });
+    act(() => {
+      pointerMoveAt(grid, 1, 0, 0); // back to distance 100 -> exactly fitScale again
+    });
+    act(() => {
+      pointerUpAt(grid, 1);
+      pointerUpAt(grid, 2);
+    });
+
+    // Session 2: a SEPARATE two-finger gesture (new pointer ids) that zooms
+    // back in — must be free to move the transform again, not stuck at the
+    // floor session 1 ended on.
+    act(() => {
+      pointerDownAt(grid, 3, 0, 0);
+      pointerDownAt(grid, 4, 100, 0);
+      pointerMoveAt(grid, 3, 0, 0); // baseline for session 2
+    });
+    act(() => {
+      pointerMoveAt(grid, 3, -50, 0); // spread apart -> zoom in again
+    });
+    const afterSession2 = parseTransform(grid.style.transform);
+    expect(afterSession2.scale).toBeGreaterThan(1); // a fresh session CAN still zoom in — not pinned inert
   });
 });
 

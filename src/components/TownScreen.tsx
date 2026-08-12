@@ -9,11 +9,13 @@
  * fire regardless of which tab is showing; this component owns everything
  * S2/S4-specific.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Button, ConfirmDialog, useToast } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.approved";
-import { moodContentFor } from "../content.placeholder";
+import { CATEGORY_CONTENT, moodContentFor } from "../content.placeholder";
 import { formatSeeds } from "../economy/format";
+import { seeds as toSeedCount } from "../economy/types";
+import { BuildingDetailSheet } from "./BuildingDetailSheet";
 import { ChargeSheet } from "./ChargeSheet";
 import { EntrySheet } from "./EntrySheet";
 import { ShopFab, ShopSheet } from "./ShopSheet";
@@ -34,6 +36,15 @@ export interface TownScreenProps {
 // Stable reference so passing it during grow-pick mode doesn't defeat
 // `TownGrid`'s `React.memo` every render the way a fresh inline arrow would.
 const noopLongPress = () => false;
+
+// Gate-3-rerun fix — see `AddEntryResult.seedsGranted`'s doc. ADDENDUM-05 §6's
+// own "transient reward toast" surface, folded onto the existing build/
+// level-up toast rather than opening a third notification channel (the panel
+// already flagged toast/banner stacking as a defect — a new standalone seed
+// toast would only add to that pile).
+function seedSuffix(amount: number): string {
+  return amount > 0 ? ` (+${formatSeeds(toSeedCount(amount))})` : "";
+}
 
 export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -71,8 +82,22 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   // F16 — the monument detail popover's subject. Null closes the sheet
   // (`MonumentDetailSheet` mirrors `EntryDetailSheet`'s own contract).
   const [selectedMonumentId, setSelectedMonumentId] = useState<string | null>(null);
+  // Gate-3-rerun fix — same idea, ordinary (non-monument) buildings: null closes `BuildingDetailSheet`.
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const { openToast } = useToast();
   const move = useMoveMode(store.buildings, store.moveBuilding);
+
+  // Gate-3-rerun fix (near-unanimous finding): the persistent "건물을 길게
+  // 누르면 옮길 수 있어요" moveHint toast could still be showing when the
+  // move-mode/post-move banner (`.town-move-bar`, below) appears, stacking
+  // two bottom banners. The hint's whole job — teach the long-press gesture
+  // — is done the instant the player actually uses it, so dismiss it right
+  // then instead of leaving it to overlap the banner it just taught someone
+  // to trigger.
+  const { notice, dismissNotice } = store;
+  useEffect(() => {
+    if (move.movingId !== null && notice?.kind === "moveHint") dismissNotice();
+  }, [move.movingId, notice, dismissNotice]);
 
   function saveEntry(draft: EntryDraft, growTargetId?: string) {
     const result = store.addEntry(draft, growTargetId);
@@ -89,7 +114,18 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // ADDENDUM-04 §5/§8 — one-line level-up feedback on the same toast
       // channel as F14's notices above; no celebration system (§4's "what
       // was deliberately NOT built" applies to this feedback too).
-      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})`);
+      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted)}`);
+    } else if (result.building?.categoryId) {
+      // Gate-3-rerun fix (ux-researcher/target-player TOP FIX): the reward
+      // used to resolve as a silent speck somewhere in an already-dense map
+      // — `TownGrid`'s own `justBuiltId` effect now zooms/scrolls the camera
+      // to it (reusing ADDENDUM-09's zoom), and this toast names what just
+      // rose so the moment reads as "you built something", not "a header
+      // number changed". Design invariant 2 (spec §7): no KRW amount here —
+      // `seedSuffix` below is a game-currency count, not money, so it's a
+      // different axis from the invariant this note is guarding.
+      const content = CATEGORY_CONTENT[result.building.categoryId];
+      openToast(`${content.icon} ${content.label} 건물이 생겼어요${seedSuffix(result.seedsGranted)}`);
     }
   }
 
@@ -150,6 +186,11 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   // tap otherwise does nothing — `useMoveMode.onPlotTap`'s own doc) opens the
   // detail popover instead. Any other tap keeps going through move mode
   // exactly as before this task.
+  //
+  // Gate-3-rerun fix — every expert's top/near-top finding: a plain tap on
+  // an ORDINARY building was a total silent no-op (only long-press did
+  // anything). Widened the exact same branch to any occupied plot, not just
+  // monuments, reusing `BuildingDetailSheet` (mirrors `MonumentDetailSheet`).
   function handlePlotTap(plotIndex: number) {
     if (pickModeActive) {
       growPick.onPlotTap(plotIndex);
@@ -161,9 +202,31 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         setSelectedMonumentId(building.id);
         return;
       }
+      if (building) {
+        setSelectedBuildingId(building.id);
+        return;
+      }
     }
     move.onPlotTap(plotIndex);
   }
+
+  // Gate-3-rerun fix — the founding/growing entry for `selectedBuildingId`
+  // (amount + type, shown in the sheet's teaching line). Only `source.kind
+  // === "entry"` buildings have one; a building built in a past month needs
+  // that month loaded first (`getMonthEntries` returns `[]` for an unloaded
+  // one — same contract `HistoryScreen.tsx` already relies on).
+  const { ensureMonthLoaded, getMonthEntries } = store;
+  const selectedBuilding = store.buildings.find((b) => b.id === selectedBuildingId) ?? null;
+  const selectedBuildingYm = selectedBuilding !== null ? selectedBuilding.builtOn.slice(0, 7) : null;
+  // `useLayoutEffect`, same reasoning as `HistoryScreen.tsx`'s own
+  // `ensureMonthLoaded` call: `getMonthEntries` below reads DURING render, so
+  // a plain `useEffect` would paint one frame with `selectedEntry === null`
+  // (no amount line) before a past month's chunk loads in.
+  useLayoutEffect(() => {
+    if (selectedBuilding?.source.kind === "entry") ensureMonthLoaded(selectedBuildingYm!);
+  }, [selectedBuilding, selectedBuildingYm, ensureMonthLoaded]);
+  const selectedEntryId = selectedBuilding?.source.kind === "entry" ? selectedBuilding.source.entryId : null;
+  const selectedEntry = selectedEntryId ? (getMonthEntries(selectedBuildingYm!).find((e) => e.id === selectedEntryId) ?? null) : null;
 
   function handleClaimNoSpend() {
     const claimed = store.claimNoSpend();
@@ -174,10 +237,13 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     }
   }
 
-  // ADDENDUM-04 §3 — tier now reads the growth score (buildings.length +
-  // Σexp), not the raw building count. `TownHeader`'s `buildingCount` prop
-  // below is unchanged — it still wants the literal count.
-  const tier = computeTier(store.growthScore, BALANCE.tierThresholds);
+  // Gate-3-rerun fix (every expert's confirmed defect, QA's TOP FIX): tier
+  // now reads the SAME literal count `TownHeader`'s `buildingCount` prop
+  // shows below — there is exactly one number, so it cannot drift from what
+  // the tier-up banner (`TierCelebration`, fed `store.buildingCount` too)
+  // says either. See `entryActions.ts`'s `buildingCountBeforeThis` doc for
+  // why this used to be the growth score instead.
+  const tier = computeTier(store.buildingCount, BALANCE.tierThresholds);
 
   // F6 — town mood, reusing `budgetPace`/`moodTier` (selectors.ts) exactly as
   // 기록's pace bar already does, so the two never disagree. Continuous
@@ -346,6 +412,15 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         onClose={() => setSelectedMonumentId(null)}
       />
 
+      <BuildingDetailSheet
+        open={selectedBuildingId !== null}
+        building={selectedBuilding}
+        entry={selectedEntry}
+        expPerLevel={BALANCE.expPerLevel}
+        maxLevel={BALANCE.maxLevel}
+        onClose={() => setSelectedBuildingId(null)}
+      />
+
       {/* ADDENDUM-04 §4 — the choice dialog. Opens only after the entry
           sheet above has already closed (never nested inside it, see
           `handleSave`'s own comment). No "remember my choice" toggle — the
@@ -354,7 +429,14 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       <ConfirmDialog
         open={growDialogOpen}
         title="같은 종류 건물이 이미 있어요"
-        description="새로 지을까요, 기존 건물을 키울까요?"
+        // Gate-3-rerun fix (3 experts: game-designer/ux-researcher/target-
+        // player) — ADDENDUM-04 §5 already makes 키우기 spend a build slot
+        // exactly like founding (`entryActions.ts` — "growing consumes a
+        // slot ... exactly like building"), but this dialog never disclosed
+        // it, so a player choosing 키우기 to be tidy paid the same scarce
+        // resource as founding with no way to know. Behavior is unchanged;
+        // only the copy now says what both buttons already cost.
+        description="새로 지을까요, 기존 건물을 키울까요? 둘 다 건축 슬롯 1개를 써요."
         onClose={() => setGrowDraft(null)}
         cancelButton={<ConfirmDialog.CancelButton onClick={handleBuildNew}>새로 짓기</ConfirmDialog.CancelButton>}
         confirmButton={<ConfirmDialog.ConfirmButton onClick={handleGrow}>키우기</ConfirmDialog.ConfirmButton>}

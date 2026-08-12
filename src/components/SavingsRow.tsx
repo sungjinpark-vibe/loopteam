@@ -25,9 +25,9 @@
  * the structure falls back to its `idleAnim` loop instead of staying in
  * `.savings-plot--rise` forever.
  */
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { CATEGORY_CONTENT, SAVINGS_STRUCTURE } from "../content.placeholder";
-import { ladderFor, towerSegments } from "../selectors";
+import { ladderFor, progressToNextSegment, towerSegments } from "../selectors";
 import {
   SAVINGS_ROW_ORDER,
   districtLadderLength,
@@ -82,8 +82,15 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
     const content = SAVINGS_STRUCTURE[id];
     const category = CATEGORY_CONTENT[id];
     const ownLadder = ladderFor(id, ladder, ladderOverrides);
-    const level = towerSegments(savingsOf({ savingsByCategoryKrw }, id), ownLadder);
+    const cumulative = savingsOf({ savingsByCategoryKrw }, id);
+    const level = towerSegments(cumulative, ownLadder);
     const isEmpty = level === 0;
+    // Gate-3-rerun fix — every expert's #1 finding: a saving below the first
+    // rung showed nothing at all. The NEXT uncrossed pip fills proportionally
+    // to progress toward it, so ANY saving > 0 is visible immediately, not
+    // just once a full rung is crossed. Visual fill only, never a number —
+    // AC-F13-9 ("no 원/comma in the savings block") stays intact.
+    const nextPipProgress = progressToNextSegment(cumulative, ownLadder);
     const isRising = justGrew?.id === id;
     // §2.6 step 2 / round-1 finding C1 #3: the one-shot rise plays the
     // structure's OWN `riseAnim` (never the generic keyframe every kind used
@@ -149,9 +156,19 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
         </div>
         <div className="savings-structure-label">{category.label}</div>
         <div className="savings-structure-pips">
-          {ownLadder.map((_, i) => (
-            <span key={i} className={i < level ? "savings-pip savings-pip--on" : "savings-pip"} />
-          ))}
+          {ownLadder.map((_, i) => {
+            if (i < level) return <span key={i} className="savings-pip savings-pip--on" />;
+            if (i === level && nextPipProgress > 0) {
+              return (
+                <span
+                  key={i}
+                  className="savings-pip savings-pip--partial"
+                  style={{ "--savings-pip-fill": `${Math.round(nextPipProgress * 100)}%` } as CSSProperties}
+                />
+              );
+            }
+            return <span key={i} className="savings-pip" />;
+          })}
         </div>
       </div>
     );

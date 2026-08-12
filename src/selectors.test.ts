@@ -22,6 +22,7 @@ import {
   savingsByCategory,
   slotsRemainingToday,
   tier,
+  progressToNextSegment,
   towerSegments,
   unsettledPeriods,
 } from "./selectors";
@@ -218,6 +219,25 @@ describe("towerSegments", () => {
     expect(towerSegments(99_999, thresholds)).toBe(0);
     expect(towerSegments(100_000, thresholds)).toBe(1);
     expect(towerSegments(650_000, thresholds)).toBe(3);
+  });
+});
+
+// ── progressToNextSegment — Gate-3-rerun fix: a saving below the first rung
+// (e.g. 50,000/100,000) must read as visible partial progress, not 0/nothing. ──
+describe("progressToNextSegment", () => {
+  const thresholds = [100_000, 300_000, 600_000];
+  it("is a fraction toward the next uncrossed rung when nothing has been crossed yet", () => {
+    expect(progressToNextSegment(0, thresholds)).toBe(0);
+    expect(progressToNextSegment(50_000, thresholds)).toBeCloseTo(0.5); // the exact panel repro amount
+    expect(progressToNextSegment(99_999, thresholds)).toBeCloseTo(0.99999);
+  });
+  it("resets to 0 right at a crossed rung, then climbs toward the next one", () => {
+    expect(progressToNextSegment(100_000, thresholds)).toBe(0);
+    expect(progressToNextSegment(200_000, thresholds)).toBeCloseTo(0.5); // halfway from 100k to 300k
+  });
+  it("is 0 once every rung is already crossed — nothing left to fill toward", () => {
+    expect(progressToNextSegment(600_000, thresholds)).toBe(0);
+    expect(progressToNextSegment(10_000_000, thresholds)).toBe(0);
   });
 });
 

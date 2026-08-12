@@ -87,6 +87,15 @@ export function useTileGestures(
     let startX = 0;
     let startY = 0;
     let suppressNextClick = false;
+    // Gate-3-rerun fix (every expert's near-top finding): a long-press grabs
+    // a building, but a continuous hold-drag-release to a new spot used to do
+    // NOTHING — only a separate discrete tap AFTER releasing committed a
+    // move, contradicting the highlighted-droppable-tiles affordance move
+    // mode itself shows. `longPressFired` marks the pointer that just grabbed
+    // something; `onPointerEnd` below checks it to resolve a real drag-release
+    // as a drop, while a release with no meaningful movement (the ORIGINAL,
+    // still-supported "grab, lift, look, tap later" flow) is left alone.
+    let longPressFired = false;
 
     // ADDENDUM-09 §3.1 — live pointer tracking for gesture arbitration
     // (1-finger long-press/tap vs 2-finger pinch/pan). `pinchActive` is the
@@ -102,6 +111,7 @@ export function useTileGestures(
         pressTimer = null;
       }
       pressPointerId = null;
+      longPressFired = false;
     }
 
     function onPointerDown(e: PointerEvent) {
@@ -127,6 +137,23 @@ export function useTileGestures(
       pressPointerId = e.pointerId;
       startX = e.clientX;
       startY = e.clientY;
+      // Gate-3-rerun fix — a touch pointer implicitly captures to ITS
+      // pointerdown target (Pointer Events spec), so without releasing that
+      // capture, `e.target` on every later event for this pointer (including
+      // its eventual pointerup) stays pinned to THIS tile no matter where the
+      // finger actually ends up — the drag-release check in `onPointerEnd`
+      // below needs the real element under the finger at release time.
+      // Mouse pointers never implicitly capture, so this is a no-op for them;
+      // guarded because some environments (jsdom) don't implement the method.
+      if (e.target instanceof Element && typeof e.target.releasePointerCapture === "function") {
+        try {
+          e.target.releasePointerCapture(e.pointerId);
+        } catch {
+          // Not implemented in this environment — harmless, hit-testing via
+          // `e.target` simply won't reflect real movement there (tests
+          // dispatch pointerup directly on the intended drop element anyway).
+        }
+      }
       // Deliberately NOT preventDefault() — that would kill the town's
       // vertical scroll through a building (§4.3).
       pressTimer = setTimeout(() => {
@@ -137,7 +164,9 @@ export function useTileGestures(
         // still a press) — `onLongPress` there is a no-op and returns
         // `false`, so the click must fall through to `onTap` instead of
         // being eaten (round-2 finding C2 #1: was unconditional here).
-        suppressNextClick = latest.current.callbacks.onLongPress(plotIndex);
+        const grabbed = latest.current.callbacks.onLongPress(plotIndex);
+        suppressNextClick = grabbed;
+        longPressFired = grabbed; // arms the drag-release check in onPointerEnd
       }, LONG_PRESS_MS);
     }
 
@@ -175,7 +204,22 @@ export function useTileGestures(
         pinchActive = false;
         latest.current.callbacks.onPinchEnd?.();
       }
-      if (e.pointerId === pressPointerId) clearPress();
+      if (e.pointerId === pressPointerId) {
+        // Gate-3-rerun fix — a continuous hold-drag-release: only treat this
+        // as a drop when the pointer actually MOVED a meaningful distance
+        // after grabbing (same `LONG_PRESS_TOLERANCE_PX` used elsewhere to
+        // tell "held still" from "moved"). A release with no real movement
+        // is left alone — the original "grab, lift, look, tap later" flow
+        // still works exactly as before, unchanged.
+        if (longPressFired && Math.hypot(e.clientX - startX, e.clientY - startY) > LONG_PRESS_TOLERANCE_PX) {
+          // `e.target` here reflects the real element under the finger at
+          // release, now that `onPointerDown` released implicit pointer
+          // capture for this pointer.
+          const dropIndex = closestPlotIndex(e.target);
+          if (dropIndex !== null) latest.current.callbacks.onTap(dropIndex);
+        }
+        clearPress();
+      }
     }
 
     function onScrollOrBlur() {

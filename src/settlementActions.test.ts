@@ -50,7 +50,11 @@ function baseArgs(overrides: Partial<Parameters<typeof settleMonths>[0]> = {}): 
   return {
     town: freshTown({ lastSettledPeriod: "2026-04" }),
     today: "2026-08-01",
-    entriesForPeriod: () => [],
+    // Gate-3-rerun fix: a zero-entry month no longer mints a monument (see
+    // `settleMonths`'s own doc), so tests exercising monument mechanics
+    // (placement/footprint/order) need a non-empty default month — the
+    // dedicated zero-entry test below overrides this back to `[]`.
+    entriesForPeriod: () => [entry()],
     budgetKrw: 300_000,
     moodPaceThresholds,
     buildingIdFor: (i) => `mon${i}`,
@@ -170,13 +174,30 @@ describe("settleMonths — F16", () => {
     expect(second.town).toBe(first.town);
   });
 
-  it("a zero-entry month lands in the 'no data' bucket (0) without crashing", () => {
+  // Gate-3-rerun fix — a month with literally zero activity mints no
+  // monument at all (the top reward tile stays reserved for a month the
+  // player actually lived), but still settles so it's never retried forever.
+  it("a zero-entry month settles with NO monument — never mints one for a month with nothing in it", () => {
     const town = freshTown({ lastSettledPeriod: "2026-06" });
     const result = settleMonths(baseArgs({ town, today: "2026-08-01", entriesForPeriod: () => [] }));
-    expect(result.monuments).toHaveLength(1);
-    expect(result.monuments[0].variantIndex).toBe(0);
-    expect(result.monuments[0].monumentSummary?.outcomeBucket).toBe(0);
-    expect(result.monuments[0].monumentSummary?.daysLogged).toBe(0);
+    expect(result.monuments).toEqual([]);
+    expect(result.town.lastSettledPeriod).toBe("2026-07"); // still advances — not stuck retrying
+  });
+
+  it("an empty month between two active ones settles without a monument, without blocking the active month after it", () => {
+    const town = freshTown({ lastSettledPeriod: "2026-04" }); // unsettled: 05 (active), 06 (empty), 07 (active)
+    const result = settleMonths(
+      baseArgs({
+        town,
+        today: "2026-08-01",
+        entriesForPeriod: (period) => (period === "2026-06" ? [] : [entry({ occurredOn: `${period}-10` })]),
+      }),
+    );
+    expect(result.monuments.map((b) => b.source)).toEqual([
+      { kind: "monument", period: "2026-05" },
+      { kind: "monument", period: "2026-07" },
+    ]);
+    expect(result.town.lastSettledPeriod).toBe("2026-07"); // 06 still settled, just no plot
   });
 
   it("budgetKrw === null lands in the 'no data' bucket without dividing by zero, even with entries", () => {

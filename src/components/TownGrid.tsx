@@ -598,7 +598,15 @@ function TownGridImpl({
             className={`town-tile${stateClasses}`}
             style={{ gridColumn: `${col + 1} / span ${w}`, gridRow: `${row + 1} / span ${h}` }}
             role="button"
-            aria-label="건물, 길게 눌러 옮기기"
+            // Gate-3-rerun fix (QA lead E4): monuments used to share this
+            // exact label with ordinary buildings, so a screen-reader user
+            // had no way to tell a month's F16 monument apart from a regular
+            // building — sighted users get the distinct obelisk art instead.
+            aria-label={
+              covering.source.kind === "monument"
+                ? "기념비, 눌러서 정보 보기, 길게 눌러 옮기기"
+                : "건물, 눌러서 정보 보기, 길게 눌러 옮기기"
+            }
             aria-selected={isMoving ? ("true" as const) : undefined}
           >
             <PlaceholderBuilding
@@ -674,10 +682,25 @@ function TownGridImpl({
   });
 
   // F3: "New buildings animate in; the view auto-scrolls to the newest."
+  //
+  // Gate-3-rerun fix (ux-researcher/target-player TOP FIX, reusing
+  // ADDENDUM-09's zoom rather than touching the map's approved visual
+  // design): scroll alone wasn't enough — at the default fit-to-screen zoom
+  // a new tile is still a ~17px speck indistinguishable from the town's
+  // hundreds of decorative props, so the "watch it grow" moment never read
+  // as anything happening. Zooming to native scale on a fresh build makes
+  // the SAME pop/rise animation `PlaceholderBuilding` already plays actually
+  // legible. Two effects, not one: the scroll target's on-screen position
+  // depends on `zoomedOut`'s own layout (`fit`/transform), which only
+  // commits to the DOM after this state flip's re-render — scrolling in the
+  // same tick would still measure the pre-zoom position.
+  useEffect(() => {
+    if (justBuiltId !== null) setZoomedOut(false);
+  }, [justBuiltId]);
   useEffect(() => {
     if (justBuiltId === null) return;
     newestTileRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [justBuiltId]);
+  }, [justBuiltId, zoomedOut]);
 
   // Inline viewport height is a fit-to-screen concern only (§7). A pinch
   // always sets `zoomedOut` false in the same update as `pinch` becomes

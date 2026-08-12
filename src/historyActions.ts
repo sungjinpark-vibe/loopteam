@@ -22,7 +22,7 @@
  *    to the tower instead.
  */
 import { adjustSavings, decideBuildOrQueue } from "./entryActions";
-import { expGainFor, expOf, growthScore } from "./selectors";
+import { expGainFor, expOf } from "./selectors";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
 /** Locates the building this entry produced, if any — the one place both delete and edit look this up (round-4 finding C3: was copy-pasted twice in `useTownStore.ts`). */
@@ -180,8 +180,11 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     // Amount/memo/date edits never move the building (spec); a category
     // change re-skins it in place, keeping the same plot. ADDENDUM-04 §6/§7:
     // an amount change on a FOUNDING entry re-derives its building's founding
-    // exp component (`gain - 1`, the same formula `decideBuildOrQueue` used
-    // to create it), leaving any contributor exp already on it untouched. A
+    // exp component (the delta between the new and old amount's `expGainFor`,
+    // applied on top of whatever exp is already there — never re-derives the
+    // full founding formula from scratch, so this stays correct regardless
+    // of how `decideBuildOrQueue` computes a fresh founding exp), leaving any
+    // contributor exp already on it untouched. A
     // grow-CONTRIBUTION entry has no building of its own — its amount edit
     // backs the old gain out of the host and adds the new one instead (the
     // delete/저축-conversion cases below already do this; this was the one
@@ -240,7 +243,7 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     town = adjustSavings(town, oldEntry.categoryId, -oldEntry.amountKrw);
     const decision = decideBuildOrQueue({
       town,
-      growthScoreBeforeThis: growthScore(buildings),
+      buildingCountBeforeThis: buildings.length,
       today,
       dailyBuildSlots,
       materialQueueMax,

@@ -216,13 +216,14 @@ describe("editEntryEffects — F9, type changed (round-4 finding C1)", () => {
   // ADDENDUM-04 §3/§7 — a 저축 -> 지출/수입 conversion founds exactly like a
   // fresh F1 save, through the same shared `decideBuildOrQueue`, so it gets
   // the same amount-driven founding exp (root-cause fix, not special-cased).
-  it("저축 -> 지출 with a tiered amount founds the building with exp = gain - 1 (§3 parity)", () => {
+  it("저축 -> 지출 with a tiered amount founds the building with exp = gain (§3 parity)", () => {
     const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 60_000, buildingId: null });
     const town = freshTown({ cumulativeSavingsKrw: 60_000, savingsByCategoryKrw: { goal: 60_000 }, slotsUsedOn: "2026-08-15", slotsUsedToday: 1 });
     const result = editEntryEffects(
       editArgs({ town, buildings: [], entry: savingEntry, patch: { type: "expense", categoryId: "food" }, expAmountTiers: tieredExpAmountTiers }),
     );
-    expect(result.newBuilding?.exp).toBe(2); // gain 3 (60_000 falls in the [50_000, 200_000) tier) - 1
+    // Gate-3-rerun fix: founding exp is the full gain, not `gain - 1`.
+    expect(result.newBuilding?.exp).toBe(3); // gain 3 (60_000 falls in the [50_000, 200_000) tier)
   });
 
   it("저축 -> 지출 with no slots remaining queues the material instead (F14)", () => {

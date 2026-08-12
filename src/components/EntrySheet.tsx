@@ -62,6 +62,15 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
     latestRef.current = { onClose, today };
   });
 
+  // Gate-3-rerun fix (E5, every expert): concurrent/rapid taps on 저장 each
+  // independently ran `handleSave` -> `onSave` before React had a chance to
+  // re-render (`sheetOpen`'s `false` from the caller is batched, not
+  // synchronous), so 5 near-simultaneous clicks produced 5 entries + 5
+  // buildings. A ref (synchronous, not batched) flips on the FIRST accepted
+  // save and short-circuits every later call in this open session; the
+  // open-reset effect above clears it the next time the sheet actually opens.
+  const savedRef = useRef(false);
+
   // Reset the form on the open transition (false -> true) only — NOT keyed
   // on `today`. `today` is recomputed from clock.today() on every store
   // render, so keying this effect on it would silently wipe an in-progress
@@ -78,6 +87,7 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
     setDate(latestRef.current.today);
     setMemo("");
     setConfirmOpen(false);
+    savedRef.current = false;
   }, [open]);
 
   const amountKrw = Number(amountDigits || "0");
@@ -102,6 +112,8 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
 
   function handleSave() {
     if (!canSave || categoryId === null) return;
+    if (savedRef.current) return; // in-flight/already-submitted guard — see savedRef doc above
+    savedRef.current = true;
     onSave({ type, amountKrw, categoryId, occurredOn: date, memo: memo.trim() || undefined });
   }
 
@@ -123,6 +135,19 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
 
   useBackGuard(open, touched, dismiss);
 
+  // Gate-3-rerun fix — desktop/browser Escape is a separate input path from
+  // Android's hardware back (`useBackGuard` above only listens for
+  // `popstate`); QA's own repro named it explicitly. Same `dismiss()` gate,
+  // so a touched form still confirms instead of silently discarding.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") dismiss(touched);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, touched]);
+
   // Vendor bug workaround (see hook doc) — cancelling the nested
   // ConfirmDialog above (close-with-unsaved-changes) otherwise leaves this
   // sheet's own backdrop tap dead.
@@ -135,9 +160,29 @@ export function EntrySheet({ open, today, onClose, onSave }: EntrySheetProps) {
         onDimmerClick={() => dismiss(touched)}
         hasTextField
         maxHeight="92vh"
-        header={<div className="entry-sheet-title">거래 입력</div>}
+        header={
+          <div className="entry-sheet-header">
+            <div className="entry-sheet-title">거래 입력</div>
+            {/*
+              Gate-3-rerun fix (near-unanimous finding): the only dismiss
+              target used to be a ~50px backdrop sliver below a 92vh sheet
+              (kept at 92vh — round-5's own fix for the sheet not fitting
+              390x844 otherwise) plus Android hardware back (`useBackGuard`,
+              no Escape listener). An explicit, always-reachable close button
+              routes through the exact same `dismiss()` — same touched/
+              confirm gate as the backdrop tap and back button.
+            */}
+            {/* Distinct label from the vendor BottomSheet's own dimmer
+                (`aria-label="닫기"`, asserted unique by EntrySheet.test.tsx's
+                `sheetDimmer()`) — this is a second, additional dismiss
+                target, not a replacement for it. */}
+            <button type="button" className="entry-sheet-close" aria-label="거래 입력 닫기" onClick={() => dismiss(touched)}>
+              ×
+            </button>
+          </div>
+        }
         cta={
-          <Button as="button" display="block" size="xlarge" disabled={!canSave} onClick={handleSave}>
+          <Button as="button" display="block" size="xlarge" disabled={!canSave || savedRef.current} onClick={handleSave}>
             저장
           </Button>
         }

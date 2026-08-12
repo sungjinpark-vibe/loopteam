@@ -22,15 +22,20 @@ describe("BALANCE approved", () => {
   });
 
   // ADDENDUM-04 §7/§8 — director-confirmed 2026-08-09: Option 3 (all entry
-  // types scale with amount), expPerLevel/maxLevel confirmed as PM-proposed.
+  // types scale with amount), expPerLevel/maxLevel confirmed as PM-proposed
+  // (both untouched by the Gate-3-rerun retune below).
   it("has the director-confirmed ADDENDUM-04 building-EXP dials", () => {
     expect(BALANCE.expPerLevel).toBe(3);
     expect(BALANCE.maxLevel).toBe(5);
+    // Gate-3-rerun retune (2026-08-12) — see `balance.approved.ts`'s own doc:
+    // the old bands left every realistic spend under ~50,000원 rendering as
+    // an identical Lv.1 (the panel's #1/TOP FIX finding, every expert).
     expect(BALANCE.expAmountTiers).toEqual([
-      [10_000, 1],
-      [50_000, 2],
-      [200_000, 3],
-      [Infinity, 5],
+      [5_000, 0],
+      [20_000, 3],
+      [50_000, 6],
+      [150_000, 9],
+      [Infinity, 12],
     ]);
   });
 });

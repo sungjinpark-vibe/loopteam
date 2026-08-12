@@ -99,6 +99,19 @@ describe("SavingsRow (ADDENDUM-01 §2.4a/§3.4 item 4)", () => {
     expect(otherPlot.classList.contains("savings-plot--empty")).toBe(true);
   });
 
+  // Gate-3-rerun fix — the panel's exact repro: 50,000원 against a 100,000
+  // first rung previously rendered byte-identical to an untouched 0원 lot.
+  it("a saving below the first rung (the panel's 50,000/100,000 repro) fills the next pip partially, not zero", () => {
+    const container = mount({ savingsByCategoryKrw: { deposit: 50_000 }, ladder: [100_000, 300_000] });
+    const plot = container.querySelector('[data-structure-id="deposit"]') as HTMLElement;
+    const partial = plot.querySelector(".savings-pip--partial") as HTMLElement;
+    expect(partial).not.toBeNull();
+    expect(partial.style.getPropertyValue("--savings-pip-fill")).toBe("50%");
+    // Still no on-pip yet (rung not crossed) and still no digits anywhere (AC-F13-9).
+    expect(plot.querySelectorAll(".savings-pip--on").length).toBe(0);
+    expect(plot.textContent ?? "").not.toMatch(/원|₩|\d{1,3}(,\d{3})+/);
+  });
+
   it("AC-F13-10(c): exactly one plot carries .savings-plot--rise, matching justGrew.id", () => {
     const container = mount({ justGrew: { id: "goal", seq: 1 } });
     const risen = container.querySelectorAll(".savings-plot--rise");

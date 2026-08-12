@@ -238,6 +238,27 @@ export function towerSegments(cumulativeSavingsKrw: number, savingsTowerSegments
   return savingsTowerSegments.filter((threshold) => threshold <= cumulativeSavingsKrw).length;
 }
 
+/**
+ * Gate-3-rerun fix (게임디자이너/UX리서처/라이브옵스PD/QA/타깃플레이어, all E1 top
+ * finding): a saving below the FIRST rung of `ladder` (100,000원 by default)
+ * previously produced zero visible change anywhere — same pips, same empty
+ * lot, screenshots read as identical. This is the partial-progress fraction
+ * [0, 1) toward the next un-crossed rung, purely a rendering input (no new
+ * amount is exposed — `SavingsRow` turns this into a CSS fill width, never
+ * text, so invariant 2 / AC-F13-9 "no 원 in the savings block" still holds).
+ * `0` once every rung is already crossed (`towerSegments` maxed) — nothing
+ * left to fill toward.
+ */
+export function progressToNextSegment(cumulativeSavingsKrw: number, ladder: readonly number[]): number {
+  const level = towerSegments(cumulativeSavingsKrw, ladder);
+  if (level >= ladder.length) return 0;
+  const prevThreshold = level === 0 ? 0 : ladder[level - 1];
+  const nextThreshold = ladder[level];
+  if (nextThreshold <= prevThreshold) return 0; // guard a malformed/flat ladder — never divide by <=0
+  const fraction = (cumulativeSavingsKrw - prevThreshold) / (nextThreshold - prevThreshold);
+  return Math.max(0, Math.min(1, fraction));
+}
+
 export function canClaimNoSpend(
   entries: readonly LedgerEntry[],
   town: Pick<TownState, "slotsUsedOn" | "slotsUsedToday" | "noSpendDays">,

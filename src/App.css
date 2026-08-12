@@ -628,9 +628,19 @@ button.town-fab {
   text-align: center;
 }
 .savings-structure-hint {
-  font-size: 10px;
+  /* Gate-3-rerun fix — every expert's #1 cold-start finding, "아직 비어있어요"
+     clipped mid-glyph and overflowing onto the row below. Round-7's fix
+     (above, `.savings-structure-label`) already solved this exact failure
+     mode for the structure NAME, but never got applied here, to the empty-
+     state HINT text right below it — same fixed-height row, same unbreakable
+     Hangul run, same missing containment. Same treatment, same reasoning. */
+  font-size: 9px;
   text-align: center;
   color: var(--town-grey600);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .savings-structure-label {
   /* Round-7 finding: at the previous 11px, `min-width: 0` (below) shrinks
@@ -675,6 +685,15 @@ button.town-fab {
 }
 .savings-pip--on {
   background: var(--town-blue500);
+}
+/* Gate-3-rerun fix — a saving below the next rung fills this pip
+   proportionally (`--savings-pip-fill`, set inline per structure) instead of
+   staying visually identical to an untouched empty pip. Radial, not a
+   left-to-right bar, so it reads as "filling up" rather than a progress bar
+   borrowed from elsewhere; a plain background-color swap (no digits, no
+   원/₩) so AC-F13-9 still holds. */
+.savings-pip--partial {
+  background: radial-gradient(circle, var(--town-blue500) var(--savings-pip-fill, 0%), rgba(0, 0, 0, 0.12) var(--savings-pip-fill, 0%));
 }
 /* One shape per StructureKind (§2.3) — placeholder paint so the five
  * structures read as distinct even before real art (D-22). */
@@ -855,10 +874,28 @@ button.town-fab {
  * ConfirmDialog) and carry their own styling — only the amount display below
  * is bespoke, since TDS has no generic "big number readout" component. */
 
+.entry-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .entry-sheet-title {
   font-size: 17px;
   font-weight: 700;
   padding: 4px 0 8px;
+}
+
+/* Gate-3-rerun fix — always-reachable dismiss target next to the title. */
+.entry-sheet-close {
+  border: none;
+  background: none;
+  color: var(--town-grey600);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .entry-sheet-body {
@@ -1379,7 +1416,12 @@ button.town-fab {
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: calc(var(--tab-bar-h) + 88px);
+  /* Gate-3-rerun fix (near-every expert, e.g. shot 19): at +88px this banner's
+     own height (~40-50px) overlapped `.town-zoom-toggle`'s top edge (bottom
+     72px + ~32px tall = ~104px from viewport bottom) — a higher z-index
+     banner sitting on top of, and partly hiding, the 전체 보기 pill. Cleared
+     above the whole FAB/zoom-toggle stack instead of guessing a narrower gap. */
+  bottom: calc(var(--tab-bar-h) + 24px + 48px + 48px);
   z-index: 15;
   display: flex;
   align-items: center;

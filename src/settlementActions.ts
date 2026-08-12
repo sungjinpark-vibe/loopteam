@@ -100,41 +100,59 @@ export function settleMonths(args: SettleMonthsArgs): SettleMonthsResult {
   const periods = unsettledPeriods(town.lastSettledPeriod, today);
   if (periods.length === 0) return { town, monuments: [] };
 
-  const drawnPlacements = placeMany(periods.length);
-  // Fewer placements than months means the town is full — settle only the
-  // months that actually got a lot; the rest stay unsettled and retry next call.
-  const settledPeriods = periods.slice(0, drawnPlacements.length);
-  if (settledPeriods.length === 0) return { town, monuments: [] };
+  const summaries = periods.map((period) => monthSummaryFor(period, entriesForPeriod(period), budgetKrw, today, moodPaceThresholds));
+
+  // Gate-3-rerun fix (liveops-pd/game-designer/target-player E1): a month
+  // with zero logged activity (`daysLogged === 0` — true iff `entries` was
+  // empty, `monthSummaryFor`'s own contract) earns no monument. The top
+  // reward tile stays reserved for a month the player actually lived; an
+  // identical grey monument for "기록 없음" devalued every earned one. Such a
+  // month still SETTLES (never retried forever, never blocks a later month
+  // from settling on the same call) — it just claims no plot.
+  const monumentPeriods = periods.filter((_, i) => summaries[i].daysLogged > 0);
+  const drawnPlacements = placeMany(monumentPeriods.length);
+  // Fewer placements than monument-worthy months means the town is full —
+  // seat only the ones that got a plot, oldest first.
+  const seatedMonumentPeriods = new Set(monumentPeriods.slice(0, drawnPlacements.length));
 
   // ON: re-sort the same drawn set ascending (by anchor) so periods (already
   // oldest-first) land in ascending plot order — chronological order visible
   // on the grid.
   const placements = chronologicalPlots ? [...drawnPlacements].sort((a, b) => a.anchor - b.anchor) : drawnPlacements;
-  const monuments = settledPeriods.map((period, i) => {
-    const monumentSummary = monthSummaryFor(period, entriesForPeriod(period), budgetKrw, today, moodPaceThresholds);
-    const building: Building = {
-      id: buildingIdFor(i),
+
+  let lastSettledPeriod = town.lastSettledPeriod;
+  const monuments: Building[] = [];
+  let placementIdx = 0;
+  for (let i = 0; i < periods.length; i++) {
+    const period = periods[i];
+    if (summaries[i].daysLogged === 0) {
+      lastSettledPeriod = period; // empty month — settles, no plot needed
+      continue;
+    }
+    // A room-limited active month (and everything after it) stays unsettled
+    // — same "fewer placements than months, rest retry next call" contract
+    // as before, just gated on monument-worthy months instead of every month.
+    if (!seatedMonumentPeriods.has(period)) break;
+    const placed = placements[placementIdx++];
+    monuments.push({
+      id: buildingIdFor(monuments.length),
       source: { kind: "monument", period },
       categoryId: null,
-      variantIndex: monumentSummary.outcomeBucket,
-      plotIndex: placements[i].anchor,
+      variantIndex: summaries[i].outcomeBucket,
+      plotIndex: placed.anchor,
       // ADDENDUM-08 §2.2: stored EXACTLY what was reserved (`placeMonument`
       // tries 2x2, downgrades only when the town is full) — never overridden
       // here. A stored footprint bigger than the reservation would leave
       // cells unclaimed for the next building to overlap into.
-      w: placements[i].w,
-      h: placements[i].h,
+      w: placed.w,
+      h: placed.h,
       builtOn: today,
       createdAt,
-      monumentSummary,
-    };
-    return building;
-  });
+      monumentSummary: summaries[i],
+    });
+    lastSettledPeriod = period;
+  }
+  if (lastSettledPeriod === town.lastSettledPeriod) return { town, monuments: [] };
 
-  const newTown: TownState = {
-    ...town,
-    lastSettledPeriod: settledPeriods[settledPeriods.length - 1],
-  };
-
-  return { town: newTown, monuments };
+  return { town: { ...town, lastSettledPeriod }, monuments };
 }

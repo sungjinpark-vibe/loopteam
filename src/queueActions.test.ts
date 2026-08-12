@@ -151,13 +151,14 @@ describe("drainQueue — F14", () => {
       [Infinity, 5],
     ];
 
-    it("a material queued WITH amountKrw founds with the matching gain (exp = gain - 1)", () => {
+    it("a material queued WITH amountKrw founds with the matching gain (exp = gain)", () => {
       const queue: QueuedMaterial[] = [
         { entryId: "q1", categoryId: "food", variantIndex: 0, amountKrw: 250_000, queuedOn: "2026-08-01", entryYm: "2026-08" },
       ];
       const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, queue });
       const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5), expAmountTiers);
-      expect(result.drained[0].building.exp).toBe(4); // gain 5 (>= 200,000 tier) - 1
+      // Gate-3-rerun fix: founding exp is the full gain, not `gain - 1`.
+      expect(result.drained[0].building.exp).toBe(5); // gain 5 (>= 200,000 tier)
     });
 
     it("a small-amount material (gain 1) omits `exp` entirely — byte-identical to today's shape", () => {

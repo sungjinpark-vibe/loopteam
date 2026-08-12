@@ -109,6 +109,18 @@ export interface AddEntryResult {
    * not a `setState` updater — its state commit hasn't re-rendered yet).
    */
   queueLength: number;
+  /**
+   * Gate-3-rerun fix (E1, near-every expert: "the 씨앗 economy has no
+   * verified earn path"). Seeds WERE already being granted here via
+   * `grantSeeds` (build + tier awards) — ADDENDUM-05 §6 F-ECON — but nothing
+   * ever surfaced the grant to the player; the balance only ever appeared
+   * inside `ShopSheet`, which nobody opens on the turn a grant happens. Total
+   * seeds actually paid out by THIS save (0 when nothing was granted, e.g. a
+   * grow or a duplicate-tier no-op), so the caller can fold it into the
+   * existing build/level-up toast — ADDENDUM-05 §6's own "transient reward
+   * toast" surface, not a new competing one.
+   */
+  seedsGranted: number;
 }
 
 // F9's edit-patch shape (now including `type`, round-4 finding C1) lives in
@@ -285,10 +297,11 @@ async function settleAndDrainAndPersist(
 
   const result = drainQueue(
     settled.town,
-    // ADDENDUM-04 §3: the true growth score (not a raw count) — otherwise a
-    // town with any grown building (or a monument just minted above) would
-    // undercount its tier check here.
-    computeGrowthScore(buildingsWithMonuments),
+    // Gate-3-rerun fix: the literal count (monuments minted above already
+    // included) — the tier gate must use the same number `TownHeader`
+    // displays, not the growth score (see `entryActions.ts`'s
+    // `BuildOrQueueArgs.buildingCountBeforeThis` doc for the full story).
+    countBuildings(buildingsWithMonuments),
     today,
     BALANCE.dailyBuildSlots,
     BALANCE.tierThresholds,
@@ -477,15 +490,31 @@ export function useTownStore() {
     });
   }, [state, todayYm]);
 
-  // `bootPromiseRef` caches the in-flight `loadBoot()` call itself across
-  // StrictMode's dev-only mount -> cleanup -> remount — see T003's original
-  // note on why a second real call would be unsafe.
-  const bootPromiseRef = useRef<ReturnType<(typeof storageRef)["current"]["loadBoot"]> | null>(null);
+  // Gate-3-rerun fix (root cause of the F16 "settlement notice never fires"
+  // finding, every expert's E2): `bootPromiseRef` used to cache only the
+  // `loadBoot()` CALL — every real side effect downstream of it (the F16
+  // settle + F14 drain + their storage writes + the notices they produce)
+  // lived in the `.then()` callback, which is re-attached fresh on EVERY
+  // effect invocation. Under `<StrictMode>`'s dev mount->cleanup->remount,
+  // the SAME `loadBoot()` promise ends up with two `.then()` subscribers —
+  // ordinarily harmless (the first sees `cancelled` and bails), but any
+  // interleaving where BOTH subscribers reach `settleAndDrainAndPersist`
+  // before either's `cancelled` flag is checked runs the settle/drain twice
+  // against the same stale `boot.core`/`reconciled.buildings` snapshot: two
+  // independent monument-minting persists racing each other, and only
+  // whichever `.then()` happens to lose the "is this the current effect"
+  // race never gets to `pushNotices` — so the monuments (a storage write)
+  // land while the one-time notice (a `setState` in a callback that bailed)
+  // does not. Caching the WHOLE settle-and-compute chain, not just the
+  // fetch, guarantees `settleAndDrainAndPersist` (and everything after it)
+  // runs exactly once per component instance no matter how many effect
+  // invocations attach a `.then()` — `cancelled` now only gates whether
+  // THIS invocation applies the (single, shared) result to React state.
+  const bootProcessedRef = useRef<Promise<{ state: LoadedState; notices: Notice[] }> | null>(null);
   useEffect(() => {
     let cancelled = false;
-    bootPromiseRef.current ??= storageRef.current.loadBoot();
-    void bootPromiseRef.current.then(async (boot) => {
-      if (cancelled) return;
+    bootProcessedRef.current ??= (async (): Promise<{ state: LoadedState; notices: Notice[] }> => {
+      const boot = await storageRef.current.loadBoot();
       const today = clock.today();
       const core = boot.core ?? freshCore(clock.now(), today);
       const storageClient = storageRef.current;
@@ -534,8 +563,6 @@ export function useTownStore() {
         today,
         clock.now(),
       );
-      if (cancelled) return;
-      entriesYmRef.current = today.slice(0, 7);
       const { entries: currentMonthEntries } = storageClient.loadEntriesForMonth(today.slice(0, 7));
 
       // ADDENDUM-05 (F-ECON) — grant seeds for whatever this boot's
@@ -560,15 +587,6 @@ export function useTownStore() {
       if (settleDrain.celebrateTier !== null) economy = applyAward(economy, awardFor({ kind: "tier", tier: settleDrain.celebrateTier }));
       if (economy !== bootEconomySeed) storageClient.saveEconomy(economy);
 
-      setState({
-        town: settleDrain.town,
-        buildings: settleDrain.buildings,
-        entries: currentMonthEntries,
-        historyEntries: {},
-        budget: core.budget,
-        onboarded: core.onboarded,
-        economy,
-      });
       const bootNotices: Notice[] = [];
       if (boot.corrupted.length > 0) bootNotices.push({ kind: "corruption", message: summarizeCorruption(boot.corrupted.length) });
       if (settleDrain.drainedCount > 0) bootNotices.push({ kind: "drained", count: settleDrain.drainedCount });
@@ -579,7 +597,25 @@ export function useTownStore() {
       // one 지난달 결산 card).
       const latestMonument = settleDrain.monuments[settleDrain.monuments.length - 1];
       if (latestMonument?.monumentSummary) bootNotices.push({ kind: "settlement", summary: latestMonument.monumentSummary });
-      pushNotices(...bootNotices);
+
+      return {
+        state: {
+          town: settleDrain.town,
+          buildings: settleDrain.buildings,
+          entries: currentMonthEntries,
+          historyEntries: {},
+          budget: core.budget,
+          onboarded: core.onboarded,
+          economy,
+        },
+        notices: bootNotices,
+      };
+    })();
+    void bootProcessedRef.current.then(({ state: bootState, notices }) => {
+      if (cancelled) return;
+      entriesYmRef.current = clock.today().slice(0, 7);
+      setState(bootState);
+      pushNotices(...notices);
       // ADDENDUM-02 §4.5 is a STATE condition ("once the town has >= 2
       // buildings and the hint has not been seen, the town screen shows a
       // one-shot hint"), not a build-action event — so it must also be
@@ -589,7 +625,7 @@ export function useTownStore() {
       // action (round-2 finding C1 #1). `maybeQueueMoveHint`'s own queue-order
       // guard (skip if the notice queue is already non-empty) means this
       // never races the boot notices just pushed above.
-      maybeQueueMoveHint(settleDrain.town, countBuildings(settleDrain.buildings));
+      maybeQueueMoveHint(bootState.town, countBuildings(bootState.buildings));
     });
     return () => {
       cancelled = true;
@@ -673,7 +709,7 @@ export function useTownStore() {
   // and awaited (via the UI) before the next call.
   const addEntry = useCallback((draft: EntryDraft, growTargetId?: string): AddEntryResult => {
     const prev = stateRef.current;
-    if (prev === null) return { building: null, grew: null, queued: false, queueOverflow: false, queueLength: 0 };
+    if (prev === null) return { building: null, grew: null, queued: false, queueOverflow: false, queueLength: 0, seedsGranted: 0 };
 
     const today = clock.today();
     const now = clock.now();
@@ -762,13 +798,19 @@ export function useTownStore() {
     const next: LoadedState = { ...prev, town: result.town, buildings, entries };
     stateRef.current = next;
     setState(next);
+    // Gate-3-rerun fix — see `AddEntryResult.seedsGranted`'s doc: sums
+    // whatever `grantSeeds` actually paid (0 on an idempotent no-op) instead
+    // of discarding its result, so the caller can show it.
+    let seedsGranted = 0;
     if (result.building) {
       setJustBuiltId(result.building.id);
-      grantSeeds({ kind: "build", buildingId: result.building.id }); // ADDENDUM-05 — entry-sourced build, § F-ECON table row 1
+      const award = { kind: "build", buildingId: result.building.id } as const; // ADDENDUM-05 — entry-sourced build, § F-ECON table row 1
+      if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
     }
     if (result.celebrateTier !== null) {
       pushNotices({ kind: "tier", tier: result.celebrateTier });
-      grantSeeds({ kind: "tier", tier: result.celebrateTier }); // ADDENDUM-05 — § F-ECON table row 3
+      const award = { kind: "tier", tier: result.celebrateTier } as const; // ADDENDUM-05 — § F-ECON table row 3
+      if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
     }
     // ADDENDUM-01 §2.6a — detect a savings level-up by comparing the town
     // BEFORE/AFTER this save (both already in hand: `prev.town`/`result.town`).
@@ -788,6 +830,7 @@ export function useTownStore() {
       queued: result.queuedMaterial !== null,
       queueOverflow: result.queueOverflow,
       queueLength: result.town.queue.length,
+      seedsGranted,
     };
   }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
 
@@ -806,9 +849,9 @@ export function useTownStore() {
 
     const result = claimNoSpendDay({
       town: prev.town,
-      // ADDENDUM-04 §3: the true growth score, not a raw count — see
-      // `settleAndDrainAndPersist`'s identical fix above.
-      existingBuildingCount: computeGrowthScore(prev.buildings),
+      // Gate-3-rerun fix: literal count, matching the tier gate everywhere
+      // else now (see `entryActions.ts`'s `buildingCountBeforeThis` doc).
+      existingBuildingCount: countBuildings(prev.buildings),
       entries: prev.entries,
       today,
       dailyBuildSlots: BALANCE.dailyBuildSlots,
