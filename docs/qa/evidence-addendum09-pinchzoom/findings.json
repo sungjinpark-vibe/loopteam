@@ -1,0 +1,195 @@
+{
+  "a_initial": {
+    "pass": true,
+    "transform": {
+      "raw": "grid-template-columns: minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr); grid-template-rows: 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px; --town-gap: 6px; --town-grid-pad-x: 16px; --district-row-gap: 6px; --pip-size: 5px; --pip-gap: 3px; --pip-row-gap: 4px; --terrace-earth-h: 20px; --terrace-drop: 6px; transform: scale(0.419355) translate(0px, 0px); transform-origin: left top;",
+      "scale": 0.419355,
+      "tx": 0,
+      "ty": 0,
+      "toggleText": "크게 보기",
+      "toggleAriaPressed": "true",
+      "viewportScrollLeft": 0,
+      "viewportScrollTop": 0
+    },
+    "fitScale": 0.419355,
+    "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\01-initial-whole-map.png"
+  },
+  "b_pinch_out": {
+    "pass": true,
+    "fitScale": 0.419355,
+    "midTargetScale": 1.251613,
+    "measuredMidScale": 1.22726,
+    "measuredMaxScale": 2.5,
+    "clampUpperBound": 2.5,
+    "anchorPlotIndexBefore": 166,
+    "anchorPlotIndexAfterMidZoom": 166,
+    "anchorErrorPx": {
+      "dx": 0.545516036547582,
+      "dy": 2.8428622144865585
+    },
+    "anchorTolerancePx": 10,
+    "screenshots": {
+      "mid": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\03-pinch-out-mid-zoom.png",
+      "max": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\05-pinch-out-max-zoom-clamped.png"
+    }
+  },
+  "c_pinch_in": {
+    "pass": true,
+    "measuredScale": 0.419355,
+    "fitScale": 0.419355,
+    "tx": 0,
+    "ty": 0,
+    "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\07-pinch-in-clamped-at-fitscale.png"
+  },
+  "i_layer_alignment": {
+    "pass": true,
+    "toleranceUsedPx": 1,
+    "fit": {
+      "label": "fit-scale",
+      "plotIndex": 7,
+      "row": 0,
+      "col": 7,
+      "terrainVsTileOffsetPx": {
+        "dx": 0,
+        "dy": 0
+      },
+      "npcVsCellCenterOffsetPx": null,
+      "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\02-layer-alignment-fit-scale.png"
+    },
+    "mid": {
+      "label": "mid-zoom",
+      "plotIndex": 7,
+      "row": 0,
+      "col": 7,
+      "terrainVsTileOffsetPx": {
+        "dx": 0,
+        "dy": 0
+      },
+      "npcVsCellCenterOffsetPx": null,
+      "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\04-layer-alignment-mid-zoom.png"
+    },
+    "max": {
+      "label": "max-zoom",
+      "plotIndex": 7,
+      "row": 0,
+      "col": 7,
+      "terrainVsTileOffsetPx": {
+        "dx": 0,
+        "dy": 0
+      },
+      "npcVsCellCenterOffsetPx": null,
+      "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\06-layer-alignment-max-zoom.png"
+    }
+  },
+  "d_pan_zoomed_in": {
+    "pass": true,
+    "scaleDuringPan": 1.70637,
+    "fingerTravel": {
+      "dx": -80,
+      "dy": -60
+    },
+    "onScreenTravel": {
+      "dx": -84.77093505859375,
+      "dy": -65.0028076171875
+    },
+    "travelRatio": {
+      "x": 1.059636688232422,
+      "y": 1.083380126953125
+    },
+    "nativeScrollUnchanged": {
+      "before": {
+        "left": 0,
+        "top": 0
+      },
+      "after": {
+        "left": 0,
+        "top": 0
+      }
+    },
+    "clampCheck": {
+      "extremePanTransform": {
+        "raw": "grid-template-columns: minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr); grid-template-rows: 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px; --town-gap: 6px; --town-grid-pad-x: 16px; --district-row-gap: 6px; --pip-size: 5px; --pip-gap: 3px; --pip-row-gap: 4px; --terrace-earth-h: 20px; --terrace-drop: 6px; transform: scale(1.70637) translate(-198.959px, -228.965px); transform-origin: left top;",
+        "scale": 1.70637,
+        "tx": -198.959,
+        "ty": -228.965,
+        "toggleText": "전체 보기",
+        "toggleAriaPressed": "false",
+        "viewportScrollLeft": 0,
+        "viewportScrollTop": 0
+      },
+      "gridStillOverlapsViewport": true
+    },
+    "screenshots": {
+      "pan": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\08-pan-zoomed-in.png",
+      "extreme": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\09-pan-clamped-extreme.png"
+    }
+  },
+  "f_toggle_reset": {
+    "pass": true,
+    "transform": {
+      "raw": "grid-template-columns: minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr); grid-template-rows: 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px; --town-gap: 6px; --town-grid-pad-x: 16px; --district-row-gap: 6px; --pip-size: 5px; --pip-gap: 3px; --pip-row-gap: 4px; --terrace-earth-h: 20px; --terrace-drop: 6px; transform: scale(0.419355) translate(0px, 0px); transform-origin: left top;",
+      "scale": 0.419355,
+      "tx": 0,
+      "ty": 0,
+      "toggleText": "크게 보기",
+      "toggleAriaPressed": "true",
+      "viewportScrollLeft": 0,
+      "viewportScrollTop": 0
+    },
+    "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\10-toggle-reset-to-whole-map.png"
+  },
+  "e_pan_inert_at_fit": {
+    "pass": true,
+    "pointerdownFired": true,
+    "before": {
+      "raw": "grid-template-columns: minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr); grid-template-rows: 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px; --town-gap: 6px; --town-grid-pad-x: 16px; --district-row-gap: 6px; --pip-size: 5px; --pip-gap: 3px; --pip-row-gap: 4px; --terrace-earth-h: 20px; --terrace-drop: 6px; transform: scale(0.419355) translate(0px, 0px); transform-origin: left top;",
+      "scale": 0.419355,
+      "tx": 0,
+      "ty": 0,
+      "toggleText": "크게 보기",
+      "toggleAriaPressed": "true",
+      "viewportScrollLeft": 0,
+      "viewportScrollTop": 0
+    },
+    "after": {
+      "raw": "grid-template-columns: minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr) minmax(40px, 1fr); grid-template-rows: 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px 40px; --town-gap: 6px; --town-grid-pad-x: 16px; --district-row-gap: 6px; --pip-size: 5px; --pip-gap: 3px; --pip-row-gap: 4px; --terrace-earth-h: 20px; --terrace-drop: 6px; transform: scale(0.419355) translate(0px, 0px); transform-origin: left top;",
+      "scale": 0.419355,
+      "tx": 0,
+      "ty": 0,
+      "toggleText": "크게 보기",
+      "toggleAriaPressed": "true",
+      "viewportScrollLeft": 0,
+      "viewportScrollTop": 0
+    },
+    "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\11-pan-inert-at-fit-scale.png"
+  },
+  "g_long_press_fit_scale": {
+    "pass": true,
+    "buildingIndexBefore": "7",
+    "movingClassDuringLongPress": true,
+    "committedMoveOk": true,
+    "screenshots": {
+      "dragInProgress": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\12-long-press-fit-scale-drag-in-progress.png",
+      "result": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\13-long-press-fit-scale-result.png"
+    }
+  },
+  "g_long_press_after_pinch_zoomed": {
+    "pass": true,
+    "zoomScaleAtTest": 0.644096,
+    "movingClassDuringLongPress": true,
+    "droppableVisibleInViewport": true,
+    "committedMoveOk": true,
+    "screenshots": {
+      "dragInProgress": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\14-long-press-after-pinch-zoomed-drag-in-progress.png",
+      "result": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\15-long-press-after-pinch-zoomed-result.png"
+    }
+  },
+  "h_second_finger_cancels_press": {
+    "pass": true,
+    "noMoveWhileTwoFingersDown": true,
+    "notResurrectedAfterSecondFingerLifts": true,
+    "noPhantomMoveAfterFullRelease": true,
+    "recognizerStillWorksAfterward": true,
+    "screenshot": "C:\\Users\\user\\loop_engine\\app_in_toss\\docs\\qa\\evidence-addendum09-pinchzoom\\16-second-finger-cancels-long-press.png"
+  }
+}

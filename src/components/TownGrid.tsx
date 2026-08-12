@@ -682,7 +682,20 @@ function TownGridImpl({
   // Inline viewport height is a fit-to-screen concern only (§7). A pinch
   // always sets `zoomedOut` false in the same update as `pinch` becomes
   // non-null (`handlePinchMove` above), so this stays in sync with §3.2.
-  const activeFit = zoomedOut ? fit : null;
+  // Bug found in browser touch-emulation QA (ADDENDUM-09 acceptance #8): this
+  // used to be `zoomedOut ? fit : null`. A pinch's first real sample flips
+  // `zoomedOut` to false (D2) as a pure ownership handoff — it does NOT mean
+  // "user wants the 100% native-scroll view" the toggle's `zoomedOut=false`
+  // means. But `.town-viewport`'s CSS (App.css) only pins `height` while this
+  // was truthy; losing the pin mid-pinch let the viewport reflow from the
+  // fit height up toward its `max-height`, moving `.town-grid`'s on-screen
+  // top position out from under the anchor math (which assumes that position
+  // is stable) — measured as a ~150px vertical anchor jump the instant a
+  // pinch starts from the initial zoomed-out state. Keeping the pin through
+  // `pinch !== null` too removes the reflow without touching the toggle's
+  // own 100% (zoomedOut=false, pinch=null) behavior, which still gets `null`
+  // here exactly as before.
+  const activeFit = zoomedOut || pinch !== null ? fit : null;
   // ADDENDUM-09 §3.2 — the transform is shown whenever EITHER zoom mechanism
   // is active; at scale 1 / translate 0 (100% view, no pinch) it stays
   // `undefined` so `grid.style.transform` reads "" (existing toggle test).

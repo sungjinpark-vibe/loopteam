@@ -858,6 +858,22 @@ describe("TownGrid — pinch zoom & pan (ADDENDUM-09 §3.2/§3.3)", () => {
     // reset lands exactly on scale 1, translate zero.
     expect(grid.style.transform).toBe("scale(1) translate(0px, 0px)");
   });
+
+  it("`.town-viewport`'s pinned height survives a pinch's zoomedOut->false flip — regression for a real anchor-jump bug found in browser touch-emulation QA (ADDENDUM-09 AC#8): the height used to be pinned only while `zoomedOut`, so a pinch's first real sample (which flips `zoomedOut` to false per D2, before the user's fingers have even separated) dropped the pin and let `.town-viewport` reflow (App.css: height:auto up to max-height) mid-gesture, moving `.town-grid`'s on-screen position out from under the anchor math — measured in a real browser as a ~150px vertical jump the instant a pinch starts from the initial zoomed-out state", () => {
+    const container = mountGrid(); // default: zoomedOut=true
+    const viewport = container.querySelector(".town-viewport") as HTMLElement;
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    expect(viewport.style.height).not.toBe(""); // pinned at baseline (zoomedOut)
+
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0); // 2nd finger lands — pinchActive, baseline seeded
+      pointerMoveAt(grid, 1, 0, 0); // first real sample — this is what flips zoomedOut false
+    });
+
+    expect(viewport.style.height).not.toBe(""); // must stay pinned — no reflow mid-pinch
+  });
 });
 
 describe("TownGrid — savings block (ADDENDUM-08 §1.1)", () => {
