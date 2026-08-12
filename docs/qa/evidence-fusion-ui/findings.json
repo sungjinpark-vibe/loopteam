@@ -1,0 +1,32 @@
+{
+  "base": "http://localhost:5174",
+  "today": "2026-08-12",
+  "layoutVersion": 4,
+  "ctaVisibleWithLegalPartner": true,
+  "pickMode": {
+    "candidateCount": 1,
+    "bannerText": "융합할 건물을 선택하세요취소"
+  },
+  "cancelPath": {
+    "fabBackAfterCancel": true,
+    "moveBarGoneAfterCancel": true
+  },
+  "confirmDialogMentionsResult": true,
+  "afterFusion": {
+    "cellBStillHasBuilding": false,
+    "survivorLevelText": [
+      "Lv.6",
+      "2026-08-12"
+    ]
+  },
+  "consoleErrors": [],
+  "shots": [
+    "01-before-two-lv5-buildings",
+    "02-detail-sheet-cta",
+    "03-pick-mode-candidate-highlighted",
+    "04-after-cancel-fab-back",
+    "05-confirm-dialog",
+    "06-after-fusion-lv6-and-freed-cell",
+    "07-survivor-detail-sheet-lv6"
+  ]
+}
