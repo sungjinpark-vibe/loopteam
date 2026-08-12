@@ -95,17 +95,23 @@
 ## ▶ Next, in this order
 0. ~~Finish ADDENDUM-09 Phase 3 (pinch zoom)~~ — **DONE 2026-08-12**, HEAD `75a0198` pushed, 8/8 acceptance
    criteria evidenced. See Current State.
-0b. **NEW (user request, 2026-08-12) — building art per footprint.** User: *"아트 리소스 수정 필요. 건물
-   이미지가 1x1, 2x1, 2x2 사이즈로 각각 필요해. 확인해줘."* Survey found: **there are no building image
-   assets at all** — every building is code-drawn SVG (`src/components/buildingArt.tsx`), and all four
-   footprints (1x1 / 1x2 / 2x1 / 2x2) are ALREADY differentiated parametrically by `buildingCube`
-   (`wideMult`, `deep`, `viewWidthFor`, landmark treatment for any >1-cell footprint). So the real
-   question is whether the parametric result *looks* right, not whether per-size art exists. Note 2x2 is
-   square, so it misses the `w/h` ratio path and only gets the flat 1.28x bump, while 2x1 stretches a
-   full 2x — a plausible "2x2 looks undersized" source. Recommended path is parameter tuning, NOT
-   hand-drawn per-size assets (14 categories × 5 levels × 3 variants × 4 footprints = **840** combos,
-   which would break the level/category/variant systems). Awaiting the user's read on the screenshots
-   (`app_in_toss/docs/qa/art-footprint-survey/`) before doing any art work.
+0b. ~~Building art per footprint (user request, 2026-08-12)~~ — **DONE and USER-APPROVED**, commit
+   `d8ce379` (+ `2f7f5bb` harness tidy), pushed. User's original ask (*"건물 이미지가 1x1, 2x1, 2x2 사이즈로
+   각각 필요해"*) turned out not to be about missing assets: **there are no building image files at all**,
+   every building is code-drawn SVG (`src/components/buildingArt.tsx`), and per-size art would have meant
+   14 categories × 5 levels × 3 variants × 4 footprints = **840** hand-drawn combos. The real defect,
+   found by measuring: art filled its cell's HEIGHT but only **41-69% of its WIDTH**, because one portrait
+   viewBox (120×176) was used for every footprint while tile aspects are 1.0 / 2.15 / 0.465 / 1.0 —
+   `preserveAspectRatio="meet"` then centred the slack, which is literally what the user described
+   (*"건물 이미지 사이즈는 1×1인데 위치를 2×2, 2×1의 가운데 배치했어"*). Fix: viewBox aspect now equals
+   tile aspect per footprint, and the isometric body was re-derived to actually span it (canvas-widening
+   alone was explicitly rejected — *"빈 여백을 늘리는 눈속임 금지"*). Result: **94% ±0.5pp fill on both
+   axes, uniform across all four**, measured over 133 buildings in-browser. Evidence:
+   `app_in_toss/docs/qa/evidence-art-footprint-fill/` (before/after per footprint + town overview) and
+   `docs/qa/art-footprint-survey/`. **d8ce379 is now a frozen user-approved baseline alongside afc7cd6 —
+   see `app_in_toss/CLAUDE.md`.** Note filling the cell made buildings chunkier by geometric necessity;
+   the user saw this in screenshots and approved it (*"지금 느낌 좋아"*), so do not "restore" the older
+   slimmer silhouettes.
 1. **Re-run Gate 3** (5-expert playtest, `playtest.js`) — every finding from the 64.4 fail now has real
    work landed against it (T019-T022): #1 reward/money-decoupling → T021 amount-proportional EXP; #3
    onboarding → S1 built + verified; #4 F16 settlement/monuments → built T021; #5 blocking tier modal →
