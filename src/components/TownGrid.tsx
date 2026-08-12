@@ -444,6 +444,9 @@ function TownGridImpl({
   // a pinch has happened, until the 전체 보기 toggle resets it (D2).
   const [pinch, setPinch] = useState<{ scale: number; tx: number; ty: number } | null>(null);
   const pinchSampleRef = useRef<{ midX: number; midY: number; distance: number } | null>(null);
+  // A7 — the grid's transform-INDEPENDENT layout position, captured once when
+  // a pinch starts and reused for the whole gesture. See `handlePinchMove`.
+  const pinchLayoutRef = useRef<{ left: number; top: number } | null>(null);
 
   const fitScale = fit?.scale ?? 1;
   const scale = pinch ? pinch.scale : zoomedOut ? fitScale : 1;
@@ -486,14 +489,37 @@ function TownGridImpl({
   // a test artifact: React batches same-tick state updates regardless of
   // environment). The functional updater form chains correctly instead —
   // React applies queued updaters in order, each seeing the prior one's result.
+  //
+  // A7 — the layout reference is captured ONCE, on the gesture's baseline
+  // sample, never re-measured inside the updater. `getBoundingClientRect()`
+  // reports the LAST COMMITTED transform, but React runs queued functional
+  // updaters at render time: the second updater of a same-tick pair sees a
+  // fresh `prevPinch` beside a rect that still describes the state before the
+  // first updater ran. Deriving `layoutLeft` from that mix
+  // (`rect.left - scale0 * tx0`) corrupts the anchor, and the map over-travels
+  // — measured at 17.5px of drift on a 40px two-finger drag. Capturing the
+  // layout position up front removes the live read entirely, so both updaters
+  // work from the same, correct origin. Safe to capture once: `.town-viewport`'s
+  // height stays pinned for the whole pinch (see `activeFit` below) and a pinch
+  // pointermove preventDefaults native scroll, so the grid's layout position
+  // cannot move mid-gesture.
   const handlePinchMove = (midX: number, midY: number, distance: number) => {
     const prevSample = pinchSampleRef.current;
     pinchSampleRef.current = { midX, midY, distance };
-    if (!prevSample) return;
 
     const grid = gridRef.current;
     const viewport = viewportRef.current;
     if (!grid) return;
+
+    if (!prevSample) {
+      // Baseline sample: nothing is queued yet, so the committed `scale`/`tx`/
+      // `ty` and the DOM agree — the one moment this can be read correctly.
+      const rect = grid.getBoundingClientRect();
+      pinchLayoutRef.current = { left: rect.left - scale * tx, top: rect.top - scale * ty };
+      return;
+    }
+    const layout = pinchLayoutRef.current;
+    if (!layout) return;
 
     setZoomedOut(false); // D1/D2/D4 — a pinch takes ownership of scale away from the toggle
     setPinch((prevPinch) => {
@@ -510,13 +536,15 @@ function TownGridImpl({
 
       // transform-origin is top-left and the string is `scale(k) translate(tx,
       // ty)`, so a client point's local (pre-transform) coordinate is
-      // `(client - rect.left) / k`, and `rect.left = layoutLeft + k * tx`
-      // (layoutLeft is the element's transform-independent layout position).
-      const rect = grid.getBoundingClientRect();
-      const layoutLeft = rect.left - scale0 * tx0;
-      const layoutTop = rect.top - scale0 * ty0;
-      const anchorLocalX = (prevSample.midX - rect.left) / scale0;
-      const anchorLocalY = (prevSample.midY - rect.top) / scale0;
+      // `(client - left) / k`, where `left = layoutLeft + k * tx` — computed
+      // from the captured layout origin and THIS updater's own scale0/tx0, so
+      // it always describes the state this updater is actually working from
+      // (A7: a live `getBoundingClientRect()` here does not).
+      const { left: layoutLeft, top: layoutTop } = layout;
+      const prevLeft = layoutLeft + scale0 * tx0;
+      const prevTop = layoutTop + scale0 * ty0;
+      const anchorLocalX = (prevSample.midX - prevLeft) / scale0;
+      const anchorLocalY = (prevSample.midY - prevTop) / scale0;
       const rawTx = (midX - layoutLeft) / nextScale - anchorLocalX;
       const rawTy = (midY - layoutTop) / nextScale - anchorLocalY;
 
@@ -535,6 +563,7 @@ function TownGridImpl({
 
   const handlePinchEnd = () => {
     pinchSampleRef.current = null;
+    pinchLayoutRef.current = null; // A7 — re-measured on the next gesture's baseline
   };
 
   // ADDENDUM-08 §3/§7 — the ground layer: one element per empty lot, one

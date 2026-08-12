@@ -1026,6 +1026,62 @@ describe("TownGrid — pinch zoom & pan (ADDENDUM-09 §3.2/§3.3)", () => {
     const afterSession2 = parseTransform(grid.style.transform);
     expect(afterSession2.scale).toBeGreaterThan(1); // a fresh session CAN still zoom in — not pinned inert
   });
+
+  // A7 — two fingers moving in the SAME tick.
+  //
+  // jsdom has no layout engine: `getBoundingClientRect()` is all zeros for
+  // every element, always, which accidentally makes the pinch math come out
+  // right (`layoutLeft` collapses to `-scale0*tx0`, derived purely from the
+  // updater's own `prevPinch`). A real browser reports
+  // `rect.left = layoutLeft + scale*tx` for the LAST COMMITTED transform — and
+  // React runs queued functional updaters at render time, so the second
+  // updater of a same-tick pair sees a fresh `prevPinch` next to a rect that
+  // still describes the transform BEFORE the first updater. That mismatch is
+  // the bug, and it is invisible without modelling the rect.
+  //
+  // So the grid's rect is stubbed here to do exactly what a browser does: read
+  // the committed transform off `grid.style.transform`. Nothing else about the
+  // gesture stack is faked.
+  it("a pure horizontal two-finger drag (separation constant, dy 0) pans by the finger delta without translate drift, even when both fingers move in one tick", () => {
+    const LAYOUT_LEFT = 24;
+    const LAYOUT_TOP = 180;
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    const nativeRect = grid.getBoundingClientRect.bind(grid);
+    grid.getBoundingClientRect = () => {
+      const t = grid.style.transform ? parseTransform(grid.style.transform) : { scale: 1, tx: 0, ty: 0 };
+      const left = LAYOUT_LEFT + t.scale * t.tx;
+      const top = LAYOUT_TOP + t.scale * t.ty;
+      return { ...nativeRect(), left, top, x: left, y: top } as DOMRect;
+    };
+
+    // Zoom in first so translate is live (pan is inert at fit scale, D1).
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+      pointerMoveAt(grid, 1, 0, 0); // baseline, separation 100
+    });
+    act(() => {
+      pointerMoveAt(grid, 1, -50, 0); // separation 150 -> zoom in
+    });
+    const start = parseTransform(grid.style.transform);
+    expect(start.scale).toBeGreaterThan(1);
+
+    // Both fingers slide right by the same delta, in ONE tick — separation
+    // ends where it began and nothing moves vertically, so this must be a
+    // pure pan: scale unchanged, ty unchanged.
+    const DX = 40;
+    act(() => {
+      pointerMoveAt(grid, 1, -50 + DX, 0);
+      pointerMoveAt(grid, 2, 100 + DX, 0);
+    });
+    const after = parseTransform(grid.style.transform);
+
+    expect(after.scale).toBeCloseTo(start.scale, 6); // separation returned to its start — no zoom
+    expect(after.ty).toBeCloseTo(start.ty, 6); // dy was 0 throughout
+    expect(after.tx).toBeCloseTo(start.tx + DX / start.scale, 6); // the map followed the fingers, exactly once
+  });
 });
 
 describe("TownGrid — savings block (ADDENDUM-08 §1.1)", () => {
