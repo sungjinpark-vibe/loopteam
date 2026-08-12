@@ -529,8 +529,31 @@ function TownGridImpl({
 
       const rawScale = scale0 * (distance / prevSample.distance);
       const nextScale = Math.min(MAX_PINCH_SCALE, Math.max(fitScale, rawScale));
-      if (nextScale <= fitScale) {
-        // D1: pinned at the floor — the whole map is on screen, pan is inert.
+      // A8 — two different states both land on `nextScale === fitScale`, and
+      // only one of them means "pan is inert" (D1):
+      //
+      //  - GENUINELY at/below the floor (`scale0 <= fitScale`): the whole map
+      //    is already on screen and native `.town-viewport` overflow scrolling
+      //    is the sole pan owner (§3.3), so this gesture contributes no
+      //    translate at all. Pinned to 0 — unchanged behaviour, and the case
+      //    the "pan is inert at fit scale" test covers.
+      //
+      //  - TRANSIENTLY dipped there mid-drag (`scale0 > fitScale`): the user is
+      //    zoomed in and pushing the map. Chromium never coalesces a two-finger
+      //    move (see A7 above), so the intermediate half-sample — one finger
+      //    already moved, the other not yet — reports a shrunken separation and
+      //    dips the raw scale under the floor for one sample even though nobody
+      //    un-zoomed. This branch used to answer that with `{fitScale, 0, 0}`,
+      //    throwing away the translate those fingers had just produced and
+      //    handing the SECOND updater of the same tick `tx0`/`ty0 === 0` — the
+      //    stutter on "zoom in slightly, then push the map", which is the most
+      //    common gesture because fit scale is the default view.
+      //
+      // Pinning the SCALE at the floor is right in both cases (D1) and is what
+      // `nextScale` above already does. Only the first case discards the pan
+      // now; the second falls through and derives its translate like any other
+      // sample, with `clampTranslate` below still deciding how much survives.
+      if (nextScale <= fitScale && scale0 <= fitScale) {
         return { scale: fitScale, tx: 0, ty: 0 };
       }
 

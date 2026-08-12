@@ -1082,6 +1082,62 @@ describe("TownGrid — pinch zoom & pan (ADDENDUM-09 §3.2/§3.3)", () => {
     expect(after.ty).toBeCloseTo(start.ty, 6); // dy was 0 throughout
     expect(after.tx).toBeCloseTo(start.tx + DX / start.scale, 6); // the map followed the fingers, exactly once
   });
+
+  // A8 — a sample that dips to the fit-scale floor MID-DRAG must still pan.
+  //
+  // Chromium delivers one `pointermove` per finger, so a two-finger drag always
+  // passes through an intermediate half-sample: finger 1 has moved, finger 2
+  // has not, and the separation is momentarily much smaller than at either end
+  // of the tick. When the gesture is only slightly above fit scale, that dip is
+  // enough to push the raw scale under the floor for one sample even though
+  // nobody un-zoomed. The floor branch used to answer with `{fitScale, 0, 0}`,
+  // dropping the translate those fingers had just produced.
+  //
+  // Same rect stub as the A7 test above (jsdom has no layout): the grid reports
+  // `layoutLeft + scale*tx` for the last committed transform, and nothing else
+  // about the gesture stack is faked.
+  it("a mid-drag sample whose scale dips to the fit-scale floor keeps the pan it just produced — scale pins to the floor, translate is not thrown away", () => {
+    const LAYOUT_LEFT = 24;
+    const LAYOUT_TOP = 180;
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    const nativeRect = grid.getBoundingClientRect.bind(grid);
+    grid.getBoundingClientRect = () => {
+      const t = grid.style.transform ? parseTransform(grid.style.transform) : { scale: 1, tx: 0, ty: 0 };
+      const left = LAYOUT_LEFT + t.scale * t.tx;
+      const top = LAYOUT_TOP + t.scale * t.ty;
+      return { ...nativeRect(), left, top, x: left, y: top } as DOMRect;
+    };
+    /** The pre-transform (local) x sitting under a client x, for a given committed transform. */
+    const localUnder = (clientX: number, t: { scale: number; tx: number }) => (clientX - (LAYOUT_LEFT + t.scale * t.tx)) / t.scale;
+
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+      pointerMoveAt(grid, 1, 0, 0); // baseline, separation 100, midpoint 50
+    });
+    act(() => {
+      pointerMoveAt(grid, 1, -20, 0); // separation 120 -> scale 1.2, only slightly above fitScale (1 here)
+    });
+    const start = parseTransform(grid.style.transform);
+    expect(start.scale).toBeCloseTo(1.2, 6);
+    const anchorLocalX = localUnder(40, start); // the local point under the CURRENT midpoint (finger 1 at -20, finger 2 at 100)
+
+    // The half-sample: finger 1 slides right by 40, finger 2 has not moved yet.
+    // Separation 120 -> 80, so the raw scale dips to 0.8 — under the floor.
+    act(() => {
+      pointerMoveAt(grid, 1, 20, 0);
+    });
+    const after = parseTransform(grid.style.transform);
+
+    expect(after.scale).toBeCloseTo(1, 6); // D1 still holds — scale IS pinned at the floor
+    expect(after.tx).not.toBe(0); // ...but the drag's translate survived it (was 0 before A8)
+    // And it is the right translate: the local point that was under the old
+    // midpoint (40) is now under the new one (60) — the anchor the rest of the
+    // pinch math maintains, not an arbitrary non-zero number.
+    expect(localUnder(60, after)).toBeCloseTo(anchorLocalX, 6);
+  });
 });
 
 describe("TownGrid — savings block (ADDENDUM-08 §1.1)", () => {
