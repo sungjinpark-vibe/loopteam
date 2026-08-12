@@ -16,7 +16,7 @@
 import { BottomSheet, Button } from "@toss/tds-mobile";
 import { CATEGORY_CONTENT } from "../content.placeholder";
 import { formatKrw } from "../format";
-import { levelOf } from "../selectors";
+import { totalLevelOf } from "../selectors";
 import type { Building, LedgerEntry } from "../types";
 
 export interface BuildingDetailSheetProps {
@@ -28,13 +28,19 @@ export interface BuildingDetailSheetProps {
   expPerLevel: number;
   maxLevel: number;
   onClose: () => void;
+  /** ADDENDUM-11 §6 step 2 — true when at least one legal fuse partner exists for `building`. Never a disabled button: absent partner means no CTA at all. */
+  canFuse: boolean;
+  /** Closes this sheet and starts fusion pick mode. No-op when `canFuse` is false — the caller only renders the CTA when true, but this stays defensive. */
+  onFuse: () => void;
 }
 
-export function BuildingDetailSheet({ open, building, entry, expPerLevel, maxLevel, onClose }: BuildingDetailSheetProps) {
+export function BuildingDetailSheet({ open, building, entry, expPerLevel, maxLevel, onClose, canFuse, onFuse }: BuildingDetailSheetProps) {
   if (building === null) return null;
 
   const content = building.categoryId ? CATEGORY_CONTENT[building.categoryId] : null;
-  const level = levelOf(building, expPerLevel, maxLevel);
+  // ADDENDUM-11 §2.4 — the level shown here is EXP level + fuse tier (6..10
+  // for a fused building), the same `totalLevelOf` the grid's badge reads.
+  const level = totalLevelOf(building, expPerLevel, maxLevel);
   const isNospend = building.source.kind === "nospend";
 
   return (
@@ -74,6 +80,17 @@ export function BuildingDetailSheet({ open, building, entry, expPerLevel, maxLev
           </p>
         )}
         {isNospend && <p className="history-pace-label">지출 없는 날 하루의 기록이에요.</p>}
+        {/* ADDENDUM-11 §6 step 2 — rendered ONLY when a legal partner exists
+            (`canFuse`, from `store.fuseCandidates(building.id).length > 0`):
+            never a disabled button that cannot explain itself. */}
+        {canFuse && (
+          <>
+            <p className="history-pace-label">레벨 5 건물끼리 합쳐 더 높은 레벨로 만들 수 있어요.</p>
+            <Button as="button" color="primary" variant="weak" size="medium" display="block" onClick={onFuse}>
+              융합하기
+            </Button>
+          </>
+        )}
       </div>
     </BottomSheet>
   );

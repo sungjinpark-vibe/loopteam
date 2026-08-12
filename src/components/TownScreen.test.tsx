@@ -22,6 +22,8 @@ import type { EntryDraft } from "../entryActions";
 import { setTimeTravelDate } from "../platform/clock";
 import { setRandomOverride } from "../platform/random";
 import { MOOD_CONTENT, MOOD_NEUTRAL } from "../content.placeholder";
+import { CELL_COUNT, cellFromIndex, isBuildable, LAYOUT_VERSION } from "../townLayout";
+import type { Building } from "../types";
 import { useTownStore } from "../useTownStore";
 import { TownScreen } from "./TownScreen";
 
@@ -570,5 +572,260 @@ describe("TownScreen — Gate-3-rerun: entry-sheet Save multi-submit guard", () 
 
     expect(latest!.buildingCount).toBe(1);
     expect(monthEntryCount()).toBe(1);
+  });
+});
+
+// ── ADDENDUM-11 — building fusion. §6: fusion reuses grow-pick mode wholesale
+// (one `pickPurpose` flag, not a second pick-mode system) — these tests drive
+// the REAL DOM (detail sheet CTA -> pick mode -> confirm dialog -> commit),
+// same technique the grow-pick suite above already uses.
+//
+// Two Lv.5 buildings take 24 `addEntry` calls each to raise through the UI —
+// these tests seed the pre-fusion state straight into localStorage instead
+// (the same technique `useTownStore.fusion.test.tsx` already proved against
+// this project's storage schema) and drive ONLY the fusion UI for real.
+const GROUND_CELLS: readonly number[] = Array.from({ length: CELL_COUNT }, (_, i) => i).filter((i) => {
+  const { row, col } = cellFromIndex(i);
+  return isBuildable(row, col);
+});
+/** `n`-th ground cell — a stable, legal 1x1 anchor. */
+const fuseCell = (n: number): number => GROUND_CELLS[n];
+const MAXED_EXP = (BALANCE.maxLevel - 1) * BALANCE.expPerLevel; // Lv.5 — derived, never a literal
+
+function fuseBuilding(id: string, plotIndex: number, extra: Partial<Building> = {}): Building {
+  return {
+    id,
+    source: { kind: "entry", entryId: `e-${id}` },
+    categoryId: "cafe",
+    variantIndex: 0,
+    plotIndex,
+    builtOn: TODAY,
+    createdAt: Number(id.replace(/\D/g, "")) || 1,
+    exp: MAXED_EXP,
+    ...extra,
+  };
+}
+
+/** Writes the whole pre-boot state directly, bypassing 24 UI saves per Lv.5 building. */
+function seedFuseTown(buildings: readonly Building[]): void {
+  window.localStorage.setItem(
+    "ait.v1.index",
+    JSON.stringify({ schemaVersion: 1, layoutVersion: LAYOUT_VERSION, entryMonths: [], buildingMonths: [TODAY.slice(0, 7)] }),
+  );
+  window.localStorage.setItem(
+    "ait.v1.core",
+    JSON.stringify({
+      town: {
+        townName: "우리 동네",
+        streakDays: 0,
+        longestStreakDays: 0,
+        lastActOn: null,
+        slotsUsedOn: "",
+        slotsUsedToday: 0,
+        highestTierSeen: 0,
+        queue: [],
+        noSpendDays: [],
+        cumulativeSavingsKrw: 0,
+        lastSettledPeriod: "2026-08", // the month before TODAY (2026-09-15) — already settled, nothing pending
+        moveHintSeen: true,
+      },
+      budget: { monthlyBudgetKrw: null, updatedAt: 0 },
+      onboarded: true,
+    }),
+  );
+  window.localStorage.setItem(`ait.v1.buildings.${TODAY.slice(0, 7)}`, JSON.stringify(buildings));
+}
+
+describe("TownScreen — ADDENDUM-11 §6 fusion: CTA visibility (F1/F2 refused)", () => {
+  it("no 융합하기 CTA when the only same-level partner is a different category", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("transport1", fuseCell(1), { categoryId: "transport" })]);
+    await mountAndWaitForBoot();
+
+    tapTile(fuseCell(0));
+    expect(findButton("융합하기")).toBeUndefined();
+  });
+
+  it("no 융합하기 CTA when the only same-category partner is below Lv.5", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("cafe2", fuseCell(1), { exp: 0 })]);
+    await mountAndWaitForBoot();
+
+    tapTile(fuseCell(0));
+    expect(findButton("융합하기")).toBeUndefined();
+  });
+});
+
+describe("TownScreen — ADDENDUM-11 §6 fusion: the pick-mode / confirm / commit flow", () => {
+  it("a legal partner shows the CTA; tapping it closes the sheet and enters fuse pick mode with the same affordances grow-pick has", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("cafe2", fuseCell(1))]);
+    await mountAndWaitForBoot();
+
+    tapTile(fuseCell(0));
+    expect(findButton("융합하기")).not.toBeUndefined();
+    act(() => {
+      findButton("융합하기")!.click();
+    });
+
+    // The detail sheet closed and pick mode opened, mirroring grow exactly.
+    expect(container.querySelector(".town-move-bar")?.textContent).toContain("융합할 건물을 선택하세요");
+    expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(1); // only the partner, not the initiator
+    expect(container.querySelector(".town-fab")).toBeNull(); // A1 parity — FAB hides same as grow
+    expect(document.body.textContent).toContain("융합할 건물을 탭하세요"); // A1 parity — entry-hint toast
+    const cancelStillThere = [...container.querySelectorAll<HTMLButtonElement>(".town-move-bar button")].some((b) => b.textContent === "취소");
+    expect(cancelStillThere).toBe(true); // Gate-3 defect (no cancel affordance) does not reappear for fusion
+  });
+
+  it("tapping a non-candidate during fuse pick mode shows the inline reject hint and stays open (A1 parity)", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("cafe2", fuseCell(1))]);
+    await mountAndWaitForBoot();
+    tapTile(fuseCell(0));
+    act(() => {
+      findButton("융합하기")!.click();
+    });
+
+    const occupied = new Set(latest!.buildings.map((b) => b.plotIndex));
+    const emptyPlot = [...container.querySelectorAll<HTMLElement>("[data-plot-index]")]
+      .map((el) => Number(el.getAttribute("data-plot-index")))
+      .find((i) => !occupied.has(i));
+    tapTile(emptyPlot!);
+
+    expect(container.querySelector(".town-move-bar")?.textContent).toContain("표시된 건물 중에서 골라주세요");
+    expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(1); // still in pick mode
+    expect(latest!.buildings.length).toBe(2); // nothing committed by a stray tap
+  });
+
+  it("취소 during fuse pick mode leaves both buildings intact and brings the FAB back", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("cafe2", fuseCell(1))]);
+    await mountAndWaitForBoot();
+    tapTile(fuseCell(0));
+    act(() => {
+      findButton("융합하기")!.click();
+    });
+
+    const cancelButton = [...container.querySelectorAll<HTMLButtonElement>(".town-move-bar button")].find((b) => b.textContent === "취소");
+    act(() => {
+      cancelButton!.click();
+    });
+
+    expect(container.querySelector(".town-move-bar")).toBeNull();
+    expect(latest!.buildings.length).toBe(2);
+    expect(latest!.buildings.every((b) => (b.fuse ?? 0) === 0)).toBe(true); // nothing fused
+    expect(container.querySelector(".town-fab")).not.toBeNull(); // no stuck mode
+  });
+
+  it("tapping the highlighted partner does NOT fuse immediately — it opens a confirm dialog naming the resulting level", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("cafe2", fuseCell(1))]);
+    await mountAndWaitForBoot();
+    tapTile(fuseCell(0));
+    act(() => {
+      findButton("융합하기")!.click();
+    });
+
+    tapTile(fuseCell(1)); // the highlighted candidate
+
+    expect(container.querySelector(".town-move-bar")).toBeNull(); // pick mode exited
+    expect(latest!.buildings.length).toBe(2); // §6 confirm step — nothing committed by the tap alone
+    expect(latest!.buildings.every((b) => (b.fuse ?? 0) === 0)).toBe(true);
+    expect(document.body.textContent).toContain("건물을 융합할까요?");
+    expect(document.body.textContent).toContain(`Lv.${BALANCE.maxLevel + 1}`); // names the resulting level
+    expect(findButton("합치기")).not.toBeUndefined(); // the dialog's confirm button
+  });
+
+  it("cancelling the confirm dialog fuses nothing", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("cafe2", fuseCell(1))]);
+    await mountAndWaitForBoot();
+    tapTile(fuseCell(0));
+    act(() => {
+      findButton("융합하기")!.click();
+    });
+    tapTile(fuseCell(1));
+    expect(findButton("합치기")).not.toBeUndefined();
+
+    act(() => {
+      findButton("취소")!.click();
+    });
+
+    expect(findButton("합치기")).toBeUndefined(); // dialog closed
+    expect(latest!.buildings.length).toBe(2);
+    expect(latest!.buildings.every((b) => (b.fuse ?? 0) === 0 && b.exp === MAXED_EXP)).toBe(true);
+  });
+
+  it("confirming performs the fusion: survivor reaches Lv.6, the consumed building is gone, and its cell frees", async () => {
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0)), fuseBuilding("cafe2", fuseCell(1))]);
+    await mountAndWaitForBoot();
+    tapTile(fuseCell(0));
+    act(() => {
+      findButton("융합하기")!.click();
+    });
+    tapTile(fuseCell(1));
+
+    act(() => {
+      findButton("합치기")!.click(); // the confirm dialog's confirm button
+    });
+
+    // `buildingCount` is `townScale` (Σ 2**fuse, §5.1.3), NOT the literal
+    // array length — one Lv.6 building is 2 Lv.5-equivalents by design, so it
+    // stays 2 across the fusion (AC §7.7, "tier does not regress"). The
+    // literal building disappearing is asserted via `buildings.length`.
+    expect(latest!.buildingCount).toBe(2);
+    expect(latest!.buildings.length).toBe(1);
+    const survivor = latest!.buildings.find((b) => b.id === "cafe1");
+    expect(survivor).not.toBeUndefined();
+    expect(survivor!.plotIndex).toBe(fuseCell(0)); // AC §7.1 — the survivor keeps its position
+    expect(latest!.levelOfBuilding(survivor!)).toBe(BALANCE.maxLevel + 1);
+    expect(latest!.buildings.find((b) => b.id === "cafe2")).toBeUndefined(); // consumed, gone
+    expect(document.body.textContent).toContain(`Lv.${BALANCE.maxLevel + 1} 건물이 됐어요`);
+    // AC §7.2 — the vacated cell renders as an empty lot, not a leftover tile.
+    expect(container.querySelector(`[data-plot-index="${fuseCell(1)}"] .building-tile`)).toBeNull();
+  });
+});
+
+// Regression guard for the shared-hook wiring itself: `pickPurpose` lives in
+// TownScreen state, not inside `useGrowPickMode` (the hook is reused
+// unmodified, §6's own directive). Escape/Android back exit through the
+// hook's OWN internal `cancel` (its `useBackGuard`), which never touches
+// TownScreen state — without the `candidateIds -> null` reset effect,
+// `pickPurpose` would stay stuck on "fuse" and misroute the NEXT grow pick's
+// commit into a fuse confirm instead of saving the entry.
+describe("TownScreen — ADDENDUM-11: Android back out of fuse pick mode does not strand pickPurpose", () => {
+  it("popstate cancels fuse pick mode, and a grow pick right after still commits as a grow, not a fuse", async () => {
+    seedFuseTown([
+      fuseBuilding("cafe1", fuseCell(0)),
+      fuseBuilding("cafe2", fuseCell(1)),
+      fuseBuilding("transport1", fuseCell(2), { categoryId: "transport", exp: 0 }),
+      fuseBuilding("transport2", fuseCell(3), { categoryId: "transport", exp: 0 }),
+    ]);
+    await mountAndWaitForBoot();
+
+    tapTile(fuseCell(0));
+    act(() => {
+      findButton("융합하기")!.click();
+    });
+    expect(container.querySelector(".town-move-bar")).not.toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(container.querySelector(".town-move-bar")).toBeNull(); // fuse pick mode exited
+    expect(latest!.buildings.length).toBe(4); // nothing committed
+
+    // A grow flow right after: 2 existing 교통 candidates force pick mode.
+    openSheet();
+    fillAndSave("교통");
+    act(() => {
+      findButton("키우기")!.click();
+    });
+
+    // If `pickPurpose` had stayed "fuse", this banner would read the fuse
+    // copy instead — the bug this test exists to catch.
+    expect(container.querySelector(".town-move-bar")?.textContent).toContain("키울 건물을 선택하세요");
+
+    const transport2 = latest!.buildings.find((b) => b.id === "transport2")!;
+    const entriesBefore = monthEntryCount();
+    tapTile(transport2.plotIndex);
+
+    // Committed as a GROW: the entry saved, no fusion confirm ever appeared.
+    expect(monthEntryCount()).toBe(entriesBefore + 1);
+    expect(latest!.buildings.length).toBe(4); // grew in place, no fusion, no new building
+    expect(document.body.textContent).not.toContain("건물을 융합할까요?");
   });
 });

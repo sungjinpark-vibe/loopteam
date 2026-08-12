@@ -25,7 +25,8 @@ import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
 import { useGrowPickMode } from "../hooks/useGrowPickMode";
 import { useMoveMode } from "../hooks/useMoveMode";
-import { budgetPace, levelOf, moodTier, tier as computeTier } from "../selectors";
+import { budgetPace, moodTier, totalLevelOf, tier as computeTier } from "../selectors";
+import type { Building } from "../types";
 import type { TownStore } from "../useTownStore";
 
 export interface TownScreenProps {
@@ -146,7 +147,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // ADDENDUM-04 §5/§8 — one-line level-up feedback on the same toast
       // channel as F14's notices above; no celebration system (§4's "what
       // was deliberately NOT built" applies to this feedback too).
-      openToast(`레벨이 올랐어요! (Lv.${levelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted, seedsAfter)}`);
+      openToast(`레벨이 올랐어요! (Lv.${totalLevelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.building?.categoryId && !isFirstFounding) {
       // Gate-3-rerun fix (ux-researcher/target-player TOP FIX): the reward
       // used to resolve as a silent speck somewhere in an already-dense map
@@ -167,8 +168,50 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     setGrowDraft(null);
   }
 
-  const growPick = useGrowPickMode(store.buildings, handleGrowPickCommit);
+  // ADDENDUM-11 §6 — fusion reuses `useGrowPickMode` wholesale rather than a
+  // second pick-mode hook (spec is explicit about this): one `pickPurpose`
+  // flag beside the existing `growPick` instance, branching the banner copy
+  // and the commit callback. The two purposes can never both be active — grow
+  // starts from the entry sheet, fusion from the detail sheet, and both entry
+  // points are unreachable while pick mode is already open (the FAB that
+  // opens either is hidden for the duration).
+  const [pickPurpose, setPickPurpose] = useState<"grow" | "fuse">("grow");
+  // The building that started fusion pick mode (survives the fusion) — held
+  // only for the lifetime of fuse pick mode, read once the partner is tapped.
+  const [fuseSurvivorId, setFuseSurvivorId] = useState<string | null>(null);
+  // The confirm step (§6 "Confirmation step"): fusion consumes a building and
+  // has no undo, unlike grow or move, so committing a tap only stages this —
+  // the actual `store.fuseBuildings` call waits for the dialog's confirm tap.
+  const [fuseConfirm, setFuseConfirm] = useState<{ survivor: Building; consumed: Building } | null>(null);
+
+  function handleFusePickCommit(buildingId: string) {
+    const survivor = fuseSurvivorId !== null ? store.buildings.find((b) => b.id === fuseSurvivorId) : undefined;
+    const consumed = store.buildings.find((b) => b.id === buildingId);
+    setFuseSurvivorId(null);
+    if (!survivor || !consumed) return; // defensive — one of the pair vanished mid-pick
+    setFuseConfirm({ survivor, consumed });
+  }
+
+  function handlePickCommit(buildingId: string) {
+    if (pickPurpose === "fuse") {
+      handleFusePickCommit(buildingId);
+      return;
+    }
+    handleGrowPickCommit(buildingId);
+  }
+
+  const growPick = useGrowPickMode(store.buildings, handlePickCommit);
   const pickModeActive = growPick.candidateIds !== null;
+  // Escape / Android back exit pick mode through the hook's OWN `cancel`
+  // (`useBackGuard` inside the hook), which never touches TownScreen's
+  // `pickPurpose`/`fuseSurvivorId` — without this, a back-gestured-out-of
+  // fusion would leave `pickPurpose` stuck on "fuse" and silently misroute
+  // the next grow pick's commit. Fires on every exit (취소, a valid commit,
+  // Escape, Android back) — idempotent, since the commit paths above already
+  // clear `fuseSurvivorId` themselves.
+  useEffect(() => {
+    if (growPick.candidateIds === null) setPickPurpose("grow");
+  }, [growPick.candidateIds]);
   // Dialog and pick-mode are two phases of the SAME `growDraft`, never shown
   // together — the dialog closes the instant pick mode starts (§4: "the
   // sheet is already closed, the town is visible, candidates highlighted").
@@ -219,6 +262,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   function handleGrowPickCancel() {
     growPick.cancel();
     setGrowDraft(null);
+    setFuseSurvivorId(null);
   }
 
   // F16 — a plain tap on a monument (outside move/pick mode, where a plain
@@ -266,6 +310,40 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   }, [selectedBuilding, selectedBuildingYm, ensureMonthLoaded]);
   const selectedEntryId = selectedBuilding?.source.kind === "entry" ? selectedBuilding.source.entryId : null;
   const selectedEntry = selectedEntryId ? (getMonthEntries(selectedBuildingYm!).find((e) => e.id === selectedEntryId) ?? null) : null;
+
+  // ADDENDUM-11 §6 step 2 — the CTA on `BuildingDetailSheet` renders only when
+  // a legal partner exists; `store.fuseCandidates` already applies every §2.2
+  // condition (F1-F6), so this is surfaced, never re-derived.
+  const fuseCandidateBuildings = selectedBuilding ? store.fuseCandidates(selectedBuilding.id) : [];
+
+  function handleFuseStart() {
+    if (selectedBuildingId === null || fuseCandidateBuildings.length === 0) return;
+    setSelectedBuildingId(null); // close the detail sheet — the sheet is already closed once pick mode starts (§6, mirrors grow)
+    setPickPurpose("fuse");
+    setFuseSurvivorId(selectedBuildingId);
+    growPick.start(new Set(fuseCandidateBuildings.map((b) => b.id)));
+    // Same entry-hint-toast affordance the A1 grow follow-up added — pick
+    // mode hides the FAB, so the reason needs to be said out loud, not just
+    // shown as a highlight.
+    openToast(`반짝이는 건물 ${fuseCandidateBuildings.length}채 중에서 융합할 건물을 탭하세요`);
+  }
+
+  // §6 "Confirmation step" — fusion consumes a building and has no undo
+  // (unlike move), so the tap that picked a partner only staged `fuseConfirm`
+  // above; the actual mutation happens here, on an explicit confirm tap.
+  function handleFuseConfirm() {
+    if (fuseConfirm === null) return;
+    const { survivor, consumed } = fuseConfirm;
+    setFuseConfirm(null);
+    const result = store.fuseBuildings(survivor.id, consumed.id);
+    if (result === null) return; // defensive — re-checked in the store; a stale pick can't commit an illegal fusion
+    const seedsAfter = store.economy.seeds + result.seedsGranted;
+    openToast(`두 건물이 합쳐져 Lv.${result.level} 건물이 됐어요!${seedSuffix(result.seedsGranted, seedsAfter)}`);
+  }
+
+  function handleFuseCancel() {
+    setFuseConfirm(null);
+  }
 
   function handleClaimNoSpend() {
     const claimed = store.claimNoSpend();
@@ -382,8 +460,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         <div className="town-move-bar" role="status">
           {/* Gate-3 follow-up (A1): reads `rejectMessage ?? instruction`,
               exactly like the move-mode banner one branch up, so a tap on a
-              non-candidate answers instead of doing nothing. */}
-          <span>{growPick.rejectMessage ?? "키울 건물을 선택하세요"}</span>
+              non-candidate answers instead of doing nothing. ADDENDUM-11 §6:
+              the instruction branches on `pickPurpose` — the reject copy for
+              a stray tap stays shared, matching grow's own behaviour. */}
+          <span>{growPick.rejectMessage ?? (pickPurpose === "fuse" ? "융합할 건물을 선택하세요" : "키울 건물을 선택하세요")}</span>
           <Button as="button" color="primary" variant="weak" size="small" onClick={handleGrowPickCancel}>
             취소
           </Button>
@@ -463,6 +543,8 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         expPerLevel={BALANCE.expPerLevel}
         maxLevel={BALANCE.maxLevel}
         onClose={() => setSelectedBuildingId(null)}
+        canFuse={fuseCandidateBuildings.length > 0}
+        onFuse={handleFuseStart}
       />
 
       {/* ADDENDUM-04 §4 — the choice dialog. Opens only after the entry
@@ -485,6 +567,25 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         cancelButton={<ConfirmDialog.CancelButton onClick={handleBuildNew}>새로 짓기</ConfirmDialog.CancelButton>}
         confirmButton={<ConfirmDialog.ConfirmButton onClick={handleGrow}>키우기</ConfirmDialog.ConfirmButton>}
       />
+
+      {/* ADDENDUM-11 §6 "Confirmation step" — fusion CONSUMES a building the
+          player built and has no undo (unlike move), so it must never commit
+          from a single ambiguous tap. Names the category, both buildings'
+          current level, and the resulting level before anything happens. */}
+      {fuseConfirm && (
+        <ConfirmDialog
+          open
+          title="건물을 융합할까요?"
+          description={`${fuseConfirm.survivor.categoryId ? CATEGORY_CONTENT[fuseConfirm.survivor.categoryId].label : "건물"} Lv.${store.levelOfBuilding(fuseConfirm.survivor)} 두 채를 합쳐 Lv.${store.levelOfBuilding(fuseConfirm.survivor) + 1} 건물 하나로 만들어요. 사라지는 건물은 되돌릴 수 없어요.`}
+          onClose={handleFuseCancel}
+          cancelButton={<ConfirmDialog.CancelButton onClick={handleFuseCancel}>취소</ConfirmDialog.CancelButton>}
+          // Deliberately NOT "융합하기" — `BuildingDetailSheet`'s CTA keeps that
+          // label and its `BottomSheet` stays mounted (closed, not unmounted,
+          // same contract `EntrySheet` documents) even after this dialog opens,
+          // so an identical label here would be a second, ambiguous button.
+          confirmButton={<ConfirmDialog.ConfirmButton onClick={handleFuseConfirm}>합치기</ConfirmDialog.ConfirmButton>}
+        />
+      )}
     </div>
   );
 }

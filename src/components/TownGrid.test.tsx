@@ -691,6 +691,18 @@ describe("TownGrid — level rendering / pick-mode highlight", () => {
     expect(level2Tile.querySelector(".building-level-badge")?.textContent).toBe("Lv.2");
   });
 
+  // ADDENDUM-11 §2.4 — the badge (and the art level channel behind it) reads
+  // `totalLevelOf` (EXP level + fuse tier), not the EXP-capped `levelOf`, so a
+  // fused building's Lv.6+ is visible rather than pinned at "Lv.5" forever.
+  it("a fused building shows its TOTAL level (EXP level + fuse tier), not the EXP-capped level", () => {
+    const maxedExp = (BALANCE.maxLevel - 1) * BALANCE.expPerLevel;
+    const fused: Building = building({ id: "b-fused", plotIndex: GROUND_A, exp: maxedExp, fuse: 1 });
+    const container = mountGrid([fused]);
+
+    const tile = container.querySelector(`[data-plot-index="${GROUND_A}"] .building-tile`) as HTMLElement;
+    expect(tile.querySelector(".building-level-badge")?.textContent).toBe(`Lv.${BALANCE.maxLevel + 1}`);
+  });
+
   it("growCandidateIds highlights only the matching building tile, never an empty lot", () => {
     const second = building({ id: "b2", plotIndex: GROUND_B });
     const container = mountGrid([building(), second], {}, { growCandidateIds: new Set(["b1"]) });

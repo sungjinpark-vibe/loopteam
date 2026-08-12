@@ -47,7 +47,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import { colors } from "@toss/tds-colors";
 import { useTileGestures } from "../hooks/useTileGestures";
 import { anchorsFor, footprintOf, occupiedCells } from "../placement";
-import { levelOf } from "../selectors";
+import { fuseOf, totalLevelOf } from "../selectors";
 import {
   CELL_COUNT,
   GRID_GAP_PX,
@@ -665,7 +665,12 @@ function TownGridImpl({
               categoryId={covering.categoryId}
               variantIndex={covering.variantIndex}
               justBuilt={isNewest}
-              level={levelOf(covering, expPerLevel, maxLevel)}
+              // ADDENDUM-11 §2.4/§4.1 — the displayed level is EXP level + fuse
+              // tier (6..10 for a fused building), not the EXP-capped `levelOf`;
+              // `fuseTier` rides alongside for the art's material-step channel.
+              // Byte-identical to before for any unfused building (`fuseOf` is 0).
+              level={totalLevelOf(covering, expPerLevel, maxLevel)}
+              fuseTier={fuseOf(covering)}
               monumentPeriod={covering.source.kind === "monument" ? covering.source.period : undefined}
               w={w as 1 | 2}
               h={h as 1 | 2}
