@@ -164,9 +164,16 @@ describe("useTownStore — AC-H1: the move-discoverability hint", () => {
     act(() => {
       latest!.addEntry(COFFEE); // building #1 — below the >= 2 threshold
     });
-    expect(latest!.notice).toBeNull();
+    // Gate-3 follow-up (A2): building #1 now queues its own first-founding
+    // celebration, so the head of the FIFO here is that, not the move hint —
+    // which is exactly the point (`maybeQueueMoveHint` deliberately refuses to
+    // stack behind another notice). Popped before the hint assertions below;
+    // the hint's own behaviour is unchanged and still fully asserted.
+    expect(latest!.notice).toEqual({ kind: "firstBuilding" });
     const writesForFirstBuild = firstSpy.mock.calls.length;
     firstSpy.mockRestore();
+    act(() => latest!.dismissNotice());
+    expect(latest!.notice).toBeNull();
 
     const secondSpy = vi.spyOn(window.localStorage.__proto__, "setItem");
     act(() => {
@@ -241,8 +248,16 @@ describe("useTownStore — AC-H1: the move-discoverability hint", () => {
   // explicit dismiss").
   it("a dismissed (not moved) hint never reappears, even across a full app restart", async () => {
     await mountAndWaitForBoot();
+    // Gate-3 follow-up (A2): building #1's first-founding celebration takes
+    // the FIFO head, and `maybeQueueMoveHint` will not stack behind it — so
+    // the two builds are separated by a dismiss here instead of sharing one
+    // `act`. The hint assertions themselves are untouched.
     act(() => {
       latest!.addEntry(COFFEE);
+    });
+    expect(latest!.notice).toEqual({ kind: "firstBuilding" });
+    act(() => latest!.dismissNotice());
+    act(() => {
       latest!.addEntry({ ...COFFEE, categoryId: "food" });
     });
     expect(latest!.notice).toEqual({ kind: "moveHint" });

@@ -19,6 +19,50 @@
  */
 import { useEffect } from "react";
 
+const AUTO_DISMISS_MS = 4000;
+
+export interface CelebrationBannerProps {
+  emoji: string;
+  title: string;
+  subtitle: string;
+  onDismiss: () => void;
+}
+
+/**
+ * The banner itself — the whole non-blocking contract above lives here (no
+ * dimmer, no focus trap, `role="status"`, auto-dismiss, tap to close early),
+ * so any one-shot celebration can reuse it instead of growing a second
+ * notification style.
+ *
+ * Gate-3 follow-up (A2): founding the FIRST building — the moment the whole
+ * app is about — produced no celebration at all, only the same bottom-docked
+ * toast every routine save gets. It now renders this exact banner, which is
+ * also why this shell was split out rather than a new component written:
+ * re-blocking the screen was a Gate-3 failure once already (see above) and
+ * must not be reintroduced by a second implementation drifting from this one.
+ */
+export function CelebrationBanner({ emoji, title, subtitle, onDismiss }: CelebrationBannerProps) {
+  useEffect(() => {
+    const id = setTimeout(onDismiss, AUTO_DISMISS_MS);
+    return () => clearTimeout(id);
+  }, [onDismiss]);
+
+  return (
+    <div className="tier-celebration" role="status">
+      <span className="tier-celebration-emoji" aria-hidden="true">
+        {emoji}
+      </span>
+      <div className="tier-celebration-text">
+        <strong>{title}</strong>
+        <span>{subtitle}</span>
+      </div>
+      <button type="button" className="tier-celebration-dismiss" aria-label="닫기" onClick={onDismiss}>
+        ×
+      </button>
+    </div>
+  );
+}
+
 export interface TierCelebrationProps {
   /** The tier index just crossed (0-based, matches `selectors.ts`'s `tier()`), or null to render nothing. */
   tier: number | null;
@@ -28,32 +72,18 @@ export interface TierCelebrationProps {
   onDismiss: () => void;
 }
 
-const AUTO_DISMISS_MS = 4000;
-
 export function TierCelebration({ tier, buildingCount, tierThresholds, onDismiss }: TierCelebrationProps) {
-  useEffect(() => {
-    if (tier === null) return;
-    const id = setTimeout(onDismiss, AUTO_DISMISS_MS);
-    return () => clearTimeout(id);
-  }, [tier, onDismiss]);
-
   if (tier === null) return null;
 
   const nextThreshold = tierThresholds[tier + 1];
   const toNext = nextThreshold === undefined ? null : Math.max(0, nextThreshold - buildingCount);
 
   return (
-    <div className="tier-celebration" role="status">
-      <span className="tier-celebration-emoji" aria-hidden="true">
-        🎉
-      </span>
-      <div className="tier-celebration-text">
-        <strong>Tier {tier + 1} 달성! 우리 동네가 한 단계 성장했어요.</strong>
-        <span>{toNext === null ? "지금이 가장 높은 Tier예요" : `건물 ${toNext}채를 더 지으면 다음 Tier예요`}</span>
-      </div>
-      <button type="button" className="tier-celebration-dismiss" aria-label="닫기" onClick={onDismiss}>
-        ×
-      </button>
-    </div>
+    <CelebrationBanner
+      emoji="🎉"
+      title={`Tier ${tier + 1} 달성! 우리 동네가 한 단계 성장했어요.`}
+      subtitle={toNext === null ? "지금이 가장 높은 Tier예요" : `건물 ${toNext}채를 더 지으면 다음 Tier예요`}
+      onDismiss={onDismiss}
+    />
   );
 }

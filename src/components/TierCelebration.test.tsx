@@ -15,7 +15,7 @@
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
-import { TierCelebration } from "./TierCelebration";
+import { CelebrationBanner, TierCelebration } from "./TierCelebration";
 
 const THRESHOLDS = [0, 3, 8, 15, 30] as const;
 
@@ -75,6 +75,28 @@ describe("TierCelebration", () => {
       <TierCelebration tier={2} buildingCount={10} tierThresholds={THRESHOLDS} onDismiss={() => dismissed++} />,
     );
     act(() => mounted!.container.querySelector<HTMLButtonElement>(".tier-celebration-dismiss")!.click());
+    expect(dismissed).toBe(1);
+  });
+});
+
+// Gate-3 follow-up (A2): the banner shell the tier celebration renders is now
+// shared with the first-founding celebration. It carries the non-blocking
+// contract (role="status", no dimmer, auto-dismiss), so that contract is
+// asserted on the shell itself — a second celebration must not be able to
+// reintroduce the blocking modal round 1 removed.
+describe("CelebrationBanner (shared shell)", () => {
+  it("is a non-blocking auto-dismissing status banner with arbitrary copy", () => {
+    vi.useFakeTimers();
+    let dismissed = 0;
+    mounted = mountComponent(
+      <CelebrationBanner emoji="🏠" title="첫 건물이 세워졌어요!" subtitle="한 채씩 늘어나요" onDismiss={() => dismissed++} />,
+    );
+    const banner = mounted.container.querySelector(".tier-celebration");
+    expect(banner!.getAttribute("role")).toBe("status"); // never "dialog" — nothing trapped or blocked
+    expect(mounted.container.textContent).toContain("첫 건물이 세워졌어요!");
+    expect(mounted.container.textContent).toContain("한 채씩 늘어나요");
+    expect(dismissed).toBe(0);
+    act(() => vi.advanceTimersByTime(4000));
     expect(dismissed).toBe(1);
   });
 });

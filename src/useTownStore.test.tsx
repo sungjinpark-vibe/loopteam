@@ -115,6 +115,38 @@ describe("useTownStore.addEntry — two saves in one session, then reload", () =
   });
 });
 
+// Gate-3 follow-up (A2): founding the FIRST building produced no celebration
+// at all — the same routine save toast every later build gets. It now queues
+// its own `Notice`, which `App.tsx` renders with the non-blocking
+// auto-dismissing `CelebrationBanner` (never a modal).
+describe("useTownStore — first-building celebration notice", () => {
+  it("queues a firstBuilding notice for building #1 only, never for later builds", async () => {
+    await mountAndWaitForBoot();
+    expect(latest?.notice).toBeNull();
+
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 3_200, categoryId: "cafe", occurredOn: TODAY });
+    });
+    expect(latest?.buildingCount).toBe(1);
+    expect(latest?.notice).toEqual({ kind: "firstBuilding" });
+
+    act(() => latest!.dismissNotice());
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 4_100, categoryId: "food", occurredOn: TODAY });
+    });
+    expect(latest?.buildingCount).toBe(2);
+    // Second building is routine — no re-celebration. (What IS here at 2
+    // buildings is the unrelated move-discoverability hint, ADDENDUM-02 §4.5.)
+    expect(latest?.notice).not.toEqual({ kind: "firstBuilding" });
+    act(() => latest!.dismissNotice());
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 5_100, categoryId: "transport", occurredOn: TODAY });
+    });
+    expect(latest?.buildingCount).toBe(3);
+    expect(latest?.notice).toBeNull();
+  });
+});
+
 describe("useTownStore.addEntry — ADDENDUM-04 grow, then reload", () => {
   it("grows an existing building instead of placing a new one, and the exp round-trips through storage", async () => {
     await mountAndWaitForBoot();

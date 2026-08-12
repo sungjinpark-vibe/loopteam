@@ -182,7 +182,14 @@ export type Notice =
   // Naturally never reappears on reload (idempotent settlement mints nothing
   // further, so no notice is pushed on a later boot) — same reasoning
   // "drained" already relies on.
-  | { kind: "settlement"; summary: MonthSummary };
+  | { kind: "settlement"; summary: MonthSummary }
+  // Gate-3 follow-up (A2) — the town's FIRST building was just founded. Fired
+  // exactly once per town (the guard is `countBuildings(prev) === 0`, so a
+  // town that later empties out and re-founds legitimately celebrates again).
+  // `App.tsx` renders it with the SAME non-blocking auto-dismissing banner
+  // `kind: "tier"` uses (`CelebrationBanner`), never a modal — a blocking
+  // celebration was a round-1 Gate-3 failure and must not come back.
+  | { kind: "firstBuilding" };
 
 /**
  * Load-modify-save on one month's buildings chunk — the same three-line
@@ -804,6 +811,10 @@ export function useTownStore() {
     let seedsGranted = 0;
     if (result.building) {
       setJustBuiltId(result.building.id);
+      // Gate-3 follow-up (A2) — queued BEFORE the tier notice below so the
+      // FIFO shows "첫 건물" first if a fresh town somehow crosses a tier on
+      // the same save. `prev.buildings` is the pre-save town by construction.
+      if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
       const award = { kind: "build", buildingId: result.building.id } as const; // ADDENDUM-05 — entry-sourced build, § F-ECON table row 1
       if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
     }
@@ -876,6 +887,10 @@ export function useTownStore() {
     stateRef.current = next;
     setState(next);
     setJustBuiltId(result.building.id);
+    // Gate-3 follow-up (A2) — same first-building celebration as `addEntry`:
+    // on a fresh town the 무지출 park can legitimately be building #1, and the
+    // moment shouldn't be celebrated only on one of the two ways to reach it.
+    if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
     grantSeeds({ kind: "nospend", date: today }); // ADDENDUM-05 — § F-ECON table row 2
     if (result.celebrateTier !== null) {
       pushNotices({ kind: "tier", tier: result.celebrateTier });
