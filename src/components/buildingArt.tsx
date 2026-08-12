@@ -790,12 +790,14 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   // smallest thing that still reads as a distinct coloured marker on the roof.
   // Capped at spanW so it can never spill sideways past the tile (the surviving
   // half of the d8ce379 freeze).
-  const plateW = big ? 56 : 44;
-  const plateH = big ? 22 : 18;
+  const plateW = Math.min(geo.box.spanW * (big ? 0.42 : 0.52), big ? 130 : 90);
+  const plateH = plateW * 0.38;
   const plateCx = signAnchor.x;
-  // clamped to the box ceiling: on a flat roof the plate hangs 14+plateH/2 above the
-  // roof deck, which used to be free space and is now the top of the art
-  const plateCy = Math.max(signAnchor.y - 14, geo.box.top + plateH / 2 + (big ? 5 : 0));
+  // Mounted flush on the roof (bottom edge at the sign anchor), clamped so the plate
+  // never rises past the box ceiling. Note the roof plane sits at a CONSTANT offset
+  // below `box.top` at every level (grow lands entirely in the wall), so the sign
+  // rides up with the roof as the building grows instead of drifting off it.
+  const plateCy = Math.max(geo.box.top + plateH / 2, signAnchor.y - plateH * 0.55);
   const plateTop = plateCy - plateH / 2;
   const plateBottom = plateCy + plateH / 2;
   // The plate is filled with a SATURATED shade of the category's own hue (not the
@@ -805,9 +807,11 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   // under the glyph is what keeps the emoji legible once the player zooms in — every
   // sign in the table (including the flat-coloured "✚"/"✳️") reads against white,
   // and several do not read against a saturated plate.
+  const postX = plateW * 0.23;
+  const chipInset = plateH * 0.16;
   const out: ReactNode[] = [
-    <line key="post-l" x1={plateCx - 10} y1={plateBottom} x2={plateCx - 10} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
-    <line key="post-r" x1={plateCx + 10} y1={plateBottom} x2={plateCx + 10} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
+    <line key="post-l" x1={plateCx - postX} y1={plateBottom} x2={plateCx - postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
+    <line key="post-r" x1={plateCx + postX} y1={plateBottom} x2={plateCx + postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
     <rect
       key="plate"
       data-part="signboard"
@@ -816,16 +820,27 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
       width={plateW}
       height={plateH}
       rx={3}
-      fill={palette.roofLite}
-      stroke={palette.roofDark}
+      fill={shade(spec.hue, 600)}
+      stroke={shade(spec.hue, 800)}
+      strokeWidth={1.5}
     />,
-    <text key="plate-sign" x={plateCx} y={plateCy + 7} fontSize={big ? 26 : 22} textAnchor="middle">
+    <rect
+      key="plate-chip"
+      data-part="signboard-chip"
+      x={plateCx - plateW / 2 + chipInset}
+      y={plateTop + chipInset}
+      width={plateW - chipInset * 2}
+      height={plateH - chipInset * 2}
+      rx={2}
+      fill={colors.white}
+    />,
+    <text key="plate-sign" x={plateCx} y={plateCy + plateH * 0.3} fontSize={plateH * 0.66} textAnchor="middle">
       {spec.sign}
     </text>,
   ];
   // three marquee bulbs along the plate's bottom edge — the same trick d.marquee already uses
   for (let i = 0; i < 3; i++) {
-    out.push(<circle key={`bulb-${i}`} cx={plateCx - 12 + i * 12} cy={plateBottom} r={1.2} fill={colors.white} />);
+    out.push(<circle key={`bulb-${i}`} cx={plateCx + (i - 1) * plateW * 0.27} cy={plateBottom} r={plateH * 0.07} fill={colors.white} />);
   }
   // 2x2 landmark cap — a small parapet block above the plate, the "extra roof
   // structure" ADDENDUM-08 §7 asks for on genuinely bigger buildings.
@@ -1008,13 +1023,11 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
     >
       {geo.parts}
       {decor}
-      {isLandmark ? (
-        roofSignboard(spec, palette, geo, big2x2)
-      ) : (
-        <text x={geo.signAnchor.x} y={geo.signAnchor.y + 8} fontSize={16} textAnchor="middle">
-          {spec.sign}
-        </text>
-      )}
+      {/* 2026-08-13 "무슨 건물인지 알 수 있게 지붕에 간판을 달아라" — EVERY building gets
+          the roof signboard now, not just landmarks. The bare 16px emoji that used to
+          stand in for it on ordinary buildings is gone: it was the same glyph with no
+          plate, no hue and no contrast, and it is the thing the user could not read. */}
+      {roofSignboard(spec, palette, geo, big2x2)}
     </svg>
   );
 }

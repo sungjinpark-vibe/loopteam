@@ -224,7 +224,7 @@ describe("PlaceholderBuilding — window grid (§4.1, AC-10)", () => {
 
 // ── ADDENDUM-06 §4.2/§4.3 — landmark roof signboard (AC-9) ──
 
-describe("PlaceholderBuilding — landmark roof signboard (§4.2-4.3, AC-9)", () => {
+describe("PlaceholderBuilding — roof signboard (§4.2-4.3, AC-9; universal since 2026-08-13)", () => {
   const LANDMARK_CATEGORIES: BuildingCategoryId[] = ["culture", "social", "transport", "salary"];
 
   it.each(LANDMARK_CATEGORIES)("%s (a landmark archetype) emits a [data-part=signboard] node", (categoryId) => {
@@ -234,12 +234,23 @@ describe("PlaceholderBuilding — landmark roof signboard (§4.2-4.3, AC-9)", ()
     mounted = null;
   });
 
-  it("every other category at level <= 3 does not emit a signboard", () => {
-    const nonLandmark = SAMPLE_CATEGORIES.filter((c) => !LANDMARK_CATEGORIES.includes(c));
-    for (const categoryId of nonLandmark) {
-      const m = mountComponent(<PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={3} />);
-      expect(m.container.querySelector('[data-part="signboard"]')).toBeNull();
-      m.unmount();
+  /**
+   * REPLACES "every other category at level <= 3 does not emit a signboard".
+   *
+   * That assertion encoded the landmark-only rule the user overturned on
+   * 2026-08-13: "무슨 건물인지 알 수 있게 지붕에 간판을 달아라" — a signboard on the roof
+   * so you can tell what the building is. Under the old rule an ordinary Lv.1 shop
+   * carried only a bare 16-unit emoji with no plate and no contrast, which is
+   * precisely the thing the user could not read. The rule is now "every building,
+   * every level", so the inverted assertion below is the one this file should have.
+   */
+  it("EVERY category emits a roof signboard at every level, including Lv.1 (user instruction 2026-08-13)", () => {
+    for (const categoryId of SAMPLE_CATEGORIES) {
+      for (const level of [1, 3, 10]) {
+        const m = mountComponent(<PlaceholderBuilding categoryId={categoryId} variantIndex={0} level={level} />);
+        expect(m.container.querySelector('[data-part="signboard"]'), `${categoryId} Lv.${level}`).not.toBeNull();
+        m.unmount();
+      }
     }
   });
 
@@ -248,6 +259,34 @@ describe("PlaceholderBuilding — landmark roof signboard (§4.2-4.3, AC-9)", ()
     expect(mounted.container.querySelector('[data-part="signboard"]')).not.toBeNull();
   });
 
+  /** The sign carries the archetype's own glyph — "what kind of building is this" needs the
+   *  category-specific mark, not a generic plate. Two different categories, two different glyphs. */
+  it("the signboard shows the category's own glyph, on a plate filled with the category hue", () => {
+    const cafe = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={1} />);
+    const clinic = mountComponent(<PlaceholderBuilding categoryId="health" variantIndex={0} level={1} />);
+    const glyphOf = (m: MountedComponent) =>
+      Array.from(m.container.querySelectorAll("text")).map((t) => t.textContent).join("");
+    expect(glyphOf(cafe)).toContain("☕");
+    expect(glyphOf(clinic)).toContain("✚");
+    expect(glyphOf(cafe)).not.toBe(glyphOf(clinic));
+    // colour is the only channel that survives fit scale (~17px tile) — the plates must differ
+    const plateFill = (m: MountedComponent) => m.container.querySelector('[data-part="signboard"]')!.getAttribute("fill");
+    expect(plateFill(cafe)).not.toBe(plateFill(clinic));
+    cafe.unmount();
+    clinic.unmount();
+  });
+
+  /** Legibility floor, measured not asserted by eye: the plate must be a real share of the
+   *  cell, not the old fixed 44x18 view units (= 10x4 CSS px, ~1.7px at the 0.42 fit scale). */
+  it("the signboard plate is a legible share of its cell — at least 40% of the art's width", () => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={1} />);
+    const svg = mounted.container.querySelector("svg")!;
+    const viewW = Number(svg.getAttribute("viewBox")!.split(" ")[2]);
+    const plateW = Number(mounted.container.querySelector('[data-part="signboard"]')!.getAttribute("width"));
+    expect(plateW / viewW).toBeGreaterThanOrEqual(0.4);
+    // …and never wider than the cell itself (the horizontal half of the d8ce379 freeze)
+    expect(plateW).toBeLessThanOrEqual(viewW);
+  });
 });
 
 // ── ADDENDUM-08 §7 — footprint must actually shape the art, not just gate isLandmark ──
