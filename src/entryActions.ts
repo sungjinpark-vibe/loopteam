@@ -10,7 +10,7 @@
  * normal 지출 save (logging an expense on an already-claimed date), not on a
  * dedicated user action, so it has to run as part of this same save.
  */
-import { advanceStreak, expOf, slotsRemainingToday, tier } from "./selectors";
+import { advanceStreak, expOf, slotsRemainingToday, tier, townScale } from "./selectors";
 import { savingsBucketOf } from "./savingsBuckets";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
@@ -120,6 +120,12 @@ export interface BuildOrQueueArgs {
    * other because there is only one. The money->reward mechanic this was
    * layering onto tier stays intact where it actually lives: `levelOf`
    * (per-building Lv./size) still reads `exp` directly, untouched.
+   *
+   * ADDENDUM-11 §5.1.3 keeps that invariant and only changes WHAT is counted:
+   * every caller now passes `townScale(buildings)` (Σ 2**fuse), which is the
+   * same single number `TownStore.buildingCount` hands the header — one
+   * accessor still, never a second parallel number. Equal to the literal count
+   * for any town with nothing fused.
    */
   buildingCountBeforeThis: number;
   today: string;
@@ -365,7 +371,10 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
   // increases — round-2 finding C2 #1).
   const decision = decideBuildOrQueue({
     town,
-    buildingCountBeforeThis: buildings.length - revokedContribution,
+    // ADDENDUM-11 §5.1.3 — `townScale`, not `.length`: a fused building counts
+    // as the buildings it absorbed. Identical to `.length` for any town with
+    // nothing fused, so tier pacing is unchanged for every existing save.
+    buildingCountBeforeThis: townScale(buildings) - revokedContribution,
     today,
     dailyBuildSlots,
     materialQueueMax,

@@ -22,7 +22,7 @@
  *    to the tower instead.
  */
 import { adjustSavings, decideBuildOrQueue } from "./entryActions";
-import { expGainFor, expOf } from "./selectors";
+import { expGainFor, expOf, townScale } from "./selectors";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
 /** Locates the building this entry produced, if any — the one place both delete and edit look this up (round-4 finding C3: was copy-pasted twice in `useTownStore.ts`). */
@@ -243,7 +243,7 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     town = adjustSavings(town, oldEntry.categoryId, -oldEntry.amountKrw);
     const decision = decideBuildOrQueue({
       town,
-      buildingCountBeforeThis: buildings.length,
+      buildingCountBeforeThis: townScale(buildings), // ADDENDUM-11 §5.1.3 — same accessor the header uses; === buildings.length when nothing is fused
       today,
       dailyBuildSlots,
       materialQueueMax,
