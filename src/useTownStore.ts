@@ -50,12 +50,23 @@ import {
   buildingCount as countBuildings,
   canClaimNoSpend as selectCanClaimNoSpend,
   expGainFor,
+  fuseOf,
+  totalLevelOf,
   growCandidates as selectGrowCandidates,
   grownStructures,
   growthScore as computeGrowthScore,
   ladderFor,
   slotsRemainingToday,
+  townScale,
 } from "./selectors";
+import {
+  applyFusion,
+  fusePartners,
+  fusionChunkWrites,
+  remapEntryBuildingRefs,
+  repairPendingFusions,
+  transferBuildingSku,
+} from "./fusionActions";
 import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
 import { applyAward, awardFor, type AwardEvent } from "./economy/awards";
 import { defaultEconomyState, NPC_MAX_VISIBLE, NPC_SLOT_SKU, seeds as seedCount, type EconomyState } from "./economy/types";
@@ -90,6 +101,18 @@ function entriesForMonth(
   todayYm: string,
 ): LedgerEntry[] | undefined {
   return ym === todayYm ? state.entries : state.historyEntries[ym];
+}
+
+/** ADDENDUM-11 §3 — what one committed fusion produced, for the confirming UI's toast. */
+export interface FuseBuildingsResult {
+  /** The surviving building, `fuse` already incremented — same id, plotIndex and footprint it had before. */
+  survivor: Building;
+  /** The building that was consumed; already gone from `store.buildings`. */
+  consumedId: string;
+  /** The survivor's new VISIBLE level (`totalLevelOf`) — 6..10. */
+  level: number;
+  /** Seeds this fusion actually paid (§5.3); 0 if the award was already granted for this tier. */
+  seedsGranted: number;
 }
 
 export interface AddEntryResult {
@@ -207,6 +230,37 @@ function mutateBuildingsForMonth(
 }
 
 /**
+ * ADDENDUM-11 §5.4 — repoints every `LedgerEntry` that referenced `fromId` at
+ * `toId`, in whichever month chunks hold them, and returns the patched lists
+ * by month so a caller with in-memory entries can fold them in. Empty map when
+ * nothing referenced `fromId` — and no chunk is written in that case either
+ * (`remapEntryBuildingRefs` returns its input by reference when unchanged).
+ *
+ * ponytail: reads every known entries chunk, because the index has no
+ * buildingId -> month reverse map and inventing one would be a second source
+ * of truth for a link `LedgerEntry.buildingId` already holds. Bounded by the
+ * months a town has ever logged, and only ever runs on a fusion (a rare,
+ * deliberate act) or on a boot that found a `fusePending`. Add an index if
+ * fusions ever become frequent.
+ */
+function remapLedgerRefs(
+  storageClient: ReturnType<typeof createChunkedStorage>,
+  core: CoreState,
+  fromId: string,
+  toId: string,
+): Map<string, LedgerEntry[]> {
+  const patched = new Map<string, LedgerEntry[]>();
+  for (const ym of storageClient.entryMonths()) {
+    const { entries } = storageClient.loadEntriesForMonth(ym);
+    const next = remapEntryBuildingRefs(entries, fromId, toId);
+    if (next === entries) continue;
+    storageClient.saveEntriesForMonth(ym, next, core);
+    patched.set(ym, next);
+  }
+  return patched;
+}
+
+/**
  * F16 settlement (pure `settleMonths`) THEN F14 drain (pure `drainQueue`),
  * persisted together in ONE core write. Runs once, right after boot, before
  * the app is shown.
@@ -308,7 +362,9 @@ async function settleAndDrainAndPersist(
     // included) — the tier gate must use the same number `TownHeader`
     // displays, not the growth score (see `entryActions.ts`'s
     // `BuildOrQueueArgs.buildingCountBeforeThis` doc for the full story).
-    countBuildings(buildingsWithMonuments),
+    // ADDENDUM-11 §5.1.3: that one number is now `townScale` (Σ 2**fuse) —
+    // still ONE accessor shared with the header, just counting Lv.5-equivalents.
+    townScale(buildingsWithMonuments),
     today,
     BALANCE.dailyBuildSlots,
     BALANCE.tierThresholds,
@@ -533,7 +589,33 @@ export function useTownStore() {
       // coordinate space — every building lays out fresh, oldest first
       // (§4's migration). Zero storage writes for the ordinary case where
       // nothing is wrong (repaired === 0, no forced reseat).
-      const reconciled = reconcilePlacement(boot.buildings, { forceReseat: boot.forceReseat });
+      // ADDENDUM-11 §3.1 — finish (never roll back) any fusion that was
+      // interrupted between its two chunk writes, BEFORE reconcile so the
+      // consumed building's cells are already free when placement runs. A
+      // `fusePending` can only exist inside that window, so the ordinary boot
+      // does no work and writes nothing here.
+      const fusionRepair = repairPendingFusions(boot.buildings);
+      if (fusionRepair.repairs.length > 0) {
+        const repairCore: CoreState = { town: core.town, budget: core.budget, onboarded: core.onboarded };
+        for (const repair of fusionRepair.repairs) {
+          // The consumed building's own chunk first: dropping it is the write
+          // that may still be missing. Skipped when it is already gone (a
+          // crash after write 2), where only the stale field remains.
+          if (repair.consumedYm !== null) {
+            mutateBuildingsForMonth(storageClient, repair.consumedYm, (existing) =>
+              existing.filter((b) => b.id !== repair.consumedId));
+          }
+          // §5.4 — the remap is re-run rather than assumed: a crash before it
+          // would otherwise leave 기록 entries pointing at a deleted id.
+          // Idempotent (nothing points at the consumed id the second time).
+          remapLedgerRefs(storageClient, repairCore, repair.consumedId, repair.survivorId);
+          mutateBuildingsForMonth(storageClient, repair.survivorYm, (existing) =>
+            existing.map((b) => (b.id === repair.survivorId ? fusionRepair.buildings.find((x) => x.id === b.id) ?? b : b)));
+        }
+        analytics.track("fusion_repaired", { count: fusionRepair.repairs.length });
+      }
+
+      const reconciled = reconcilePlacement(fusionRepair.buildings, { forceReseat: boot.forceReseat });
       // ponytail: `unplacedIds` (buildings.length > 193 ground cells) is
       // unreachable for any real save (spec §4: "193 ground cells >> any
       // existing save") — those buildings are kept, at their stale
@@ -544,12 +626,15 @@ export function useTownStore() {
       if (reconciled.repaired > 0) {
         // Only months that actually contain a repaired building, ascending
         // ym order — rebuilt from the reconciled in-memory array, never
-        // read-modify-write. Position-indexed comparison against `boot.buildings`
+        // read-modify-write. Position-indexed comparison against the
+        // reconciler's own INPUT (`fusionRepair.buildings` — `boot.buildings`
+        // itself, by reference, on any boot with no fusion to repair; a repair
+        // can DROP a consumed building, which would shift every later index)
         // is safe: `reconcilePlacement` preserves array order/identity for
         // every untouched entry (its own contract).
         const repairedMonths = new Set<string>();
         for (let i = 0; i < reconciled.buildings.length; i++) {
-          if (reconciled.buildings[i] !== boot.buildings[i]) repairedMonths.add(reconciled.buildings[i].builtOn.slice(0, 7));
+          if (reconciled.buildings[i] !== fusionRepair.buildings[i]) repairedMonths.add(reconciled.buildings[i].builtOn.slice(0, 7));
         }
         for (const ym of [...repairedMonths].sort()) {
           storageClient.saveBuildingsForMonth(ym, reconciled.buildings.filter((b) => b.builtOn.slice(0, 7) === ym));
@@ -877,8 +962,9 @@ export function useTownStore() {
     const result = claimNoSpendDay({
       town: prev.town,
       // Gate-3-rerun fix: literal count, matching the tier gate everywhere
-      // else now (see `entryActions.ts`'s `buildingCountBeforeThis` doc).
-      existingBuildingCount: countBuildings(prev.buildings),
+      // else now (see `entryActions.ts`'s `buildingCountBeforeThis` doc), and
+      // ADDENDUM-11 §5.1.3 makes that number `townScale`.
+      existingBuildingCount: townScale(prev.buildings),
       entries: prev.entries,
       today,
       dailyBuildSlots: BALANCE.dailyBuildSlots,
@@ -915,6 +1001,69 @@ export function useTownStore() {
     maybeQueueMoveHint(result.town, countBuildings(next.buildings));
     return true;
   }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
+
+  /**
+   * ADDENDUM-11 §3/§3.1/§5.3/§5.4 — fuse `consumedId` into `survivorId`.
+   *
+   * Returns `null` and touches nothing when the pair fails any of §2.2's
+   * F1-F6: the legality check lives in `applyFusion` (the one place that
+   * mutates), not only at the CTA that offered it, so a stale sheet can never
+   * commit an illegal fusion.
+   *
+   * Write order matters and is not arbitrary:
+   *  1. 기록/cosmetics FIRST (§5.4). A crash after these leaves BOTH buildings
+   *     standing with the entries already pointing at the survivor — nothing
+   *     lost, nothing duplicated. Doing them last would open a window where
+   *     the consumed building is gone and its entries point at a dead id with
+   *     no `fusePending` left to trigger the boot repair.
+   *  2. Then the buildings chunks, in `fusionChunkWrites`'s exact order — see
+   *     its doc for the atomicity argument.
+   */
+  const fuseBuildings = useCallback((survivorId: string, consumedId: string): FuseBuildingsResult | null => {
+    const prev = stateRef.current;
+    if (prev === null) return null;
+    const result = applyFusion(prev.buildings, survivorId, consumedId, BALANCE.expPerLevel, BALANCE.maxLevel);
+    if (result === null) return null;
+
+    const storageClient = storageRef.current;
+    const core: CoreState = { town: prev.town, budget: prev.budget, onboarded: prev.onboarded };
+    const patchedMonths = remapLedgerRefs(storageClient, core, consumedId, survivorId);
+    const economy = transferBuildingSku(prev.economy, consumedId, survivorId);
+    if (economy !== prev.economy) storageClient.saveEconomy(economy);
+
+    for (const write of fusionChunkWrites(result.survivor, result.consumed)) {
+      mutateBuildingsForMonth(storageClient, write.ym, write.mutate);
+    }
+
+    const todayYm = clock.today().slice(0, 7);
+    let historyEntries = prev.historyEntries;
+    for (const [ym, list] of patchedMonths) {
+      if (ym !== todayYm && historyEntries[ym] !== undefined) historyEntries = { ...historyEntries, [ym]: list };
+    }
+    const next: LoadedState = {
+      ...prev,
+      buildings: result.buildings,
+      entries: patchedMonths.get(todayYm) ?? prev.entries,
+      historyEntries,
+      economy,
+    };
+    stateRef.current = next;
+    setState(next);
+
+    // §5.3 — the idempotency key carries the RESULTING fuse tier, so the same
+    // survivor pays again at every rung on its way to Lv.10 (an id-only key
+    // would read a Lv.7 as an already-paid Lv.6). Granted after `stateRef` is
+    // updated, same order `addEntry` uses — `grantSeeds` reads it.
+    const award = { kind: "fuse", buildingId: survivorId, fuseTier: fuseOf(result.survivor) } as const;
+    const seedsGranted = grantSeeds(award) ? awardFor(award).amount : 0;
+
+    return {
+      survivor: result.survivor,
+      consumedId,
+      level: totalLevelOf(result.survivor, BALANCE.expPerLevel, BALANCE.maxLevel),
+      seedsGranted,
+    };
+  }, [grantSeeds]);
 
   /**
    * ADDENDUM-02 §4.2/§4.5 — the ONLY store action that mutates a building's
@@ -1197,7 +1346,7 @@ export function useTownStore() {
     if (prev === null) return "insufficient";
 
     if (sku === NPC_SLOT_SKU) {
-      const npcCountNow = 1 + countBuildings(prev.buildings) + prev.economy.purchasedNpcSlots;
+      const npcCountNow = 1 + townScale(prev.buildings) + prev.economy.purchasedNpcSlots; // same formula as `npcCount` below — ADDENDUM-11 §5.5
       if (npcCountNow >= NPC_MAX_VISIBLE) return "maxed";
       if (prev.economy.seeds < priceSeeds) return "insufficient";
       const economy: EconomyState = {
@@ -1330,13 +1479,31 @@ export function useTownStore() {
     loading: state === null,
     townName: state?.town.townName ?? "",
     buildings: state?.buildings ?? [],
-    buildingCount: state ? countBuildings(state.buildings) : 0,
+    // ADDENDUM-11 §5.1.3 — the town's scale in Lv.5-equivalents (`townScale`,
+    // Σ 2**fuse), NOT the raw array length. Deliberately still the single
+    // `buildingCount` accessor: `TownScreen` feeds this exact value to BOTH
+    // `TownHeader`'s "건물 N채" AND `computeTier`, so the Gate-3-rerun invariant
+    // (one number, one accessor, gate and display can never drift) is
+    // preserved by construction. Identical to `state.buildings.length` for any
+    // town with nothing fused, so an existing save's tier is unchanged on
+    // first load.
+    buildingCount: state ? townScale(state.buildings) : 0,
     // ADDENDUM-04 §3 — the tier-driving score (`buildings.length + Σexp`).
     // `buildingCount` above is unchanged and still the literal count 기록/UI want.
     growthScore: state ? computeGrowthScore(state.buildings) : 0,
     // ADDENDUM-04 §4 — pure selector the UI calls to build the grow dialog's
     // candidate set / pick-mode highlight.
     growCandidates: (categoryId: CategoryId) => (state ? selectGrowCandidates(state.buildings, categoryId) : []),
+    // ── ADDENDUM-11 (building fusion) ──
+    // §6 step 2 — the partners `buildingId` may fuse with. Empty when the
+    // tapped building itself is ineligible (not Lv.5, a monument, a 무지출
+    // park tile, already Lv.10) or simply has no matching partner, which is
+    // the condition for showing the 융합하기 CTA at all: no partner, no button.
+    fuseCandidates: (buildingId: string) =>
+      state ? fusePartners(state.buildings, buildingId, BALANCE.expPerLevel, BALANCE.maxLevel) : [],
+    fuseBuildings,
+    /** §2.4 — the level a building displays, EXP level + fuse tier (1..10). */
+    levelOfBuilding: (b: Building) => totalLevelOf(b, BALANCE.expPerLevel, BALANCE.maxLevel),
     slotsRemaining: state ? slotsRemainingToday(state.town, today, BALANCE.dailyBuildSlots) : BALANCE.dailyBuildSlots,
     dailyBuildSlots: BALANCE.dailyBuildSlots,
     streakDays: state?.town.streakDays ?? 0,
@@ -1382,7 +1549,9 @@ export function useTownStore() {
     applyBuildingSku,
     // F-NPC count rule: 1 base + 1 per building + purchased slots, capped at
     // NPC_MAX_VISIBLE (a render-perf ceiling — see that const's own comment).
-    npcCount: state ? Math.min(1 + countBuildings(state.buildings) + state.economy.purchasedNpcSlots, NPC_MAX_VISIBLE) : 1,
+    // ADDENDUM-11 §5.5 — fed `townScale` so the crowd does not thin out with
+    // every fusion (a fusion removes a building but the town got no smaller).
+    npcCount: state ? Math.min(1 + townScale(state.buildings) + state.economy.purchasedNpcSlots, NPC_MAX_VISIBLE) : 1,
   };
 }
 

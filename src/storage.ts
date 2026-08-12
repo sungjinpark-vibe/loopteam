@@ -698,6 +698,21 @@ export function createChunkedStorage(port: StoragePort = defaultStoragePort) {
       return { buildings: result.value ?? [], corrupt: false };
     },
 
+    /**
+     * Every 'YYYY-MM' that has an entries chunk, ascending — read straight off
+     * the index that `registerMonth` already maintains, so this costs one
+     * `get` and no chunk reads.
+     *
+     * ADDENDUM-11 §5.4 needs it: a fusion must remap EVERY `LedgerEntry`
+     * pointing at the consumed building, and those entries can sit in any
+     * month (a building's founding entry and its later grow entries are
+     * independent of `builtOn`, and either can be backdated). There was no way
+     * to enumerate months from outside this module before.
+     */
+    entryMonths(): string[] {
+      return readIndex().index.entryMonths;
+    },
+
     saveCore,
     saveEntriesForMonth,
     saveBuildingsForMonth,
