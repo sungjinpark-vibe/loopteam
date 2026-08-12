@@ -5,6 +5,53 @@
 > 2026-07-19 restructure).
 
 ## Current State
+- **Status (2026-08-11, end of day — handoff)**: `app_in_toss` pinch-zoom (ADDENDUM-09, Phase 3 of the
+  2026-08-11 art/UX work: Phase 1 building art → Phase 2 street props → **Phase 3 pinch zoom**) is
+  **code-complete, committed and pushed** on `app_in_toss` HEAD `56ed417` ("ADDENDUM-09: pinch zoom + pan,
+  fix 2-finger long-press hijack bug"), level with `origin/app_in_toss` (verified 2026-08-12 — the
+  earlier "not pushed" note in this entry was stale).
+  Changed: `src/hooks/useTileGestures.ts` (2-pointer gesture arbitration + pinch sample reporting),
+  `src/components/TownGrid.tsx` (scale+translate transform, pinch/pan state, toggle reset),
+  `src/App.css` + `src/components/TownGrid.test.tsx` (comments / 6 new tests). Vitest 695/695 (was 689),
+  `eslint .` clean, `tsc --noEmit -p tsconfig.app.json` clean.
+  **Ships**: (1) the §1.1 bug fix — a 2nd finger landing during a one-finger long-press used to
+  reassign `pressPointerId` to itself and restart the timer against ITS tile (a live hijack bug, not
+  just a pinch side-effect); now a 2nd pointer cleanly abandons the press and never resurrects it — has
+  a dedicated regression test (`TownGrid.test.tsx`, "a 2nd pointer landing on a DIFFERENT tile during a
+  long-press cancels it cleanly..."), a **required condition**, do not drop it in any follow-up. (2)
+  pinch-zoom on the EXISTING `.town-grid` transform (`scale(k) translate(tx,ty)`, no wrapper element, no
+  relayout — `TownTerrain` memo and the `.town-grid` direct-child-count test both still hold), clamped
+  `fitScale..2.5`, anchored on the pinch midpoint. (3) pan owned by transform above `fitScale`, native
+  `.town-viewport` scroll owns it at/below — `useTileGestures.ts`'s pinch `pointermove` calls
+  `preventDefault()` so the two never double-handle the same 2-finger drag (single-owner test included).
+  (4) 전체 보기 toggle unchanged, now also resets pinch scale/translate.
+  **DONE (2026-08-12) — ADDENDUM-09 Phase 3 is COMPLETE, all 8 acceptance criteria backed by real
+  measurements**, HEAD `75a0198`, pushed and level with `origin/app_in_toss`. Browser touch-emulation QA
+  (spec §4 item 8) ran under Playwright + CDP `Input.dispatchTouchEvent` (real 2-finger gestures, 390x844
+  touch context). Evidence: `app_in_toss/docs/qa/evidence-addendum09-pinchzoom/` — 20 screenshots +
+  `findings.json` with per-scenario numbers.
+  - **One real defect found and fixed** (`a47bab8`, `TownGrid.tsx` +14/-1 + a failing-first regression
+    test): `.town-viewport`'s height pin was gated on `zoomedOut` alone. A pinch flips `zoomedOut=false`
+    as a pure ownership handoff, which dropped the pin mid-gesture and let the viewport reflow toward
+    `max-height` — a measured **~150px vertical anchor jump the instant a pinch started from the initial
+    zoomed-out state**. Fix is one line: `const activeFit = zoomedOut || pinch !== null ? fit : null;`.
+    The toggle's own `zoomedOut=false, pinch=null` path still gets `null`, unchanged.
+  - Measured: pinch anchor error ≤3.1px (10px tolerance); clamp exact at `fitScale` 0.419355 and 2.5;
+    pan travel ratio 1.06/1.08 with native scroll unmoved at (0,0) — **not doubled**, the AC#5 risk;
+    pan inert at fit scale; toggle resets to scale=fit, translate=(0,0); one-finger building move works
+    at fit scale and while zoomed; 2nd finger cancels a long-press with no resurrection or phantom move.
+  - **AC#6/AC#7 were closed in a second evidence-only round** (`75a0198`, no source change): NPC-vs-terrain
+    local offset is **−3.0000px identical to 4 decimals at fit/mid/max zoom** — i.e. zoom adds exactly
+    zero misalignment; that −3px is a pre-existing decorative offset already documented in `npc.css`'s
+    ponytail comment, out of ADDENDUM-09's scope. AC#7 verified live by stamping node identity on
+    `.town-grid` and a `.town-cell--road`, then confirming the same objects survive a full
+    pinch→pan→toggle cycle (no remount, `TownTerrain` memo intact).
+  - Vitest **696/696**, `eslint .` clean, `tsc --noEmit -p tsconfig.app.json` clean — all re-run
+    independently by the PM, not taken from the worker's report. Map look (`afc7cd6` baseline) untouched:
+    the whole Phase-3 diff touches only `useTileGestures.ts`, `TownGrid.tsx`, `App.css` comments, tests
+    and `docs/qa/` — no terrain, art, or layout change.
+  Spec: `app_in_toss/docs/spec/ADDENDUM-09-pinch-zoom.md` (§2 director decisions D1-D4 locked; §3.4
+  out-of-scope items — double-tap zoom, inertial pan, rotation, zoom easing, persisted zoom — stayed out).
 - **Status**: 🟢 Gate-3 findings worked back; awaiting a Gate 3 re-run. The original Gate 3 hard fail
   (2026-08-07, avg 64.4/100, all 5 experts below the 80 floor) has been addressed across **T019-T022**
   with the director's **2026-08-09 in-session decisions** (recorded in
@@ -46,6 +93,19 @@
   landed + pushed, Gate 1 re-verified green on HEAD `33b9a1b`, Gate 3 re-run is the next milestone gate)
 
 ## ▶ Next, in this order
+0. ~~Finish ADDENDUM-09 Phase 3 (pinch zoom)~~ — **DONE 2026-08-12**, HEAD `75a0198` pushed, 8/8 acceptance
+   criteria evidenced. See Current State.
+0b. **NEW (user request, 2026-08-12) — building art per footprint.** User: *"아트 리소스 수정 필요. 건물
+   이미지가 1x1, 2x1, 2x2 사이즈로 각각 필요해. 확인해줘."* Survey found: **there are no building image
+   assets at all** — every building is code-drawn SVG (`src/components/buildingArt.tsx`), and all four
+   footprints (1x1 / 1x2 / 2x1 / 2x2) are ALREADY differentiated parametrically by `buildingCube`
+   (`wideMult`, `deep`, `viewWidthFor`, landmark treatment for any >1-cell footprint). So the real
+   question is whether the parametric result *looks* right, not whether per-size art exists. Note 2x2 is
+   square, so it misses the `w/h` ratio path and only gets the flat 1.28x bump, while 2x1 stretches a
+   full 2x — a plausible "2x2 looks undersized" source. Recommended path is parameter tuning, NOT
+   hand-drawn per-size assets (14 categories × 5 levels × 3 variants × 4 footprints = **840** combos,
+   which would break the level/category/variant systems). Awaiting the user's read on the screenshots
+   (`app_in_toss/docs/qa/art-footprint-survey/`) before doing any art work.
 1. **Re-run Gate 3** (5-expert playtest, `playtest.js`) — every finding from the 64.4 fail now has real
    work landed against it (T019-T022): #1 reward/money-decoupling → T021 amount-proportional EXP; #3
    onboarding → S1 built + verified; #4 F16 settlement/monuments → built T021; #5 blocking tier modal →
