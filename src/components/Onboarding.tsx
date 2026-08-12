@@ -48,26 +48,33 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
     cardRef.current?.focus();
   }, []);
 
+  // Gate-3 follow-up (A4): the last beat's CTA was tappable with an empty
+  // field AND with a literal "0", both of which persist nothing usable — a 0
+  // budget is indistinguishable from "unset" downstream (`selectors.budgetPace`
+  // returns a null pace for both) yet the player believes they set one. Same
+  // validation shape `EntrySheet` already uses for 저장 (`disabled={!canSave}`
+  // on the TDS Button): the CTA is disabled until the field holds a real
+  // amount, and 건너뛰기 — right there on the card — remains the way to start
+  // without a budget.
+  const budgetKrw = budgetDigits === "" ? 0 : Number(budgetDigits);
+  const canStart = Number.isFinite(budgetKrw) && budgetKrw > 0;
+
+  /** 건너뛰기 — completes without ever writing a budget the player didn't set. */
+  function skip() {
+    onComplete();
+  }
+
+  /** 시작하기 — only reachable with a valid budget (`canStart`), so it always commits one. */
   function finish() {
-    // Gate-3-RE-RUN fix (round-5 panel, all 5 experts flagged "시작하기 stays
-    // enabled at budget=0"): the field is deliberately optional (label: "월
-    // 예산 (선택)") — 시작하기 staying tappable is correct, not a bug (there's
-    // nothing to validate for an optional field). But typing literally "0"
-    // and persisting it as a real budget is indistinguishable from "unset"
-    // downstream (`selectors.budgetPace` already returns `null` pace for a
-    // 0 budget, same as no budget) while showing the WRONG header copy — the
-    // "정하면 날씨가 생겨요" neutral nudge would render for a player who thinks
-    // they already set one. Treat 0 the same as empty: genuinely unset.
-    const digits = Number(budgetDigits);
-    const budget = budgetDigits === "" || digits === 0 ? null : digits;
-    if (budget !== null) onSetBudget(budget);
+    if (!canStart) return; // defensive — the CTA is already disabled
+    onSetBudget(budgetKrw);
     onComplete();
   }
 
   return (
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="시작하기">
       <div className="onboarding-card" ref={cardRef} tabIndex={-1}>
-        <button type="button" className="onboarding-skip" onClick={finish}>
+        <button type="button" className="onboarding-skip" onClick={skip}>
           건너뛰기
         </button>
 
@@ -104,7 +111,9 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
             <p>페이스에 맞게 맑음·흐림·비로 바뀌어요. 나중에 설정에서 언제든 바꿀 수 있어요.</p>
             <TextField
               variant="box"
-              label="월 예산 (선택)"
+              // No longer "(선택)": 시작하기 now requires a real amount, and
+              // 건너뛰기 is the labelled way past this beat without one.
+              label="월 예산"
               placeholder="예: 800,000"
               inputMode="numeric"
               value={budgetDigits === "" ? "" : `${commaizeAmount(budgetDigits)}원`}
@@ -125,6 +134,8 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
           variant="fill"
           size="large"
           display="block"
+          // A4 — only the final beat validates; 다음 is never gated.
+          disabled={step === BEATS - 1 && !canStart}
           onClick={() => (step < BEATS - 1 ? setStep(step + 1) : finish())}
         >
           {step < BEATS - 1 ? "다음" : "시작하기"}

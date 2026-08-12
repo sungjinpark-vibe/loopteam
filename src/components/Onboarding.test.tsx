@@ -126,14 +126,41 @@ describe("Onboarding (S1)", () => {
     expect(completeCount()).toBe(1);
   });
 
-  it("finishing with an empty budget completes without calling onSetBudget", () => {
+  // Gate-3 follow-up (A4) — replaces "finishing with an empty budget completes
+  // without calling onSetBudget". That test asserted the exact behaviour this
+  // fix removes (an empty/0 budget must no longer be a valid 시작하기), so it
+  // could not be kept as-is; its real subject — "never write a budget the
+  // player didn't set" — is still covered, by 건너뛰기 above and by the
+  // disabled-state assertions here.
+  it("시작하기 is disabled for an empty budget and for 0, and saves nothing while disabled", () => {
     const { props, budgets, completeCount } = makeProps();
     render(props);
     click("다음");
     click("다음");
-    click("시작하기"); // budget field left blank
 
+    expect(button("시작하기").disabled).toBe(true); // empty
+    click("시작하기");
+    expect(completeCount()).toBe(0);
     expect(budgets).toEqual([]);
+
+    typeInto(mounted!.container.querySelector<HTMLInputElement>("input")!, "0");
+    expect(button("시작하기").disabled).toBe(true); // a literal 0 is not a budget
+    click("시작하기");
+    expect(completeCount()).toBe(0);
+    expect(budgets).toEqual([]);
+
+    typeInto(mounted!.container.querySelector<HTMLInputElement>("input")!, "300000");
+    expect(button("시작하기").disabled).toBe(false);
+    click("시작하기");
+    expect(budgets).toEqual([300_000]);
     expect(completeCount()).toBe(1);
+  });
+
+  it("다음 is never gated — only the final beat validates", () => {
+    const { props } = makeProps();
+    render(props);
+    expect(button("다음").disabled).toBe(false);
+    click("다음");
+    expect(button("다음").disabled).toBe(false);
   });
 });
