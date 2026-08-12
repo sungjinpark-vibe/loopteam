@@ -4,28 +4,14 @@ import { createRoot } from "react-dom/client";
 
 import config from "../granite.config.ts";
 import App from "./App.tsx";
+import { installSafeAreaInsetsFallback } from "./platform/insets.ts";
 import "./index.css";
 import "./theme.ts";
 
-// Gate-3-RE-RUN fix (round-5 panel, all 5 experts): `@toss/tds-mobile-ait`'s
-// own mount effect logs "SafeAreaInsets를 가져오는 중 에러가 발생했습니다:
-// Error: getSafeAreaInsets is not a constant handler" via `console.error`
-// whenever the app runs outside the real Toss native host (any bare browser,
-// including every QA/Playwright run) — already documented as pre-existing,
-// environmental noise, unrelated to app code
-// (docs/qa/F16-EXP-evidence.md's S7 console check). The panel kept
-// re-flagging it anyway because the wording is easy to mistake for a NEW
-// regression on sight and hard to positive-match against "the pre-cleared
-// TDS item" from a bare error-count. Filtering this one exact known string
-// at the sink (never anything else) makes the console read clean for real
-// errors instead of asking every future QA pass to eyeball 18 identical
-// lines and guess.
-const KNOWN_NOISE = /getSafeAreaInsets is not a constant handler/;
-const nativeConsoleError = console.error.bind(console);
-console.error = (...args: unknown[]) => {
-  if (args.some((a) => typeof a === "string" && KNOWN_NOISE.test(a))) return;
-  nativeConsoleError(...args);
-};
+// Gate-3 follow-up (A3) — must run BEFORE the first render: the constant is
+// read from `TDSMobileAITProvider`'s own mount effect. See
+// `platform/insets.ts` for the root cause; no-op inside a real Toss host.
+installSafeAreaInsetsFallback();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
