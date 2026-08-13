@@ -22,6 +22,7 @@ import type { EntryDraft } from "../entryActions";
 import { setTimeTravelDate } from "../platform/clock";
 import { setRandomOverride } from "../platform/random";
 import { MOOD_CONTENT, MOOD_NEUTRAL } from "../content.placeholder";
+import { saturatedTown } from "../testUtils/saturatedTown";
 import { CELL_COUNT, cellFromIndex, isBuildable, LAYOUT_VERSION } from "../townLayout";
 import type { Building } from "../types";
 import { useTownStore } from "../useTownStore";
@@ -409,6 +410,23 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
 
     expect(findButton("키우기")).toBeUndefined();
     expect(latest!.queueLength).toBe(1);
+  });
+
+  // FT-1 — the queued-save toast used to promise "내일 아침에 지어드릴게요"
+  // (I'll build it tomorrow morning) unconditionally, even though a queued
+  // save can be waiting on a full town (not just tomorrow's slot reset:
+  // `entryActions.ts`'s `decideBuildOrQueue` queues when `plotIndex === null`
+  // too), a promise the app has no way to keep. Fails without the fix — the
+  // old copy is a specific, unconditional time promise the code cannot honor.
+  it("the queued-save toast promises room, not a specific morning", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      for (let i = 0; i < BALANCE.dailyBuildSlots; i++) latest!.addEntry(cafeExpense(1_000));
+    });
+    openSheet();
+    fillAndSave("카페");
+    expect(document.body.textContent).toContain("자리가 나면 지어드릴게요");
+    expect(document.body.textContent).not.toContain("내일 아침");
   });
 
   it("no dialog for a 저축 entry, even into a category that already has ledger entries", async () => {
@@ -954,5 +972,62 @@ describe("TownScreen — A4: the grow toast names the resulting level and never 
     // Names the RESULTING level explicitly ("지금"), so it can't be read as
     // "gained N levels".
     expect(document.body.textContent).toContain(`레벨이 올랐어요! (지금 Lv.${after})`);
+  });
+});
+
+// FT-1 — the no-spend park's deferral toast (`handleClaimNoSpend`'s queued
+// branch, TownScreen.tsx) borrows the exact same "내일 아침에" wording the
+// entry-queue toast above used to, and the park path is the ONE that always
+// defers from a genuinely full town (`noSpendActions.ts`'s `plotIndex ===
+// null` branch) — "내일 아침" is not a guarantee there either: the SCENARIOS.md
+// `full-town` doc itself records the promise repeating every day the town
+// stays full. Seeds a saturated town (through the real placer, same fixture
+// `useTownStore.noSpendDefer.test.tsx` uses) so `claimNoSpend` genuinely
+// queues rather than builds.
+describe("TownScreen — FT-1: the no-spend park deferral toast", () => {
+  const SEEDED_MONTH = "2026-09"; // TODAY's month, above
+  const CHUNK_KEY = `ait.v1.buildings.${SEEDED_MONTH}`;
+
+  function seedFullTown(buildings: readonly Building[]): void {
+    window.localStorage.setItem(
+      "ait.v1.index",
+      JSON.stringify({ schemaVersion: 1, layoutVersion: LAYOUT_VERSION, entryMonths: [], buildingMonths: [SEEDED_MONTH] }),
+    );
+    window.localStorage.setItem(
+      "ait.v1.core",
+      JSON.stringify({
+        town: {
+          townName: "우리 동네",
+          streakDays: 0,
+          longestStreakDays: 0,
+          lastActOn: null,
+          slotsUsedOn: "",
+          slotsUsedToday: 0,
+          highestTierSeen: BALANCE.tierThresholds.length,
+          queue: [],
+          noSpendDays: [],
+          cumulativeSavingsKrw: 0,
+          lastSettledPeriod: "2026-08", // nothing to settle — keeps this test about the park alone
+          moveHintSeen: true,
+        },
+        budget: { monthlyBudgetKrw: null, updatedAt: 0 },
+        onboarded: true,
+      }),
+    );
+    window.localStorage.setItem(CHUNK_KEY, JSON.stringify(buildings));
+  }
+
+  it("promises room, not a specific morning, when a full town defers the park", async () => {
+    seedFullTown(saturatedTown());
+    await mountAndWaitForBoot();
+    expect(latest?.canClaimNoSpend).toBe(true);
+
+    act(() => {
+      findButton("오늘 무지출!")!.click();
+    });
+
+    expect(latest?.queueLength).toBe(1); // deferred, not built — proves this exercised the full-town branch
+    expect(document.body.textContent).toContain("자리가 나면 지어드릴게요");
+    expect(document.body.textContent).not.toContain("내일 아침");
   });
 });

@@ -59,6 +59,19 @@ function seedSuffix(amount: number, balanceAfter: number): string {
   return amount > 0 ? ` (+${formatSeedsWithUnit(toSeedCount(amount))} · 모은 ${formatSeeds(toSeedCount(balanceAfter))})` : "";
 }
 
+// FT-1 fix — both queue-deferral toasts below (an over-cap entry and a
+// no-spend park) share this same fragment, and both had the same defect:
+// promising "내일 아침에" (tomorrow morning). Both ride `queueActions.ts`'s
+// `drainQueue`, whose own doc says a drain "may return FEWER than requested
+// — town could be full" (queueActions.ts:61); an entry can queue for either
+// reason (`entryActions.ts`'s `decideBuildOrQueue`: daily slots exhausted OR
+// `placeNew` found no room), so neither call site can tell, at queue time,
+// whether tomorrow will actually have room. A promise the app can't
+// guarantee — fixed once here so the two toasts can't drift back out of
+// sync (a comment saying "borrows that path's wording verbatim" is not
+// enough; a shared constant is).
+const QUEUED_BUILD_PROMISE = "자리가 나면 지어드릴게요";
+
 // Gate-3 follow-up (A6): the toast layer's clearance above the bottom tab bar
 // and the FAB column is owned entirely by App.css's
 // `#tds-mobile-portal-container > [aria-live="polite"]` rule now — see its
@@ -150,7 +163,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // B4 — a queued save still earns the entry award, so it carries the same
       // suffix as the build/level-up toasts below; without it the only saves
       // that ever showed a reward were the ones that raised a building.
-      openToast(`오늘 슬롯을 다 썼어요. 내일 아침에 지어드릴게요 (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
+      openToast(`오늘 슬롯을 다 썼어요. ${QUEUED_BUILD_PROMISE} (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.queueOverflow) {
       openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
     } else if (result.grew) {
@@ -393,9 +406,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     if (!claimed) return;
     if (claimed.queued) {
       // Town full — the park deferred onto the same queue an over-cap entry
-      // uses, so it borrows that path's own wording verbatim (see the queued
-      // branch of `handleAddEntry` above): 공원 for 건물, nothing else new.
-      openToast(`오늘은 무지출! 공원은 내일 아침에 지어드릴게요 (대기 ${claimed.queueLength}개)`);
+      // uses, so it shares that path's `QUEUED_BUILD_PROMISE` fragment
+      // (see the queued branch of `handleAddEntry` above): 공원 for 건물,
+      // nothing else new.
+      openToast(`오늘은 무지출! 공원은 ${QUEUED_BUILD_PROMISE} (대기 ${claimed.queueLength}개)`);
       return;
     }
     openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
