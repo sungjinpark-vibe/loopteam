@@ -36,10 +36,17 @@ describe("PlaceholderBuilding — level (ADDENDUM-04 §8)", () => {
     b.unmount();
   });
 
-  it("level 1 shows no floor-growth belts and no Lv. badge", () => {
+  // A3 — this case used to also assert `.building-level-badge` is null at
+  // Lv.1. That assertion WAS the bug (round-5 panel: "the founded Lv.1
+  // building rendered as a plain orange box with no level badge, while the
+  // Lv.5 building carries a visible Lv.5 badge"), so it is replaced by its
+  // inverse below, not deleted. The floor-belt half — art, and the thing the
+  // frozen d8ce379 baseline actually covers — is untouched and still asserts
+  // zero belts at Lv.1.
+  it("level 1 shows no floor-growth belts (art unchanged) but DOES show its Lv.1 badge", () => {
     mounted = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={1} />);
     expect(mounted.container.querySelectorAll(".building-floor-belt").length).toBe(0);
-    expect(mounted.container.querySelector(".building-level-badge")).toBeNull();
+    expect(mounted.container.querySelector(".building-level-badge")?.textContent).toBe("Lv.1");
   });
 
   it("level 3 renders more floor-growth belts in the SVG than level 2 — more levels, more floors", () => {
@@ -52,20 +59,28 @@ describe("PlaceholderBuilding — level (ADDENDUM-04 §8)", () => {
     three.unmount();
   });
 
-  it("the Lv.N badge appears from level 2 up, not at level 1", () => {
-    mounted = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={4} />);
-    const badge = mounted.container.querySelector(".building-level-badge");
-    expect(badge).not.toBeNull();
-    expect(badge!.textContent).toBe("Lv.4");
+  // A3 — was "the Lv.N badge appears from level 2 up, not at level 1". The
+  // "not at level 1" clause is the reported defect; the rest (the badge names
+  // the level) is kept and now covers the whole ladder from 1 up.
+  it("the Lv.N badge appears at EVERY level from 1 up, naming that level", () => {
+    for (const level of [1, 2, 4, MAX_VISUAL_LEVEL]) {
+      const m = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={level} />);
+      expect(m.container.querySelector(".building-level-badge")?.textContent, `Lv.${level}`).toBe(`Lv.${level}`);
+      m.unmount();
+    }
   });
 
-  it("the accessible title mentions the level for level >= 2, and is unchanged (category label only) at level 1", () => {
+  // A3 — was "…and is unchanged (category label only) at level 1", asserting
+  // `tile1.title` is "카페" and does NOT contain "Lv.". The badge is
+  // `aria-hidden`, so `title` is the only place the level reaches assistive
+  // tech; leaving Lv.1 out of it would have shipped the same "this one has no
+  // level" gap to screen readers that the badge fix closes visually.
+  it("the accessible title names the level at EVERY level, including 1", () => {
     const level1 = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={1} />);
     const level5 = mountComponent(<PlaceholderBuilding categoryId="cafe" variantIndex={0} level={5} />);
     const tile1 = level1.container.querySelector(".building-tile") as HTMLElement;
     const tile5 = level5.container.querySelector(".building-tile") as HTMLElement;
-    expect(tile1.title).toBe("카페");
-    expect(tile1.title).not.toContain("Lv.");
+    expect(tile1.title).toBe("카페 Lv.1");
     expect(tile5.title).toBe("카페 Lv.5");
     level1.unmount();
     level5.unmount();

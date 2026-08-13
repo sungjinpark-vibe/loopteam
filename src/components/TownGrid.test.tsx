@@ -777,12 +777,19 @@ describe("TownGrid — keyboard / a11y (AC-K1/AC-K2)", () => {
 });
 
 describe("TownGrid — level rendering / pick-mode highlight", () => {
-  it("a level-1 building (no exp) renders with no floors/badge — level 2 shows Lv.2", () => {
+  // A3 — was "a level-1 building (no exp) renders with no floors/badge", and
+  // asserted the Lv.1 tile's `.building-level-badge` is null. That absence was
+  // the reported defect (round-5 panel: the founded Lv.1 building was a plain
+  // box while the Lv.5 beside it carried a badge), so the assertion is
+  // inverted here rather than dropped — this file's job, that the grid wires
+  // each building's own level through to its own tile, is unchanged and now
+  // covers Lv.1 too.
+  it("every building's tile carries its own level badge — Lv.1 as well as Lv.2", () => {
     const grown: Building = building({ id: "b-grown", plotIndex: GROUND_B, exp: BALANCE.expPerLevel });
     const container = mountGrid([building(), grown]);
 
     const level1Tile = container.querySelector(`[data-plot-index="${GROUND_A}"] .building-tile`) as HTMLElement;
-    expect(level1Tile.querySelector(".building-level-badge")).toBeNull();
+    expect(level1Tile.querySelector(".building-level-badge")?.textContent).toBe("Lv.1");
 
     const level2Tile = container.querySelector(`[data-plot-index="${GROUND_B}"] .building-tile`) as HTMLElement;
     expect(level2Tile.querySelector(".building-level-badge")?.textContent).toBe("Lv.2");

@@ -10,7 +10,7 @@
 import { memo } from "react";
 import { colors } from "@toss/tds-colors";
 import { CATEGORY_CONTENT } from "../content.placeholder";
-import { archetypeFor, BuildingArt, MAX_VISUAL_LEVEL } from "./buildingArt";
+import { archetypeFor, BuildingArt } from "./buildingArt";
 import type { BuildingCategoryId } from "../types";
 import "../buildings.css";
 
@@ -34,17 +34,18 @@ export interface BuildingVisualProps {
   /** Plays the rise-in animation once, for a building just created this session. */
   justBuilt?: boolean;
   /**
-   * Building level (ADDENDUM-04 §8) — 1 (default, every existing save) renders
-   * IDENTICALLY to before: no floors div, no badge, same markup. >= 2 stacks
-   * a floor below the roof and shows a `Lv.N` badge. `variantIndex` (roof
-   * shape) is independent of this.
+   * Building level (ADDENDUM-04 §8) — 1 (default, every existing save) draws
+   * no stacked floor; >= 2 stacks a floor below the roof per extra level.
+   * `variantIndex` (roof shape) is independent of this. The `Lv.N` badge is
+   * shown at EVERY level including 1 (A3) — see `showLevelBadge` below.
    */
   level?: number;
   /**
    * F16 — 'YYYY-MM' engraved on a monument tile (`source.kind === "monument"`,
    * `categoryId === null`); undefined for every other tile. Monuments never
-   * grow (selectors.ts's `growCandidates` already excludes them), so `level`
-   * stays 1 and no `Lv.N` badge ever shows on one — no extra guard needed here.
+   * grow (selectors.ts's `growCandidates` already excludes them), so no `Lv.N`
+   * badge ever shows on one — since A3 that is an EXPLICIT guard
+   * (`showLevelBadge`), not a side effect of Lv.1 having no badge at all.
    */
   monumentPeriod?: string;
   /** ADDENDUM-08 §2.1/§7 — footprint in cells (absent === 1x1), forwarded to `BuildingArt` for the landmark-scale treatment. Never read raw elsewhere — callers pass `footprintOf(building)`. */
@@ -65,9 +66,18 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 
   // tile gets a non-empty inline background colour") — kept as a swatch
   // behind the SVG art, not just a fallback.
   const color = content?.color ?? (monumentPeriod ? colors.grey600 : colors.grey400);
-  // variantIndex is always >= 0 (every producer is `Math.floor(random() * n)`) — plain modulo is enough.
-  const floors = Math.max(0, Math.min(level, MAX_VISUAL_LEVEL) - 1);
-  const title = monumentPeriod ?? (floors > 0 ? [content?.label, `Lv.${level}`].filter(Boolean).join(" ") : content?.label);
+  // Gate-3 round-5 fix (A3): the badge used to be gated on `floors > 0`, an
+  // ART quantity (stacked floors = level - 1, so it is 0 at Lv.1; `BuildingArt`
+  // derives it from the same `level` prop) borrowed as
+  // a UI condition. A freshly founded Lv.1 building therefore rendered with no
+  // level readout at all beside a Lv.5 that had one, which reads as "this one
+  // has no level" rather than "this one is level 1". Every real building has a
+  // level, so the badge shows from Lv.1; monuments are the only exception —
+  // they never grow (`selectors.growCandidates` excludes them), carry their
+  // engraved YYYY-MM instead, and `monumentPeriod` is this file's existing
+  // discriminator for them.
+  const showLevelBadge = monumentPeriod === undefined;
+  const title = monumentPeriod ?? [content?.label, `Lv.${level}`].filter(Boolean).join(" ");
 
   const classNames = ["building-tile", monumentPeriod && "building-tile--monument", justBuilt && "building-tile-rise"]
     .filter(Boolean)
@@ -90,7 +100,7 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 
         fuseTier={fuseTier}
         occludes={occludes}
       />
-      {floors > 0 && (
+      {showLevelBadge && (
         <span className="building-level-badge" aria-hidden="true">
           {`Lv.${level}`}
         </span>
