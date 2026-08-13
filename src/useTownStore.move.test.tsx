@@ -14,6 +14,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EntryDraft } from "./entryActions";
 import type { MoveResult } from "./placement";
+import { anchorsFor, cellOwners } from "./placement";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
 import { useTownStore } from "./useTownStore";
@@ -197,14 +198,18 @@ describe("useTownStore — AC-H1: the move-discoverability hint", () => {
     expect(latest!.notice).toBeNull();
 
     // A successful move dismisses it FOREVER (in-memory immediately, and
-    // persisted the next time core is saved for any other reason). 3
-    // buildings occupy cells 7/8/9 (rng pinned to 0 -> the first free ground
-    // cell in reading order each time, ADDENDUM-08 §1.2) — cell 10 is
-    // guaranteed free and in-bounds.
+    // persisted the next time core is saved for any other reason). The
+    // destination is COMPUTED, not hardcoded: under the RX1-N2 spacing rule the
+    // three buildings no longer land on consecutive cells (a run of 2 forces a
+    // gap), so which cells are legal depends on where they actually landed.
+    // This test is about the hint, not about any particular plot index.
     const moving = latest!.buildings[0];
+    const others = latest!.buildings.filter((b) => b.id !== moving.id);
+    const target = anchorsFor(1, 1, cellOwners(others)).find((a) => a !== moving.plotIndex);
+    expect(target).toBeDefined();
     let moveResult: MoveResult | undefined;
     act(() => {
-      moveResult = latest!.moveBuilding(moving.id, 10);
+      moveResult = latest!.moveBuilding(moving.id, target!);
     });
     expect(moveResult?.ok).toBe(true);
 

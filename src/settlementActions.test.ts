@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { seededRandom } from "./platform/random";
 import { MONUMENT_CHRONOLOGICAL_PLOTS, settleMonths } from "./settlementActions";
-import { anchorsFor, placeMonument } from "./placement";
+import { placeMonument } from "./placement";
 import type { Placed } from "./placement";
+import { townWithOneFreeCell } from "./testUtils/saturatedTown";
 import { footprintCells } from "./townLayout";
 import type { Building, LedgerEntry, TownState } from "./types";
 
@@ -123,12 +124,9 @@ describe("settleMonths — F16", () => {
   });
 
   it("wired to the real placement.placeMonument on a town with no 2x2 room, the monument is smaller and overlaps nothing", () => {
-    // Occupy every ground cell so no 2x2 (or anything but the last 1x1) fits.
-    const allGround = anchorsFor(1, 1, new Set());
-    const gap = allGround[0];
-    const existing: Building[] = allGround
-      .filter((i) => i !== gap)
-      .map((i, idx) => ({ id: `f${idx}`, source: { kind: "entry", entryId: `e${idx}` }, categoryId: "cafe", variantIndex: 0, plotIndex: i, builtOn: "2026-08-01", createdAt: idx }));
+    // A town with exactly one free cell and no 2x2/2x1/1x2 anchor anywhere,
+    // saturated through the placer so it is a state the game can actually reach.
+    const { buildings: existing, gap } = townWithOneFreeCell();
 
     const town = freshTown({ lastSettledPeriod: "2026-06" });
     const rng = () => 0.95; // biases placeNew's fallback roll toward 2x2, which still has no room

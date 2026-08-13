@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { seededRandom } from "./platform/random";
 import {
   anchorsFor,
+  canPlace,
+  cellOwners,
   fits,
   footprintOf,
   moveBuilding,
@@ -15,8 +17,11 @@ import {
   placeNew,
   reconcilePlacement,
   rollFootprint,
+  spacingOk,
+  MAX_ROW_RUN,
 } from "./placement";
-import { CELL_COUNT, footprintCells, GRID_SIZE, indexFromCell } from "./townLayout";
+import { saturatedTown, townWithOneFreeCell } from "./testUtils/saturatedTown";
+import { CELL_COUNT, cellFromIndex, footprintCells, GRID_SIZE, indexFromCell, isBuildable } from "./townLayout";
 import type { Building } from "./types";
 
 function building(id: string, plotIndex: number, w?: 1 | 2, h?: 1 | 2, createdAt = 0, builtOn = "2026-08-01"): Building {
@@ -145,16 +150,16 @@ describe("fits", () => {
 
 describe("anchorsFor on an empty town", () => {
   it("2x2 -> 83 anchors", () => {
-    expect(anchorsFor(2, 2, new Set()).length).toBe(83);
+    expect(anchorsFor(2, 2, new Map()).length).toBe(83);
   });
   it("1x2 (w1 h2) -> 115 anchors", () => {
-    expect(anchorsFor(1, 2, new Set()).length).toBe(115);
+    expect(anchorsFor(1, 2, new Map()).length).toBe(115);
   });
   it("2x1 (w2 h1) -> 148 anchors", () => {
-    expect(anchorsFor(2, 1, new Set()).length).toBe(148);
+    expect(anchorsFor(2, 1, new Map()).length).toBe(148);
   });
   it("1x1 -> 193 anchors (every ground cell)", () => {
-    expect(anchorsFor(1, 1, new Set()).length).toBe(193);
+    expect(anchorsFor(1, 1, new Map()).length).toBe(193);
   });
 });
 
@@ -162,7 +167,9 @@ describe("anchorsFor on an empty town", () => {
 
 describe("pickAnchor", () => {
   it("returns null when no anchor exists for the shape", () => {
-    const occupied = new Set(anchorsFor(1, 1, new Set())); // every ground cell occupied
+    // every ground cell occupied, each by a DISTINCT building (the RX1-N2 run
+    // limit counts buildings, so identity has to be real here)
+    const occupied = new Map(anchorsFor(1, 1, new Map()).map((i) => [i, `b${i}`]));
     expect(pickAnchor([], 1, 1, () => 0.5)).not.toBeNull(); // sanity: empty town has room
     expect(anchorsFor(1, 1, occupied).length).toBe(0);
   });
@@ -201,12 +208,10 @@ describe("placeNew", () => {
   });
 
   it("downgrades 2x2 -> 2x1 -> 1x2 -> 1x1 when larger shapes have no room: force a town where only 1x1 anchors remain", () => {
-    // Occupy every cell reachable by a 1x1 building except a single free
-    // ground cell surrounded (as much as the map allows) by taken cells, by
-    // filling the whole ground set with 1x1 buildings minus one gap.
-    const allGround = anchorsFor(1, 1, new Set());
-    const gap = allGround[0];
-    const buildings = allGround.filter((i) => i !== gap).map((i, idx) => building(`f${idx}`, i));
+    // The premise is asserted, not assumed: exactly one 1x1 anchor and no
+    // larger anchor anywhere, so a 2x2 roll can only succeed by walking the
+    // whole downgrade chain.
+    const { buildings, gap } = townWithOneFreeCell();
     const rng = () => 0.95; // always rolls 2x2 first
     const placed = placeNew(buildings, rng);
     expect(placed).not.toBeNull();
@@ -214,8 +219,7 @@ describe("placeNew", () => {
   });
 
   it("returns null when even 1x1 has nowhere to go (town completely full)", () => {
-    const allGround = anchorsFor(1, 1, new Set());
-    const buildings = allGround.map((i, idx) => building(`f${idx}`, i));
+    const buildings = saturatedTown();
     expect(placeNew(buildings, () => 0.95)).toBeNull();
     expect(placeNew(buildings, () => 0.1)).toBeNull(); // full regardless of the roll
   });
@@ -242,9 +246,8 @@ describe("placeMany", () => {
   });
 
   it("returns fewer than count when the town fills up mid-drain, never throws", () => {
-    const allGround = anchorsFor(1, 1, new Set());
-    // Leave only 3 free cells.
-    const buildings = allGround.slice(0, allGround.length - 3).map((i, idx) => building(`f${idx}`, i));
+    // Saturate, then free 3 buildings — the drain runs out of room part-way.
+    const buildings = saturatedTown().slice(0, -3);
     const rng = () => 0.95; // bias toward large shapes so some draws fail outright
     const placements = placeMany(buildings, 10, rng);
     expect(placements.length).toBeLessThanOrEqual(10);
@@ -352,7 +355,7 @@ describe("reconcilePlacement", () => {
   it("shrinks a footprint to 1x1 when its size has no anchor anywhere, but a 1x1 does", () => {
     // Occupy everything except one gap, then place a 2x2 building "on top of"
     // an occupied region (stale anchor) that no 2x2 free space exists for.
-    const allGround = anchorsFor(1, 1, new Set());
+    const allGround = anchorsFor(1, 1, new Map());
     const gap = allGround[0];
     // "others" sort BEFORE "big" (lower createdAt), so they claim every
     // ground cell except the gap first — only then does "big" get evaluated
@@ -384,7 +387,7 @@ describe("reconcilePlacement", () => {
     // 1x1 explicitly (not placeMany's random roll — the average rolled
     // footprint is > 1 cell, so 193 RANDOM buildings would not all fit; this
     // test is about the ground-cell CAPACITY, exercised with the smallest shape).
-    const allGround = anchorsFor(1, 1, new Set());
+    const allGround = anchorsFor(1, 1, new Map());
     expect(allGround.length).toBe(193); // sanity: exactly the ground-cell capacity
     const buildings193 = allGround.map((anchor, i) => building(`b${i}`, anchor, undefined, undefined, i));
     const result193 = reconcilePlacement(buildings193);
@@ -415,11 +418,8 @@ describe("placeMonument", () => {
   });
 
   it("downgrades to a smaller footprint when no 2x2 anchor is left, and never overlaps an existing building", () => {
-    // Occupy every ground cell except one — no 2x2 (or 2x1/1x2) anchor can
-    // exist with only a single free cell.
-    const allGround = anchorsFor(1, 1, new Set());
-    const gap = allGround[0];
-    const existing = allGround.filter((i) => i !== gap).map((i, idx) => building(`f${idx}`, i));
+    // One free cell, and no 2x2/2x1/1x2 anchor anywhere (asserted by the helper).
+    const { buildings: existing, gap } = townWithOneFreeCell();
     const rng = () => 0.95; // biases the placeNew fallback's roll toward 2x2, which still has no room
     const placed = placeMonument(existing, rng);
     expect(placed).not.toBeNull();
@@ -428,9 +428,7 @@ describe("placeMonument", () => {
   });
 
   it("returns null when the town is completely full (no room even at 1x1)", () => {
-    const allGround = anchorsFor(1, 1, new Set());
-    const buildings = allGround.map((i, idx) => building(`f${idx}`, i));
-    expect(placeMonument(buildings, () => 0.5)).toBeNull();
+    expect(placeMonument(saturatedTown(), () => 0.5)).toBeNull();
   });
 });
 
@@ -463,5 +461,172 @@ describe("stored footprint equals reserved footprint (the F16 overlap bug's root
     if (monument !== null) {
       expect(fits(monument.anchor, monument.w, monument.h, occupiedCells(buildings))).toBe(true);
     }
+  });
+});
+
+// ── RX1-N2 spacing rule (user pick from the mockups, 2026-08-13) ──
+
+/**
+ * The test oracle, deliberately NOT written in terms of `spacingOk` — it
+ * re-derives cell ownership from the FINISHED town and counts every cell whose
+ * directly-above neighbour belongs to a different building. Same check the
+ * mockup harness used to prove the rule works before it was shipped
+ * (`docs/qa/evidence-placement-patterns/capacity.mjs`). A building's art
+ * overhangs by at most 45px and a row+gap is 46px, so this pair count IS the
+ * front/back occlusion the user reported.
+ */
+function overlapPairs(buildings: readonly Building[]): number {
+  const owners = cellOwners(buildings);
+  let pairs = 0;
+  for (const [cell, id] of owners) {
+    const above = owners.get(cell - GRID_SIZE);
+    if (above !== undefined && above !== id) pairs++;
+  }
+  return pairs;
+}
+
+/** The most DISTINCT buildings standing shoulder-to-shoulder in any one row. */
+function longestRowRun(buildings: readonly Building[]): number {
+  const owners = cellOwners(buildings);
+  let longest = 0;
+  for (let row = 0; row < GRID_SIZE; row++) {
+    let run = new Set<string>();
+    for (let col = 0; col < GRID_SIZE; col++) {
+      const id = owners.get(indexFromCell({ row, col }));
+      if (id === undefined) {
+        longest = Math.max(longest, run.size);
+        run = new Set();
+      } else {
+        run.add(id);
+      }
+    }
+    longest = Math.max(longest, run.size);
+  }
+  return longest;
+}
+
+/** Fills a town through `placeNew` with a real seeded roll, so every footprint appears. */
+function townBuiltByThePlacer(seed: number): Building[] {
+  const rng = seededRandom(seed);
+  const buildings: Building[] = [];
+  for (;;) {
+    const placed = placeNew(buildings, rng);
+    if (placed === null) return buildings;
+    buildings.push(building(`b${buildings.length}`, placed.anchor, placed.w, placed.h));
+  }
+}
+
+describe("RX1-N2 — the spacing rule", () => {
+  it("all four footprints stay placeable on an empty map (the rule must not delete a shape)", () => {
+    const empty = new Map<number, string>();
+    expect(anchorsFor(1, 1, empty).length).toBeGreaterThan(0);
+    expect(anchorsFor(2, 1, empty).length).toBeGreaterThan(0);
+    expect(anchorsFor(1, 2, empty).length).toBeGreaterThan(0);
+    expect(anchorsFor(2, 2, empty).length).toBeGreaterThan(0);
+  });
+
+  it("a town filled by placeNew has zero front/back overlap and never more than 2 in a row", () => {
+    for (const seed of [3, 11, 29]) {
+      const town = townBuiltByThePlacer(seed);
+      expect(town.length).toBeGreaterThan(50);
+      expect(overlapPairs(town)).toBe(0);
+      expect(longestRowRun(town)).toBeLessThanOrEqual(MAX_ROW_RUN);
+      // and the fill really did exercise every footprint, not just 1x1
+      expect(new Set(town.map((b) => `${footprintOf(b).w}x${footprintOf(b).h}`)).size).toBeGreaterThan(1);
+    }
+  });
+
+  it("placeMany drains into the same rule — every step, not just the first", () => {
+    const placements = placeMany([], 60, seededRandom(7));
+    const town = placements.map((p, i) => building(`m${i}`, p.anchor, p.w, p.h));
+    expect(town.length).toBeGreaterThan(30);
+    expect(overlapPairs(town)).toBe(0);
+    expect(longestRowRun(town)).toBeLessThanOrEqual(MAX_ROW_RUN);
+  });
+
+  it("a 2x2 monument obeys the rule too", () => {
+    const town = placeMany([], 30, seededRandom(5)).map((p, i) => building(`m${i}`, p.anchor, p.w, p.h));
+    const monument = placeMonument(town, seededRandom(2));
+    expect(monument).not.toBeNull();
+    const withMonument = [...town, building("mon", monument!.anchor, monument!.w, monument!.h)];
+    expect(overlapPairs(withMonument)).toBe(0);
+    expect(longestRowRun(withMonument)).toBeLessThanOrEqual(MAX_ROW_RUN);
+  });
+
+  it("moveBuilding refuses a drop directly above or below another building", () => {
+    // anchor 47 is r2c7 -> road. Use two known ground cells in the same column.
+    const anchor = indexFromCell({ row: 3, col: 1 });
+    const below = indexFromCell({ row: 4, col: 1 });
+    const stay = building("stay", anchor);
+    const mover = building("mover", indexFromCell({ row: 6, col: 3 }));
+    expect(fits(below, 1, 1, occupiedCells([stay]))).toBe(true); // geometrically free...
+    expect(moveBuilding([stay, mover], "mover", below)).toEqual({ ok: false, reason: "no-fit" }); // ...but occluding
+  });
+
+  it("moveBuilding refuses a drop that would make three in a row", () => {
+    const a = building("a", indexFromCell({ row: 3, col: 1 }));
+    const b = building("b", indexFromCell({ row: 3, col: 2 }));
+    const mover = building("mover", indexFromCell({ row: 6, col: 3 }));
+    const third = indexFromCell({ row: 3, col: 3 });
+    expect(fits(third, 1, 1, occupiedCells([a, b]))).toBe(true);
+    expect(moveBuilding([a, b, mover], "mover", third)).toEqual({ ok: false, reason: "no-fit" });
+  });
+
+  it("every anchor the grid offers as a move target is one moveBuilding accepts", () => {
+    const town = placeMany([], 25, seededRandom(13)).map((p, i) => building(`m${i}`, p.anchor, p.w, p.h));
+    const mover = town[0];
+    const others = town.filter((b) => b.id !== mover.id);
+    const offered = anchorsFor(footprintOf(mover).w, footprintOf(mover).h, cellOwners(others));
+    expect(offered.length).toBeGreaterThan(0);
+    for (const anchor of offered) {
+      if (anchor === mover.plotIndex) continue;
+      expect(moveBuilding(town, mover.id, anchor).ok).toBe(true);
+    }
+  });
+
+  it("canPlace is exactly fits AND spacingOk — no path may re-implement half of it", () => {
+    const town = placeMany([], 20, seededRandom(4)).map((p, i) => building(`m${i}`, p.anchor, p.w, p.h));
+    const owners = cellOwners(town);
+    for (let i = 0; i < CELL_COUNT; i++) {
+      expect(canPlace(i, 1, 1, owners)).toBe(fits(i, 1, 1, owners) && spacingOk(i, 1, 1, owners));
+    }
+  });
+});
+
+describe("RX1-N2 — existing towns are grandfathered (no relayout)", () => {
+  /** A legacy town: buildings stacked vertically and 3-in-a-row, both illegal under the rule. */
+  const legacy: Building[] = [
+    building("v1", indexFromCell({ row: 3, col: 1 }), 1, 1, 1),
+    building("v2", indexFromCell({ row: 4, col: 1 }), 1, 1, 2), // directly below v1
+    building("h1", indexFromCell({ row: 6, col: 2 }), 1, 1, 3),
+    building("h2", indexFromCell({ row: 6, col: 3 }), 1, 1, 4), // three in a row
+    building("h3", indexFromCell({ row: 5, col: 2 }), 1, 1, 5),
+  ];
+
+  it("violates the rule — the premise of this suite", () => {
+    expect(overlapPairs(legacy)).toBeGreaterThan(0);
+  });
+
+  it("reconcile leaves it completely untouched: no move, no shrink, no id churn, same reference", () => {
+    const result = reconcilePlacement(legacy);
+    expect(result.repaired).toBe(0);
+    expect(result.shrunk).toBe(0);
+    expect(result.unplacedIds).toEqual([]);
+    expect(result.buildings).toBe(legacy); // identical reference — not even a copy was written
+  });
+
+  it("a full legacy town survives reconcile with zero losses", () => {
+    // Every ground cell taken by a 1x1 — the densest legacy save possible, and
+    // one the rule could never produce. Reconcile must not evict a single one.
+    const allGround: Building[] = [];
+    for (let i = 0; i < CELL_COUNT; i++) {
+      const { row, col } = cellFromIndex(i);
+      if (isBuildable(row, col)) allGround.push(building(`g${allGround.length}`, i, 1, 1, allGround.length));
+    }
+    expect(allGround.length).toBe(193);
+    const result = reconcilePlacement(allGround);
+    expect(result.repaired).toBe(0);
+    expect(result.unplacedIds).toEqual([]);
+    expect(result.buildings.map((b) => b.plotIndex)).toEqual(allGround.map((b) => b.plotIndex));
   });
 });

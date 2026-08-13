@@ -812,14 +812,14 @@ export function useTownStore() {
     // anchor, computed here exactly like `variantIndex` already is, and
     // passed in — placement.ts is the only module allowed to decide a
     // plotIndex (rule R-4).
-    // ponytail: `placeNew` returns null only when the town has zero free
-    // ground cells even at 1x1 (~193 buildings, spec §4's own "far past any
-    // real save" ceiling) — an accepted gap, not handled here: the entry
-    // still builds at the fallback anchor rather than being lost, but a
-    // genuinely full live town could momentarily collide two buildings.
-    // Follow-up: teach `decideBuildOrQueue` to force-queue when placement fails.
+    // `placeNew` returns null when the town has no legal anchor left. That is
+    // now a reachable state (the RX1-N2 spacing rule caps the map near 81
+    // buildings, ~8 days at 10 slots), so the null is passed straight through:
+    // `decideBuildOrQueue` queues the entry instead of founding a building on
+    // a fallback cell. The old `?? 0` founded an invisible building on cell 0
+    // (void terrain the grid never renders) and collided the next one with it.
     const placed = placeNew(prev.buildings, random.next);
-    const plotIndex = placed?.anchor ?? 0;
+    const plotIndex = placed?.anchor ?? null;
     const w = placed?.w ?? 1;
     const h = placed?.h ?? 1;
     // ADDENDUM-04 §3/§7 — director-closed Option 3: EXP scales with amount
@@ -955,7 +955,7 @@ export function useTownStore() {
     const now = clock.now();
     const buildingId = makeId("b", now);
     const placed = placeNew(prev.buildings, random.next);
-    const plotIndex = placed?.anchor ?? 0;
+    const plotIndex = placed?.anchor ?? null; // null = town full -> claim rejected, never an invisible park tile
     const w = placed?.w ?? 1;
     const h = placed?.h ?? 1;
 
@@ -1197,7 +1197,9 @@ export function useTownStore() {
     const newBuildingId = needsFreshBuilding ? makeId("b", now) : "";
     const variantIndex = needsFreshBuilding ? Math.floor(random.next() * BALANCE.variantsPerCategory) : 0;
     const placed = needsFreshBuilding ? placeNew(prev.buildings, random.next) : null;
-    const plotIndex = placed?.anchor ?? 0;
+    // Null both when no fresh building is needed (nothing reads it) and when
+    // the town is full — `decideBuildOrQueue` queues rather than founding.
+    const plotIndex = placed?.anchor ?? null;
     const w = placed?.w ?? 1;
     const h = placed?.h ?? 1;
 

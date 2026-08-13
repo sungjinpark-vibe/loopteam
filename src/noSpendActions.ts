@@ -24,8 +24,13 @@ export interface ClaimNoSpendArgs {
   tierThresholds: readonly number[];
   buildingId: string;
   createdAt: number;
-  /** Where the park tile lands — computed by `placement.placeNew`, supplied by the caller (rule R-4, ADDENDUM-08 §3). */
-  plotIndex: number;
+  /**
+   * Where the park tile lands — computed by `placement.placeNew`, supplied by
+   * the caller (rule R-4, ADDENDUM-08 §3). **Null when the town has no legal
+   * anchor left**, which rejects the claim (see below) rather than founding an
+   * invisible park tile on a fallback cell.
+   */
+  plotIndex: number | null;
   /** ADDENDUM-08 §2.1 — the park tile's rolled footprint, alongside `plotIndex`. */
   w: 1 | 2;
   h: 1 | 2;
@@ -43,6 +48,11 @@ export function claimNoSpendDay(args: ClaimNoSpendArgs): ClaimNoSpendResult | nu
     args;
 
   if (!canClaimNoSpend(entries, town, today, dailyBuildSlots, noSpendDayCostsSlot)) return null;
+  // No room on the map: reject the claim outright rather than place a park
+  // tile nowhere. A park tile has no queue path (only entries do), so
+  // rejecting is the only option that does not corrupt the town — the day is
+  // still recorded as 무지출 by the caller's own streak handling.
+  if (plotIndex === null) return null;
 
   const building: Building = {
     id: buildingId,

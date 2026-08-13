@@ -111,7 +111,11 @@ describe("fixture shapes match their spec §11 role", () => {
   // stress-test detail nobody looks at, the way `dense`'s fallback is).
   it("mixedFootprints seeds a near-full town with all four footprint sizes and zero overlapping/off-terrain buildings", () => {
     const f = FIXTURES.mixedFootprints();
-    expect(f.buildings.length).toBeGreaterThan(100);
+    // >100 was the pre-RX1-N2 capacity. The spacing rule caps the map at ~81
+    // buildings, so "near-full" is now ~70+; the assertion is retargeted to the
+    // new capacity rather than dropped, and the no-overlap checks below (the
+    // real point of this fixture) are untouched.
+    expect(f.buildings.length).toBeGreaterThan(70);
     const counts = { "1x1": 0, "1x2": 0, "2x1": 0, "2x2": 0 };
     const occupied = new Set<number>();
     for (const b of f.buildings) {

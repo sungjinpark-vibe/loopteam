@@ -68,6 +68,38 @@ describe("applyNewEntry — F2/F4 build", () => {
     expect(result.queueOverflow).toBe(false);
   });
 
+  // RX1-N2 capacity (2026-08-13): the spacing rule caps the map near 81
+  // buildings, so "no legal anchor left" is now reachable in about a week of
+  // 10-slot days. `plotIndex: null` is how the caller says so.
+  it("a full town (plotIndex null) QUEUES the entry — it never founds a building on a fallback cell", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
+    const result = applyNewEntry(callArgs({ town, entryId: "e1", buildingId: "b1", plotIndex: null }));
+
+    expect(result.building).toBeNull(); // nothing founded — the old `?? 0` built an invisible building on void cell 0
+    expect(result.queuedMaterial).not.toBeNull();
+    expect(result.entry.queued).toBe(true);
+    expect(result.entry.buildingId).toBeNull();
+    expect(result.queueOverflow).toBe(false); // kept, not lost
+    expect(result.town.slotsUsedToday).toBe(0); // a queued entry burns no slot
+  });
+
+  it("a full town can still GROW an existing building — growing needs no plot", () => {
+    const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
+    const host: Building = {
+      id: "host",
+      source: { kind: "entry", entryId: "old" },
+      categoryId: "cafe",
+      variantIndex: 0,
+      plotIndex: 42,
+      builtOn: "2026-08-01",
+      createdAt: 1,
+    };
+    const result = applyNewEntry(callArgs({ town, entryId: "e2", buildingId: "b2", plotIndex: null, growTargetId: "host", buildings: [host] }));
+
+    expect(result.grownBuilding?.id).toBe("host");
+    expect(result.queuedMaterial).toBeNull();
+  });
+
   it("amount never changes building count — a huge amount still places exactly one building", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(

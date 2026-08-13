@@ -11,7 +11,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BALANCE } from "../balance.approved";
 import { LONG_PRESS_MS, LONG_PRESS_TOLERANCE_PX } from "../hooks/useTileGestures";
-import { anchorsFor, occupiedCells } from "../placement";
+import { anchorsFor, cellOwners } from "../placement";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import {
@@ -55,7 +55,7 @@ const GROUND_A = firstIndexOfKind("ground");
 const ROAD_CELL = firstIndexOfKind("road");
 const VOID_CELL = firstIndexOfKind("void");
 
-const [ANCHOR_2X2] = anchorsFor(2, 2, new Set());
+const [ANCHOR_2X2] = anchorsFor(2, 2, new Map());
 function secondGroundCell(): number {
   for (let i = 0; i < CELL_COUNT; i++) if (i !== GROUND_A && terrainAtIndex(i) === "ground") return i;
   throw new Error("need a second ground cell");
@@ -455,7 +455,7 @@ describe("TownGrid — multi-cell buildings (ADDENDUM-08 §2.1/§7)", () => {
   });
 
   it("a 1x2 building spans 1 column and 2 rows", () => {
-    const anchors = anchorsFor(1, 2, new Set());
+    const anchors = anchorsFor(1, 2, new Map());
     const b = building({ plotIndex: anchors[0], w: 1, h: 2 });
     const container = mountGrid([b]);
     const { row, col } = cellFromIndex(anchors[0]);
@@ -470,7 +470,7 @@ describe("TownGrid — move mode, footprint-aware droppable targets (ADDENDUM-08
     const mover = building({ id: "mover", plotIndex: GROUND_A, w: 2, h: 2 });
     const container = mountGrid([mover], { movingId: "mover" });
 
-    const occupied = occupiedCells([]);
+    const occupied = cellOwners([]);
     const anchors = anchorsFor(2, 2, occupied).filter((a) => a !== GROUND_A);
     expect(anchors.length).toBeGreaterThan(0);
     const anchor = anchors[0];
@@ -498,7 +498,7 @@ describe("TownGrid — move mode, footprint-aware droppable targets (ADDENDUM-08
     const onPlotTap = vi.fn();
     const container = mountGrid([mover], { movingId: "mover", onPlotTap });
 
-    const validAnchors = new Set(anchorsFor(2, 2, occupiedCells([])));
+    const validAnchors = new Set(anchorsFor(2, 2, cellOwners([])));
     const nonAnchorTile = [...container.querySelectorAll<HTMLElement>(".town-tile--droppable")].find(
       (t) => !validAnchors.has(Number(t.dataset.plotIndex)),
     );
@@ -536,7 +536,7 @@ describe("TownGrid — move mode, footprint-aware droppable targets (ADDENDUM-08
     // Every ground cell not covered by a LIVE building (here: every ground
     // cell except the mover's own) is a legal 1x1 anchor and gets rendered
     // as an empty, droppable lot.
-    const expectedFree = anchorsFor(1, 1, occupiedCells([mover])).length;
+    const expectedFree = anchorsFor(1, 1, cellOwners([mover])).length;
     expect(droppable.length).toBe(expectedFree);
     expect(droppable.length).toBeGreaterThan(0);
     for (const tile of droppable) expect((tile as HTMLElement).querySelector(".building-tile")).toBeNull();

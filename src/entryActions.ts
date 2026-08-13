@@ -38,8 +38,8 @@ export interface ApplyNewEntryArgs {
   tierThresholds: readonly number[];
   noSpendDayCostsSlot: boolean;
   variantIndex: number;
-  /** Where the new building lands — computed by `placement.placeNew`, supplied by the caller (rule R-4, ADDENDUM-08 §3). */
-  plotIndex: number;
+  /** Where the new building lands — computed by `placement.placeNew`, supplied by the caller (rule R-4, ADDENDUM-08 §3). Null when the town is full; see `DecideBuildOrQueueArgs.plotIndex`. */
+  plotIndex: number | null;
   /** ADDENDUM-08 §2.1 — the footprint of the new building, rolled by `placement.rollFootprint`/`placeNew`, supplied alongside `plotIndex`. */
   w: 1 | 2;
   h: 1 | 2;
@@ -136,7 +136,14 @@ export interface BuildOrQueueArgs {
   categoryId: CategoryId;
   variantIndex: number;
   buildingId: string;
-  plotIndex: number;
+  /**
+   * Where the new building goes, or **null when the town has no legal anchor
+   * left** — `placeNew` refused. Null forces the queue branch below instead of
+   * founding a building: the entry is kept and built on a later drain, exactly
+   * like a used-up daily slot. Growing an existing building is unaffected (it
+   * needs no plot), so a full town can still grow.
+   */
+  plotIndex: number | null;
   /** ADDENDUM-08 §2.1 — the footprint of the new building; ignored when this decision grows an existing one instead. */
   w: 1 | 2;
   h: 1 | 2;
@@ -205,7 +212,16 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
   } = args;
   const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
 
-  if (remaining > 0) {
+  // A free slot is not enough — the town must also have somewhere to put the
+  // building. `plotIndex === null` means `placeNew` found no legal anchor, so
+  // this falls through to the queue rather than founding a building on a
+  // fallback cell. Before the RX1-N2 spacing rule the caller passed `?? 0` and
+  // a full town founded an INVISIBLE building on cell 0 (a void cell the grid
+  // never renders) that also collided with the next one; the map held ~136
+  // buildings so it was written off as unreachable. It holds ~81 now, which a
+  // 10-slot day reaches in about a week, so the pre-existing follow-up
+  // ("teach decideBuildOrQueue to force-queue when placement fails") is done here.
+  if (remaining > 0 && (plotIndex !== null || growTarget)) {
     const usedToday = dailyBuildSlots - remaining;
     const gain = expGain ?? 1;
 
@@ -243,7 +259,7 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       source: { kind: "entry", entryId },
       categoryId,
       variantIndex,
-      plotIndex,
+      plotIndex: plotIndex as number, // non-null: the guard above sends a null plot to the queue
       w,
       h,
       builtOn: today,

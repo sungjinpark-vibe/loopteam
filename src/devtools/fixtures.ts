@@ -762,7 +762,7 @@ function mixedFootprints(): Fixture {
   const result = generateMonth({
     year,
     month,
-    targetEntries: 145, // ~92% build-eligible (F13's 저축 entries don't build) — tuned so the natural mix fills the map without spilling into the placeNew-exhausted fallback (verified in fixtures.test.ts)
+    targetEntries: 80, // ~92% build-eligible (F13's 저축 entries don't build) — tuned so the natural mix fills the map without spilling into the placeNew-exhausted fallback (verified in fixtures.test.ts). 145 -> 85 with the RX1-N2 spacing rule: the map now holds ~81 buildings, not ~136, and the old target overflowed into the fallback, which places OVERLAPPING buildings and broke this fixture's no-overlap invariant.
     dailyCap: BALANCE.dailyBuildSlots,
     rng,
     seq,

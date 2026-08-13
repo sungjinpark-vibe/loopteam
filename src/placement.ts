@@ -7,8 +7,15 @@
  * decides WHICH cells a building's footprint occupies, never what a cell
  * means on screen. `plotIndex` is a building's top-left (anchor) cell.
  */
-import { CELL_COUNT, cellFromIndex, footprintCells, indexFromCell, inBounds, isBuildable } from "./townLayout";
+import { CELL_COUNT, GRID_SIZE, cellFromIndex, footprintCells, indexFromCell, inBounds, isBuildable } from "./townLayout";
 import type { Building } from "./types";
+
+/**
+ * All `fits` ever asks of an occupancy set is "is this cell taken?". Typed as
+ * that one method so both a `Set<number>` (reconcile's running claim set) and a
+ * `cellOwners` map satisfy it without a conversion at the call site.
+ */
+export type CellSet = Pick<ReadonlySet<number>, "has">;
 
 export interface Placed {
   anchor: number;
@@ -30,13 +37,89 @@ export function rollFootprint(rng: () => number): { w: 1 | 2; h: 1 | 2 } {
   return { w: 2, h: 2 };
 }
 
-export function occupiedCells(buildings: readonly Building[]): Set<number> {
-  const cells = new Set<number>();
+/**
+ * Cell -> the id of the building that owns it. Same key set as
+ * `occupiedCells`, plus the identity `spacingOk` needs: the run limit counts
+ * BUILDINGS, not cells, so it has to be able to tell two neighbours apart from
+ * one 2-wide building.
+ */
+export function cellOwners(buildings: readonly Building[]): Map<number, string> {
+  const owners = new Map<number, string>();
   for (const b of buildings) {
     const { w, h } = footprintOf(b);
-    for (const cell of footprintCells(b.plotIndex, w, h)) cells.add(cell);
+    for (const cell of footprintCells(b.plotIndex, w, h)) owners.set(cell, b.id);
   }
-  return cells;
+  return owners;
+}
+
+export function occupiedCells(buildings: readonly Building[]): Set<number> {
+  return new Set(cellOwners(buildings).keys());
+}
+
+/**
+ * RX1-N2 — at most this many BUILDINGS may sit shoulder-to-shoulder in one row
+ * before an empty cell is forced. Counted per building, never per cell: a 2x1
+ * is ONE building occupying two cells and must never trip its own limit.
+ * (A cell-based cap would make 2x1 and 2x2 unplaceable outright — measured.)
+ */
+export const MAX_ROW_RUN = 2;
+
+/**
+ * The 2026-08-13 anti-occlusion rule the user picked from the mockups
+ * (`docs/qa/evidence-placement-patterns/`), in two halves:
+ *
+ *  - VERTICAL (what actually fixes the occlusion): no other building may sit in
+ *    the row directly above the footprint's top edge, or directly below its
+ *    bottom edge, in any column the footprint spans. A building's art overhangs
+ *    by at most MAX_ART_OVERHANG_PX (45) and a row+gap is 46, so the row
+ *    directly behind is the ONLY row it can ever hide — clear that row and the
+ *    front/back overlap is gone. The check is SYMMETRIC on purpose: a one-sided
+ *    "row above must be clear" rule lets a building seated LATER, ABOVE an
+ *    existing one, pass its own check and still occlude it.
+ *  - HORIZONTAL (the look the user asked for): at most `MAX_ROW_RUN` buildings
+ *    in a row before a gap, giving the scattered 띄엄띄엄 rhythm.
+ *
+ * `owners` must EXCLUDE the building being placed or moved — callers pass the
+ * other buildings only, so a 2x2 nudged one cell over never rejects on itself.
+ */
+export function spacingOk(anchor: number, w: number, h: number, owners: ReadonlyMap<number, string>): boolean {
+  const { row, col } = cellFromIndex(anchor);
+  for (let dx = 0; dx < w; dx++) {
+    if (owners.has(indexFromCell({ row: row - 1, col: col + dx }))) return false;
+    if (owners.has(indexFromCell({ row: row + h, col: col + dx }))) return false;
+  }
+  for (let dy = 0; dy < h; dy++) {
+    const r = row + dy;
+    const neighbours = new Set<string>();
+    for (let c = col - 1; c >= 0; c--) {
+      const owner = owners.get(indexFromCell({ row: r, col: c }));
+      if (owner === undefined) break;
+      neighbours.add(owner);
+    }
+    for (let c = col + w; c < GRID_SIZE; c++) {
+      const owner = owners.get(indexFromCell({ row: r, col: c }));
+      if (owner === undefined) break;
+      neighbours.add(owner);
+    }
+    if (neighbours.size + 1 > MAX_ROW_RUN) return false;
+  }
+  return true;
+}
+
+/**
+ * THE placement predicate. Every path that seats a NEW building or validates a
+ * move-mode drop goes through this one function — `anchorsFor` (which feeds
+ * `placeNew`/`placeMany`/`placeMonument`/`pickAnchor` and the grid's drop
+ * targets) and `moveBuilding`. Do not re-implement either half at a call site.
+ *
+ * `reconcilePlacement` deliberately does NOT use this: it is the repair path,
+ * and its contract is "never lose or move a building that is legal where it
+ * stands". Existing towns predate the rule and are grandfathered — putting the
+ * rule here would relayout every saved town on the next boot and park ~50
+ * buildings at -1. Reconcile keeps bare `fits`.
+ */
+export function canPlace(anchor: number, w: number, h: number, owners: ReadonlyMap<number, string>): boolean {
+  return fits(anchor, w, h, owners) && spacingOk(anchor, w, h, owners);
 }
 
 /**
@@ -45,7 +128,7 @@ export function occupiedCells(buildings: readonly Building[]): Set<number> {
  * here (not via `footprintCells`, which trusts its caller) — that is what
  * stops a 2-wide footprint from wrapping the row edge (col 19 -> col 0).
  */
-export function fits(anchor: number, w: number, h: number, occupied: ReadonlySet<number>): boolean {
+export function fits(anchor: number, w: number, h: number, occupied: CellSet): boolean {
   const { row, col } = cellFromIndex(anchor);
   for (let dy = 0; dy < h; dy++) {
     for (let dx = 0; dx < w; dx++) {
@@ -58,15 +141,22 @@ export function fits(anchor: number, w: number, h: number, occupied: ReadonlySet
   return true;
 }
 
+/**
+ * Every anchor a NEW building (or a move-mode drop) may legally take — the
+ * spacing rule included, via `canPlace`. Takes `cellOwners`, not a bare cell
+ * set, because the run limit needs to tell buildings apart; the narrower type
+ * is deliberate, so a caller cannot accidentally ask for rule-checked anchors
+ * with identity-free data and silently get the rule skipped.
+ */
 // ponytail: scans all 400 cells per call — fine at this town size (one map,
 // never grows). Index by cell if the map ever grows past a few thousand.
-export function anchorsFor(w: number, h: number, occupied: ReadonlySet<number>): number[] {
+export function anchorsFor(w: number, h: number, owners: ReadonlyMap<number, string>): number[] {
   const out: number[] = [];
-  for (let i = 0; i < CELL_COUNT; i++) if (fits(i, w, h, occupied)) out.push(i);
+  for (let i = 0; i < CELL_COUNT; i++) if (canPlace(i, w, h, owners)) out.push(i);
   return out;
 }
 
-function pickAnchorIn(occupied: ReadonlySet<number>, w: number, h: number, rng: () => number): number | null {
+function pickAnchorIn(occupied: ReadonlyMap<number, string>, w: number, h: number, rng: () => number): number | null {
   const anchors = anchorsFor(w, h, occupied);
   if (anchors.length === 0) return null;
   const r = Math.min(Math.max(rng(), 0), 0.999_999_999); // rng() === 1 must not index past the end
@@ -74,7 +164,7 @@ function pickAnchorIn(occupied: ReadonlySet<number>, w: number, h: number, rng: 
 }
 
 export function pickAnchor(buildings: readonly Building[], w: number, h: number, rng: () => number): number | null {
-  return pickAnchorIn(occupiedCells(buildings), w, h, rng);
+  return pickAnchorIn(cellOwners(buildings), w, h, rng);
 }
 
 /**
@@ -98,7 +188,7 @@ function downgradeChain(rolled: { w: 1 | 2; h: 1 | 2 }): Array<{ w: 1 | 2; h: 1 
 
 export function placeNew(buildings: readonly Building[], rng: () => number): Placed | null {
   const rolled = rollFootprint(rng);
-  const occupied = occupiedCells(buildings);
+  const occupied = cellOwners(buildings);
   for (const shape of downgradeChain(rolled)) {
     const anchor = pickAnchorIn(occupied, shape.w, shape.h, rng);
     if (anchor !== null) return { anchor, w: shape.w, h: shape.h };
@@ -112,7 +202,7 @@ export function placeNew(buildings: readonly Building[], rng: () => number): Pla
  * return FEWER than `count` when the town fills up mid-drain; never throws.
  */
 export function placeMany(buildings: readonly Building[], count: number, rng: () => number): Placed[] {
-  const occupied = occupiedCells(buildings);
+  const occupied = cellOwners(buildings);
   const out: Placed[] = [];
   for (let k = 0; k < count; k++) {
     const rolled = rollFootprint(rng);
@@ -125,7 +215,9 @@ export function placeMany(buildings: readonly Building[], count: number, rng: ()
       }
     }
     if (placed === null) break; // full even at 1x1 — stop, hand back what we placed so far
-    for (const cell of footprintCells(placed.anchor, placed.w, placed.h)) occupied.add(cell);
+    // A synthetic id per drain step: these buildings do not exist yet, and the
+    // run limit only needs them to be DISTINCT from each other.
+    for (const cell of footprintCells(placed.anchor, placed.w, placed.h)) occupied.set(cell, `pending-${k}`);
     out.push(placed);
   }
   return out;
@@ -179,11 +271,14 @@ export function moveBuilding(buildings: readonly Building[], buildingId: string,
   const { row, col } = cellFromIndex(toAnchor);
   if (!isBuildable(row, col)) return { ok: false, reason: "out-of-town" };
 
-  const otherCells = occupiedCells(buildings.filter((b) => b.id !== buildingId));
+  const otherCells = cellOwners(buildings.filter((b) => b.id !== buildingId));
   if (otherCells.has(toAnchor)) return { ok: false, reason: "occupied" };
 
   const { w, h } = footprintOf(building);
-  if (!fits(toAnchor, w, h, otherCells)) return { ok: false, reason: "no-fit" };
+  // `canPlace`, not `fits`: a hand-placed building must obey the same spacing
+  // rule as a placed one, or the player can put back exactly what the placer
+  // refuses to create. The mover's own cells are already excluded above.
+  if (!canPlace(toAnchor, w, h, otherCells)) return { ok: false, reason: "no-fit" };
 
   const next = buildings.slice() as Building[];
   next[index] = { ...building, plotIndex: toAnchor };
@@ -203,6 +298,11 @@ export interface ReconcileResult {
   unplacedIds: string[];
 }
 
+/**
+ * Repair-path seating: bare `fits`, NOT `canPlace`. See `canPlace` — existing
+ * towns are grandfathered, and a rule-checked repair would relayout every saved
+ * town and strand the buildings that no longer fit.
+ */
 function firstFitAnchor(w: number, h: number, occupied: ReadonlySet<number>): number | null {
   for (let i = 0; i < CELL_COUNT; i++) if (fits(i, w, h, occupied)) return i;
   return null;
