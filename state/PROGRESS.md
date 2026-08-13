@@ -5,6 +5,36 @@
 > 2026-07-19 restructure).
 
 ## Current State
+- **Status (2026-08-13)**: `app_in_toss`. Suite **868/868**, lint/typecheck/bundle-gate clean, HEAD `fd0ec5b`
+  pushed. Since the 2026-08-12 entry below, three things landed on user instruction and **each is now a
+  frozen or settled decision — read this before "fixing" any of them**:
+  1. **Buildings grow taller with level + roof signboards + category-coloured roofs** (user, 2026-08-13).
+     This **revoked ADDENDUM-11 §4.0's "커지지 않고 고급화"** — the user retracted his own constraint, so the
+     tall buildings are NOT a regression. Base footprint still fills its tile (the horizontal half of
+     `d8ce379` survives); only the vertical ceiling was lifted. Roof colour is the coarse category signal
+     at fit scale (14 categories vs 8 hues → same-hue shades), the signboard glyph is the exact one when
+     zoomed. Recorded in `app_in_toss/CLAUDE.md`.
+  2. **RX1-N2 placement** (user picked it from mockups): a building keeps the row above and below clear,
+     and at most 2 sit consecutively in a row. Front/back occlusion is now structurally zero. **Capacity
+     193 → 81 is an accepted trade-off, not a defect.** Existing towns are GRANDFATHERED — never relaid
+     out — so legacy towns still overlap, which is why the opacity fade (`4e29bab`) is deliberately kept.
+     Single predicate `canPlace = fits && spacingOk`; bare `fits` survives only on the reconcile/repair
+     paths, which is what grandfathering means.
+  3. **Full-town deferral is now symmetric**: both a ledger entry and a no-spend park defer to the next
+     morning instead of being lost (user: *"공원도 이월되게 해줘"*), seed award fires exactly once across
+     the queue→drain hop.
+- **Gate 3 re-run #2 (2026-08-13): FAIL, avg 80.6** (64.4 → 74.2 → 80.6). Missed BOTH bars: 90 average, and
+  the 80 floor via game-designer at 78. **The important finding is the shape of the loss**: roughly **50
+  panel points are evidence gaps** — fusion, month-end settlement, the no-spend park, the 10/day cap and
+  the income save were never DRIVEN by the panel's QA, because there was no way to construct those states
+  cold. Only ~42 points are directly-observed product defects. **This is our process defect, not a code
+  defect**: we verified those features with our own browser QA and never shipped a way for an independent
+  QA to reach them. Hence the split now in flight: **C = a scenario driver** (`fusion-ready`, `month-end`
+  with clock control, `full-town`, `no-spend-ready`, `fresh`, documented for an outside agent) to lift the
+  AVERAGE, and **A1-A5 = observed product fixes** (tier-progress readout, 새로짓기/키우기 dialog explaining
+  its tradeoff, Lv.1 badge, level-up toast wording + a suspected double-render, seed pacing) to lift the
+  FLOOR — four of the five come from the one expert who sat below it. The EXP curve, capacity 81, the map
+  and the building art were NOT deducted against; the panel treated them as settled.
 - **Status (2026-08-12, end of session)**: a long `app_in_toss` stretch. Suite went **695 → 824**, `eslint`
   + `tsc` clean throughout, everything pushed to `origin/app_in_toss`. In order:
   1. **ADDENDUM-09 pinch zoom finished** — browser touch-emulation QA, all 8 acceptance criteria evidenced,
