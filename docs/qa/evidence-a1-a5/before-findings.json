@@ -1,0 +1,160 @@
+{
+  "tag": "before",
+  "url": "http://localhost:5173/",
+  "steps": [
+    {
+      "a1_header_stats": "건물 1채\n·\n남은 건축 슬롯 9/10\n·\n🔥 연속 1일\n·\nTier 2까지 9채분"
+    },
+    {
+      "a1_next_tier": "Tier 2까지 9채분"
+    },
+    {
+      "a3_level_badges": [
+        "Lv.1"
+      ]
+    },
+    {
+      "a2_dialog_text": "남은 건축 슬롯 9/10 | 새로 지으면 같은 건물이 한 채 더 생겨요 — 둘 다 Lv.5가 되면 합쳐서 더 높은 건물 한 채로 만들 수 있어요. 키우면 지금 있는 건물의 레벨이 올라가요. 둘 다 건축 슬롯 1개를 써요."
+    },
+    {
+      "a4_toast_immediately_after_grow": {
+        "inTextContent": 2,
+        "inInnerText": 2,
+        "leafElementCount": 2,
+        "leafPaths": [
+          "SPAN.tds-mobile-paragraph__text css-1bf3nnl",
+          "SPAN.tds-mobile-paragraph__text css-1bf3nnl"
+        ],
+        "attributeHits": 0,
+        "fullText": "레벨이 올랐어요! (Lv.4) (+씨앗 4개 · 모은 13개)"
+      }
+    },
+    {
+      "a4_toast_samples_over_time": [
+        {
+          "tMs": 750,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 1000,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 1250,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 1500,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 1750,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 2000,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 2250,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 2500,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 2750,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 3000,
+          "inTextContent": 2,
+          "leaves": 2,
+          "attrs": 0
+        },
+        {
+          "tMs": 3250,
+          "inTextContent": 0,
+          "leaves": 0,
+          "attrs": 0
+        },
+        {
+          "tMs": 3500,
+          "inTextContent": 0,
+          "leaves": 0,
+          "attrs": 0
+        }
+      ]
+    },
+    {
+      "a4_max_simultaneous": 2
+    },
+    {
+      "a4_back_to_back_grow_samples": [
+        {
+          "tMs": 120,
+          "inTextContent": 2,
+          "leaves": 2
+        },
+        {
+          "tMs": 240,
+          "inTextContent": 2,
+          "leaves": 2
+        },
+        {
+          "tMs": 360,
+          "inTextContent": 2,
+          "leaves": 2
+        },
+        {
+          "tMs": 480,
+          "inTextContent": 2,
+          "leaves": 2
+        },
+        {
+          "tMs": 600,
+          "inTextContent": 2,
+          "leaves": 2
+        },
+        {
+          "tMs": 720,
+          "inTextContent": 2,
+          "leaves": 2
+        },
+        {
+          "tMs": 840,
+          "inTextContent": 2,
+          "leaves": 2
+        },
+        {
+          "tMs": 960,
+          "inTextContent": 2,
+          "leaves": 2
+        }
+      ]
+    },
+    {
+      "a4_back_to_back_max_simultaneous": 2
+    }
+  ],
+  "consoleErrors": []
+}

@@ -120,6 +120,16 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   }, [move.movingId, notice, dismissNotice]);
 
   function saveEntry(draft: EntryDraft, growTargetId?: string) {
+    // A4 — the grow target's level BEFORE this save, so the toast below can
+    // tell "the level moved" from "exp landed inside the same level band".
+    // `store.buildings` is still the pre-save array in this render closure,
+    // the same staleness `seedsAfter`/`isFirstFounding` below already rely on.
+    // Read through the SAME `totalLevelOf` the toast uses for the after-value,
+    // so the two sides can never disagree about what a level is.
+    const growTargetBefore = growTargetId ? store.buildings.find((b) => b.id === growTargetId) : undefined;
+    const levelBeforeGrow = growTargetBefore
+      ? totalLevelOf(growTargetBefore, BALANCE.expPerLevel, BALANCE.maxLevel)
+      : null;
     const result = store.addEntry(draft, growTargetId);
     // A5 — the balance AFTER this save. `store.economy.seeds` is the pre-save
     // value here (stale render closure, same as `queueLength` below).
@@ -147,7 +157,27 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       // ADDENDUM-04 §5/§8 — one-line level-up feedback on the same toast
       // channel as F14's notices above; no celebration system (§4's "what
       // was deliberately NOT built" applies to this feedback too).
-      openToast(`레벨이 올랐어요! (Lv.${totalLevelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel)})${seedSuffix(result.seedsGranted, seedsAfter)}`);
+      //
+      // Gate-3 round-5 fix (A4). Two defects in the old one-liner
+      // `레벨이 올랐어요! (Lv.N)`:
+      //   1. A bare "(Lv.N)" does not say whether N is the resulting level or
+      //      the number of levels gained. "(지금 Lv.N)" names it as the level
+      //      the building is at NOW.
+      //   2. It fired on every grow, but a grow only ADDS EXP — the level
+      //      moves solely when that exp crosses a threshold, so a small save
+      //      into a Lv.1 building announced a level-up that had not happened
+      //      (the panel caught exactly this, as "(Lv.1)"). The save still
+      //      spent a build slot and still earned seeds, so it must not go
+      //      silent either; it gets the honest message instead of the wrong one.
+      // Guarded here rather than per call site: `saveEntry` is the single
+      // function all three grow paths (handleSave, handleGrow,
+      // handleGrowPickCommit) route through.
+      const levelAfterGrow = totalLevelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel);
+      const grewMessage =
+        levelBeforeGrow !== null && levelAfterGrow > levelBeforeGrow
+          ? `레벨이 올랐어요! (지금 Lv.${levelAfterGrow})`
+          : `경험치가 쌓였어요 (지금 Lv.${levelAfterGrow})`;
+      openToast(`${grewMessage}${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.building?.categoryId && !isFirstFounding) {
       // Gate-3-rerun fix (ux-researcher/target-player TOP FIX): the reward
       // used to resolve as a silent speck somewhere in an already-dense map

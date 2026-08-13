@@ -900,3 +900,59 @@ describe("TownScreen — A2: the grow dialog states what each choice actually do
     expect(text).toContain("둘 다 건축 슬롯 1개를 써요");
   });
 });
+
+// Gate-3 round-5 (A4b): the level-up toast read "레벨이 올랐어요! (Lv.N)" —
+// ambiguous about whether N was the resulting level or the levels gained, and
+// fired on EVERY grow even though a grow only adds exp. A small save into a
+// Lv.1 building therefore announced a level-up that had not happened.
+describe("TownScreen — A4: the grow toast names the resulting level and never claims a level-up that didn't happen", () => {
+  /** Raises the dialog for an existing 카페 and taps 키우기. */
+  function growExistingCafe(amountDigits: string): void {
+    openSheet();
+    for (const d of amountDigits) pressDigit(d);
+    const categoryButton = [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes("카페"));
+    act(() => {
+      categoryButton!.click();
+    });
+    act(() => {
+      findButton("저장")!.click();
+    });
+    act(() => {
+      findButton("키우기")!.click();
+    });
+  }
+
+  it("a grow whose exp does NOT cross a level threshold reports exp, not a level-up", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    act(() => latest!.dismissNotice());
+    const before = latest!.levelOfBuilding(latest!.buildings[0]);
+
+    // 1원 is below `expAmountTiers`' bottom rung (5,000) — exp gain 0, so the
+    // level provably cannot move.
+    growExistingCafe("1");
+
+    expect(latest!.levelOfBuilding(latest!.buildings[0])).toBe(before); // level really did not move
+    expect(document.body.textContent).not.toContain("레벨이 올랐어요");
+    expect(document.body.textContent).toContain(`경험치가 쌓였어요 (지금 Lv.${before})`);
+  });
+
+  it("a grow that DOES cross a threshold claims the level-up and names the level it ended at", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    act(() => latest!.dismissNotice());
+    const before = latest!.levelOfBuilding(latest!.buildings[0]);
+
+    growExistingCafe("150000"); // top exp rung — comfortably crosses expPerLevel
+
+    const after = latest!.levelOfBuilding(latest!.buildings[0]);
+    expect(after).toBeGreaterThan(before);
+    // Names the RESULTING level explicitly ("지금"), so it can't be read as
+    // "gained N levels".
+    expect(document.body.textContent).toContain(`레벨이 올랐어요! (지금 Lv.${after})`);
+  });
+});
