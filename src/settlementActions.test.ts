@@ -242,16 +242,19 @@ describe("settleMonths — F16", () => {
   });
 });
 
-// MONUMENT_CHRONOLOGICAL_PLOTS (director decision, 2026-08-09) — MVP-SPEC F16 AC
-// ("chronological plot order") vs ADDENDUM-02 R-5 (random draw) conflict.
-// Implemented behind a flag, shipped OFF: ADDENDUM-02's random placement is
-// the shipped behaviour.
+// MONUMENT_CHRONOLOGICAL_PLOTS — MVP-SPEC F16 AC ("chronological plot
+// order") vs ADDENDUM-02 R-5 (random draw) conflict. Director decision
+// 2026-08-09: implement behind a flag, ship OFF (T022). User decision
+// 2026-08-13: turn it ON — this describe block was edited (not just
+// extended) to match: the old "defaults to off" / "off (default): ..."
+// assertions asserted the now-superseded shipped state, so they're rewritten
+// below to assert the new default instead of left green-but-wrong.
 describe("settleMonths — MONUMENT_CHRONOLOGICAL_PLOTS", () => {
-  it("defaults to off", () => {
-    expect(MONUMENT_CHRONOLOGICAL_PLOTS).toBe(false);
+  it("defaults to on (user decision 2026-08-13)", () => {
+    expect(MONUMENT_CHRONOLOGICAL_PLOTS).toBe(true);
   });
 
-  it("off (default): plot indices are used in exactly the order the allocator drew them — today's random placement, unchanged", () => {
+  it("default (no override passed): monuments land in chronological (oldest-first) plot order, regardless of draw order", () => {
     const town = freshTown({ lastSettledPeriod: "2026-04" });
     // A real allocator (placement.placeMany) can hand back anchors out of
     // ascending order — that's the bug report's 56/57/59 -> 05/07/06 case.
@@ -261,19 +264,6 @@ describe("settleMonths — MONUMENT_CHRONOLOGICAL_PLOTS", () => {
       { anchor: 57, w: 1, h: 1 },
     ];
     const result = settleMonths(baseArgs({ town, today: "2026-08-01", placeMany: shuffled }));
-    expect(result.monuments.map((b) => b.plotIndex)).toEqual([59, 56, 57]);
-  });
-
-  it("on: monuments land on ascending plot indices in chronological (oldest-first) period order, regardless of draw order", () => {
-    const town = freshTown({ lastSettledPeriod: "2026-04" });
-    const shuffled: (count: number) => Placed[] = () => [
-      { anchor: 59, w: 1, h: 1 },
-      { anchor: 56, w: 1, h: 1 },
-      { anchor: 57, w: 1, h: 1 },
-    ];
-    const result = settleMonths(
-      baseArgs({ town, today: "2026-08-01", placeMany: shuffled, chronologicalPlots: true }),
-    );
     expect(result.monuments.map((b) => b.source)).toEqual([
       { kind: "monument", period: "2026-05" },
       { kind: "monument", period: "2026-06" },
@@ -281,5 +271,46 @@ describe("settleMonths — MONUMENT_CHRONOLOGICAL_PLOTS", () => {
     ]);
     // ascending, and paired oldest-period-to-smallest-index
     expect(result.monuments.map((b) => b.plotIndex)).toEqual([56, 57, 59]);
+  });
+
+  it("override false: legacy random-draw-order placement is still reachable (plot indices used in exactly the order the allocator drew them)", () => {
+    const town = freshTown({ lastSettledPeriod: "2026-04" });
+    const shuffled: (count: number) => Placed[] = () => [
+      { anchor: 59, w: 1, h: 1 },
+      { anchor: 56, w: 1, h: 1 },
+      { anchor: 57, w: 1, h: 1 },
+    ];
+    const result = settleMonths(
+      baseArgs({ town, today: "2026-08-01", placeMany: shuffled, chronologicalPlots: false }),
+    );
+    expect(result.monuments.map((b) => b.plotIndex)).toEqual([59, 56, 57]);
+  });
+
+  it("grandfathering: turning the flag ON never moves a monument minted by an earlier settleMonths call — a legacy town's monuments stay exactly where they were", () => {
+    const town0 = freshTown({ lastSettledPeriod: "2026-04" });
+    const shuffled: (count: number) => Placed[] = () => [
+      { anchor: 59, w: 1, h: 1 },
+      { anchor: 56, w: 1, h: 1 },
+      { anchor: 57, w: 1, h: 1 },
+    ];
+    // Simulates monuments placed under the OLD (off) behaviour, as they'd
+    // sit in a town saved before this flag flipped.
+    const legacyRun = settleMonths(
+      baseArgs({ town: town0, today: "2026-08-01", placeMany: shuffled, chronologicalPlots: false }),
+    );
+    const legacyMonuments = legacyRun.monuments;
+    expect(legacyMonuments.map((b) => b.plotIndex)).toEqual([59, 56, 57]); // pre-existing, draw-order plots
+
+    // `settleMonths` never re-reads or re-sorts monuments from a prior call
+    // (it has no `buildings` param at all — see `SettleMonthsArgs`) — only
+    // the caller (`useTownStore.ts`) appends `monuments` to the existing
+    // array. A later settle run, now defaulting to chronological ON, must
+    // mint only a NEW monument and leave `legacyMonuments` untouched.
+    const laterRun = settleMonths(baseArgs({ town: legacyRun.town, today: "2026-09-01", placeMany: () => [{ anchor: 10, w: 1, h: 1 }] }));
+    expect(laterRun.monuments).toHaveLength(1);
+    expect(laterRun.monuments[0].source).toEqual({ kind: "monument", period: "2026-08" });
+    // legacy monuments, held in the caller's own array, are byte-identical —
+    // nothing in this module could have touched them.
+    expect(legacyMonuments.map((b) => b.plotIndex)).toEqual([59, 56, 57]);
   });
 });

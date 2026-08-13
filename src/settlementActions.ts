@@ -46,10 +46,17 @@ function monthSummaryFor(
 /**
  * F16 acceptance criterion ("3 monuments in chronological plot order") vs
  * ADDENDUM-02 R-5 (plots are drawn randomly by `placement.placeMany`)
- * conflict — director decision 2026-08-09: implement, ship OFF. Shipped
- * build keeps today's random placement, byte-identical.
+ * conflict — director decision 2026-08-09: implement, ship OFF (T022).
+ * User decision 2026-08-13: turn it ON. Only affects monuments minted by
+ * THIS (and future) `settleMonths` calls — a monument already sitting in
+ * `town.buildings` from an earlier call is never re-read or moved here;
+ * `settleMonths` only ever returns NEW monuments for the caller to append
+ * (see `useTownStore.ts`'s `buildingsWithMonuments = [...buildings,
+ * ...settled.monuments]`). So flipping this default is retroactively inert
+ * by construction — RX1-N2's "existing buildings never move" rule holds for
+ * monuments too, without needing a separate guard.
  */
-export const MONUMENT_CHRONOLOGICAL_PLOTS = false;
+export const MONUMENT_CHRONOLOGICAL_PLOTS = true;
 
 export interface SettleMonthsArgs {
   town: TownState;
