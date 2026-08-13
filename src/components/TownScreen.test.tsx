@@ -873,3 +873,30 @@ describe("TownScreen — A1: the header states the distance to the next tier", (
     expect(container.querySelector(".town-header-stats")?.textContent).toContain(`건물 ${latest!.buildingCount}채`);
   });
 });
+
+// Gate-3 round-5 (A2): the 새로짓기/키우기 dialog stated only the shared COST
+// ("둘 다 건축 슬롯 1개를 써요") and neither button's payoff — "a choice with a
+// hidden payoff is not a decision, it is a coin flip." Both outcomes must be
+// on screen at the moment of choosing.
+describe("TownScreen — A2: the grow dialog states what each choice actually does", () => {
+  it("names the fusion payoff of 새로 짓기 and the level payoff of 키우기, without dropping the slot cost", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+
+    openSheet();
+    fillAndSave("카페");
+    expect(findButton("키우기")).not.toBeUndefined(); // the dialog is up
+
+    const text = document.body.textContent ?? "";
+    // 새로 짓기 -> a second building that becomes a fusion partner at maxLevel.
+    expect(text).toContain("같은 건물이 한 채 더 생겨요");
+    expect(text).toContain(`Lv.${BALANCE.maxLevel}`);
+    expect(text).toContain("합쳐서");
+    // 키우기 -> the existing building's level moves.
+    expect(text).toContain("지금 있는 건물의 레벨이 올라가요");
+    // The round-4 disclosure this must not regress.
+    expect(text).toContain("둘 다 건축 슬롯 1개를 써요");
+  });
+});

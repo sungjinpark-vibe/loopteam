@@ -594,7 +594,18 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         // it, so a player choosing 키우기 to be tidy paid the same scarce
         // resource as founding with no way to know. Behavior is unchanged;
         // only the copy now says what both buttons already cost.
-        description="새로 지을까요, 기존 건물을 키울까요? 둘 다 건축 슬롯 1개를 써요."
+        //
+        // Gate-3 round-5 fix (A2): cost parity alone still hid the PAYOFF —
+        // "a choice with a hidden payoff is not a decision, it is a coin flip
+        // the player later discovers was wrong." Each button now names what
+        // it actually leaves behind: 새로 짓기 produces the second
+        // same-category same-footprint building that `fusionActions.canFuse`
+        // requires as a fusion partner (once BOTH reach `maxLevel` — stated,
+        // because a fusion partner that isn't usable yet is exactly the kind
+        // of hidden payoff this finding was about), 키우기 moves the existing
+        // building's level now. `BALANCE.maxLevel` rather than a literal 5 so
+        // the copy cannot drift from the rule it describes.
+        description={`새로 지으면 같은 건물이 한 채 더 생겨요 — 둘 다 Lv.${BALANCE.maxLevel}가 되면 합쳐서 더 높은 건물 한 채로 만들 수 있어요. 키우면 지금 있는 건물의 레벨이 올라가요. 둘 다 건축 슬롯 1개를 써요.`}
         onClose={() => setGrowDraft(null)}
         cancelButton={<ConfirmDialog.CancelButton onClick={handleBuildNew}>새로 짓기</ConfirmDialog.CancelButton>}
         confirmButton={<ConfirmDialog.ConfirmButton onClick={handleGrow}>키우기</ConfirmDialog.ConfirmButton>}
