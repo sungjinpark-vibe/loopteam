@@ -112,8 +112,24 @@ export interface Building {
 
 /** Pending material — an over-cap entry waiting for tomorrow (F14). */
 export interface QueuedMaterial {
-  entryId: string;
-  categoryId: CategoryId;
+  // OPTIONAL since 무지출 parks defer through this same queue: a park material
+  // has no ledger entry behind it, so it carries neither `entryId` nor
+  // `entryYm` (there is no chunk for the drain to patch). Absent === "not an
+  // entry material" — the optionality is the compiler's way of forcing every
+  // reader that dereferences these to handle the park case rather than
+  // silently patching month "".
+  entryId?: string;
+  // Set ONLY on a 무지출 park material (the claim date, 'YYYY-MM-DD') — the
+  // discriminator between the two kinds of queued material, and the date the
+  // drained park's `source` carries. Absent on every entry material, so old
+  // persisted queues parse unchanged (same absent-means-nothing discipline
+  // `w`/`h`/`exp` already set on `Building`).
+  noSpendDate?: string;
+  // `BuildingCategoryId`, not `CategoryId`: a queued material is a Building in
+  // waiting, and a deferred 무지출 park carries `"park"` — the same
+  // building-only widening `Building.categoryId` already documents above.
+  // `LedgerEntry`/`EntryDraft` stay on the narrow `CategoryId`.
+  categoryId: BuildingCategoryId;
   variantIndex: number; // rolled at queue time so the reward is already determined
   // ADDENDUM-04 §6 — OPTIONAL, no migration: a material queued before this
   // field existed simply has none. Read discipline lives at the drain site
@@ -127,7 +143,8 @@ export interface QueuedMaterial {
   // from `queuedOn`'s month whenever the entry was backdated to a different
   // month than the day it queued (round-2 finding C2 #2) — using
   // `queuedOn`'s month there silently patches the wrong (or no) chunk.
-  entryYm: string;
+  // Absent on a park material — see `entryId` above.
+  entryYm?: string;
 }
 
 /** Frozen at settlement; never recomputed (past months must not change retroactively). */

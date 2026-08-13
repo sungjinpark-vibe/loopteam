@@ -115,6 +115,27 @@ describe("drainQueue — F14", () => {
     expect(result.celebrateTier).toBeNull();
   });
 
+  // 사용자 지시 2026-08-13 "공원도 이월되게 해줘" — a 무지출 park deferred by a
+  // full town rides this same queue (noSpendActions.ts) and must come back out
+  // as the park it was claimed as, not as an entry-sourced building.
+  it("drains a deferred 무지출 park back as a nospend park, dated by its CLAIM day", () => {
+    const queue: QueuedMaterial[] = [
+      { entryId: "q1", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-01", entryYm: "2026-08" },
+      { noSpendDate: "2026-08-01", categoryId: "park", variantIndex: 0, queuedOn: "2026-08-01" },
+    ];
+    const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, queue });
+    const result = drainQueue(town, 5, "2026-08-02", 5, tierThresholds, (i) => `b${i}`, 1000, seqAlloc(5));
+
+    expect(result.drained).toHaveLength(2);
+    const park = result.drained[1].building;
+    expect(park.source).toEqual({ kind: "nospend", date: "2026-08-01" }); // claim day, not the drain day
+    expect(park.builtOn).toBe("2026-08-02"); // ...which is still when it actually went up
+    expect(park.categoryId).toBe("park");
+    expect(park.variantIndex).toBe(0);
+    expect(park.exp).toBeUndefined(); // no amountKrw behind a park — flat, exactly like a same-day claimed one
+    expect(result.drained[0].building.source).toEqual({ kind: "entry", entryId: "q1" }); // the entry material beside it is untouched
+  });
+
   it("carries the placement's footprint onto the drained Building", () => {
     const queue: QueuedMaterial[] = [{ entryId: "q1", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-01", entryYm: "2026-08" }];
     const town = freshTown({ slotsUsedOn: "2026-08-01", slotsUsedToday: 5, queue });

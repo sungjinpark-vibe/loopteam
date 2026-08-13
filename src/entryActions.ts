@@ -334,6 +334,12 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     town = {
       ...town,
       noSpendDays: town.noSpendDays.filter((d) => d !== draft.occurredOn),
+      // A claim made while the town was full has no park tile yet — it is
+      // still sitting in F14's queue (noSpendActions.ts). Revoking has to
+      // drop that too, or tomorrow's drain builds a park for a day that is no
+      // longer 무지출. Entry materials never carry `noSpendDate`, so this
+      // touches nothing else.
+      queue: town.queue.filter((m) => m.noSpendDate !== draft.occurredOn),
       slotsUsedToday: refund ? Math.max(0, town.slotsUsedToday - 1) : town.slotsUsedToday,
     };
     revokedNoSpend = { date: draft.occurredOn, buildingId: revokedBuilding?.id ?? null };

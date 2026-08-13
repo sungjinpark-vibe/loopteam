@@ -353,9 +353,12 @@ describe("F15 무지출 데이 claim + revocation", () => {
     await mountAndWaitForBoot();
     expect(latest?.canClaimNoSpend).toBe(true);
 
+    // `claimNoSpend` now returns a result object (null = rejected) so the
+    // caller can tell "park built" from "park deferred to tomorrow" on a full
+    // town — the accept/reject assertions below are unchanged.
     let claimed = false;
     act(() => {
-      claimed = latest!.claimNoSpend();
+      claimed = latest!.claimNoSpend() !== null;
     });
     expect(claimed).toBe(true);
     expect(latest?.buildingCount).toBe(1);
@@ -367,7 +370,7 @@ describe("F15 무지출 데이 claim + revocation", () => {
     // Claiming again the same day must be rejected by the domain function, not just hidden.
     let secondClaim = true;
     act(() => {
-      secondClaim = latest!.claimNoSpend();
+      secondClaim = latest!.claimNoSpend() !== null;
     });
     expect(secondClaim).toBe(false);
     expect(latest?.buildingCount).toBe(1);
@@ -398,7 +401,7 @@ describe("F15 무지출 데이 claim + revocation", () => {
 
     let claimed = false;
     act(() => {
-      claimed = latest!.claimNoSpend();
+      claimed = latest!.claimNoSpend() !== null;
     });
     expect(claimed).toBe(true);
     expect(latest?.buildings.some((b) => b.source.kind === "nospend" && b.source.date === PAST_DAY)).toBe(true);

@@ -385,6 +385,7 @@ async function settleAndDrainAndPersist(
 
   const patchesByMonth = new Map<string, Map<string, string>>(); // ym -> entryId -> buildingId
   for (const { material, building } of result.drained) {
+    if (material.entryYm === undefined || material.entryId === undefined) continue; // 무지출 park material — no ledger entry behind it, nothing to patch
     const ym = material.entryYm;
     const patches = patchesByMonth.get(ym) ?? new Map<string, string>();
     patches.set(material.entryId, building.id);
@@ -667,7 +668,17 @@ export function useTownStore() {
       // never re-grants.
       const bootEconomySeed = boot.economy ?? defaultEconomyState();
       let economy = bootEconomySeed;
-      for (const b of settleDrain.drained) economy = applyAward(economy, awardFor({ kind: "build", buildingId: b.id }));
+      // `kind: "build"` is the ENTRY-sourced build award (§F-ECON table row 1).
+      // A deferred 무지출 park draining here was already paid its `nospend`
+      // award on the day it was claimed — `seed:nospend:<date>` is keyed by the
+      // claim date, so it survives the queue->drain hop and `applyAward` would
+      // no-op it anyway; paying it a `build` award on top would be a second,
+      // differently-keyed grant for one act. Skipped, so a park pays exactly
+      // once whichever branch it took.
+      for (const b of settleDrain.drained) {
+        if (b.source.kind === "nospend") continue;
+        economy = applyAward(economy, awardFor({ kind: "build", buildingId: b.id }));
+      }
       for (const m of settleDrain.monuments) {
         if (m.monumentSummary) {
           economy = applyAward(
@@ -946,16 +957,22 @@ export function useTownStore() {
     };
   }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
 
-  /** F15: claim [오늘 무지출!]. Returns false when the domain function rejected the claim (already claimed, an expense exists today, or no slots). */
-  const claimNoSpend = useCallback((): boolean => {
+  /**
+   * F15: claim [오늘 무지출!]. Returns null when the domain function rejected
+   * the claim (already claimed, an expense exists today, no slots, or a full
+   * town whose queue is also at the cap); otherwise `queued` says whether the
+   * park went up now or deferred to tomorrow morning's drain like an over-cap
+   * ledger entry, so the toast can say which.
+   */
+  const claimNoSpend = useCallback((): { queued: boolean; queueLength: number } | null => {
     const prev = stateRef.current;
-    if (prev === null) return false;
+    if (prev === null) return null;
 
     const today = clock.today();
     const now = clock.now();
     const buildingId = makeId("b", now);
     const placed = placeNew(prev.buildings, random.next);
-    const plotIndex = placed?.anchor ?? null; // null = town full -> claim rejected, never an invisible park tile
+    const plotIndex = placed?.anchor ?? null; // null = town full -> park defers onto F14's queue, never an invisible park tile
     const w = placed?.w ?? 1;
     const h = placed?.h ?? 1;
 
@@ -970,36 +987,52 @@ export function useTownStore() {
       dailyBuildSlots: BALANCE.dailyBuildSlots,
       noSpendDayCostsSlot: BALANCE.noSpendDayCostsSlot,
       tierThresholds: BALANCE.tierThresholds,
+      materialQueueMax: BALANCE.materialQueueMax,
       buildingId,
       createdAt: now,
       plotIndex,
       w,
       h,
     });
-    if (result === null) return false;
+    if (result === null) return null;
 
     const storageClient = storageRef.current;
     const core: CoreState = { town: result.town, budget: prev.budget, onboarded: prev.onboarded };
-    const buildYm = today.slice(0, 7);
     const newBuilding = result.building;
-    mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, newBuilding]);
+    // Deferred park: the queue lives on `town`, so the core write IS the whole
+    // persistence — no buildings chunk yet, and nothing to celebrate until the
+    // drain actually places it (same as an over-cap ledger entry's save).
+    if (newBuilding !== null) {
+      const buildYm = today.slice(0, 7);
+      mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, newBuilding]);
+    }
     storageClient.saveCore(core);
 
-    const next: LoadedState = { ...prev, town: result.town, buildings: [...prev.buildings, result.building] };
+    const next: LoadedState = {
+      ...prev,
+      town: result.town,
+      buildings: newBuilding !== null ? [...prev.buildings, newBuilding] : prev.buildings,
+    };
     stateRef.current = next;
     setState(next);
-    setJustBuiltId(result.building.id);
-    // Gate-3 follow-up (A2) — same first-building celebration as `addEntry`:
-    // on a fresh town the 무지출 park can legitimately be building #1, and the
-    // moment shouldn't be celebrated only on one of the two ways to reach it.
-    if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
+    if (newBuilding !== null) {
+      setJustBuiltId(newBuilding.id);
+      // Gate-3 follow-up (A2) — same first-building celebration as `addEntry`:
+      // on a fresh town the 무지출 park can legitimately be building #1, and the
+      // moment shouldn't be celebrated only on one of the two ways to reach it.
+      if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
+    }
+    // Row 2 pays for the CLAIM, not for the tile — the day is 무지출 either way,
+    // so this fires here on both branches, exactly once. Its key
+    // (`seed:nospend:<date>`) is the claim date, so it survives the queue->drain
+    // hop and the boot drain cannot pay for the same day a second time.
     grantSeeds({ kind: "nospend", date: today }); // ADDENDUM-05 — § F-ECON table row 2
     if (result.celebrateTier !== null) {
       pushNotices({ kind: "tier", tier: result.celebrateTier });
       grantSeeds({ kind: "tier", tier: result.celebrateTier }); // ADDENDUM-05 — § F-ECON table row 3
     }
     maybeQueueMoveHint(result.town, countBuildings(next.buildings));
-    return true;
+    return { queued: result.queuedMaterial !== null, queueLength: result.town.queue.length };
   }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
 
   /**

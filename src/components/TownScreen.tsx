@@ -347,9 +347,15 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
 
   function handleClaimNoSpend() {
     const claimed = store.claimNoSpend();
-    if (claimed) {
-      openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
+    if (!claimed) return;
+    if (claimed.queued) {
+      // Town full — the park deferred onto the same queue an over-cap entry
+      // uses, so it borrows that path's own wording verbatim (see the queued
+      // branch of `handleAddEntry` above): 공원 for 건물, nothing else new.
+      openToast(`오늘은 무지출! 공원은 내일 아침에 지어드릴게요 (대기 ${claimed.queueLength}개)`);
+      return;
     }
+    openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
   }
 
   // Gate-3-rerun fix (every expert's confirmed defect, QA's TOP FIX): tier

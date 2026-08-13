@@ -355,6 +355,26 @@ describe("applyNewEntry — F15 revocation", () => {
     expect(result.town.slotsUsedToday).toBe(1);
   });
 
+  // 사용자 지시 2026-08-13 "공원도 이월되게 해줘": a claim made while the town
+  // was full has no park tile yet — it is a material sitting in F14's queue.
+  // Revoking has to drop that too, or the next morning's drain builds a park
+  // for a day that is no longer 무지출.
+  it("revokes a claim whose park is still QUEUED, dropping the material and nothing else", () => {
+    const town = freshTown({
+      slotsUsedOn: "2026-08-02",
+      slotsUsedToday: 0, // a deferred claim never spent a slot
+      noSpendDays: ["2026-08-02"],
+      queue: [
+        { noSpendDate: "2026-08-02", categoryId: "park", variantIndex: 0, queuedOn: "2026-08-02" },
+        { entryId: "e-other", categoryId: "food", variantIndex: 0, queuedOn: "2026-08-02", entryYm: "2026-08" },
+      ],
+    });
+    const result = applyNewEntry(callArgs({ town, buildings: [], entryId: "e14", buildingId: "b14" }));
+    expect(result.revokedNoSpend).toEqual({ date: "2026-08-02", buildingId: null }); // no tile to remove — it was never built
+    expect(result.town.noSpendDays).toEqual([]);
+    expect(result.town.queue.map((m) => m.entryId)).toEqual(["e-other"]); // the park material is gone, the entry material untouched
+  });
+
   it("does nothing when the date isn't claimed", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(callArgs({ town, entryId: "e13", buildingId: "b13" }));

@@ -77,7 +77,14 @@ export function drainQueue(
     const gain = material.amountKrw !== undefined ? expGainFor(material.amountKrw, expAmountTiers) : 1;
     const building: Building = {
       id: buildingIdFor(i),
-      source: { kind: "entry", entryId: material.entryId },
+      // A 무지출 park deferred by a full town (noSpendActions.ts) rides this
+      // same queue and must come back out as the park it was claimed as, dated
+      // by its CLAIM day — not by the morning it happened to find room. F15's
+      // revocation and `canClaimNoSpend` both match on `source.date`.
+      source:
+        material.noSpendDate !== undefined
+          ? { kind: "nospend", date: material.noSpendDate }
+          : { kind: "entry", entryId: material.entryId! }, // non-park === entry material, which always carries an entryId (types.ts)
       categoryId: material.categoryId,
       variantIndex: material.variantIndex,
       plotIndex: placements[i].anchor,
