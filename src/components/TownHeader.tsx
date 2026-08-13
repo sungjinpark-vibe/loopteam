@@ -20,6 +20,21 @@ export interface TownHeaderProps {
   streakDays: number;
   /** Gate-3-rerun fix (liveops-pd's TOP FIX): a streak exists but today hasn't extended it yet. */
   streakAtRisk: boolean;
+  /**
+   * Gate-3 round-5 fix (A1): the tier badge was a number that "silently
+   * changes someday" — nothing on screen said what the NEXT tier costs or how
+   * close the town is. `null` at the top tier (no `tierThresholds` entry left
+   * to count toward). Precomputed by the caller (`TownScreen`, from
+   * `BALANCE.tierThresholds` + `store.townScale`), the same content/props
+   * split `moodLabel` already follows.
+   *
+   * The UNIT is deliberately "채분", not "채": tier math runs on `townScale`
+   * (Σ 2**fuseTier, Lv.5-equivalents — `selectors.ts`), which a fused
+   * building contributes several of. `useTownStore.ts`'s own rule for that
+   * field is "never feed this to anything that displays as a building count",
+   * so this line must not read like the literal "건물 N채" beside it.
+   */
+  nextTierLabel: string | null;
   queueLength: number;
   /** F6 — one-line mood status ("이번 달 페이스가 ..." or the null-budget nudge). Pure content, computed by the caller from `selectors.moodTier`. */
   moodLabel: string;
@@ -43,6 +58,7 @@ export function TownHeader({
   tier,
   streakDays,
   streakAtRisk,
+  nextTierLabel,
   queueLength,
   moodLabel,
   moodIcon,
@@ -90,6 +106,15 @@ export function TownHeader({
           {streakDays > 0 && <span aria-hidden="true">🔥</span>} 연속 {streakDays}일
           {streakAtRisk && " · 오늘 기록하면 이어져요"}
         </span>
+        {/* A1 — see `nextTierLabel`'s doc for why the unit is 채분, not 채. */}
+        {nextTierLabel !== null && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="town-header-next-tier" title="합친 건물은 레벨만큼 여러 채분으로 계산돼요">
+              {nextTierLabel}
+            </span>
+          </>
+        )}
       </div>
       {/* F6 — ambient only: never removes/greys/downgrades a building, just this one line of text. Tappable straight into 설정 when there's no budget yet, since the copy itself asks the player to set one (playtest round 1). */}
       {budgetUnset ? (

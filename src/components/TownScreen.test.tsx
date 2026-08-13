@@ -840,3 +840,36 @@ describe("TownScreen — ADDENDUM-11: Android back out of fuse pick mode does no
     expect(document.body.textContent).not.toContain("건물을 융합할까요?");
   });
 });
+
+// Gate-3 round-5 (A1): the header's tier badge is a number that "silently
+// changes someday" — nothing stated what Tier 2 costs or how close the town
+// is. Driven through the REAL store so the readout is proven to come from
+// `BALANCE.tierThresholds` + `store.townScale` (not a hardcoded 10), and to
+// move as the town grows.
+describe("TownScreen — A1: the header states the distance to the next tier", () => {
+  function nextTierText(): string | null {
+    return container.querySelector(".town-header-next-tier")?.textContent ?? null;
+  }
+
+  it("counts down from tierThresholds[1] as buildings are founded, in townScale units", async () => {
+    await mountAndWaitForBoot();
+    const toTier2 = BALANCE.tierThresholds[1];
+    expect(latest!.townScale).toBe(0);
+    expect(nextTierText()).toBe(`Tier 2까지 ${toTier2}채분`);
+
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    expect(latest!.townScale).toBe(1);
+    expect(nextTierText()).toBe(`Tier 2까지 ${toTier2 - 1}채분`);
+  });
+
+  it("says 채분, not 채 — the tier unit is townScale (Σ 2**fuse), not the literal 건물 N채 beside it", async () => {
+    await mountAndWaitForBoot();
+    // The literal count line and the goal line are different units and must
+    // not be phrased as the same one (useTownStore.ts: "never feed
+    // `townScale` to anything that displays as a building count").
+    expect(nextTierText()).toMatch(/채분$/);
+    expect(container.querySelector(".town-header-stats")?.textContent).toContain(`건물 ${latest!.buildingCount}채`);
+  });
+});

@@ -197,9 +197,18 @@
 .town-header-stats {
   margin-top: 4px;
   display: flex;
-  gap: 8px;
+  /* A1 added a 4th item to this row — wrap instead of overflowing a 360px phone. */
+  flex-wrap: wrap;
+  gap: 2px 8px;
   font-size: 14px;
   color: var(--town-grey600);
+}
+
+/* A1 — the one item in this row that is a GOAL rather than a current count,
+   so it reads as the thing to aim at without becoming a second badge. */
+.town-header-next-tier {
+  color: var(--town-grey800);
+  font-weight: 600;
 }
 
 /* Gate-3-rerun fix (liveops-pd's TOP FIX) — the streak's one at-risk signal:

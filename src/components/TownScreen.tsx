@@ -379,6 +379,16 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   // doc and `entryActions.ts`'s `buildingCountBeforeThis` doc for the split.
   const tier = computeTier(store.townScale, BALANCE.tierThresholds);
 
+  // A1 — see `TownHeader`'s `nextTierLabel` doc. Same `tierThresholds` array
+  // and the same `store.townScale` the tier itself is computed from one line
+  // up, so the readout can never disagree with the badge it sits beside.
+  // `undefined` past the last threshold === already at the top tier.
+  const nextTierThreshold = BALANCE.tierThresholds[tier + 1];
+  const nextTierLabel =
+    nextTierThreshold === undefined
+      ? null
+      : `Tier ${tier + 2}까지 ${Math.max(0, nextTierThreshold - store.townScale)}채분`;
+
   // F6 — town mood, reusing `budgetPace`/`moodTier` (selectors.ts) exactly as
   // 기록's pace bar already does, so the two never disagree. Continuous
   // through the month (budgetPace prorates by `dayOfMonth`, not a
@@ -406,6 +416,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         tier={tier}
         streakDays={store.streakDays}
         streakAtRisk={store.streakAtRisk}
+        nextTierLabel={nextTierLabel}
         queueLength={store.queueLength}
         moodLabel={moodContent.headerLabel}
         moodIcon={moodContent.icon}

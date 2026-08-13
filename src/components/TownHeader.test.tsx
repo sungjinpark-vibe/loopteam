@@ -26,6 +26,7 @@ function baseProps(overrides: Partial<TownHeaderProps> = {}): TownHeaderProps {
     tier: 0,
     streakDays: 5,
     streakAtRisk: false,
+    nextTierLabel: "Tier 2까지 7채분",
     queueLength: 0,
     moodLabel: "이번 달 페이스가 좋아요",
     moodIcon: "☀️",
@@ -86,5 +87,20 @@ describe("TownHeader — streak at-risk signal", () => {
     mounted = mountComponent(<TownHeader {...baseProps({ streakDays: 3, streakAtRisk: true })} />);
     expect(mounted.container.textContent).toContain("오늘 기록하면 이어져요");
     expect(mounted.container.querySelector(".town-header-streak--risk")).not.toBeNull();
+  });
+});
+
+// Gate-3 round-5 (A1): the tier badge said "Tier 1" and nothing said what
+// Tier 2 costs or how close the town is.
+describe("TownHeader — A1 next-tier progress readout", () => {
+  it("renders the caller-supplied goal next to the counts", () => {
+    mounted = mountComponent(<TownHeader {...baseProps({ nextTierLabel: "Tier 2까지 7채분" })} />);
+    expect(mounted.container.querySelector(".town-header-next-tier")?.textContent).toBe("Tier 2까지 7채분");
+  });
+
+  it("renders nothing at the top tier (label null) — no empty separator left behind", () => {
+    mounted = mountComponent(<TownHeader {...baseProps({ nextTierLabel: null })} />);
+    expect(mounted.container.querySelector(".town-header-next-tier")).toBeNull();
+    expect(mounted.container.textContent).not.toContain("까지");
   });
 });
