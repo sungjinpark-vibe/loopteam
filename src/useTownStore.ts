@@ -59,6 +59,7 @@ import {
   slotsRemainingToday,
   townScale,
 } from "./selectors";
+import { monthBefore } from "./calendar";
 import {
   applyFusion,
   fusePartners,
@@ -157,11 +158,22 @@ export type PurchaseSkuResult = "ok" | "insufficient" | "alreadyOwned" | "maxed"
 
 function freshCore(now: number, today: string): LoadedState {
   return {
-    // F16 (§ unsettledPeriods' own doc comment) — a genuinely fresh town has
-    // nothing retroactive to settle: seed `lastSettledPeriod` to THIS period
-    // so settlement only ever fires for a month that closes after this town
-    // existed, matching `devtools/fixtures.ts`'s own onboarding fixture.
-    town: { ...defaultTownState(), lastSettledPeriod: today.slice(0, 7) },
+    // F16 (Gate-3 round-3, unanimous panel finding — TOP FIX every lens
+    // gave). `unsettledPeriods(lastSettledPeriod, today)` is EXCLUSIVE of
+    // `lastSettledPeriod` itself: it only returns months strictly after it.
+    // Seeding `lastSettledPeriod` to THIS period (the founding month) marked
+    // the founding month "already settled" before a single entry existed —
+    // so when that month later closed, `unsettledPeriods` skipped it forever
+    // (it's <= lastSettledPeriod) and the very next month was excluded too
+    // (it's the still-open current period). Every fresh install's first
+    // month permanently never settled: 0 monuments, no 결산 card, confirmed
+    // across three forward month-jumps. Seeding to the month BEFORE the
+    // founding month instead means "nothing settled before this town
+    // existed" (still true — there IS nothing retroactive to settle on day
+    // one, since `unsettledPeriods` also excludes the still-open current
+    // month), while leaving the founding month itself eligible to settle
+    // once it actually closes.
+    town: { ...defaultTownState(), lastSettledPeriod: monthBefore(today.slice(0, 7)) },
     buildings: [],
     entries: [],
     historyEntries: {},
@@ -475,14 +487,19 @@ export function useTownStore() {
   const notice = noticeQueue[0] ?? null;
   const dismissNotice = useCallback(() => {
     // ADDENDUM-02 §4.5 — "dismissed forever ... by an explicit dismiss": the
-    // moveHint is one-shot across SESSIONS, not just within one, so dismissing
-    // it must flip `moveHintSeen` in memory right here (not only on a
-    // successful move) so it rides whatever `saveCore` happens next for any
-    // other reason (round-2 finding C1 #2 — this was previously the ONLY gap:
-    // a player who saw the toast and never moved anything got it re-queued
-    // every session, forever).
+    // moveHint is one-shot across SESSIONS, not just within one. Gate-3
+    // round-3 finding (all five expert lenses): flipping `moveHintSeen` in
+    // memory and waiting for "whatever saveCore happens next" was the bug —
+    // a player who saw the toast and reloaded WITHOUT touching budget/name/a
+    // move first got it re-queued on every single reload, because nothing
+    // had actually persisted the flag yet. `saveCore` is called directly
+    // here, same as every other core-field mutation in this file, so the
+    // flip survives the very next reload regardless of what the player does
+    // (or doesn't do) afterward.
     if (notice?.kind === "moveHint" && stateRef.current && !stateRef.current.town.moveHintSeen) {
-      const next: LoadedState = { ...stateRef.current, town: { ...stateRef.current.town, moveHintSeen: true } };
+      const town = { ...stateRef.current.town, moveHintSeen: true };
+      storageRef.current.saveCore({ town, budget: stateRef.current.budget, onboarded: stateRef.current.onboarded });
+      const next: LoadedState = { ...stateRef.current, town };
       stateRef.current = next;
       setState(next);
     }
@@ -921,6 +938,15 @@ export function useTownStore() {
       const entryAward = { kind: "entry", entryId } as const;
       if (grantSeeds(entryAward)) seedsGranted += awardFor(entryAward).amount;
     }
+    // Gate-3-rerun fix (liveops-pd's TOP FIX): pays the day's FIRST act that
+    // actually extends 연속 N일 — `result.town.lastActOn` only changes on that
+    // exact transition (`advanceStreak`'s same-day call is a true no-op, same
+    // object reference, so `lastActOn` cannot have moved). Keyed by date, so
+    // this cannot double-pay even if a second entry lands the same day.
+    if (result.town.lastActOn !== prev.town.lastActOn) {
+      const streakAward = { kind: "streak", date: today, streakDays: result.town.streakDays } as const;
+      if (grantSeeds(streakAward)) seedsGranted += awardFor(streakAward).amount;
+    }
     if (result.building) {
       setJustBuiltId(result.building.id);
       // Gate-3 follow-up (A2) — queued BEFORE the tier notice below so the
@@ -945,7 +971,21 @@ export function useTownStore() {
       setJustGrew({ id: grown[0], seq: growSeqRef.current++ });
       pushNotices(...grown.map((id): Notice => ({ kind: "savings", id })));
     }
-    maybeQueueMoveHint(result.town, countBuildings(buildings));
+    // Gate-3-rerun fix (near-unanimous finding): `TownScreen.saveEntry` fires
+    // its OWN `openToast` for every one of these four outcomes (queued,
+    // overflow, grew, or a non-first founding) — a call this hook has no
+    // visibility into, so `maybeQueueMoveHint`'s "don't stack behind another
+    // Notice" guard (it only inspects the internal FIFO) never saw it. The
+    // hint and a founding toast landing in the same commit is exactly what
+    // produced the garbled, overlapping toast text QA caught (a large-entry
+    // save whose "OO 건물이 생겼어요" reward line got clipped by the hint).
+    // Skipping the queue attempt here (leaving `hintQueuedRef` untouched)
+    // just defers it to the next opportunity with nothing else on screen —
+    // next boot, or a later save/claim that itself produces none of these
+    // four outcomes (a plain 저축 entry, most commonly).
+    if (!result.building && !result.grownBuilding && !result.queuedMaterial && !result.queueOverflow) {
+      maybeQueueMoveHint(result.town, countBuildings(buildings));
+    }
 
     return {
       building: result.building,
@@ -1027,13 +1067,22 @@ export function useTownStore() {
     // (`seed:nospend:<date>`) is the claim date, so it survives the queue->drain
     // hop and the boot drain cannot pay for the same day a second time.
     grantSeeds({ kind: "nospend", date: today }); // ADDENDUM-05 — § F-ECON table row 2
+    // Same streak-extension check as `addEntry` above — a claimed 무지출 day is
+    // a full streak act (F7), so it can be the day's own streak-extending act too.
+    if (result.town.lastActOn !== prev.town.lastActOn) {
+      grantSeeds({ kind: "streak", date: today, streakDays: result.town.streakDays });
+    }
     if (result.celebrateTier !== null) {
       pushNotices({ kind: "tier", tier: result.celebrateTier });
       grantSeeds({ kind: "tier", tier: result.celebrateTier }); // ADDENDUM-05 — § F-ECON table row 3
     }
-    maybeQueueMoveHint(result.town, countBuildings(next.buildings));
+    // Gate-3-rerun fix — same reasoning as `addEntry` above: `TownScreen.
+    // handleClaimNoSpend` ALWAYS fires its own toast (either "대기" or "공원이
+    // 생겼어요"), on every successful claim, so queuing the hint here would
+    // always land in the same commit as that toast. Never attempted from this
+    // path; deferred to the next boot or to a save that doesn't itself toast.
     return { queued: result.queuedMaterial !== null, queueLength: result.town.queue.length };
-  }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
+  }, [pushNotices, grantSeeds]);
 
   /**
    * ADDENDUM-11 §3/§3.1/§5.3/§5.4 — fuse `consumedId` into `survivorId`.
@@ -1514,15 +1563,22 @@ export function useTownStore() {
     loading: state === null,
     townName: state?.town.townName ?? "",
     buildings: state?.buildings ?? [],
-    // ADDENDUM-11 §5.1.3 — the town's scale in Lv.5-equivalents (`townScale`,
-    // Σ 2**fuse), NOT the raw array length. Deliberately still the single
-    // `buildingCount` accessor: `TownScreen` feeds this exact value to BOTH
-    // `TownHeader`'s "건물 N채" AND `computeTier`, so the Gate-3-rerun invariant
-    // (one number, one accessor, gate and display can never drift) is
-    // preserved by construction. Identical to `state.buildings.length` for any
-    // town with nothing fused, so an existing save's tier is unchanged on
-    // first load.
-    buildingCount: state ? townScale(state.buildings) : 0,
+    // Gate-3-rerun fix (near-unanimous panel finding, both rounds): the
+    // "single accessor" idea above sounded clean but was wrong — it made
+    // `TownHeader`'s "건물 N채" report `townScale`, which does not decrement
+    // when a fusion consumes a building, so the header overstated the town's
+    // literal building count forever after any fusion (confirmed in two
+    // independent runs, and the stale figure survived a reload since it's
+    // persisted). The literal array length is what "건물 N채" means to a
+    // player counting his own grid; `townScale` is a separate concept (tier
+    // math only, Σ 2**fuse) and gets its own field below.
+    buildingCount: state ? countBuildings(state.buildings) : 0,
+    // ADDENDUM-11 §5.1.3 — the town's scale in Lv.5-equivalents, for tier
+    // math and the tier-celebration's "N more to next tier" line ONLY. Never
+    // feed this to anything that displays as a building count. Identical to
+    // `buildingCount` above for a town with nothing fused, so an existing
+    // save's tier is unchanged on first load.
+    townScale: state ? townScale(state.buildings) : 0,
     // ADDENDUM-04 §3 — the tier-driving score (`buildings.length + Σexp`).
     // `buildingCount` above is unchanged and still the literal count 기록/UI want.
     growthScore: state ? computeGrowthScore(state.buildings) : 0,
@@ -1543,6 +1599,12 @@ export function useTownStore() {
     dailyBuildSlots: BALANCE.dailyBuildSlots,
     streakDays: state?.town.streakDays ?? 0,
     longestStreakDays: state?.town.longestStreakDays ?? 0,
+    // Gate-3-rerun fix (liveops-pd's TOP FIX): true once a streak exists AND
+    // today's act hasn't happened yet — the header's one visible "act today
+    // or the streak resets tonight" signal. `lastActOn !== today` alone would
+    // also be true on the very first day of a town's life (streakDays still
+    // 0 then), which is not a streak "at risk" — nothing to protect yet.
+    streakAtRisk: state ? state.town.streakDays > 0 && state.town.lastActOn !== today : false,
     queueLength: state?.town.queue.length ?? 0,
     canClaimNoSpend: state
       ? selectCanClaimNoSpend(state.entries, state.town, today, BALANCE.dailyBuildSlots, BALANCE.noSpendDayCostsSlot)

@@ -346,6 +346,34 @@ describe("F16 monthly settlement, through the store", () => {
     expect(latest?.notice?.kind).not.toBe("settlement");
     expect(latest?.buildings.filter((b) => b.source.kind === "monument")).toHaveLength(0);
   });
+
+  // Gate-3 round-3 TOP FIX, unanimous across all five expert lenses: a
+  // genuinely FRESH town (no seeded core — real onboarding via `freshCore`,
+  // not `seedUnsettled`) must settle its OWN founding month once that month
+  // closes. Previously `lastSettledPeriod` was seeded to the founding month
+  // itself, which `unsettledPeriods` treats as "already settled" — so the
+  // founding month could never close, for the life of the install.
+  it("a real fresh town (freshCore) settles its own founding month at the next month boundary", async () => {
+    await mountAndWaitForBoot(); // fresh install, DAY1 = 2026-08-02, no core in storage
+    act(() => {
+      latest!.addEntry(expenseDraft(DAY1, "first spend"));
+    });
+    expect(latest?.buildings.filter((b) => b.source.kind === "monument")).toHaveLength(0);
+    act(() => window.dispatchEvent(new Event("pagehide"))); // flush debounced writes without unmounting
+    let core = (await createChunkedStorage().loadBoot()).core;
+    expect(core?.town.lastSettledPeriod).toBe("2026-07"); // month BEFORE founding, not founding itself
+
+    setTimeTravelDate("2026-09-03"); // roll past the month boundary
+    await remount();
+    act(() => window.dispatchEvent(new Event("pagehide"))); // flush this instance's own debounced writes
+
+    core = (await createChunkedStorage().loadBoot()).core;
+    expect(core?.town.lastSettledPeriod).toBe("2026-08");
+    const monuments = latest!.buildings.filter((b) => b.source.kind === "monument");
+    expect(monuments).toHaveLength(1);
+    expect((monuments[0].source as { period: string }).period).toBe("2026-08");
+    expect(latest?.notice).toMatchObject({ kind: "settlement", summary: { period: "2026-08" } });
+  });
 });
 
 describe("F15 무지출 데이 claim + revocation", () => {

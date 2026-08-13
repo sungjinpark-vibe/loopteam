@@ -127,6 +127,30 @@ describe("useMoveMode — undo() honors moveBuilding's MoveResult (round-2 findi
   });
 });
 
+// Gate-3-rerun fix (round-3, all five expert lenses): a hold-drag-release
+// that landed on no tile at all — `useTileGestures`'s `onInvalidDrop` —
+// previously reached nothing, so move mode stayed open with zero feedback,
+// indistinguishable from a hang.
+describe("useMoveMode — onInvalidDrop (round-3 finding, drag-release with no tile under it)", () => {
+  it("surfaces a reject message and keeps move mode open, while mid-move", () => {
+    render([building], () => ({ ok: false, reason: "not-found" }));
+
+    act(() => latest!.onPlotLongPress(0));
+    expect(latest!.movingId).toBe("b1");
+
+    act(() => latest!.onInvalidDrop());
+    expect(latest!.movingId).toBe("b1"); // still open, not silently stuck with no signal
+    expect(latest!.rejectMessage).not.toBeNull();
+  });
+
+  it("is a no-op outside move mode", () => {
+    render([building], () => ({ ok: false, reason: "not-found" }));
+    act(() => latest!.onInvalidDrop());
+    expect(latest!.rejectMessage).toBeNull();
+    expect(latest!.movingId).toBeNull();
+  });
+});
+
 describe("useMoveMode — AC C1 #4: Android/gesture back cancels move mode (useBackGuard wiring)", () => {
   it("a popstate while movingId is set exits move mode", () => {
     render([building], () => ({ ok: false, reason: "not-found" }));

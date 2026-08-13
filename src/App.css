@@ -202,6 +202,13 @@
   color: var(--town-grey600);
 }
 
+/* Gate-3-rerun fix (liveops-pd's TOP FIX) — the streak's one at-risk signal:
+   a streak exists but nothing has extended it today yet. */
+.town-header-streak--risk {
+  color: var(--town-orange400);
+  font-weight: 600;
+}
+
 .town-header-mood {
   margin: 6px 0 0;
   font-size: 13px;

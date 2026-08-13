@@ -16,7 +16,10 @@
 import { BottomSheet, Button } from "@toss/tds-mobile";
 import { CATEGORY_CONTENT } from "../content.placeholder";
 import { formatKrw } from "../format";
-import { totalLevelOf } from "../selectors";
+import { MAX_FUSE_TIER } from "../fusionActions";
+import { useEscapeToClose } from "../hooks/useEscapeToClose";
+import { footprintOf } from "../placement";
+import { fuseOf, levelOf, totalLevelOf } from "../selectors";
 import type { Building, LedgerEntry } from "../types";
 
 export interface BuildingDetailSheetProps {
@@ -35,6 +38,7 @@ export interface BuildingDetailSheetProps {
 }
 
 export function BuildingDetailSheet({ open, building, entry, expPerLevel, maxLevel, onClose, canFuse, onFuse }: BuildingDetailSheetProps) {
+  useEscapeToClose(open, onClose); // called unconditionally — Rules of Hooks — before the early return below
   if (building === null) return null;
 
   const content = building.categoryId ? CATEGORY_CONTENT[building.categoryId] : null;
@@ -42,6 +46,23 @@ export function BuildingDetailSheet({ open, building, entry, expPerLevel, maxLev
   // for a fused building), the same `totalLevelOf` the grid's badge reads.
   const level = totalLevelOf(building, expPerLevel, maxLevel);
   const isNospend = building.source.kind === "nospend";
+  const { w, h } = footprintOf(building);
+  // Gate-3-rerun fix (every expert's top/near-top finding): footprint is
+  // rolled at random on founding (ADDENDUM-08 §2.2) and fusion requires a
+  // same-footprint, same-category partner, but neither fact was ever shown
+  // anywhere — a player who founded two identical-looking Lv.5 buildings had
+  // no way to learn why 융합하기 was silently absent. Two additions, both
+  // read-only: the footprint itself, and — only once THIS building is
+  // otherwise fusion-ready (maxed, entry-founded, not already at the tier
+  // cap) but simply lacks a matching partner right now — a one-line
+  // explanation of exactly what a partner needs to be, instead of the CTA
+  // just not existing with no comment.
+  const selfFuseReady =
+    building.source.kind === "entry" &&
+    building.categoryId !== null &&
+    levelOf(building, expPerLevel, maxLevel) >= maxLevel &&
+    fuseOf(building) < MAX_FUSE_TIER;
+  const needsFusePartner = selfFuseReady && !canFuse;
 
   return (
     <BottomSheet
@@ -70,6 +91,12 @@ export function BuildingDetailSheet({ open, building, entry, expPerLevel, maxLev
             <span className="history-total-label">지은 날</span>
             <span className="history-total-value">{building.builtOn}</span>
           </div>
+          {!isNospend && (
+            <div className="history-total-item">
+              <span className="history-total-label">크기</span>
+              <span className="history-total-value">{w}×{h}</span>
+            </div>
+          )}
         </div>
         {/* ux-researcher's TOP FIX, playtest round 2: teach the amount->level
             rule at the exact moment of curiosity, not in a text beat nobody
@@ -85,11 +112,23 @@ export function BuildingDetailSheet({ open, building, entry, expPerLevel, maxLev
             never a disabled button that cannot explain itself. */}
         {canFuse && (
           <>
-            <p className="history-pace-label">레벨 5 건물끼리 합쳐 더 높은 레벨로 만들 수 있어요.</p>
+            {/* Gate-3-rerun fix (unanimous panel finding): this used to hard-code
+                "레벨 5" (the frozen `maxLevel` constant) regardless of the
+                building's own fuse tier — a Lv.6+ building told the player it
+                fuses with a "Lv.5" partner, but `canFuse`/F5 requires an EQUAL
+                fuse tier, so that instruction could never be completed. `level`
+                (totalLevelOf = maxLevel + fuse) is the partner's real required
+                level; use it here instead of the constant. */}
+            <p className="history-pace-label">Lv.{level} 건물끼리 합쳐 더 높은 레벨로 만들 수 있어요.</p>
             <Button as="button" color="primary" variant="weak" size="medium" display="block" onClick={onFuse}>
               융합하기
             </Button>
           </>
+        )}
+        {needsFusePartner && (
+          <p className="history-pace-label">
+            {content?.label ?? "같은 카테고리"} {w}×{h} 크기의 Lv.{level} 건물이 하나 더 있으면 합칠 수 있어요.
+          </p>
         )}
       </div>
     </BottomSheet>

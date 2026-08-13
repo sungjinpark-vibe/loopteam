@@ -46,6 +46,20 @@ export interface TileGestureCallbacks {
   onPinchMove?: (midX: number, midY: number, distance: number) => void;
   /** Fires once when the gesture drops back below 2 pointers (pinch ended). */
   onPinchEnd?: () => void;
+  /**
+   * Gate-3-rerun fix (panel's "invalid drop" finding, all five expert
+   * lenses): fires when a hold-drag-release (`longPressFired`, real
+   * movement) ends on NO tile at all — released outside `.town-grid`
+   * entirely (over the header, the FAB, the move-bar's own dead space, or
+   * scrolled past an edge). `onTap` is never called in that case (there is
+   * no `plotIndex` to give it), so without this the drop was previously a
+   * true no-op: move mode stayed open with zero feedback, indistinguishable
+   * from a hang. An occupied-but-IN-GRID tile already resolves to a real
+   * `plotIndex` and reaches `onTap`/`useMoveMode`'s existing reject message
+   * — this only covers the "landed nowhere" case that mechanism can't see.
+   * Optional: callers that don't use move mode (none currently) can omit it.
+   */
+  onInvalidDrop?: () => void;
 }
 
 function closestPlotIndex(target: EventTarget | null): number | null {
@@ -217,6 +231,7 @@ export function useTileGestures(
           // capture for this pointer.
           const dropIndex = closestPlotIndex(e.target);
           if (dropIndex !== null) latest.current.callbacks.onTap(dropIndex);
+          else latest.current.callbacks.onInvalidDrop?.();
         }
         clearPress();
       }

@@ -277,20 +277,26 @@ describe("fuseBuildings — §3", () => {
 
 // ── §5.1 / §5.5 — what the header, the tier and the crowd read ──
 describe("townScale wiring — §5.1/§5.5", () => {
-  it("an existing save with nothing fused sees ZERO change: buildingCount === buildings.length (§7.8)", async () => {
+  it("an existing save with nothing fused sees ZERO change: buildingCount === townScale === buildings.length (§7.8)", async () => {
     seedTown([building("b1", cell(0), "2026-08"), building("b2", cell(1), "2026-08"), building("b3", cell(2), "2026-07")]);
     await mountAndWaitForBoot();
 
     expect(latest!.buildingCount).toBe(3);
+    expect(latest!.townScale).toBe(3);
     expect(latest!.buildingCount).toBe(latest!.buildings.length);
     expect(latest!.npcCount).toBe(1 + 3);
   });
 
-  it("neither the header count, the tier, nor the NPC crowd falls after a fusion (§7.7/§7.9)", async () => {
+  // Gate-3-rerun fix (panel's near-unanimous top finding): the header's
+  // "건물 N채" is a literal count and MUST fall by one when a fusion consumes
+  // a building — that is the confirmed defect the panel reproduced twice
+  // (header stuck at the pre-fusion figure, surviving a reload). Tier and the
+  // NPC crowd read `townScale` instead, which is deliberately tier-neutral.
+  it("the header count falls by one on fusion; tier and the NPC crowd do not (§7.7/§7.9)", async () => {
     seedTown([building("b1", cell(0), "2026-08"), building("b2", cell(1), "2026-08")]);
     await mountAndWaitForBoot();
     const countBefore = latest!.buildingCount;
-    const tierBefore = tier(latest!.buildingCount, BALANCE.tierThresholds);
+    const tierBefore = tier(latest!.townScale, BALANCE.tierThresholds);
     const npcBefore = latest!.npcCount;
 
     act(() => {
@@ -298,11 +304,13 @@ describe("townScale wiring — §5.1/§5.5", () => {
     });
 
     expect(latest!.buildings).toHaveLength(1); // one fewer OBJECT...
-    expect(latest!.buildingCount).toBe(countBefore); // ...but the town is the same size
-    expect(tier(latest!.buildingCount, BALANCE.tierThresholds)).toBe(tierBefore);
+    expect(latest!.buildingCount).toBe(countBefore - 1); // ...and the header agrees
+    expect(latest!.buildingCount).toBe(latest!.buildings.length);
+    expect(tier(latest!.townScale, BALANCE.tierThresholds)).toBe(tierBefore); // tier is unaffected
     expect(latest!.npcCount).toBe(npcBefore);
-    // The header and the tier gate read the SAME accessor — §5.1.3's whole point.
-    expect(latest!.buildingCount).toBe(townScale(latest!.buildings));
+    // townScale is tier-neutral (Σ 2**fuse); buildingCount is the literal count. The two now diverge on purpose.
+    expect(latest!.townScale).toBe(townScale(latest!.buildings));
+    expect(latest!.buildingCount).not.toBe(latest!.townScale);
   });
 });
 

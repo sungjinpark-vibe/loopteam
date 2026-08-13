@@ -43,7 +43,7 @@ import { seededRandom } from "../platform/random";
 import { placeMonument, placeNew } from "../placement";
 import { CELL_COUNT, cellFromIndex, isBuildable } from "../townLayout";
 import { BALANCE } from "../balance.approved";
-import { daysInMonth, shiftMonth, ymOnly, ymd } from "../calendar";
+import { daysInMonth, monthBefore, shiftMonth, ymOnly, ymd } from "../calendar";
 import { savingsByCategory } from "../selectors";
 import { SAVING_CATEGORY_IDS, savingsBucketOf } from "../savingsBuckets";
 import { buildingsStorageKey, createChunkedStorage, entriesStorageKey } from "../storage";
@@ -141,7 +141,11 @@ function freshTown(today: string): TownState {
     noSpendDays: [],
     cumulativeSavingsKrw: 0,
     savingsByCategoryKrw: {}, // ADDENDUM-01 §4.6 f2 — covers `empty`/`budgetBlown`/`noSpendStreak`/every fixture that spreads this
-    lastSettledPeriod: today.slice(0, 7), // onboarding seeds this to "now" — no retroactive settlement
+    // Gate-3 round-3 fix: mirrors `useTownStore.ts`'s `freshCore` — the month
+    // BEFORE `today`, not `today` itself (`unsettledPeriods` is exclusive of
+    // this value, so seeding it to "now" silently marked the founding month
+    // pre-settled and it could never close). See that file's comment for why.
+    lastSettledPeriod: monthBefore(today.slice(0, 7)),
   };
 }
 

@@ -109,6 +109,15 @@ export interface TownGridProps {
   onPlotTap: (plotIndex: number) => void;
   /** An arrow key moved the roving cursor to this (already-clamped) index. */
   onCursorMove: (nextIndex: number) => void;
+  /**
+   * Gate-3-rerun fix (round-3, all five expert lenses) — a hold-drag-release
+   * that ended on no tile at all (outside `.town-grid` entirely). Only ever
+   * fires mid-move (grow/fuse pick-mode's long-press is swapped for a no-op,
+   * so it never arms this path); wired straight to `useTileGestures`'s own
+   * `onInvalidDrop`, no `resolveDropTarget` needed since there is no
+   * `plotIndex` to resolve.
+   */
+  onInvalidDrop: () => void;
   /** The live grow-candidate ids while grid pick-mode is active. */
   growCandidateIds?: ReadonlySet<string>;
   /** [취소] / Escape / Android back — cancels move mode outright. */
@@ -430,6 +439,7 @@ function TownGridImpl({
   onCursorMove,
   growCandidateIds,
   onCancel,
+  onInvalidDrop,
 }: TownGridProps) {
   const newestTileRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -448,6 +458,21 @@ function TownGridImpl({
   // A7 — the grid's transform-INDEPENDENT layout position, captured once when
   // a pinch starts and reused for the whole gesture. See `handlePinchMove`.
   const pinchLayoutRef = useRef<{ left: number; top: number } | null>(null);
+  // Gate-3-rerun fix (four expert lenses, live-repro'd): scale drifted
+  // 1.038 -> 0.917 during a nominally translate-only two-finger PAN (finger
+  // separation held constant throughout). Root cause was that `nextScale`
+  // was computed as `scale0 * (distance / prevSample.distance)` — a ratio
+  // against the PREVIOUS sample, chained across every pointermove of the
+  // gesture. Real touch input reports finger separation with a few px of
+  // sample-to-sample jitter even when the physical separation truly isn't
+  // changing (sensor quantization, sub-pixel rounding); chaining that noise
+  // multiplicatively is a random walk in log-scale space, so scale drifts
+  // away from 1.0 over dozens of samples even on a pure pan. Fixing it the
+  // same way `pinchLayoutRef` already fixes translate anchoring: capture the
+  // gesture's BASELINE distance/scale once, and every later sample compares
+  // straight to that fixed baseline (`distance / baseline.distance`) instead
+  // of to the noisy previous sample — no chain, no accumulation.
+  const pinchBaselineRef = useRef<{ scale: number; distance: number } | null>(null);
 
   const fitScale = fit?.scale ?? 1;
   const scale = pinch ? pinch.scale : zoomedOut ? fitScale : 1;
@@ -517,10 +542,15 @@ function TownGridImpl({
       // `ty` and the DOM agree — the one moment this can be read correctly.
       const rect = grid.getBoundingClientRect();
       pinchLayoutRef.current = { left: rect.left - scale * tx, top: rect.top - scale * ty };
+      // Drift fix (see the ref's own comment): every later sample of this
+      // gesture compares straight against THIS distance, never a chain.
+      pinchBaselineRef.current = { scale, distance };
       return;
     }
     const layout = pinchLayoutRef.current;
     if (!layout) return;
+    const baseline = pinchBaselineRef.current;
+    if (!baseline) return;
 
     setZoomedOut(false); // D1/D2/D4 — a pinch takes ownership of scale away from the toggle
     setPinch((prevPinch) => {
@@ -528,7 +558,7 @@ function TownGridImpl({
       const tx0 = prevPinch?.tx ?? 0;
       const ty0 = prevPinch?.ty ?? 0;
 
-      const rawScale = scale0 * (distance / prevSample.distance);
+      const rawScale = baseline.scale * (distance / baseline.distance);
       const nextScale = Math.min(MAX_PINCH_SCALE, Math.max(fitScale, rawScale));
       // A8 — two different states both land on `nextScale === fitScale`, and
       // only one of them means "pan is inert" (D1):
@@ -588,6 +618,7 @@ function TownGridImpl({
   const handlePinchEnd = () => {
     pinchSampleRef.current = null;
     pinchLayoutRef.current = null; // A7 — re-measured on the next gesture's baseline
+    pinchBaselineRef.current = null; // re-measured on the next gesture's baseline
   };
 
   // ADDENDUM-08 §3/§7 — the ground layer: one element per empty lot, one
@@ -767,6 +798,7 @@ function TownGridImpl({
     onEscape: onCancel,
     onPinchMove: handlePinchMove,
     onPinchEnd: handlePinchEnd,
+    onInvalidDrop,
   });
 
   // F3: "New buildings animate in; the view auto-scrolls to the newest."

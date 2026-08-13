@@ -156,7 +156,7 @@ function App() {
 
       <TierCelebration
         tier={notice?.kind === "tier" ? notice.tier : null}
-        buildingCount={store.buildingCount}
+        buildingCount={store.townScale}
         tierThresholds={BALANCE.tierThresholds}
         onDismiss={dismissNotice}
       />

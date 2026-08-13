@@ -62,15 +62,20 @@ describe("seed earn loop", () => {
       addResult = latest!.addEntry(coffee);
     });
     // B4 — the recorded entry pays on its own, the founding is a bonus on top.
-    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build);
+    // Gate-3-rerun fix: this is also the town's day-1 streak act (a fresh
+    // town's `lastActOn` starts unset), so it pays the day-1 streak award too
+    // (2 * streakDays(1), see `economy/awards.ts`).
+    const streakAward = 2 * 1;
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build + streakAward);
     const keys = latest!.economy.grantedEventKeys;
-    expect(keys).toHaveLength(2);
+    expect(keys).toHaveLength(3);
     expect(keys[0]).toMatch(/^seed:entry:/);
-    expect(keys[1]).toBe(`seed:build:${latest!.buildings[0].id}`);
+    expect(keys[1]).toBe(`seed:streak:${TODAY}`);
+    expect(keys[2]).toBe(`seed:build:${latest!.buildings[0].id}`);
     // Gate-3-rerun fix — the caller (TownScreen) folds this into the
     // build toast; see `AddEntryResult.seedsGranted`'s doc for why the grant
     // needs to be surfaced at all (it silently existed before, per the panel).
-    expect(addResult?.seedsGranted).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build);
+    expect(addResult?.seedsGranted).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build + streakAward);
   });
 
   // --- B4 — the paths that used to pay nothing at all. -------------------
@@ -159,8 +164,9 @@ describe("seed earn loop", () => {
     act(() => {
       latest!.claimNoSpend();
     });
-    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend);
-    expect(latest?.economy.grantedEventKeys).toEqual([`seed:nospend:${TODAY}`]);
+    // Gate-3-rerun fix: also the town's day-1 streak act (2 * streakDays(1)).
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend + 2);
+    expect(latest?.economy.grantedEventKeys).toEqual([`seed:nospend:${TODAY}`, `seed:streak:${TODAY}`]);
   });
 
   it("grantSeeds is idempotent — calling the same event twice pays once", async () => {

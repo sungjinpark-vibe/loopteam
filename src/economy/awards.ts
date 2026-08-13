@@ -22,6 +22,15 @@ export type AwardEvent =
   | { kind: "build"; buildingId: string }
   | { kind: "nospend"; date: string }
   | { kind: "tier"; tier: number }
+  // Gate-3-rerun fix (liveops-pd's TOP FIX, -4 the single biggest deduction of
+  // the panel): 연속 N일 was tracked (`selectors.ts` advanceStreak) and shown
+  // in the header at all times, but paid nothing and explained nothing — "the
+  // opposite of a return hook." Fires once per calendar day, the same day
+  // `advanceStreak` actually extends the streak (never on the idempotent
+  // same-day no-op) — the caller (`useTownStore.ts`) detects that by
+  // `town.lastActOn` changing. Keyed by date, same idempotency shape as
+  // `nospend`, so a reboot or a replayed drain can't double-pay one day.
+  | { kind: "streak"; date: string; streakDays: number }
   // ADDENDUM-11 §5.3 — one fusion act. The idempotency key carries the
   // RESULTING fuse tier, not just the survivor's id: the same building fuses
   // again on its way to Lv.10, and an id-only key would treat that Lv.7 as an
@@ -45,6 +54,17 @@ export function awardFor(event: AwardEvent): SeedAward {
       return { eventKey: `seed:nospend:${event.date}`, amount: BALANCE.seedAwards.nospend };
     case "tier":
       return { eventKey: `seed:tier:${event.tier}`, amount: BALANCE.seedAwards.tier };
+    case "streak":
+      // Not a `BALANCE.seedAwards` dial (that file is frozen — MVP-SPEC §9
+      // rule 3, director-approved contents only): a small local formula
+      // instead, deliberately modest next to `nospend` (8) and `build` (3)
+      // dials it sits beside — a daily login bonus is a top-up, not the
+      // economy's main earn path. Scales with streak length so day 7 pays
+      // noticeably more than day 1, capped so a long streak doesn't dwarf
+      // every other award.
+      // ponytail: flat linear ramp, not a curve — retune here (not in
+      // balance.approved.ts) if the pacing ever needs a real design pass.
+      return { eventKey: `seed:streak:${event.date}`, amount: Math.min(2 * event.streakDays, 20) };
     case "fuse":
       return { eventKey: `seed:fuse:${event.buildingId}:${event.fuseTier}`, amount: BALANCE.seedAwards.fuse };
     case "settlement":

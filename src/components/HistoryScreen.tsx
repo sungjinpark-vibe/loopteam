@@ -263,7 +263,17 @@ export function HistoryScreen({ store, onOpenSettings }: HistoryScreenProps) {
                     style={{ width: `${Math.min(pace, 1) * 100}%`, background: PACE_COLORS[mood] ?? PACE_COLORS[0] }}
                   />
                 </div>
-                <span className="history-pace-label">예산의 {Math.round(pace * 100)}%</span>
+                {/* Gate-3-rerun fix (all four evidence-driving experts flagged
+                    this): `pace` is a projected month-end rate (today's
+                    spend ÷ today's PRORATED share of budget), not
+                    spend÷budget — a 13-day-in spender at 100% of budget can
+                    read 239% here. "예산의 239%" alone reads as "already spent
+                    2.4x the budget", which is false and, paired with a red
+                    bar, panics a reader instead of informing them. "현재
+                    페이스" (current PACE) names the axis the number is
+                    actually on — matching the empty-state copy just above,
+                    which already calls this whole row "페이스". */}
+                <span className="history-pace-label">현재 페이스: 예산의 {Math.round(pace * 100)}%</span>
               </>
             )}
           </div>

@@ -31,6 +31,19 @@ describe("awardFor", () => {
     expect(awardFor({ kind: "tier", tier: 2 })).toEqual({ eventKey: "seed:tier:2", amount: BALANCE.seedAwards.tier });
   });
 
+  // Gate-3-rerun fix — liveops-pd's TOP FIX: the streak counter paid nothing.
+  it("keys a streak award by date, amount scales with streak length", () => {
+    expect(awardFor({ kind: "streak", date: "2026-08-10", streakDays: 1 })).toEqual({
+      eventKey: "seed:streak:2026-08-10",
+      amount: 2,
+    });
+    expect(awardFor({ kind: "streak", date: "2026-08-10", streakDays: 3 }).amount).toBe(6);
+  });
+
+  it("caps the streak award so a very long streak doesn't dwarf every other award", () => {
+    expect(awardFor({ kind: "streak", date: "2026-08-10", streakDays: 999 }).amount).toBe(20);
+  });
+
   it("keys a settlement award by period, scaled by outcomeBucket", () => {
     expect(awardFor({ kind: "settlement", period: "2026-07", outcomeBucket: 1, primeLotCount: 0 })).toEqual({
       eventKey: "seed:settlement:2026-07",

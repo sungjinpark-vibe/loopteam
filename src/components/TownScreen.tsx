@@ -343,6 +343,19 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
 
   function handleFuseCancel() {
     setFuseConfirm(null);
+    // Gate-3-rerun fix (all five expert lenses): pick mode itself already
+    // exits the instant a partner is tapped (`useGrowPickMode.onPlotTap`
+    // clears `candidateIds` before committing), so by the time this dialog's
+    // own 취소 fires, fuse-pick mode is provably NOT active — the FAB is
+    // already back. The bug QA hit was purely cosmetic but genuinely
+    // ambiguous: the vendor toast (`@toss/tds-mobile`'s `useToast`, no
+    // `closeToast` in its exposed API) from `handleFuseStart`'s "반짝이는
+    // 건물 N채 중에서..." instruction can still be mid-display, with no 취소
+    // bar left to contradict it, so it reads as "still picking". Firing a
+    // fresh toast is the only way this vendor hook lets us retire a stale
+    // one early — it replaces whatever is on screen with an explicit,
+    // unambiguous "cancelled" message.
+    openToast("합치기를 취소했어요");
   }
 
   function handleClaimNoSpend() {
@@ -358,13 +371,13 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
   }
 
-  // Gate-3-rerun fix (every expert's confirmed defect, QA's TOP FIX): tier
-  // now reads the SAME literal count `TownHeader`'s `buildingCount` prop
-  // shows below — there is exactly one number, so it cannot drift from what
-  // the tier-up banner (`TierCelebration`, fed `store.buildingCount` too)
-  // says either. See `entryActions.ts`'s `buildingCountBeforeThis` doc for
-  // why this used to be the growth score instead.
-  const tier = computeTier(store.buildingCount, BALANCE.tierThresholds);
+  // Gate-3-rerun fix (round 3, near-unanimous panel finding): tier reads
+  // `store.townScale` (Σ 2**fuse), NOT `store.buildingCount` — the latter is
+  // now the literal, player-facing count `TownHeader` displays and must
+  // never drive the tier gate or it drifts the moment a fusion changes one
+  // but not the other. See `useTownStore.ts`'s `buildingCount`/`townScale`
+  // doc and `entryActions.ts`'s `buildingCountBeforeThis` doc for the split.
+  const tier = computeTier(store.townScale, BALANCE.tierThresholds);
 
   // F6 — town mood, reusing `budgetPace`/`moodTier` (selectors.ts) exactly as
   // 기록's pace bar already does, so the two never disagree. Continuous
@@ -392,6 +405,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         dailyBuildSlots={store.dailyBuildSlots}
         tier={tier}
         streakDays={store.streakDays}
+        streakAtRisk={store.streakAtRisk}
         queueLength={store.queueLength}
         moodLabel={moodContent.headerLabel}
         moodIcon={moodContent.icon}
@@ -447,6 +461,7 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         onCursorMove={move.onCursorMove}
         growCandidateIds={growPick.candidateIds ?? undefined}
         onCancel={pickModeActive ? handleGrowPickCancel : move.cancel}
+        onInvalidDrop={move.onInvalidDrop}
       />
 
       {/* ADDENDUM-02 §4.3/§4.4 + ADDENDUM-04 §4 — rendered OUTSIDE

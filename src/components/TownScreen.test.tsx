@@ -438,23 +438,27 @@ describe("TownScreen — Gate-3 follow-up: the reward toast names the currency a
     // Building #1 raises A2's celebration banner instead of a toast (A6 — the
     // two are bottom-docked and would otherwise land on the same line), so the
     // toast assertions start from building #2.
+    // Gate-3-rerun fix: the FIRST save of the day is also the day's own
+    // streak-extending act, a one-time +2 (streakDays 1) that later same-day
+    // saves don't repeat (idempotent by date) — added once, flat, below.
+    const streakBonus = 2;
     act(() => {
       latest!.addEntry(cafeExpense(1_000));
     });
     act(() => latest!.dismissNotice());
-    expect(latest!.economy.seeds).toBe(perBuild);
+    expect(latest!.economy.seeds).toBe(perBuild + streakBonus);
 
     openSheet();
     fillAndSave("교통");
     expect(document.body.textContent).toContain(`+씨앗 ${perBuild}개`);
-    expect(document.body.textContent).toContain(`모은 ${perBuild * 2}개`);
-    expect(latest!.economy.seeds).toBe(perBuild * 2);
+    expect(document.body.textContent).toContain(`모은 ${perBuild * 2 + streakBonus}개`);
+    expect(latest!.economy.seeds).toBe(perBuild * 2 + streakBonus);
 
     openSheet();
     fillAndSave("문화");
     // The running total, not the grant, is what moved.
-    expect(document.body.textContent).toContain(`모은 ${perBuild * 3}개`);
-    expect(latest!.economy.seeds).toBe(perBuild * 3);
+    expect(document.body.textContent).toContain(`모은 ${perBuild * 3 + streakBonus}개`);
+    expect(latest!.economy.seeds).toBe(perBuild * 3 + streakBonus);
   });
 
   it("the shop header — the surface the same currency is SPENT on — names the unit too", async () => {
@@ -747,6 +751,11 @@ describe("TownScreen — ADDENDUM-11 §6 fusion: the pick-mode / confirm / commi
     expect(findButton("합치기")).toBeUndefined(); // dialog closed
     expect(latest!.buildings.length).toBe(2);
     expect(latest!.buildings.every((b) => (b.fuse ?? 0) === 0 && b.exp === MAXED_EXP)).toBe(true);
+    // Gate-3-rerun fix (panel's mode-ambiguity finding): cancelling fires an
+    // explicit toast, replacing whatever pick-instruction toast may still be
+    // on screen — a player can no longer be left staring at "반짝이는 건물...
+    // 탭하세요" with no way to tell whether picking is still armed.
+    expect(document.body.textContent).toContain("취소했어요");
   });
 
   it("confirming performs the fusion: survivor reaches Lv.6, the consumed building is gone, and its cell frees", async () => {
@@ -762,12 +771,14 @@ describe("TownScreen — ADDENDUM-11 §6 fusion: the pick-mode / confirm / commi
       findButton("합치기")!.click(); // the confirm dialog's confirm button
     });
 
-    // `buildingCount` is `townScale` (Σ 2**fuse, §5.1.3), NOT the literal
-    // array length — one Lv.6 building is 2 Lv.5-equivalents by design, so it
-    // stays 2 across the fusion (AC §7.7, "tier does not regress"). The
-    // literal building disappearing is asserted via `buildings.length`.
-    expect(latest!.buildingCount).toBe(2);
+    // `buildingCount` is the literal array length (Gate-3-rerun fix — the
+    // header's "건물 N채" must fall on fusion), so it drops to 1 along with
+    // `buildings.length`. `townScale` (Σ 2**fuse) is the tier-neutral number
+    // instead: one Lv.6 building is 2 Lv.5-equivalents by design, so THAT
+    // stays 2 across the fusion (AC §7.7, "tier does not regress").
+    expect(latest!.buildingCount).toBe(1);
     expect(latest!.buildings.length).toBe(1);
+    expect(latest!.townScale).toBe(2);
     const survivor = latest!.buildings.find((b) => b.id === "cafe1");
     expect(survivor).not.toBeUndefined();
     expect(survivor!.plotIndex).toBe(fuseCell(0)); // AC §7.1 — the survivor keeps its position

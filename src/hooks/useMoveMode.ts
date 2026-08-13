@@ -21,6 +21,8 @@ const REJECT_MESSAGE_MS = 2500;
 
 /** Placeholder copy (D-36) — the director may edit; only the mechanism is MUST. */
 const OCCUPIED_MESSAGE = "이미 건물이 있는 자리예요";
+/** Placeholder copy — a drag-release that landed on no tile at all (round-3 finding, all five experts). */
+const INVALID_DROP_MESSAGE = "그 자리로는 옮길 수 없어요";
 /** Placeholder copy — shown when 되돌리기 itself is rejected (round-2 finding C2 #3). */
 const UNDO_FAILED_MESSAGE = "원래 자리에 다른 건물이 생겼어요";
 
@@ -49,6 +51,8 @@ export interface UseMoveModeResult {
   /** Returns whether a building was actually grabbed — see `useTileGestures`'s `onLongPress` contract. */
   onPlotLongPress: (plotIndex: number) => boolean;
   onPlotTap: (plotIndex: number) => void;
+  /** Wired to `useTileGestures`'s `onInvalidDrop` — a drag-release that landed on no tile at all. No-op outside move mode. */
+  onInvalidDrop: () => void;
   onCursorMove: (nextIndex: number) => void;
   /** [취소] button / Escape (via TownGrid) / Android back (via useBackGuard, wired internally). */
   cancel: () => void;
@@ -166,6 +170,19 @@ export function useMoveMode(
     [buildings, clearRejectTimer],
   );
 
+  // D-34: an invalid drop is rejected, not swapped — inline hint, mode stays
+  // open (§4.3 "Reject"). Shared by both invalid-drop paths below (an
+  // occupied in-grid tile, and a drag-release that landed on no tile at
+  // all) so the message/timer plumbing exists exactly once.
+  const showReject = useCallback(
+    (message: string) => {
+      setRejectMessage(message);
+      clearRejectTimer();
+      rejectTimerRef.current = setTimeout(() => setRejectMessage(null), REJECT_MESSAGE_MS);
+    },
+    [clearRejectTimer],
+  );
+
   const onPlotTap = useCallback(
     (plotIndex: number) => {
       if (movingId === null) return; // a plain tap outside move mode does nothing (only long-press starts it)
@@ -179,13 +196,10 @@ export function useMoveMode(
 
       const result = moveBuilding(movingId, plotIndex);
       if (!result.ok) {
-        // D-34: an occupied lot is rejected, not swapped — inline hint, mode stays open (§4.3 "Reject").
         // ("out-of-town"/"not-found"/"same-plot" are unreachable here in the
         // normal UI, since only droppable — free, in-pool — lots are tappable
         // as a destination; the same reject copy is a safe fallback either way.)
-        setRejectMessage(OCCUPIED_MESSAGE);
-        clearRejectTimer();
-        rejectTimerRef.current = setTimeout(() => setRejectMessage(null), REJECT_MESSAGE_MS);
+        showReject(OCCUPIED_MESSAGE);
         return;
       }
 
@@ -195,8 +209,19 @@ export function useMoveMode(
       clearUndoTimer();
       undoTimerRef.current = setTimeout(() => setJustMoved(null), UNDO_TIMEOUT_MS);
     },
-    [movingId, buildings, moveBuilding, cancel, clearUndoTimer, clearRejectTimer],
+    [movingId, buildings, moveBuilding, cancel, clearUndoTimer, showReject],
   );
+
+  // Round-3 finding (all five expert lenses): `useTileGestures`'s
+  // `onInvalidDrop` — a drag-release that landed on no tile at all — used to
+  // reach nothing, so move mode stayed open with zero feedback. Same reject
+  // channel `onPlotTap` uses; only fires while move mode is actually open
+  // (the gesture layer can call this even outside move mode in principle,
+  // since it has no notion of `movingId`).
+  const onInvalidDrop = useCallback(() => {
+    if (movingId === null) return;
+    showReject(INVALID_DROP_MESSAGE);
+  }, [movingId, showReject]);
 
   const onCursorMove = useCallback((nextIndex: number) => setCursorIndex(nextIndex), []);
 
@@ -229,6 +254,7 @@ export function useMoveMode(
     undoFailedMessage,
     onPlotLongPress,
     onPlotTap,
+    onInvalidDrop,
     onCursorMove,
     cancel,
     undo,

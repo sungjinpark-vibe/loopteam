@@ -83,7 +83,10 @@ function building(overrides: Partial<Building> = {}): Building {
   };
 }
 
-type MoveProps = Pick<TownGridProps, "movingId" | "cursorIndex" | "onPlotLongPress" | "onPlotTap" | "onCursorMove" | "onCancel">;
+type MoveProps = Pick<
+  TownGridProps,
+  "movingId" | "cursorIndex" | "onPlotLongPress" | "onPlotTap" | "onCursorMove" | "onCancel" | "onInvalidDrop"
+>;
 
 const NOOP_MOVE_PROPS: MoveProps = {
   movingId: null,
@@ -92,6 +95,7 @@ const NOOP_MOVE_PROPS: MoveProps = {
   onPlotTap: () => {},
   onCursorMove: () => {},
   onCancel: () => {},
+  onInvalidDrop: () => {},
 };
 
 function mountGrid(
@@ -678,6 +682,37 @@ describe("TownGrid — long-press gesture (AC-M8/AC-M9)", () => {
     }
   });
 
+  // Gate-3-rerun fix (round-3, all five expert lenses): before this fix, a
+  // release with no `[data-plot-index]` ancestor under it — dragged clean
+  // off the grid, e.g. onto the header/FAB/move-bar — called neither
+  // `onPlotTap` nor anything else. Move mode stayed open with zero
+  // feedback, indistinguishable from a hang.
+  it("a long-press then drag-release OFF the grid entirely fires onInvalidDrop, not onPlotTap", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn(() => true);
+      const onPlotTap = vi.fn();
+      const onInvalidDrop = vi.fn();
+      const container = mountGrid([building()], { onPlotLongPress, onPlotTap, onInvalidDrop });
+      const from = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+
+      pointerDown(from, 0, 0);
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
+
+      // Released ON the grid element itself (real movement, but no
+      // `[data-plot-index]` tile under the finger) — the listener is bound
+      // to `.town-grid` directly, so dispatching straight on it is the
+      // faithful "landed on the grid's own background, not a tile" repro.
+      const grid = container.querySelector(".town-grid") as HTMLElement;
+      grid.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientX: 200, clientY: 0 }));
+      expect(onPlotTap).not.toHaveBeenCalled();
+      expect(onInvalidDrop).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("releasing in place (no real movement) after a long-press does NOT auto-commit — the original 'grab, lift, tap later' flow still works", () => {
     vi.useFakeTimers();
     try {
@@ -1155,6 +1190,70 @@ describe("TownGrid — pinch zoom & pan (ADDENDUM-09 §3.2/§3.3)", () => {
     expect(after.scale).toBeCloseTo(start.scale, 6); // separation returned to its start — no zoom
     expect(after.ty).toBeCloseTo(start.ty, 6); // dy was 0 throughout
     expect(after.tx).toBeCloseTo(start.tx + DX / start.scale, 6); // the map followed the fingers, exactly once
+  });
+
+  // Gate-3-rerun fix, live-repro'd by four expert lenses: transform scale
+  // drifted 1.038 -> 0.917 during a real two-finger pan that held a constant
+  // 60px finger separation throughout. The single-tick test above can't catch
+  // this — a real drag delivers ONE pointermove per finger per frame (never
+  // synchronized), so separation carries a few px of sample-to-sample jitter
+  // even though the physical gesture is pure translation. The old code
+  // (`scale0 * (distance / prevSample.distance)`) chained that jitter
+  // multiplicatively across every sample — a random walk in log-scale space
+  // that drifts scale away from 1.0 the longer the drag runs, even though no
+  // single sample looks wrong on its own. This reproduces that shape: 24
+  // alternating-finger samples, separation jittering ±1px around a fixed
+  // mean while the midpoint steadily translates, same rect stub as the tests
+  // above so the real-browser code path (not jsdom's accidental zeros) runs.
+  it("scale does not drift over a long jittery two-finger pan (separation noisy ±1px, translating steadily)", () => {
+    const LAYOUT_LEFT = 24;
+    const LAYOUT_TOP = 180;
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    const nativeRect = grid.getBoundingClientRect.bind(grid);
+    grid.getBoundingClientRect = () => {
+      const t = grid.style.transform ? parseTransform(grid.style.transform) : { scale: 1, tx: 0, ty: 0 };
+      const left = LAYOUT_LEFT + t.scale * t.tx;
+      const top = LAYOUT_TOP + t.scale * t.ty;
+      return { ...nativeRect(), left, top, x: left, y: top } as DOMRect;
+    };
+
+    // Zoom in first so translate is live (pan is inert at fit scale, D1).
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerDownAt(grid, 2, 100, 0);
+      pointerMoveAt(grid, 1, 0, 0); // baseline, separation 100
+    });
+    act(() => {
+      pointerMoveAt(grid, 1, -50, 0); // separation 150 -> zoom in
+    });
+    const start = parseTransform(grid.style.transform);
+    expect(start.scale).toBeGreaterThan(1);
+
+    // 24 samples, alternating which finger reports and jittering the OTHER
+    // finger's position by ±1px so separation noise is never correlated
+    // sample-to-sample (matching real, uncoordinated per-finger sampling) —
+    // while both fingers steadily drift the same direction (a real pan).
+    let posA = -50; // pointer 1
+    let posB = 100; // pointer 2, separation starts at 150
+    act(() => {
+      for (let i = 0; i < 24; i++) {
+        const jitter = i % 2 === 0 ? 1 : -1;
+        posA += 2;
+        posB += 2 + jitter;
+        if (i % 2 === 0) pointerMoveAt(grid, 1, posA, 0);
+        else pointerMoveAt(grid, 2, posB, 0);
+      }
+    });
+    const end = parseTransform(grid.style.transform);
+
+    // Noise averages to ~0 separation change over the whole drag, so scale
+    // should end within a hair of where it started — not necessarily bit-exact
+    // (each sample's jitter DOES nudge scale a little, same as a real device),
+    // but nowhere near the 1.038 -> 0.917 (~12%) drift the bug produced.
+    expect(Math.abs(end.scale - start.scale) / start.scale).toBeLessThan(0.02);
+    expect(end.tx).not.toBeCloseTo(start.tx, 1); // the pan itself still moved the map
   });
 
   // A8 — a sample that dips to the fit-scale floor MID-DRAG must still pan.

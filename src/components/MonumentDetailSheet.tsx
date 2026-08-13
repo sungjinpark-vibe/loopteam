@@ -12,6 +12,7 @@ import { BottomSheet, Button } from "@toss/tds-mobile";
 import { parseYm } from "../calendar";
 import { monumentOutcomeLabel } from "../content.placeholder";
 import { formatKrw } from "../format";
+import { useEscapeToClose } from "../hooks/useEscapeToClose";
 import type { Building } from "../types";
 
 export interface MonumentDetailSheetProps {
@@ -27,6 +28,10 @@ function formatPeriodLabel(period: string): string {
 }
 
 export function MonumentDetailSheet({ open, monument, onClose }: MonumentDetailSheetProps) {
+  // Gate-3 round-3 fix — same sibling gap `BuildingDetailSheet` had (see
+  // `useEscapeToClose`'s doc): called unconditionally, before the early
+  // return below, per Rules of Hooks.
+  useEscapeToClose(open, onClose);
   const summary = monument?.monumentSummary ?? null;
   if (summary === null) return null; // nothing to show — BottomSheet stays closed via `open` regardless
 

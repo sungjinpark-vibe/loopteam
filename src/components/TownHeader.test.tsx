@@ -25,6 +25,7 @@ function baseProps(overrides: Partial<TownHeaderProps> = {}): TownHeaderProps {
     dailyBuildSlots: 2,
     tier: 0,
     streakDays: 5,
+    streakAtRisk: false,
     queueLength: 0,
     moodLabel: "이번 달 페이스가 좋아요",
     moodIcon: "☀️",
@@ -63,5 +64,27 @@ describe("TownHeader — F-BGM speaker toggle", () => {
       bgmButton(mounted!.container).click();
     });
     expect(calls).toEqual([true]);
+  });
+});
+
+// Gate-3-rerun fix (liveops-pd's TOP FIX): the streak's at-risk signal.
+describe("TownHeader — streak at-risk signal", () => {
+  it("shows no fire and no risk copy at streak 0", () => {
+    mounted = mountComponent(<TownHeader {...baseProps({ streakDays: 0, streakAtRisk: false })} />);
+    expect(mounted.container.textContent).not.toContain("🔥");
+    expect(mounted.container.textContent).not.toContain("이어져요");
+  });
+
+  it("shows the fire icon at streak > 0, no risk copy when not at risk", () => {
+    mounted = mountComponent(<TownHeader {...baseProps({ streakDays: 3, streakAtRisk: false })} />);
+    expect(mounted.container.textContent).toContain("🔥");
+    expect(mounted.container.textContent).not.toContain("이어져요");
+    expect(mounted.container.querySelector(".town-header-streak--risk")).toBeNull();
+  });
+
+  it("adds the risk class and copy when a streak exists but today hasn't extended it", () => {
+    mounted = mountComponent(<TownHeader {...baseProps({ streakDays: 3, streakAtRisk: true })} />);
+    expect(mounted.container.textContent).toContain("오늘 기록하면 이어져요");
+    expect(mounted.container.querySelector(".town-header-streak--risk")).not.toBeNull();
   });
 });

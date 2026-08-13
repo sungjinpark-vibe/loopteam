@@ -58,6 +58,18 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
   // without a budget.
   const budgetKrw = budgetDigits === "" ? 0 : Number(budgetDigits);
   const canStart = Number.isFinite(budgetKrw) && budgetKrw > 0;
+  const isStartDisabled = step === BEATS - 1 && !canStart;
+
+  // See the comment on the wrapper div below: patches `disabled`/`aria-disabled`
+  // directly onto the rendered button node because the vendor `disabled` prop
+  // was confirmed live not to reach the real DOM attribute.
+  const startButtonRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const btn = startButtonRef.current?.querySelector("button");
+    if (!btn) return;
+    btn.toggleAttribute("disabled", isStartDisabled);
+    btn.setAttribute("aria-disabled", String(isStartDisabled));
+  }, [isStartDisabled]);
 
   /** 건너뛰기 — completes without ever writing a budget the player didn't set. */
   function skip() {
@@ -118,6 +130,16 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
               inputMode="numeric"
               value={budgetDigits === "" ? "" : `${commaizeAmount(budgetDigits)}원`}
               onChange={(e) => setBudgetDigits(decommaizeAmount(e.target.value))}
+              // Gate-3-rerun fix (near-unanimous finding): 시작하기 already
+              // no-oped on an invalid amount (`disabled`/`finish`'s own
+              // guard, above) — the bug was that a tap then produced ZERO
+              // signal (no native `disabled` DOM attribute from this vendor
+              // Button, no toast, no error), so the only tell was a pale vs
+              // solid fill. This inline `help` line is always-visible, not
+              // reactive-only, so a player who has not touched the field yet
+              // sees why the CTA won't move before they even tap it.
+              help={canStart ? undefined : "금액을 입력하면 시작할 수 있어요"}
+              hasError={budgetDigits !== "" && !canStart}
             />
           </div>
         )}
@@ -128,18 +150,30 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
           ))}
         </div>
 
-        <Button
-          as="button"
-          color="primary"
-          variant="fill"
-          size="large"
-          display="block"
-          // A4 — only the final beat validates; 다음 is never gated.
-          disabled={step === BEATS - 1 && !canStart}
-          onClick={() => (step < BEATS - 1 ? setStep(step + 1) : finish())}
-        >
-          {step < BEATS - 1 ? "다음" : "시작하기"}
-        </Button>
+        {/* Gate-3-rerun fix (near-unanimous panel finding): the TDS `Button`'s
+            `disabled` prop gates the click handler and the fill style, but a
+            live Chromium playtest found the rendered `<button>` carries
+            neither `disabled` nor `aria-disabled` (both read null) — the same
+            class of vendor-DOM quirk `useConfirmDialogBackdropFix` already
+            works around elsewhere (jsdom's `.disabled === true` in this
+            file's own test does NOT prove the real DOM matches, per that
+            hook's own comment). The wrapping ref lets the effect below patch
+            the actual attributes onto whatever node TDS renders, independent
+            of what the vendor does internally. */}
+        <div ref={startButtonRef}>
+          <Button
+            as="button"
+            color="primary"
+            variant="fill"
+            size="large"
+            display="block"
+            // A4 — only the final beat validates; 다음 is never gated.
+            disabled={isStartDisabled}
+            onClick={() => (step < BEATS - 1 ? setStep(step + 1) : finish())}
+          >
+            {step < BEATS - 1 ? "다음" : "시작하기"}
+          </Button>
+        </div>
       </div>
     </div>
   );

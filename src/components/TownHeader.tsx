@@ -18,6 +18,8 @@ export interface TownHeaderProps {
   dailyBuildSlots: number;
   tier: number;
   streakDays: number;
+  /** Gate-3-rerun fix (liveops-pd's TOP FIX): a streak exists but today hasn't extended it yet. */
+  streakAtRisk: boolean;
   queueLength: number;
   /** F6 — one-line mood status ("이번 달 페이스가 ..." or the null-budget nudge). Pure content, computed by the caller from `selectors.moodTier`. */
   moodLabel: string;
@@ -40,6 +42,7 @@ export function TownHeader({
   dailyBuildSlots,
   tier,
   streakDays,
+  streakAtRisk,
   queueLength,
   moodLabel,
   moodIcon,
@@ -76,7 +79,17 @@ export function TownHeader({
           남은 건축 슬롯 {slotsRemaining}/{dailyBuildSlots}
         </span>
         <span aria-hidden="true">·</span>
-        <span>연속 {streakDays}일</span>
+        {/* Gate-3-rerun fix (liveops-pd's TOP FIX, -4): the streak counter used
+            to sit here paying nothing and explaining nothing — "the opposite
+            of a return hook." Now backed by a real seed grant on the day it
+            extends (useTownStore.ts's `advanceStreak`-detection), the fire
+            icon is the universal streak convention so it reads without
+            onboarding copy, and the at-risk state is the one thing worth
+            spelling out — a streak silently resets otherwise. */}
+        <span className={`town-header-streak${streakAtRisk ? " town-header-streak--risk" : ""}`}>
+          {streakDays > 0 && <span aria-hidden="true">🔥</span>} 연속 {streakDays}일
+          {streakAtRisk && " · 오늘 기록하면 이어져요"}
+        </span>
       </div>
       {/* F6 — ambient only: never removes/greys/downgrades a building, just this one line of text. Tappable straight into 설정 when there's no budget yet, since the copy itself asks the player to set one (playtest round 1). */}
       {budgetUnset ? (

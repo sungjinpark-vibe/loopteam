@@ -139,18 +139,30 @@ describe("Onboarding (S1)", () => {
     click("다음");
 
     expect(button("시작하기").disabled).toBe(true); // empty
+    // Gate-3-rerun fix (near-unanimous finding): a disabled CTA alone gave
+    // zero signal (no toast, no error, only a pale fill) — this inline help
+    // line is the always-visible explanation.
+    expect(mounted!.container.textContent).toContain("금액을 입력하면 시작할 수 있어요");
+    // A live Chromium playtest found the vendor Button's `disabled` prop
+    // doesn't reach the real DOM attribute; the imperative patch guards it
+    // explicitly. `.disabled` above only proves jsdom's reflection, not this.
+    expect(button("시작하기").getAttribute("aria-disabled")).toBe("true");
     click("시작하기");
     expect(completeCount()).toBe(0);
     expect(budgets).toEqual([]);
 
     typeInto(mounted!.container.querySelector<HTMLInputElement>("input")!, "0");
     expect(button("시작하기").disabled).toBe(true); // a literal 0 is not a budget
+    expect(mounted!.container.textContent).toContain("금액을 입력하면 시작할 수 있어요");
+    expect(button("시작하기").getAttribute("aria-disabled")).toBe("true");
     click("시작하기");
     expect(completeCount()).toBe(0);
     expect(budgets).toEqual([]);
 
     typeInto(mounted!.container.querySelector<HTMLInputElement>("input")!, "300000");
     expect(button("시작하기").disabled).toBe(false);
+    expect(mounted!.container.textContent).not.toContain("금액을 입력하면 시작할 수 있어요");
+    expect(button("시작하기").getAttribute("aria-disabled")).toBe("false");
     click("시작하기");
     expect(budgets).toEqual([300_000]);
     expect(completeCount()).toBe(1);

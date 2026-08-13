@@ -175,8 +175,9 @@ describe("무지출 공원 이월 (full town)", () => {
       latest!.claimNoSpend();
     });
     // Paid on the CLAIM, because the day is 무지출 whether or not a tile went up.
-    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend);
-    expect(latest?.economy.grantedEventKeys).toEqual([`seed:nospend:${DAY1}`]);
+    // Gate-3-rerun fix: also the town's day-1 streak act (2 * streakDays(1)).
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend + 2);
+    expect(latest?.economy.grantedEventKeys).toEqual([`seed:nospend:${DAY1}`, `seed:streak:${DAY1}`]);
     flush();
 
     act(() => root!.unmount());
@@ -186,10 +187,11 @@ describe("무지출 공원 이월 (full town)", () => {
     await boot();
 
     // The drain places the park but pays nothing more: `seed:nospend:<claim
-    // date>` is the same key (so it is a no-op), and the drain's `build` award
-    // is entry-sourced only — a same-day claimed park never earned one either.
-    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend);
-    expect(latest?.economy.grantedEventKeys).toEqual([`seed:nospend:${DAY1}`]);
+    // date>`/`seed:streak:<claim date>` are the same keys (so both are
+    // no-ops), and the drain's `build` award is entry-sourced only — a
+    // same-day claimed park never earned one either.
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend + 2);
+    expect(latest?.economy.grantedEventKeys).toEqual([`seed:nospend:${DAY1}`, `seed:streak:${DAY1}`]);
     expect(latest?.noSpendDays).toEqual([DAY1]); // counted once, not once per branch
     expect(latest?.buildings.filter((b) => b.source.kind === "nospend")).toHaveLength(1);
   });
@@ -209,6 +211,7 @@ describe("무지출 공원 이월 (full town)", () => {
     expect(latest?.buildingCount).toBe(before + 1);
     expect(latest?.buildings.filter((b) => b.source.kind === "nospend")).toHaveLength(1);
     expect(latest?.slotsRemaining).toBe(BALANCE.dailyBuildSlots - (BALANCE.noSpendDayCostsSlot ? 1 : 0));
-    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend);
+    // Gate-3-rerun fix: also the town's day-1 streak act (2 * streakDays(1)).
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.nospend + 2);
   });
 });

@@ -58,6 +58,7 @@ const NOOP: Pick<
   | "onPlotTap"
   | "onCursorMove"
   | "onCancel"
+  | "onInvalidDrop"
 > = {
   movingId: null,
   cursorIndex: null,
@@ -65,6 +66,7 @@ const NOOP: Pick<
   onPlotTap: () => {},
   onCursorMove: () => {},
   onCancel: () => {},
+  onInvalidDrop: () => {},
 };
 
 function renderGrid(

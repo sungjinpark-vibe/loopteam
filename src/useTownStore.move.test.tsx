@@ -180,21 +180,27 @@ describe("useTownStore — AC-H1: the move-discoverability hint", () => {
     act(() => {
       latest!.addEntry({ ...COFFEE, categoryId: "food" }); // building #2 — crosses the threshold
     });
-    expect(latest!.notice).toEqual({ kind: "moveHint" });
-    // Zero EXTRA writes from the hint itself: this save's write count matches
-    // the structurally identical prior save (same month, same shape), which
-    // never queued a hint at all — the hint rides in the React state update,
-    // not storage.
+    // Gate-3-rerun fix (near-unanimous finding): a founding save ALSO fires
+    // `TownScreen`'s own "OO 건물이 생겼어요" toast outside this hook's view, so
+    // queuing the hint in the SAME commit produced two overlapping toasts in
+    // the real app. The hint is deferred instead — no notice yet — to the
+    // next opportunity with nothing else competing for the toast slot.
+    expect(latest!.notice).toBeNull();
+    // Zero EXTRA writes from the (deferred) hint attempt: this save's write
+    // count matches the structurally identical prior save.
     expect(secondSpy.mock.calls.length).toBe(writesForFirstBuild);
     secondSpy.mockRestore();
 
-    // The toast fires and immediately dismisses the QUEUE item (App.tsx's own
-    // effect) — that is not the same as "seen forever" (D-36): a third build
-    // must NOT re-queue the hint within the same session.
+    // A third build — still no competing toast in this hook's model, so still deferred.
     act(() => {
-      latest!.dismissNotice();
       latest!.addEntry({ ...COFFEE, categoryId: "transport" });
     });
+    expect(latest!.notice).toBeNull();
+
+    // The next boot has nothing else to show, so the deferred hint surfaces here.
+    await mountAndWaitForBoot();
+    expect(latest!.notice).toEqual({ kind: "moveHint" });
+    act(() => latest!.dismissNotice());
     expect(latest!.notice).toBeNull();
 
     // A successful move dismisses it FOREVER (in-memory immediately, and
@@ -265,18 +271,21 @@ describe("useTownStore — AC-H1: the move-discoverability hint", () => {
     act(() => {
       latest!.addEntry({ ...COFFEE, categoryId: "food" });
     });
+    // Deferred — this founding save fires its own competing toast in the real
+    // app (see the previous test's note), so the hint doesn't queue here.
+    expect(latest!.notice).toBeNull();
+    await mountAndWaitForBoot(); // nothing else to show at boot — the hint surfaces here
     expect(latest!.notice).toEqual({ kind: "moveHint" });
 
+    // Gate-3-rerun fix: an explicit dismiss now persists `moveHintSeen`
+    // directly (was: only flipped in memory, riding "whatever save happens
+    // next" — which showed the hint again on every reload that had no other
+    // save in between, the panel's near-unanimous finding). No extra action
+    // needed before the reload below for the dismiss to stick.
     act(() => {
       latest!.dismissNotice(); // explicit dismiss — NOT a move
     });
     expect(latest!.notice).toBeNull();
-
-    // The zero-extra-write trick (§4.5): the in-memory flag rides whatever
-    // core save happens next for any other reason — here, an ordinary build.
-    act(() => {
-      latest!.addEntry({ ...COFFEE, categoryId: "transport" });
-    });
     flush();
 
     await mountAndWaitForBoot(); // fresh session — the PERSISTED dismiss must still gate the boot check above
