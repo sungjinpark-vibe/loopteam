@@ -1,0 +1,51 @@
+{
+  "base": "http://localhost:5173",
+  "today": "2026-08-13",
+  "artUnderTest": "4f3096b (height ladder) + 66d10e3/7fdc885 (roof signboard) + 255d0fc (tap-target proof)",
+  "supersedes": "docs/qa/evidence-fusion-final (captured before the height/signboard change)",
+  "measurementNote": "artHeightPx measured at native 100% zoom (.town-zoom-toggle off), survivor cell only, viewport 390x844 CSS px.",
+  "primaryFusion": {
+    "beforeLevel": "Lv.5",
+    "afterLevel": "Lv.6",
+    "beforeArt": {
+      "artHeightPx": 60,
+      "artWidthPx": 40,
+      "tileHeightPx": 40,
+      "hasSignboard": true,
+      "signboardHeightPx": 8.3
+    },
+    "afterArt": {
+      "artHeightPx": 65,
+      "artWidthPx": 40,
+      "tileHeightPx": 40,
+      "hasSignboard": true,
+      "signboardHeightPx": 8.3
+    },
+    "artHeightGrowthPx": 5,
+    "freedCell": 8,
+    "freedCellEmptyAfter": true
+  },
+  "optionalHigherTierFusion": {
+    "beforeLevel": "Lv.6",
+    "afterLevel": "Lv.7",
+    "afterArt": {
+      "artHeightPx": 70,
+      "artWidthPx": 40,
+      "tileHeightPx": 40,
+      "hasSignboard": true,
+      "signboardHeightPx": 8.3
+    },
+    "freedCell": 10,
+    "freedCellEmptyAfter": true
+  },
+  "consoleErrorCount": 0,
+  "consoleErrors": [],
+  "shots": [
+    "01-before-two-lv5",
+    "02-confirm",
+    "03-after-lv6",
+    "04-town-overview",
+    "04b-town-fit-scale",
+    "05-optional-lv7"
+  ]
+}
