@@ -3,7 +3,9 @@ import { createChunkedStorage, serializeExport } from "../storage";
 import { BALANCE } from "../balance.approved";
 import { FIXTURES, loadFixtureIntoStorage } from "./fixtures";
 import type { StoragePort } from "../platform/storage";
-import { budgetPace, monthTotal } from "../selectors";
+import { budgetPace, canClaimNoSpend, fuseOf, monthTotal, unsettledPeriods } from "../selectors";
+import { applyFusion, fusePartners } from "../fusionActions";
+import { placeNew } from "../placement";
 import { cellFromIndex, footprintCells, isBuildable } from "../townLayout";
 
 function makeFakePort(): StoragePort {
@@ -24,6 +26,58 @@ describe("fixtures are deterministic", () => {
       expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     });
   }
+});
+
+// The QA scenarios (docs/qa/SCENARIOS.md) exist so an outside agent can REACH
+// a late-game state. Each assertion below is the one property that, if it
+// silently drifted, would leave the scenario looking loaded while being
+// undrivable — which is exactly the failure mode the scenarios were built to
+// end.
+describe("QA scenarios are actually in the state they promise", () => {
+  const MAXED = BALANCE.expPerLevel * (BALANCE.maxLevel - 1);
+
+  it("fusion-ready holds exactly one legal pair, and every decoy is rejected", () => {
+    const f = FIXTURES["fusion-ready"]();
+    const initiator = f.buildings.find((b) => b.categoryId === "food" && b.exp === MAXED && (b.w ?? 1) === 1 && (b.h ?? 1) === 1)!;
+    const partners = fusePartners(f.buildings, initiator.id, BALANCE.expPerLevel, BALANCE.maxLevel);
+    expect(partners).toHaveLength(1); // the twin — never the 2x1 (F3), the cafe (F2) or the Lv.4 (F1)
+    expect(applyFusion(f.buildings, initiator.id, partners[0].id, BALANCE.expPerLevel, BALANCE.maxLevel)).not.toBeNull();
+  });
+
+  it("fusion-ready-lv6 keeps the tiers apart — a Lv.6 never offers a Lv.5 partner (F5)", () => {
+    const f = FIXTURES["fusion-ready-lv6"]();
+    const lv6 = f.buildings.filter((b) => fuseOf(b) === 1);
+    expect(lv6).toHaveLength(2);
+    const partners = fusePartners(f.buildings, lv6[0].id, BALANCE.expPerLevel, BALANCE.maxLevel);
+    expect(partners.map((b) => b.id)).toEqual([lv6[1].id]);
+  });
+
+  it("month-end sits on the last open day: nothing settles until the clock crosses over", () => {
+    const f = FIXTURES["month-end"]();
+    expect(f.today).toBe("2026-07-31");
+    expect(unsettledPeriods(f.town.lastSettledPeriod, f.today)).toEqual([]);
+    expect(unsettledPeriods(f.town.lastSettledPeriod, "2026-08-01")).toEqual(["2026-07"]);
+  });
+
+  it("full-town leaves no legal anchor — the next founding must defer", () => {
+    const f = FIXTURES["full-town"]();
+    expect(f.buildings.length).toBeGreaterThan(70);
+    expect(placeNew(f.buildings, () => 0.5)).toBeNull();
+    expect(f.town.queue).toEqual([]); // the deferral is the DRIVER's to produce, not pre-baked
+  });
+
+  it("no-spend-ready is claimable on its own today, and has room to build the park", () => {
+    const f = FIXTURES["no-spend-ready"]();
+    expect(canClaimNoSpend(f.entries, f.town, f.today, BALANCE.dailyBuildSlots, BALANCE.noSpendDayCostsSlot)).toBe(true);
+    expect(placeNew(f.buildings, () => 0.5)).not.toBeNull();
+  });
+
+  it("fresh is the only fixture written pre-onboarding", () => {
+    expect(FIXTURES.fresh().onboarded).toBe(false);
+    for (const name of Object.keys(FIXTURES) as Array<keyof typeof FIXTURES>) {
+      if (name !== "fresh") expect(FIXTURES[name]().onboarded ?? true).toBe(true);
+    }
+  });
 });
 
 describe("fixture shapes match their spec §11 role", () => {

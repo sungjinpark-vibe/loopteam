@@ -40,7 +40,7 @@ export const DEVTOOLS_FIXTURES_BUNDLE_MARKER = "__AIT_DEVTOOLS_FIXTURES_MARKER__
 import { browserStorage } from "../platform/storage";
 import type { StoragePort } from "../platform/storage";
 import { seededRandom } from "../platform/random";
-import { placeMonument, placeNew } from "../placement";
+import { pickAnchor, placeMonument, placeNew } from "../placement";
 import { CELL_COUNT, cellFromIndex, isBuildable } from "../townLayout";
 import { BALANCE } from "../balance.approved";
 import { daysInMonth, monthBefore, shiftMonth, ymOnly, ymd } from "../calendar";
@@ -183,6 +183,19 @@ const GROUND_CELLS: readonly number[] = Array.from({ length: CELL_COUNT }, (_, i
 
 interface PlotAllocator {
   next(): Placement;
+  /**
+   * Like `next()` but returns null instead of falling back to an OVERLAPPING
+   * cell when the map is genuinely full — how `full-town` finds the map's real
+   * capacity (~81 buildings under RX1-N2) without hard-coding it.
+   */
+  tryNext(): Placement | null;
+  /**
+   * A placement with a CHOSEN footprint, or null when RX1-N2 leaves no legal
+   * anchor for that size. `next()` rolls the footprint at random, which cannot
+   * express "two buildings of the SAME size" — fusion's F3 condition, and the
+   * whole point of the `fusion-ready` scenario.
+   */
+  nextOf(w: 1 | 2, h: 1 | 2): Placement | null;
   /** F16 monuments never roll a footprint — always try 2x2 first (ADDENDUM-08 §2.2, `placement.placeMonument`). */
   nextMonument(): Placement;
   /** Buildings placed so far — `placeNew` needs the live occupancy, not a counter (ADDENDUM-08's map has no growth frontier left to track). */
@@ -238,6 +251,14 @@ function makePlotAllocator(seed: number): PlotAllocator {
     next(): Placement {
       const result = placeNew(placed, rng) ?? { anchor: GROUND_CELLS[overflowCursor++ % GROUND_CELLS.length], w: 1 as const, h: 1 as const };
       return record({ plotIndex: result.anchor, w: result.w, h: result.h });
+    },
+    tryNext(): Placement | null {
+      const result = placeNew(placed, rng);
+      return result === null ? null : record({ plotIndex: result.anchor, w: result.w, h: result.h });
+    },
+    nextOf(w, h): Placement | null {
+      const anchor = pickAnchor(placed, w, h, rng);
+      return anchor === null ? null : record({ plotIndex: anchor, w, h });
     },
     nextMonument(): Placement {
       // ADDENDUM-08 §2.2 — F16 monuments always try 2x2 first via the
@@ -360,6 +381,13 @@ export interface Fixture {
   buildings: Building[];
   town: TownState;
   budget: BudgetSetting;
+  /**
+   * OPTIONAL, absent === true — every fixture but `fresh` wants the app past
+   * onboarding. `fresh` is the one scenario whose whole job is the S1
+   * onboarding flow (and its 건너뛰기 skip path), which is unreachable while
+   * `onboarded` is written as `true`.
+   */
+  onboarded?: boolean;
 }
 
 // ── Fixtures (§11.A table) ──
@@ -794,6 +822,270 @@ function mixedFootprints(): Fixture {
   };
 }
 
+// ── QA scenarios (docs/qa/SCENARIOS.md) ──
+//
+// The §11.A fixtures above cover the ENGINE's edge cases. These five cover the
+// states a human (or an agent) driving the app COLD cannot reach by hand: the
+// 5-expert playtest panel never once drove fusion, a month rollover, or the
+// full-town park deferral in three runs — not because those are broken, but
+// because constructing two Lv.5 twins / waiting out a month / filling 81 plots
+// is not something you can do from the UI in a session. Same `Fixture` shape,
+// same `loadFixtureIntoStorage`, kebab-case names so a URL reads naturally
+// (`?scenario=fusion-ready`).
+
+/** The EXP that reads as `maxLevel` through `levelOf` — derived, never a literal. */
+const MAX_LEVEL_EXP = BALANCE.expPerLevel * (BALANCE.maxLevel - 1);
+
+/**
+ * One founded (entry -> building) pair at a CHOSEN category/footprint/EXP.
+ * `generateMonth` rolls all three at random and always leaves EXP at 0, which
+ * cannot express "two Lv.5 buildings of the same category and the same size" —
+ * i.e. fusion's F1/F2/F3 conditions, the entire point of `fusion-ready`.
+ *
+ * Returns null when RX1-N2 has no legal anchor left for that footprint, so a
+ * caller filling the map (`full-town`) stops at the map's real capacity instead
+ * of spilling into `makePlotAllocator`'s overlapping fallback.
+ */
+function foundPair(opts: {
+  seq: ReturnType<typeof makeSequence>;
+  plots: PlotAllocator;
+  categoryId: ExpenseCategoryId;
+  occurredOn: string;
+  amountKrw: number;
+  exp?: number;
+  fuse?: Building["fuse"];
+  /** Omit to let `placeNew` roll the footprint (a natural mix); pass to force one (a fusion pair). */
+  w?: 1 | 2;
+  h?: 1 | 2;
+}): { entry: LedgerEntry; building: Building } | null {
+  const placement = opts.w === undefined ? opts.plots.tryNext() : opts.plots.nextOf(opts.w, opts.h ?? 1);
+  if (placement === null) return null;
+  const createdAt = opts.seq.nextMs();
+  const id = opts.seq.nextId("e");
+  const buildingId = opts.seq.nextId("b");
+  const building = makeBuilding({
+    id: buildingId,
+    source: { kind: "entry", entryId: id },
+    categoryId: opts.categoryId,
+    variantIndex: 0,
+    plotIndex: placement.plotIndex,
+    w: placement.w,
+    h: placement.h,
+    builtOn: opts.occurredOn,
+    createdAt,
+  });
+  if (opts.exp !== undefined) building.exp = opts.exp;
+  if (opts.fuse !== undefined) building.fuse = opts.fuse;
+  return {
+    entry: makeEntry({
+      id,
+      type: "expense",
+      amountKrw: opts.amountKrw,
+      categoryId: opts.categoryId,
+      occurredOn: opts.occurredOn,
+      createdAt,
+      buildingId,
+    }),
+    building,
+  };
+}
+
+/**
+ * ADDENDUM-11 §2.2 — a town holding a legal fuse pair plus one decoy per
+ * condition, so a QA run proves F1/F2/F3 are ENFORCED rather than only that the
+ * happy path works. `withLv6` adds a second, already-fused pair: two Lv.6s that
+ * fuse with each other into a Lv.7 and — F5 — never with the Lv.5s beside them.
+ */
+function fusionScenario(name: string, seed: number, withLv6: boolean): Fixture {
+  const seq = makeSequence();
+  const plots = makePlotAllocator(seed);
+  const today = "2026-08-10";
+  const builtOn = "2026-08-09"; // yesterday: today's build slots stay untouched
+  const entries: LedgerEntry[] = [];
+  const buildings: Building[] = [];
+  const push = (opts: Omit<Parameters<typeof foundPair>[0], "seq" | "plots" | "occurredOn">) => {
+    const pair = foundPair({ seq, plots, occurredOn: builtOn, ...opts });
+    if (pair === null) return;
+    entries.push(pair.entry);
+    buildings.push(pair.building);
+  };
+
+  // The pair this scenario exists for: same category, same 1x1 footprint, both Lv.5, neither fused.
+  push({ categoryId: "food", amountKrw: 42_000, exp: MAX_LEVEL_EXP, w: 1, h: 1 });
+  push({ categoryId: "food", amountKrw: 38_000, exp: MAX_LEVEL_EXP, w: 1, h: 1 });
+  // Decoys — one per condition, each failing exactly one.
+  push({ categoryId: "food", amountKrw: 51_000, exp: MAX_LEVEL_EXP, w: 2, h: 1 }); // F3 — same category, WRONG footprint
+  push({ categoryId: "cafe", amountKrw: 12_000, exp: MAX_LEVEL_EXP, w: 1, h: 1 }); // F2 — same footprint, WRONG category
+  push({ categoryId: "food", amountKrw: 9_000, exp: MAX_LEVEL_EXP - 1, w: 1, h: 1 }); // F1 — Lv.4, not maxed
+  if (withLv6) {
+    push({ categoryId: "food", amountKrw: 33_000, exp: MAX_LEVEL_EXP, fuse: 1, w: 1, h: 1 });
+    push({ categoryId: "food", amountKrw: 29_000, exp: MAX_LEVEL_EXP, fuse: 1, w: 1, h: 1 });
+  }
+
+  const town: TownState = {
+    ...freshTown(today),
+    streakDays: 6,
+    longestStreakDays: 6,
+    lastActOn: builtOn,
+  };
+  return {
+    name,
+    description: withLv6
+      ? "Two Lv.5 food 1x1s AND two Lv.6 food 1x1s — the Lv.6 pair fuses to Lv.7; F5 keeps the tiers apart."
+      : "Two Lv.5 food 1x1s ready to fuse, plus one decoy per condition (wrong footprint / wrong category / not maxed).",
+    today,
+    entries,
+    buildings,
+    town,
+    budget: freshBudget(600_000, seq.nextMs()),
+  };
+}
+
+/**
+ * F16 — parked on the LAST day of an unsettled month. `unsettledPeriods` is
+ * exclusive of the current period, so nothing settles while you sit here; hop
+ * the clock one day forward and reload and 2026-07 settles with its engraved
+ * monument. That hop is the month rollover the panel could never simulate.
+ */
+function monthEnd(): Fixture {
+  const rng = seededRandom(11);
+  const seq = makeSequence();
+  const plots = makePlotAllocator(1012);
+  const year = 2026;
+  const month = 7;
+  const result = generateMonth({
+    year,
+    month,
+    targetEntries: 45,
+    dailyCap: BALANCE.dailyBuildSlots,
+    rng,
+    seq,
+    plotAllocator: plots,
+  });
+  const today = ymd(year, month, daysInMonth(year, month)); // 2026-07-31
+  const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(result.entries);
+  const town: TownState = {
+    ...freshTown(today), // lastSettledPeriod === '2026-06' — 2026-07 is the still-open current month
+    streakDays: 14,
+    longestStreakDays: 14,
+    lastActOn: today,
+    cumulativeSavingsKrw,
+    savingsByCategoryKrw,
+  };
+  return {
+    name: "month-end",
+    description: "2026-07-31, a full month logged and unsettled — cross into 2026-08-01 and F16 settles it with a monument.",
+    today,
+    entries: result.entries,
+    buildings: result.buildings,
+    town,
+    budget: freshBudget(600_000, seq.nextMs()),
+  };
+}
+
+/**
+ * The map filled to RX1-N2's real capacity (~81 buildings). Every further
+ * founding — a ledger entry OR a 무지출 park (fd0ec5b) — has nowhere to land
+ * and must defer onto the F14 queue instead of being refused.
+ *
+ * The count is discovered by filling until `placeNew` refuses, not hard-coded:
+ * a future placement-rule change moves the number and this fixture follows it
+ * instead of quietly becoming a not-actually-full town.
+ */
+function fullTown(): Fixture {
+  const seq = makeSequence();
+  const plots = makePlotAllocator(1013);
+  const today = "2026-08-10";
+  const entries: LedgerEntry[] = [];
+  const buildings: Building[] = [];
+  const dim = daysInMonth(2026, 7);
+  for (let i = 0; ; i++) {
+    const pair = foundPair({
+      seq,
+      plots,
+      categoryId: EXPENSE_CATEGORIES[i % EXPENSE_CATEGORIES.length],
+      occurredOn: ymd(2026, 7, (i % dim) + 1), // ~3/day across July — under the daily cap, so the town is legally reachable
+      amountKrw: 5_000 + i * 137,
+    });
+    if (pair === null) break; // map genuinely full
+    entries.push(pair.entry);
+    buildings.push(pair.building);
+  }
+  const { savingsByCategoryKrw, cumulativeSavingsKrw } = deriveSavings(entries);
+  const town: TownState = {
+    ...freshTown(today),
+    streakDays: 31,
+    longestStreakDays: 31,
+    lastActOn: "2026-07-31",
+    cumulativeSavingsKrw,
+    savingsByCategoryKrw,
+  };
+  return {
+    name: "full-town",
+    description: `Map full at ${buildings.length} buildings — today's slots untouched, so the next 지출 or 무지출 claim defers onto the F14 queue for lack of a plot.`,
+    today,
+    entries,
+    buildings,
+    town,
+    budget: freshBudget(600_000, seq.nextMs()),
+  };
+}
+
+/**
+ * F15 — `canClaimNoSpend` refuses on ANY expense dated `today`, so today is
+ * literally empty and yesterday carries the spending. Room on the map and a
+ * free slot, so the claim BUILDS a park (contrast `full-town`, where the same
+ * claim defers).
+ */
+function noSpendReady(): Fixture {
+  const seq = makeSequence();
+  const plots = makePlotAllocator(1014);
+  const today = "2026-08-10";
+  const entries: LedgerEntry[] = [];
+  const buildings: Building[] = [];
+  for (let i = 0; i < 6; i++) {
+    const pair = foundPair({
+      seq,
+      plots,
+      categoryId: EXPENSE_CATEGORIES[i % EXPENSE_CATEGORIES.length],
+      occurredOn: ymd(2026, 8, 9 - Math.floor(i / 3)), // 2026-08-09 / 08-08 — never today
+      amountKrw: 7_000 + i * 900,
+    });
+    if (pair === null) break;
+    entries.push(pair.entry);
+    buildings.push(pair.building);
+  }
+  const town: TownState = {
+    ...freshTown(today),
+    streakDays: 2,
+    longestStreakDays: 5,
+    lastActOn: "2026-08-09",
+  };
+  return {
+    name: "no-spend-ready",
+    description: "2026-08-10 with zero entries dated today and a free slot — the 오늘 무지출 pill is claimable right now.",
+    today,
+    entries,
+    buildings,
+    town,
+    budget: freshBudget(600_000, seq.nextMs()),
+  };
+}
+
+/**
+ * First run — `empty`'s data, but written with `onboarded: false` so S1
+ * onboarding (and its 건너뛰기 skip path) actually renders. `empty` itself is
+ * always written past onboarding, which is why it could not serve here.
+ */
+function fresh(): Fixture {
+  return {
+    ...empty(),
+    name: "fresh",
+    description: "Clean first run — onboarding renders, including the 건너뛰기 skip path.",
+    onboarded: false,
+  };
+}
+
 /** Same shape as `oneMonth`; `loadFixtureIntoStorage` mangles one chunk after writing it — F10 quarantine + recovery notice. */
 function corrupt(): Fixture {
   const base = oneMonth();
@@ -815,6 +1107,14 @@ export const FIXTURES = {
   unsettled,
   mixedFootprints,
   corrupt,
+  // QA scenarios — one registry, not a parallel one, so `__aitLoadFixture` /
+  // `?scenario=` reach both sets through the same code path.
+  fresh,
+  "fusion-ready": () => fusionScenario("fusion-ready", 1010, false),
+  "fusion-ready-lv6": () => fusionScenario("fusion-ready-lv6", 1011, true),
+  "month-end": monthEnd,
+  "full-town": fullTown,
+  "no-spend-ready": noSpendReady,
 } as const;
 
 export type FixtureName = keyof typeof FIXTURES;
@@ -841,7 +1141,7 @@ export function loadFixtureIntoStorage(
   rawPort: StoragePort = browserStorage,
 ): void {
   storageClient.clearAll();
-  const core = { town: fixture.town, budget: fixture.budget, onboarded: true };
+  const core = { town: fixture.town, budget: fixture.budget, onboarded: fixture.onboarded ?? true };
   storageClient.saveCore(core);
   for (const [monthKey, monthEntries] of groupByMonth(fixture.entries, (e) => e.occurredOn)) {
     storageClient.saveEntriesForMonth(monthKey, monthEntries, core);
