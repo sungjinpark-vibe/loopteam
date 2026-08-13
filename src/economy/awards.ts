@@ -36,7 +36,27 @@ export type AwardEvent =
   // again on its way to Lv.10, and an id-only key would treat that Lv.7 as an
   // already-paid Lv.6 and silently pay nothing for every rung after the first.
   | { kind: "fuse"; buildingId: string; fuseTier: number }
-  | { kind: "settlement"; period: string; outcomeBucket: number; primeLotCount: number };
+  | { kind: "settlement"; period: string; outcomeBucket: number; primeLotCount: number }
+  // Gate-3 round-5 (A5), the panel-blocking finding: against the 150-seed
+  // price floor, a casual 2-entries/day logger who GROWS rather than founds
+  // earns only `entry` (4) per entry plus the daily streak top-up, which puts
+  // the first cosmetic on day 9 — past ADDENDUM-05 §6's own stated intent
+  // ("affords their first cosmetic within roughly a week"). A one-time grant
+  // on onboarding completion closes that without touching the earn RATE (so
+  // long-run economy balance is unchanged) and without touching
+  // `balance.approved.ts`, which is frozen (MVP-SPEC §9 rule 3). Fired once
+  // from `completeOnboarding` (useTownStore.ts), which itself already treats
+  // skip and finish identically, so a player who skips onboarding is not
+  // quietly excluded. Same idempotent-key mechanism as every other award here,
+  // so a re-boot or a re-render can never double-pay it.
+  | { kind: "welcome" };
+
+// ponytail: a flat one-time grant, not a curve — retune this one number (not
+// `balance.approved.ts`) if the earn rate ever needs a real design pass.
+// Sized against the worst realistic case in `pacing.test.ts`: 2 entries/day,
+// all grows, no 무지출 days, no tier crossings. 80 moves that player's first
+// purchase from day 9 to day 5; the arithmetic is asserted there, not here.
+const WELCOME_GRANT_SEEDS = 80;
 
 export interface SeedAward {
   eventKey: string;
@@ -67,6 +87,9 @@ export function awardFor(event: AwardEvent): SeedAward {
       return { eventKey: `seed:streak:${event.date}`, amount: Math.min(2 * event.streakDays, 20) };
     case "fuse":
       return { eventKey: `seed:fuse:${event.buildingId}:${event.fuseTier}`, amount: BALANCE.seedAwards.fuse };
+    case "welcome":
+      // No id in the key on purpose — there is exactly one welcome per save.
+      return { eventKey: "seed:welcome", amount: WELCOME_GRANT_SEEDS };
     case "settlement":
       return {
         eventKey: `seed:settlement:${event.period}`, // UNCHANGED — same idempotency key

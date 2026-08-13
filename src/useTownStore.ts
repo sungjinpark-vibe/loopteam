@@ -1397,7 +1397,13 @@ export function useTownStore() {
     const next: LoadedState = { ...prev, onboarded: true };
     stateRef.current = next;
     setState(next);
-  }, []);
+    // A5 — see awards.ts's "welcome" doc. Placed after the `onboarded` write
+    // so `grantSeeds` re-reads the state just committed to `stateRef`; it is
+    // itself idempotent on the `seed:welcome` key, and the early return above
+    // already makes a second `completeOnboarding()` a no-op, so this cannot
+    // double-pay from either direction.
+    grantSeeds({ kind: "welcome" });
+  }, [grantSeeds]);
 
   // ── ADDENDUM-05 (F-BGM / F-ECON) ──
 
