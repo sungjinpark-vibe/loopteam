@@ -1,0 +1,122 @@
+{
+  "current": {
+    "total": 133,
+    "seated": 133,
+    "unseated": 0,
+    "buildingsOnMap": 133,
+    "footprintMix": {
+      "1x1": 97,
+      "1x2": 11,
+      "2x1": 18,
+      "2x2": 7
+    },
+    "multiCellBuildings": 36,
+    "occlusionPairs": 60,
+    "fadedOverhangs": 60
+  },
+  "H": {
+    "total": 133,
+    "seated": 82,
+    "unseated": 51,
+    "buildingsOnMap": 82,
+    "footprintMix": {
+      "1x1": 67,
+      "1x2": 0,
+      "2x1": 15,
+      "2x2": 0
+    },
+    "multiCellBuildings": 15,
+    "occlusionPairs": 0,
+    "fadedOverhangs": 0
+  },
+  "X": {
+    "total": 133,
+    "seated": 98,
+    "unseated": 35,
+    "buildingsOnMap": 98,
+    "footprintMix": {
+      "1x1": 98,
+      "1x2": 0,
+      "2x1": 0,
+      "2x2": 0
+    },
+    "multiCellBuildings": 0,
+    "occlusionPairs": 0,
+    "fadedOverhangs": 0
+  },
+  "R": {
+    "total": 133,
+    "seated": 92,
+    "unseated": 41,
+    "buildingsOnMap": 92,
+    "footprintMix": {
+      "1x1": 68,
+      "1x2": 9,
+      "2x1": 8,
+      "2x2": 7
+    },
+    "multiCellBuildings": 24,
+    "occlusionPairs": 0,
+    "fadedOverhangs": 0
+  },
+  "RX1-N1": {
+    "total": 133,
+    "seated": 70,
+    "unseated": 63,
+    "buildingsOnMap": 70,
+    "footprintMix": {
+      "1x1": 55,
+      "1x2": 4,
+      "2x1": 7,
+      "2x2": 4
+    },
+    "multiCellBuildings": 15,
+    "occlusionPairs": 0,
+    "fadedOverhangs": 0
+  },
+  "RX1-N2": {
+    "total": 133,
+    "seated": 81,
+    "unseated": 52,
+    "buildingsOnMap": 81,
+    "footprintMix": {
+      "1x1": 60,
+      "1x2": 6,
+      "2x1": 10,
+      "2x2": 5
+    },
+    "multiCellBuildings": 21,
+    "occlusionPairs": 0,
+    "fadedOverhangs": 0
+  },
+  "RX1-N3": {
+    "total": 133,
+    "seated": 88,
+    "unseated": 45,
+    "buildingsOnMap": 88,
+    "footprintMix": {
+      "1x1": 67,
+      "1x2": 7,
+      "2x1": 8,
+      "2x2": 6
+    },
+    "multiCellBuildings": 21,
+    "occlusionPairs": 0,
+    "fadedOverhangs": 0
+  },
+  "RX2": {
+    "total": 133,
+    "seated": 77,
+    "unseated": 56,
+    "buildingsOnMap": 77,
+    "footprintMix": {
+      "1x1": 55,
+      "1x2": 6,
+      "2x1": 10,
+      "2x2": 6
+    },
+    "multiCellBuildings": 22,
+    "occlusionPairs": 0,
+    "fadedOverhangs": 0
+  }
+}

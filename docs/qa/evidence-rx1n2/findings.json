@@ -1,0 +1,30 @@
+{
+  "base": "http://localhost:5173",
+  "note": "Town laid out by the REAL placeNew via the mixedFootprints fixture — not a mock. Level overlay only.",
+  "town": {
+    "buildingsOnMap": 75,
+    "footprintMix": {
+      "1x1": 52,
+      "1x2": 6,
+      "2x1": 12,
+      "2x2": 5
+    },
+    "multiCellBuildings": 23,
+    "occlusionPairs": 0,
+    "longestRowRun": 2,
+    "fadedOverhangs": 0
+  },
+  "fusion": {
+    "beforeLevel": "Lv.5",
+    "freedCell": 8,
+    "freedCellEmptyAfter": true
+  },
+  "consoleErrorCount": 0,
+  "consoleErrors": [],
+  "shots": [
+    "01-town-fit-scale.png",
+    "02-town-100pct.png",
+    "03-fusion-before-two-lv5.png",
+    "04-fusion-after-lv6-freed-cell.png"
+  ]
+}
