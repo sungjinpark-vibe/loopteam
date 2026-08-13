@@ -22,7 +22,7 @@ import { formatSeeds } from "../economy/format";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import type { Building } from "../types";
 import type { PurchaseSkuResult } from "../useTownStore";
-import { ShopFab, ShopSheet, type ShopSheetProps } from "./ShopSheet";
+import { CHARGE_ENTRY_VISIBLE, ShopFab, ShopSheet, type ShopSheetProps } from "./ShopSheet";
 
 class NoopResizeObserver {
   observe() {}
@@ -112,6 +112,22 @@ describe("ShopSheet", () => {
     expect(document.body.textContent).toContain("건물 꾸미기");
     expect(document.body.textContent).toContain("마을 꾸미기");
     expect(document.body.textContent).toContain("NPC");
+  });
+
+  // B2 — the 충전소 stub (ChargeSheet.tsx) is correctly non-functional, but a
+  // fully-styled, reachable entry point for it reads as "sells nothing" (Gate-3
+  // expert panel finding). Hidden behind CHARGE_ENTRY_VISIBLE until Toss
+  // payments land; the stub itself is untouched (ChargeSheet.test.tsx).
+  it("CHARGE_ENTRY_VISIBLE defaults to off", () => {
+    expect(CHARGE_ENTRY_VISIBLE).toBe(false);
+  });
+
+  it("hides the 충전소 entry point by default — no way to reach onOpenCharge from the shop", () => {
+    let opened = false;
+    const { props } = makeProps({ onOpenCharge: () => (opened = true) });
+    render(props);
+    expect(findButton("충전소 열기")).toBeUndefined();
+    expect(opened).toBe(false);
   });
 
   it("an affordable item's buy button fires purchaseSku with the exact sku id and price", () => {

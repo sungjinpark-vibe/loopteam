@@ -60,6 +60,14 @@ export interface ShopSheetProps {
   onOpenCharge: () => void;
 }
 
+// ADDENDUM-05 §6 stub is correctly non-functional (no success path exists
+// until Toss payment integration lands — see ChargeSheet.tsx's own doc), but
+// leaving it reachable/advertised from the shop reads as "a fully-styled
+// storefront that sells nothing" (Gate-3 expert panel finding). User
+// decision: hide the entry point, keep the stub. Flip back to `true` once
+// Toss payments are integrated — nothing else here needs to change.
+export const CHARGE_ENTRY_VISIBLE = false;
+
 const SECTION_TITLES: Record<ShopSku["section"], string> = {
   building: "건물 꾸미기",
   town: "마을 꾸미기",
@@ -229,10 +237,13 @@ export function ShopSheet({
             the shop, because "I can't afford this" is the only moment it is
             relevant. Deliberately NOT beside a seed price (R-9b: a KRW route
             must never sit typographically parallel to a 씨앗 price), and it
-            opens a sheet that can only ever say "추후 지원됩니다". */}
-        <button type="button" className="shop-charge-entry" onClick={onOpenCharge}>
-          충전소 열기
-        </button>
+            opens a sheet that can only ever say "추후 지원됩니다". Hidden behind
+            `CHARGE_ENTRY_VISIBLE` (see its own doc) until Toss payments land. */}
+        {CHARGE_ENTRY_VISIBLE && (
+          <button type="button" className="shop-charge-entry" onClick={onOpenCharge}>
+            충전소 열기
+          </button>
+        )}
       </div>
     </BottomSheet>
   );
