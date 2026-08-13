@@ -1,0 +1,110 @@
+{
+  "before": {
+    "fixture": "mixedFootprints",
+    "levelOverlay": "level = 1 + (i % 10)",
+    "buildingsLevelled": 133,
+    "mapScale": 0.419,
+    "buildingsOnMap": 133,
+    "tallBuildings": 119,
+    "occlusionPairs": 64,
+    "fadedOverhangs": 0,
+    "worstCase": {
+      "front": 134,
+      "behind": 114,
+      "grow": 40,
+      "behindGrow": 0
+    },
+    "tileWidthPx": 16.8,
+    "signboardPx": {
+      "w": 9.1,
+      "h": 3.5
+    },
+    "gridMountMs": {
+      "samples": [
+        150.2,
+        152.1,
+        154.9,
+        157.2,
+        160.2
+      ],
+      "medianMs": 154.9
+    },
+    "shots": [
+      "01-roof-colour-100pct-before.png",
+      "02-occlusion-100pct-before.png",
+      "03-town-overview-fit-scale-before.png"
+    ]
+  },
+  "after": {
+    "fixture": "mixedFootprints",
+    "levelOverlay": "level = 1 + (i % 10)",
+    "buildingsLevelled": 133,
+    "mapScale": 0.419,
+    "buildingsOnMap": 133,
+    "tallBuildings": 119,
+    "occlusionPairs": 64,
+    "fadedOverhangs": 64,
+    "worstCase": {
+      "front": 134,
+      "behind": 114,
+      "grow": 40,
+      "behindGrow": 0
+    },
+    "tileWidthPx": 16.8,
+    "signboardPx": {
+      "w": 9.1,
+      "h": 3.5
+    },
+    "gridMountMs": {
+      "samples": [
+        151.4,
+        152.6,
+        153.5,
+        158.3,
+        160.1
+      ],
+      "medianMs": 153.5
+    },
+    "shots": [
+      "01-roof-colour-100pct-after.png",
+      "02-occlusion-100pct-after.png",
+      "03-town-overview-fit-scale-after.png"
+    ]
+  },
+  "optionC-REJECTED-shorter-buildings": {
+    "fixture": "mixedFootprints",
+    "levelOverlay": "level = 1 + (i % 10)",
+    "buildingsLevelled": 133,
+    "mapScale": 0.419,
+    "buildingsOnMap": 133,
+    "tallBuildings": 119,
+    "occlusionPairs": 64,
+    "fadedOverhangs": 64,
+    "worstCase": {
+      "front": 134,
+      "behind": 114,
+      "grow": 22.4,
+      "behindGrow": 0
+    },
+    "tileWidthPx": 16.8,
+    "signboardPx": {
+      "w": 9.1,
+      "h": 3.5
+    },
+    "gridMountMs": {
+      "samples": [
+        151.2,
+        155.5,
+        156.7,
+        157.8,
+        157.8
+      ],
+      "medianMs": 156.7
+    },
+    "shots": [
+      "01-roof-colour-100pct-optionC-REJECTED-shorter-buildings.png",
+      "02-occlusion-100pct-optionC-REJECTED-shorter-buildings.png",
+      "03-town-overview-fit-scale-optionC-REJECTED-shorter-buildings.png"
+    ]
+  }
+}

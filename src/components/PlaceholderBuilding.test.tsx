@@ -730,3 +730,35 @@ describe("PlaceholderBuilding — roof colour is the category signal (user instr
     tier5.unmount();
   });
 });
+
+// ── 2026-08-13 user report: "높은 건물이 앞에 있으면 뒷 건물이 안 보이거나 겹쳐" ──
+
+describe("PlaceholderBuilding — overhang fade (occlusion)", () => {
+  const svgOf = (m: MountedComponent) => m.container.querySelector("svg")!;
+
+  it("without the `occludes` flag the art is byte-identical to before — a building in the clear is never faded", () => {
+    const plain = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={10} fuseTier={5} />);
+    const notOccluding = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={10} fuseTier={5} occludes={false} />);
+    expect(notOccluding.container.innerHTML).toBe(plain.container.innerHTML);
+    expect(svgOf(plain).hasAttribute("data-occludes")).toBe(false);
+    plain.unmount();
+    notOccluding.unmount();
+  });
+
+  it("`occludes` fades exactly the strip that hangs over the row behind — the fade length equals the overhang", () => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={10} occludes />);
+    const svg = svgOf(mounted);
+    expect(svg.hasAttribute("data-occludes")).toBe(true);
+    // the art is `100% + growPx` tall and the fade stops at growPx — i.e. exactly
+    // at the top edge of the building's OWN cell, so its own ground is untouched.
+    const grow = Number(svg.getAttribute("data-grow-px"));
+    expect(grow).toBeGreaterThan(0);
+    expect(svg.style.getPropertyValue("--overhang-px")).toBe(`${grow}px`);
+    expect(svg.style.height).toBe(`calc(100% + ${grow}px)`);
+  });
+
+  it("a Lv.1 building is never marked as occluding — it has no overhang to fade", () => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={1} occludes />);
+    expect(svgOf(mounted).hasAttribute("data-occludes")).toBe(false);
+  });
+});

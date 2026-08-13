@@ -37,6 +37,25 @@
 }
 
 /*
+ * 2026-08-13 — "2D라서 높은 건물이 앞에 있으면 뒷 건물이 안 보이거나 겹쳐".
+ *
+ * A tall building's art rises `--overhang-px` above its own cell, and that strip
+ * lands on the row behind it. `buildingArt.tsx` sets this attribute ONLY when the
+ * grid found a building under that strip, so the fade never touches a building
+ * standing in the clear.
+ *
+ * The mask fades the overhanging strip alone: 28% alpha at the very top (where
+ * the strip covers the rear building's own roof — the part that identifies it)
+ * ramping to fully opaque at `--overhang-px`, which is exactly where the tile's
+ * own cell begins. Everything below that stop is untouched, so the front
+ * building still stands solid on its own ground.
+ */
+.building-tile > svg[data-occludes] {
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.28), #000 var(--overhang-px));
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.28), #000 var(--overhang-px));
+}
+
+/*
  * §4.4 — kill the "grid of coloured squares" look. `.building-tile`'s base
  * rounded-card paint (border-radius, overflow:hidden, inset box-shadow) lives
  * in App.css (owned by another worker this addendum does not touch), so this

@@ -52,9 +52,11 @@ export interface BuildingVisualProps {
   h?: 1 | 2;
   /** ADDENDUM-11 §4.1 — fuse tier (0-5), forwarded to `BuildingArt` as-is. Absent/0 is the byte-identical pre-fusion render. Callers pass `fuseOf(building)`. */
   fuseTier?: number;
+  /** 2026-08-13 — this building's overhang covers an occupied cell behind it; forwarded to `BuildingArt`, which fades that strip. Only `TownGrid` can know it (it owns the layout). */
+  occludes?: boolean;
 }
 
-function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 1, monumentPeriod, w, h, fuseTier }: BuildingVisualProps) {
+function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 1, monumentPeriod, w, h, fuseTier, occludes }: BuildingVisualProps) {
   const content = categoryId ? CATEGORY_CONTENT[categoryId] : null;
   // F16 — a monument (categoryId === null) gets its own stone tone rather
   // than falling back to the same grey400 the "etc"/"other_saving" categories
@@ -78,7 +80,16 @@ function PlaceholderBuildingImpl({ categoryId, variantIndex, justBuilt, level = 
       title={title}
       data-archetype={archetypeFor(categoryId, monumentPeriod)}
     >
-      <BuildingArt categoryId={categoryId} variantIndex={variantIndex} level={level} monumentPeriod={monumentPeriod} w={w} h={h} fuseTier={fuseTier} />
+      <BuildingArt
+        categoryId={categoryId}
+        variantIndex={variantIndex}
+        level={level}
+        monumentPeriod={monumentPeriod}
+        w={w}
+        h={h}
+        fuseTier={fuseTier}
+        occludes={occludes}
+      />
       {floors > 0 && (
         <span className="building-level-badge" aria-hidden="true">
           {`Lv.${level}`}

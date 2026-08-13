@@ -1220,3 +1220,52 @@ describe("TownGrid — savings block (ADDENDUM-08 §1.1)", () => {
     expect(container.querySelectorAll(".savings-plot").length).toBe(SAVING_CATEGORY_IDS.length);
   });
 });
+
+// ── 2026-08-13 user report: "2D라서 높은 건물이 앞에 있으면 뒷 건물이 안 보이거나 겹쳐" ──
+
+describe("TownGrid — the overhang fade (occlusion)", () => {
+  /** Two ground cells in the same column, one directly behind the other. */
+  const PAIR = (() => {
+    for (let i = 0; i < CELL_COUNT; i++) {
+      const { row, col } = cellFromIndex(i);
+      if (row + 1 >= GRID_SIZE) continue;
+      const front = indexFromCell({ row: row + 1, col });
+      if (terrainAtIndex(i) === "ground" && terrainAtIndex(front) === "ground") return { behind: i, front };
+    }
+    throw new Error("no vertically adjacent ground pair on the map");
+  })();
+
+  /** Lv.10: maxed EXP plus a full fuse ladder — the tallest overhang there is. */
+  const maxLevel = (overrides: Partial<Building>) =>
+    building({ exp: (BALANCE.maxLevel - 1) * BALANCE.expPerLevel, fuse: 5, ...overrides });
+
+  // Addressed by `data-plot-index`, not by `#plot-N`: earlier tests in this file
+  // leave mounted grids in the document, and jsdom's selector engine resolves a
+  // compound `#id descendant` through document.getElementById — which finds the
+  // FIRST duplicate id in the document, outside this container, and returns null.
+  const artAt = (container: HTMLElement, plotIndex: number) =>
+    container.querySelector(`[data-plot-index="${plotIndex}"] svg`) as SVGElement;
+
+  it("a tall building with a building directly behind it gets its overhang faded", () => {
+    const container = mountGrid([
+      building({ id: "rear", plotIndex: PAIR.behind }),
+      maxLevel({ id: "front", plotIndex: PAIR.front }),
+    ]);
+    expect(artAt(container, PAIR.front).hasAttribute("data-occludes")).toBe(true);
+    // the one behind is Lv.1 and hides nobody — it must be untouched
+    expect(artAt(container, PAIR.behind).hasAttribute("data-occludes")).toBe(false);
+  });
+
+  it("the same tall building with nothing behind it is NOT faded — the art the user approved is the default", () => {
+    const container = mountGrid([maxLevel({ id: "front", plotIndex: PAIR.front })]);
+    expect(artAt(container, PAIR.front).hasAttribute("data-occludes")).toBe(false);
+  });
+
+  it("a Lv.1 building in front of an occupied cell is not faded — it has no overhang to hide anything with", () => {
+    const container = mountGrid([
+      building({ id: "rear", plotIndex: PAIR.behind }),
+      building({ id: "front", plotIndex: PAIR.front }),
+    ]);
+    expect(artAt(container, PAIR.front).hasAttribute("data-occludes")).toBe(false);
+  });
+});

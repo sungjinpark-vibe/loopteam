@@ -609,6 +609,31 @@ function TownGridImpl({
       for (const cell of footprintCells(b.plotIndex, w, h)) coveredBy.set(cell, b);
     }
 
+    // ── occlusion (user report 2026-08-13: "2D라서 높은 건물이 앞에 있으면 뒷 건물이
+    // 안 보이거나 겹쳐") ──
+    //
+    // A building's art rises at most MAX_ART_OVERHANG_PX (45) above its own cell,
+    // and one grid row plus its gap is TILE_HEIGHT_PX + GRID_GAP_PX (46). So an
+    // overhang can only ever reach the row DIRECTLY behind — never two rows back.
+    // "Is this building hiding another?" is therefore one Map lookup per column
+    // it spans, not a sweep of the map: O(cells covered), inside the memo that
+    // already exists, so it runs when `buildings` changes and never per frame.
+    // A Lv.1 building has zero overhang and is skipped outright.
+    const occluders = new Set<string>();
+    for (const b of buildings) {
+      if (b.plotIndex < 0) continue;
+      if (totalLevelOf(b, expPerLevel, maxLevel) <= 1) continue;
+      const { row, col } = cellFromIndex(b.plotIndex);
+      if (row === 0) continue; // nothing behind the first row but the header padding
+      const { w } = footprintOf(b);
+      for (let dx = 0; dx < w; dx++) {
+        if (coveredBy.has(indexFromCell({ row: row - 1, col: col + dx }))) {
+          occluders.add(b.id);
+          break;
+        }
+      }
+    }
+
     // §3.1/§4.3 — a move target is an ANCHOR whose whole footprint must fit.
     // Every cell of every legal anchor gets the droppable highlight (a 2x2
     // drop target highlights all 4 cells), and a tap on any of those cells
@@ -672,6 +697,7 @@ function TownGridImpl({
               // Byte-identical to before for any unfused building (`fuseOf` is 0).
               level={totalLevelOf(covering, expPerLevel, maxLevel)}
               fuseTier={fuseOf(covering)}
+              occludes={occluders.has(covering.id)}
               monumentPeriod={covering.source.kind === "monument" ? covering.source.period : undefined}
               w={w as 1 | 2}
               h={h as 1 | 2}

@@ -12,7 +12,7 @@
  * All colour comes from `@toss/tds-colors` tokens (same import `content.placeholder.ts`
  * already uses directly) — never a hand-picked hex.
  */
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { colors } from "@toss/tds-colors";
 import type { BuildingCategoryId, SavingCategoryId } from "../types";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
@@ -992,6 +992,14 @@ export interface BuildingArtProps {
    * geometry, only roof/trim material, window lighting, and a ground glow.
    */
   fuseTier?: number;
+  /**
+   * 2026-08-13 ("2D라서 높은 건물이 앞에 있으면 뒷 건물이 안 보이거나 겹쳐") — true when
+   * this building's overhang actually covers an occupied cell behind it, which
+   * only the grid can know (`TownGrid.tsx`). It fades the overhanging strip
+   * alone; the part of the art that stands on its own cell is untouched, and a
+   * building with nothing behind it renders byte-identically to before.
+   */
+  occludes?: boolean;
 }
 
 /**
@@ -1019,7 +1027,7 @@ export function archetypeFor(categoryId: BuildingCategoryId | null, monumentPeri
  * aspect (`artBox`) — so `meet` has no slack to centre away and the art fills the cell in
  * BOTH axes, at one rendered scale shared by every footprint. See `artBox` for why the box
  * aspect and the cube's re-derived extents had to change together. */
-export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w = 1, h = 1, fuseTier }: BuildingArtProps) {
+export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w = 1, h = 1, fuseTier, occludes }: BuildingArtProps) {
   if (monumentPeriod || categoryId === null) {
     return <MonumentArt monumentPeriod={monumentPeriod} w={w} h={h} />;
   }
@@ -1055,8 +1063,17 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
       // (`artBox`), so `meet`'s scale is unchanged and the art is genuinely taller
       // rather than the same art shrunk into a taller box. `data-grow-px` is the
       // measurable handle the height-ladder regression test reads.
-      style={growPx > 0 ? { height: `calc(100% + ${growPx}px)` } : undefined}
+      // `--overhang-px` is the exact height of the strip that hangs over the row
+      // behind; `buildings.css` fades that strip and nothing else. Set only when
+      // the grid says something is actually back there, so an unobstructed
+      // building keeps the art the user approved.
+      style={
+        growPx > 0
+          ? ({ height: `calc(100% + ${growPx}px)`, ...(occludes ? { "--overhang-px": `${growPx}px` } : {}) } as CSSProperties)
+          : undefined
+      }
       data-grow-px={growPx || undefined}
+      data-occludes={growPx > 0 && occludes ? "" : undefined}
       data-archetype={spec.archetype}
       data-fuse-tier={fuse || undefined}
       aria-hidden="true"
