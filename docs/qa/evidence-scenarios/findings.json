@@ -1,0 +1,101 @@
+{
+  "base": "http://localhost:5173",
+  "scenarios": {
+    "fusion-ready": {
+      "initiatorPlot": 178,
+      "partnerPlot": 311,
+      "candidateCount": 1,
+      "buildingsBefore": 5,
+      "afterCancelPickMode": 5,
+      "afterCancelConfirmDialog": 5,
+      "afterCommit": 4,
+      "partnerCellEmptyAfterCommit": true,
+      "survivorLevelShown": "Lv.6",
+      "clockPin": "2026-08-10"
+    },
+    "fusion-ready-lv6": {
+      "buildingsBefore": 7,
+      "candidateCount": 1,
+      "confirmDialogCopy": "건물을 융합할까요? 식비 Lv.6 두 채를 합쳐 Lv.7 건물 하나로 만들어요. 사라지는 건물은 되돌릴 수 없어요. 취소 합치기",
+      "survivorLevelShown": "Lv.7"
+    },
+    "month-end": {
+      "monumentsBeforeRollover": 0,
+      "monumentsAfterRollover": 1,
+      "settlementNoticeShown": true,
+      "monumentSheetExcerpt": "우리 동네 Tier 3 🔊 ⚙️ 건물 43채 · 남은 건축 슬롯 10/10 · 🔥 연속 14일 · 오늘 기록하면 이어져요 ☀️ 이번 달 페이스가 여유로워요 오늘 무지출! 건축 슬롯 1개를 사용해요 🌳 🪑 🪑 🌳 📚 🎁 ✚ ✳️ 🎁 💰 🎬 🚌 🎬 💰 🛍️ 🏠 ✚ ✚ 🏠 ☕ 🎬 🎁 ☕ ☕ ☕ 🍚 🎬 ✚ 🍚 ✚ 🎬 🛍️ 💼 🚌 🏠 🚌 ✚ 🍚 🍚 🛍️ ☕ 🎬 2026-07 2026-07 🛍️ 🛍️ 🚌 🍚 "
+    },
+    "no-spend-ready": {
+      "pillVisible": true,
+      "buildingsBefore": 6,
+      "buildingsAfter": 7,
+      "pillGoneAfterClaim": true,
+      "toast": "오늘은 무지출! 공원이 생겼어요"
+    },
+    "full-town": {
+      "buildings": 80,
+      "pillVisible": true,
+      "buildingsAfterClaim": 80,
+      "deferralToast": "오늘은 무지출! 공원은 내일 아침에 지어드릴게요 (대기 1개) 오늘은 무지출! 공원은 내일 아침에 지어드릴게요 (대기 1개",
+      "buildingsNextMorning": 80,
+      "headerQueuePromiseAfterClaim": "내일 지을 건물 1개 대기 중",
+      "headerQueuePromiseNextMorning": "내일 지을 건물 1개 대기 중"
+    },
+    "capExceeded (next-morning drain)": {
+      "buildingsBeforeHop": 10,
+      "buildingsAfterHop": 13,
+      "buildingsAfterSecondBoot": 13,
+      "seedsBeforeHop": null,
+      "seedsAfterHop": 34,
+      "seedsAfterSecondBoot": 34,
+      "grantedKeysAfterHop": [
+        "seed:build:b_msbxfmoo_57wwrg_1",
+        "seed:build:b_msbxfmop_75vfff_2",
+        "seed:build:b_msbxfmoq_q2wysh_3",
+        "seed:tier:1"
+      ],
+      "grantedKeysAfterSecondBoot": [
+        "seed:build:b_msbxfmoo_57wwrg_1",
+        "seed:build:b_msbxfmop_75vfff_2",
+        "seed:build:b_msbxfmoq_q2wysh_3",
+        "seed:tier:1"
+      ]
+    },
+    "fresh": {
+      "onboardingRendered": true,
+      "skipVisible": true,
+      "townGridAfterSkip": true,
+      "buildingsAfterSkip": 0,
+      "emptyStateCopy": "첫 지출을 기록하면 첫 건물이 생겨요 ↘ 🌳 🪑 🪑 🌳 예적금 은"
+    }
+  },
+  "defects": [],
+  "consoleErrorCount": 0,
+  "consoleErrors": [],
+  "shots": [
+    "01-fusion-ready-town",
+    "02-fusion-detail-sheet-cta",
+    "03-fusion-pick-mode-candidates",
+    "04-fusion-cancel-a-pick-mode",
+    "05-fusion-confirm-dialog",
+    "06-fusion-cancel-b-confirm-dialog",
+    "07-fusion-committed",
+    "08-fusion-survivor-sheet-lv6",
+    "09-fusion-lv6-pick-mode",
+    "10-fusion-lv6-confirm",
+    "11-fusion-lv7-survivor",
+    "12-month-end-last-open-day",
+    "13-month-end-after-rollover-settlement",
+    "14-month-end-monument-sheet",
+    "15-no-spend-pill-claimable",
+    "16-no-spend-park-built",
+    "17-full-town",
+    "18-full-town-park-deferred",
+    "19-full-town-next-morning",
+    "20-cap-exceeded-queue",
+    "21-cap-exceeded-next-morning-drain",
+    "22-cap-exceeded-reload-idempotent",
+    "23-fresh-onboarding",
+    "24-fresh-after-skip"
+  ]
+}
