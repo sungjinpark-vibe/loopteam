@@ -14,3 +14,6 @@ Thumbs.db
 
 # transient dev-server capture (PID-scoped runs, see evidence-silhouette.mjs)
 .devserver.*
+
+# Gate 3 playtest screenshots (left by playtest runs, not part of QA evidence)
+.playtest-shots/
