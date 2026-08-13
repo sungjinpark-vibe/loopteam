@@ -534,6 +534,13 @@ describe("PlaceholderBuilding — fuse tier art (ADDENDUM-11 §4)", () => {
    * unfused art so a later fusion change cannot silently alter it. It was re-recorded
    * once, on purpose, for the two user-instructed changes (taller wall + universal roof
    * signboard); the assertion itself is untouched and now guards the new baseline.
+   *
+   * RE-RECORDED a second time, same day, for the third user-instructed change: the roof
+   * now carries the category colour at a fixed tone (`roofTone`), and the roof/wall
+   * polygons carry `data-part` so the colour can be asserted by name instead of by
+   * position. Both are colour/attribute deltas inside the same geometry — the fill-rate
+   * and footprint tests above are the ones that would catch a shape regression, and they
+   * are untouched and green.
    */
   it("Lv.1-5 (fuseTier absent) SVG output is unchanged — golden snapshot for every archetype family", () => {
     const flat = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={1} level={5} w={2} h={1} />);
@@ -657,5 +664,69 @@ describe("PlaceholderBuilding — fuse tier art (ADDENDUM-11 §4)", () => {
     expect(monument.container.querySelector("svg")?.getAttribute("data-archetype")).toBe("monument");
     park.unmount();
     monument.unmount();
+  });
+});
+
+// ── 2026-08-13 user instruction: the WHOLE ROOF carries the category colour ──
+
+describe("PlaceholderBuilding — roof colour is the category signal (user instruction 2026-08-13)", () => {
+  const roofFills = (m: MountedComponent) =>
+    Array.from(m.container.querySelectorAll('[data-part="roof"]')).map((el) => el.getAttribute("fill"));
+
+  it("every category paints a roof, and the roof colour does NOT change with variantIndex — a colour code must be one colour per category", () => {
+    for (const categoryId of SAMPLE_CATEGORIES) {
+      const perVariant = [0, 1, 2].map((variantIndex) => {
+        const m = mountComponent(<PlaceholderBuilding categoryId={categoryId} variantIndex={variantIndex} level={1} />);
+        const fills = roofFills(m);
+        const wall = m.container.querySelector('[data-part="wall"]')?.getAttribute("fill") ?? null;
+        m.unmount();
+        return { fills, wall };
+      });
+      expect(perVariant[0].fills.length, `${categoryId} paints no roof`).toBeGreaterThan(0);
+      expect(new Set(perVariant.map((v) => v.fills.join("|"))).size, `${categoryId} roof varies by variant`).toBe(1);
+      // …while the WALLS keep their per-variant band (§ "two buildings of the same
+      // category are never pixel-identical" stays true).
+      expect(new Set(perVariant.map((v) => v.wall)).size, `${categoryId} walls lost their variety`).toBeGreaterThan(1);
+    }
+  });
+
+  it("two categories that share a hue still get different roofs — the light/deep tone split", () => {
+    // The six colliding pairs are (orange food/cafe), (blue transport/education),
+    // (purple shopping/culture), (teal living/other_income), (yellow social/bonus),
+    // (green salary/sidejob). These two comparisons hold roof SHAPE constant, so
+    // only the tone can be doing the work.
+    const pairs: [BuildingCategoryId, BuildingCategoryId][] = [
+      ["shopping", "culture"], // both purple, both flat
+      ["living", "other_income"], // both teal, both pyramid
+    ];
+    for (const [a, b] of pairs) {
+      const ma = mountComponent(<PlaceholderBuilding categoryId={a} variantIndex={0} level={1} />);
+      const mb = mountComponent(<PlaceholderBuilding categoryId={b} variantIndex={0} level={1} />);
+      expect(roofFills(ma), `${a} vs ${b}`).not.toEqual(roofFills(mb));
+      ma.unmount();
+      mb.unmount();
+    }
+  });
+
+  it("the white-walled clinic gets a coloured roof too — it used to be the one category with no colour anywhere", () => {
+    mounted = mountComponent(<PlaceholderBuilding categoryId="health" variantIndex={0} level={1} />);
+    const fills = roofFills(mounted);
+    expect(fills.length).toBeGreaterThan(0);
+    expect(fills).toContain(colors.red500);
+    expect(fills).not.toContain(colors.grey100); // the pre-2026-08-13 roof
+  });
+
+  it("a fused building keeps its category roof — the material step no longer repaints the whole roof plane", () => {
+    // ADDENDUM-11 §4.1's trim used to take `top`, i.e. the ENTIRE roof plane of a
+    // flat-roofed building, which erased the category colour from every Lv.6-10
+    // tower. The tier still has to READ, so both halves are asserted here.
+    const tier0 = mountComponent(<PlaceholderBuilding categoryId="food" variantIndex={0} level={MAX_VISUAL_LEVEL} />);
+    const tier5 = mountComponent(
+      <PlaceholderBuilding categoryId="food" variantIndex={0} level={MAX_VISUAL_LEVEL + MAX_FUSE_TIER} fuseTier={MAX_FUSE_TIER} />,
+    );
+    expect(roofFills(tier5)).toEqual(roofFills(tier0));
+    expect(tier5.container.querySelector('[data-part="fuse-crown"]')).not.toBeNull();
+    tier0.unmount();
+    tier5.unmount();
   });
 });

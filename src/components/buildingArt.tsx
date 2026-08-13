@@ -96,7 +96,14 @@ const FUSE_RIDGE: readonly string[] = [colors.orange800, colors.grey600, colors.
 function withFuseMaterial(palette: Palette, fuseTier: number): Palette {
   if (fuseTier <= 0) return palette;
   const trim = FUSE_TRIM[fuseTier - 1];
-  return { ...palette, top: trim, roofLite: trim };
+  // 2026-08-13: the trim no longer takes `top` as well. `top` is the ENTIRE roof
+  // plane of a flat-roofed building, so painting it bronze/silver/gold erased the
+  // category colour from exactly the tallest, most visible buildings (Lv.6-10 are
+  // fused by definition) — the opposite of the instruction this file now serves.
+  // The tier still reads through the four other §4.1 channels it always had: the
+  // ridge/crown accent, the ground glow ring, fully-lit windows, and this trim on
+  // `roofLite` (a pyramid roof's front-left face).
+  return { ...palette, roofLite: trim };
 }
 
 interface Palette {
@@ -115,8 +122,19 @@ interface Palette {
  * `variantIndex` drives the shade band (400/500/600) so two buildings of the
  * same category are never pixel-identical, on top of whichever roof/decor
  * variety the archetype itself carries.
+ *
+ * ── the roof is the category signal (user instruction 2026-08-13) ──
+ * The WALLS keep the per-variant band; the ROOF does not. `roofTone` is a
+ * fixed, saturated shade owned by the archetype, so every building of a
+ * category wears the SAME roof colour — the old variant-banded roof rendered
+ * one category in three different lightnesses (300/400/500 on a flat top),
+ * which is exactly what a colour code cannot afford. MEASURED reason for
+ * moving the signal to the roof at all: at the default fit scale a tile is
+ * 16.8px and the signboard plate is 9.1 x 3.5px (docs/qa/evidence-roof-
+ * occlusion/findings.json) — too small for a glyph, big enough for nothing.
+ * The roof is the largest uninterrupted surface on the sprite.
  */
-function paletteFor(hue: Hue, variantIndex: number, whiteWalls?: boolean): Palette {
+function paletteFor(hue: Hue, variantIndex: number, whiteWalls?: boolean, roofTone: number = DEFAULT_ROOF_TONE): Palette {
   const band = variantIndex % 3;
   const base = 400 + band * 100;
   const swap = variantIndex % 2 === 1;
@@ -125,10 +143,15 @@ function paletteFor(hue: Hue, variantIndex: number, whiteWalls?: boolean): Palet
   return {
     left: swap ? wallB : wallA,
     right: swap ? wallA : wallB,
-    top: whiteWalls ? colors.grey100 : shade(hue, Math.max(base - 100, 100)),
-    roofLite: shade(hue, Math.max(base - 200, 100)),
-    roofMid: shade(hue, base),
-    roofDark: shade(hue, base + 200),
+    // The roof planes: flat roofs paint `top`, pyramid roofs paint
+    // roofDark (2 back faces) / roofLite (front-left) / roofMid (front-right).
+    // All four are the category hue at a FIXED tone — including the whiteWalls
+    // archetype (health), whose roof used to be grey100 and so carried no
+    // category signal at all while its walls were white.
+    top: shade(hue, roofTone),
+    roofLite: shade(hue, roofTone - 100),
+    roofMid: shade(hue, roofTone),
+    roofDark: shade(hue, roofTone + 200),
     door: shade(hue, Math.min(base + 300, 800)),
     // §7: lit/unlit window panes are universal tokens, not hue-derived — every
     // building's windows read the same warm-vs-dark, regardless of category colour.
@@ -185,28 +208,45 @@ interface ArchetypeSpec {
   decor?: Decor;
   /** A wide, low landmark: broader footprint + an oversized roof ornament (§4.2). */
   landmark?: true;
+  /**
+   * The roof's fixed shade of `hue` (2026-08-13 "the roof carries the category
+   * colour"). Absent === DEFAULT_ROOF_TONE.
+   *
+   * 14 categories share 8 hues, so six pairs collide (orange food/cafe, blue
+   * transport/education, purple shopping/culture, teal living/other_income,
+   * yellow social/bonus, green salary/sidejob). Colour ALONE therefore cannot
+   * identify a category and never could — so within a colliding hue the two
+   * members take LIGHT (400) and DEEP (700) tones, which stay apart at a 16.8px
+   * tile, and the signboard glyph (kept, unchanged) remains the exact identity
+   * once zoomed in. Roof = which family; glyph = which member.
+   */
+  roofTone?: number;
 }
 
 const DEFAULT_HW = 32;
 const DEFAULT_H = 54;
+/** Hues with no collision (red, grey) sit at the middle tone. */
+const DEFAULT_ROOF_TONE = 500;
+const ROOF_LIGHT = 400;
+const ROOF_DEEP = 700;
 
 // Category -> archetype (ADDENDUM-05 §F-BLD table). This mapping is ours —
 // lifetown's own categories (reading/study/work/exercise) do not apply.
 const ARCHETYPES: Record<ArchetypeCategoryId, ArchetypeSpec> = {
-  food: { archetype: "restaurant", hue: "orange", roof: "flat", sign: "🍚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true, foodDisplay: true } },
-  cafe: { archetype: "cafe", hue: "orange", roof: "pyramid", sign: "☕", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { parasol: true, cafeTable: true } },
-  transport: { archetype: "transport", hue: "blue", roof: "flat", sign: "🚌", hw: 42, hBase: 32, decor: { routeStripe: true, canopy: true }, landmark: true },
-  shopping: { archetype: "shop", hue: "purple", roof: "flat", sign: "🛍️", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { awning: true, displayWindow: true } },
-  living: { archetype: "townhouse", hue: "teal", roof: "pyramid", sign: "🏠", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { chimney: "back", windowBoxes: true, porch: true } },
+  food: { archetype: "restaurant", hue: "orange", roof: "flat", sign: "🍚", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_DEEP, decor: { awning: true, foodDisplay: true } },
+  cafe: { archetype: "cafe", hue: "orange", roof: "pyramid", sign: "☕", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_LIGHT, decor: { parasol: true, cafeTable: true } },
+  transport: { archetype: "transport", hue: "blue", roof: "flat", sign: "🚌", hw: 42, hBase: 32, roofTone: ROOF_DEEP, decor: { routeStripe: true, canopy: true }, landmark: true },
+  shopping: { archetype: "shop", hue: "purple", roof: "flat", sign: "🛍️", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_LIGHT, decor: { awning: true, displayWindow: true } },
+  living: { archetype: "townhouse", hue: "teal", roof: "pyramid", sign: "🏠", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_LIGHT, decor: { chimney: "back", windowBoxes: true, porch: true } },
   health: { archetype: "clinic", hue: "red", roof: "flat", sign: "✚", hw: DEFAULT_HW, hBase: DEFAULT_H, whiteWalls: true, decor: { cross: true } },
-  culture: { archetype: "cinema", hue: "purple", roof: "flat", sign: "🎬", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { marquee: true, ticketWindow: true, posterBoards: true }, landmark: true },
-  education: { archetype: "school", hue: "blue", roof: "pyramid", sign: "📚", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { clock: true, flag: true, archEntrance: true } },
-  social: { archetype: "hall", hue: "yellow", roof: "flat", sign: "🎁", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { bunting: true, wideDoor: true }, landmark: true },
+  culture: { archetype: "cinema", hue: "purple", roof: "flat", sign: "🎬", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_DEEP, decor: { marquee: true, ticketWindow: true, posterBoards: true }, landmark: true },
+  education: { archetype: "school", hue: "blue", roof: "pyramid", sign: "📚", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_LIGHT, decor: { clock: true, flag: true, archEntrance: true } },
+  social: { archetype: "hall", hue: "yellow", roof: "flat", sign: "🎁", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_LIGHT, decor: { bunting: true, wideDoor: true }, landmark: true },
   etc: { archetype: "cottage", hue: "grey", roof: "pyramid", sign: "✳️", hw: DEFAULT_HW, hBase: DEFAULT_H },
-  salary: { archetype: "office", hue: "green", roof: "flat", sign: "💼", hw: 24, hBase: 66, decor: { columns: true }, landmark: true },
-  sidejob: { archetype: "workshop", hue: "green", roof: "pyramid", sign: "🔧", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { chimney: "side" } },
-  bonus: { archetype: "gift", hue: "yellow", roof: "flat", sign: "🎀", hw: DEFAULT_HW, hBase: DEFAULT_H, decor: { ribbon: true } },
-  other_income: { archetype: "cottage", hue: "teal", roof: "pyramid", sign: "💰", hw: DEFAULT_HW, hBase: DEFAULT_H },
+  salary: { archetype: "office", hue: "green", roof: "flat", sign: "💼", hw: 24, hBase: 66, roofTone: ROOF_DEEP, decor: { columns: true }, landmark: true },
+  sidejob: { archetype: "workshop", hue: "green", roof: "pyramid", sign: "🔧", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_LIGHT, decor: { chimney: "side" } },
+  bonus: { archetype: "gift", hue: "yellow", roof: "flat", sign: "🎀", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_DEEP, decor: { ribbon: true } },
+  other_income: { archetype: "cottage", hue: "teal", roof: "pyramid", sign: "💰", hw: DEFAULT_HW, hBase: DEFAULT_H, roofTone: ROOF_DEEP },
 };
 
 /** Cosmetic cap on the level-growth visual (ADDENDUM-04 §8's maxLevel dial). */
@@ -505,8 +545,8 @@ function buildingCube(
   }
 
   // walls
-  parts.push(<polygon key="wall-left" points={pointsAttr([FB, LB, LT, FT])} fill={palette.left} />);
-  parts.push(<polygon key="wall-right" points={pointsAttr([FB, RB, RT, FT])} fill={palette.right} />);
+  parts.push(<polygon key="wall-left" data-part="wall" points={pointsAttr([FB, LB, LT, FT])} fill={palette.left} />);
+  parts.push(<polygon key="wall-right" data-part="wall" points={pointsAttr([FB, RB, RT, FT])} fill={palette.right} />);
 
   // level-growth belt lines — one per floor above the first, evenly spread up the wall
   for (let i = 0; i < floors; i++) {
@@ -571,10 +611,10 @@ function buildingCube(
   // roof
   if (roof === "pyramid") {
     const apex: Vec = { x: cx, y: cy - h - roofH };
-    parts.push(<polygon key="roof-bl" points={pointsAttr([LT, BT, apex])} fill={palette.roofDark} />);
-    parts.push(<polygon key="roof-br" points={pointsAttr([RT, BT, apex])} fill={palette.roofDark} />);
-    parts.push(<polygon key="roof-fl" points={pointsAttr([LT, FT, apex])} fill={palette.roofLite} />);
-    parts.push(<polygon key="roof-fr" points={pointsAttr([RT, FT, apex])} fill={palette.roofMid} />);
+    parts.push(<polygon key="roof-bl" data-part="roof" points={pointsAttr([LT, BT, apex])} fill={palette.roofDark} />);
+    parts.push(<polygon key="roof-br" data-part="roof" points={pointsAttr([RT, BT, apex])} fill={palette.roofDark} />);
+    parts.push(<polygon key="roof-fl" data-part="roof" points={pointsAttr([LT, FT, apex])} fill={palette.roofLite} />);
+    parts.push(<polygon key="roof-fr" data-part="roof" points={pointsAttr([RT, FT, apex])} fill={palette.roofMid} />);
     {
       /* ADDENDUM-11 §4.1 "crown / spire ornament" — same node, same position, same
        * radius as the always-present ridge dot; fuseTier only recolours it toward the
@@ -584,7 +624,7 @@ function buildingCube(
       <circle key="ridge" cx={apex.x} cy={apex.y} r={RIDGE_R} fill={fuseTier > 0 ? FUSE_RIDGE[fuseTier - 1] : "#ffffff"} opacity={0.85} />,
     );
   } else {
-    parts.push(<polygon key="roof-top" points={pointsAttr([FT, RT, BT, LT])} fill={palette.top} />);
+    parts.push(<polygon key="roof-top" data-part="roof" points={pointsAttr([FT, RT, BT, LT])} fill={palette.top} />);
     // Flat roofs have no ridge dot to recolour, so fuseTier adds a small accent
     // INSET at the roof plane's own vertical midpoint (cy - h), never at BT (the
     // topmost vertex) — its radius is capped at `hh`, so its top edge can never
@@ -992,7 +1032,7 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
 
   const spec = ARCHETYPES[categoryId];
   const fuse = clampFuseTier(fuseTier);
-  const palette = withFuseMaterial(paletteFor(spec.hue, variantIndex, spec.whiteWalls), fuse);
+  const palette = withFuseMaterial(paletteFor(spec.hue, variantIndex, spec.whiteWalls, spec.roofTone), fuse);
   const floors = floorsFor(level);
   // §4.2: landmark archetypes render wide/squat always; any building also gets
   // promoted at level >= 4 ("placement + growth reads on screen") or by
