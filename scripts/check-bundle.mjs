@@ -14,7 +14,20 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const DIST_DIR = "dist";
-const MARKER = "__AIT_DEVTOOLS_FIXTURES_MARKER__";
+/**
+ * Each entry is a string that must NEVER appear in a production bundle.
+ * - the fixtures marker: `src/devtools/fixtures.ts` leaking (see header).
+ * - the time-travel key: ADDENDUM-11 QA scenarios pin "today" in
+ *   `sessionStorage` so a QA agent can cross a month boundary. That code sits
+ *   behind `import.meta.env.DEV` in `src/main.tsx`, but nothing ASSERTED it —
+ *   and this is a household-ledger app, where a shippable way to move the
+ *   clock would corrupt month-end settlement and the F16 monuments it
+ *   engraves. Tree-shaking working today is not the same as a guarantee.
+ */
+const FORBIDDEN = [
+  ["devtools/fixtures marker", "__AIT_DEVTOOLS_FIXTURES_MARKER__"],
+  ["QA time-travel key", "__aitTimeTravel"], // keep in sync with `TIME_TRAVEL_KEY` in src/main.tsx
+];
 
 function listJsFiles(dir) {
   const out = [];
@@ -40,11 +53,18 @@ if (jsFiles.length === 0) {
   process.exit(1);
 }
 
-const hits = jsFiles.filter((f) => readFileSync(f, "utf8").includes(MARKER));
+const sources = jsFiles.map((f) => [f, readFileSync(f, "utf8")]);
 
-if (hits.length > 0) {
-  console.error(`gate:extra FAIL — devtools/fixtures marker found in production bundle:\n  ${hits.join("\n  ")}`);
-  process.exit(1);
+let failed = false;
+for (const [label, needle] of FORBIDDEN) {
+  const hits = sources.filter(([, text]) => text.includes(needle)).map(([f]) => f);
+  if (hits.length > 0) {
+    console.error(`gate:extra FAIL — ${label} found in production bundle:\n  ${hits.join("\n  ")}`);
+    failed = true;
+  }
 }
+if (failed) process.exit(1);
 
-console.log(`gate:extra PASS — devtools/fixtures marker absent from ${jsFiles.length} bundle file(s) under '${DIST_DIR}'.`);
+console.log(
+  `gate:extra PASS — ${FORBIDDEN.length} forbidden marker(s) absent from ${jsFiles.length} bundle file(s) under '${DIST_DIR}'.`,
+);
