@@ -301,17 +301,22 @@ for (const level of levelsList) {
 
 const levelInfo = { archetype: levelsArchetype, levels: levelsList };
 
-const stitchHtml = `<!doctype html><html><body style="margin:0;padding:16px;display:flex;gap:16px;align-items:flex-end;background:#ffffff;font-family:sans-serif;">
+const stitchHtml = `<!doctype html><html><body style="margin:0;background:#ffffff;">
+<div id="row" style="display:inline-flex;padding:16px;gap:16px;align-items:flex-end;font-family:sans-serif;">
 ${crops
   .map(
     (c) =>
       `<figure style="margin:0;text-align:center;"><img src="${c.dataUrl}" style="display:block;height:220px;width:auto;border:1px solid #ddd;" /><figcaption style="font-size:14px;margin-top:4px;">Lv.${c.level}</figcaption></figure>`,
   )
   .join("")}
+</div>
 </body></html>`;
 const stitchPage = await browser.newPage({ deviceScaleFactor: 3 });
 await stitchPage.setContent(stitchHtml, { waitUntil: "load" });
-await stitchPage.screenshot({ path: `${OUT}${TAG}-03-levels.png`, fullPage: true });
+// `#row` is `inline-flex` (shrink-to-fit), unlike `body` which stays block-level
+// and stretches to the default 1280px viewport regardless of content width.
+const stitchBox = await stitchPage.locator("#row").boundingBox();
+await stitchPage.screenshot({ path: `${OUT}${TAG}-03-levels.png`, clip: stitchBox });
 await stitchPage.close();
 shots.push(`${TAG}-03-levels.png`);
 
