@@ -24,7 +24,7 @@ export interface Placed {
 }
 
 /** `w`/`h` read discipline (ADDENDUM-08 §2.1) — absent means 1x1, everywhere. */
-export function footprintOf(b: Pick<Building, "w" | "h">): { w: number; h: number } {
+export function footprintOf(b: Pick<Building, "w" | "h">): { w: 1 | 2; h: 1 | 2 } {
   return { w: b.w ?? 1, h: b.h ?? 1 };
 }
 

@@ -25,7 +25,7 @@ import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
 import { useGrowPickMode } from "../hooks/useGrowPickMode";
 import { useMoveMode } from "../hooks/useMoveMode";
-import { budgetPace, moodTier, totalLevelOf, tier as computeTier } from "../selectors";
+import { budgetPace, moodTier, queueWaitsOnRoom, totalLevelOf, tier as computeTier } from "../selectors";
 import type { Building } from "../types";
 import type { AddEntryResult, TownStore } from "../useTownStore";
 
@@ -169,7 +169,17 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // B4 — a queued save still earns the entry award, so it carries the same
       // suffix as the build/level-up toasts below; without it the only saves
       // that ever showed a reward were the ones that raised a building.
-      openToast(`오늘 슬롯을 다 썼어요. ${QUEUED_BUILD_PROMISE} (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
+      // Gate-3-rerun fix (panel finding, all five experts): this used to say
+      // "오늘 슬롯을 다 썼어요" unconditionally, even when the header read
+      // slots N/N free — the real cause on a full town is no CELL, not no
+      // SLOT. `queueWaitsOnRoom` is the exact predicate the header already
+      // uses for this same honesty fix (selectors.ts, FT-1) — `slotsRemaining`
+      // is safe to read here even though it's the pre-save closure value,
+      // because the queue branch never spends a slot (entryActions.ts).
+      const queueReason = queueWaitsOnRoom(store.slotsRemaining, result.queueLength)
+        ? "마을이 꽉 찼어요."
+        : "오늘 슬롯을 다 썼어요.";
+      openToast(`${queueReason} ${QUEUED_BUILD_PROMISE} (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.queueOverflow) {
       openToast("대기열도 가득 찼어요. 건물 없이 저장했어요.");
     } else if (result.grew) {

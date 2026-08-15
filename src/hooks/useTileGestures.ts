@@ -35,6 +35,28 @@ export interface TileGestureCallbacks {
   onActivate: (plotIndex: number) => void;
   onEscape: () => void;
   /**
+   * Gate-3-rerun fix (panel finding, all five expert lenses): fires exactly
+   * ONCE, synchronously at the instant the 2nd finger lands, with BOTH
+   * pointers' TRUE down positions (the `pointers` map already holds both by
+   * this point — see `onPointerDown` below). This is the only moment in the
+   * gesture both fingers' positions are known from the SAME event with no
+   * ambiguity.
+   *
+   * Before this existed, `TownGrid` used the first `onPinchMove` sample as
+   * its baseline instead — but real touch input reports each finger's
+   * movement in its OWN separate `pointermove` event, never both at once, so
+   * that "first sample" could easily carry finger A's already-moved position
+   * paired with finger B's stale down position (a half-sample). Baselining
+   * off THAT distance corrupts the whole gesture's scale reference, not just
+   * one sample — reproduced live as a scale snap on the very first move of a
+   * fresh two-finger gesture that then held constant (wrong) for every
+   * further sample, because every later "full" sample was being compared
+   * against that one bad half-sample baseline. Seeding the baseline here
+   * instead removes the ambiguity: both positions come from the SAME
+   * pointerdown event, synchronously, never a race.
+   */
+  onPinchStart?: (midX: number, midY: number, distance: number) => void;
+  /**
    * ADDENDUM-09 §3.1 — fires on every `pointermove` while exactly 2+ pointers
    * are down (a pinch/pan gesture in progress). Reports the two tracked
    * pointers' midpoint and separation in client-space pixels; the caller
@@ -140,6 +162,13 @@ export function useTileGestures(
         // the second pointer then hijacked `pressPointerId`) — clearPress()
         // sets `pressPointerId = null`, so this pointer never takes it over.
         clearPress();
+        // Only the FIRST two tracked pointers own the gesture (matches
+        // `onPointerMove`'s own "only the first two" rule) — a 3rd finger
+        // landing while already pinching must not re-seed the baseline.
+        if (!pinchActive) {
+          const [a, b] = pointers.values();
+          latest.current.callbacks.onPinchStart?.((a.x + b.x) / 2, (a.y + b.y) / 2, Math.hypot(a.x - b.x, a.y - b.y));
+        }
         pinchActive = true;
         return;
       }

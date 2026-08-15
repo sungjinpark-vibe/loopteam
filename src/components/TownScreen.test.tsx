@@ -865,7 +865,8 @@ describe("TownScreen — ADDENDUM-11: Android back out of fuse pick mode does no
     // Committed as a GROW: `entriesBefore` was read AFTER 저장 already wrote the
     // row, so the pick adds no row — it points the existing one at the host.
     expect(monthEntryCount()).toBe(entriesBefore);
-    expect(latest!.getMonthEntries(TODAY.slice(0, 7)).at(-1)!.buildingId).toBe("transport2");
+    const monthEntries = latest!.getMonthEntries(TODAY.slice(0, 7));
+    expect(monthEntries[monthEntries.length - 1].buildingId).toBe("transport2");
     expect(latest!.pendingGrowChoice).toBeNull(); // choice resolved, marker gone
     expect(latest!.buildings.length).toBe(4); // grew in place, no fusion, no new building
     expect(document.body.textContent).not.toContain("건물을 융합할까요?");

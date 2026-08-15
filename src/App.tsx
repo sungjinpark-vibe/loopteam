@@ -125,6 +125,24 @@ function App() {
     dismissNotice();
   }, [notice, dismissNotice, openToast, overlayOpen]);
 
+  // Gate-3-rerun fix (panel finding, all five experts — the round-4 JS-only
+  // suppression above did NOT hold in the rendered app): guarding the
+  // MOMENT a toast fires is not enough, because `openToast` is an imperative
+  // call into a vendor component with its own auto-dismiss timer — a toast
+  // that started showing a beat BEFORE the player opens a sheet stays on
+  // screen, at z-index 30000 (App.css's own note), overlapping that sheet's
+  // content for the rest of its duration. QA/panel screenshots caught
+  // exactly this: the move-hint pill sitting on the entry sheet's date row
+  // and the shop's price row. Root-caused at the shared boundary instead of
+  // per-notice-kind: while ANY overlay is open, the toast portal is hidden
+  // outright via CSS (`body[data-overlay-open]` below), which covers both
+  // "about to fire" (already handled above) AND "already showing when the
+  // overlay opened" (the actual gap) with one rule.
+  useEffect(() => {
+    document.body.toggleAttribute("data-overlay-open", overlayOpen);
+    return () => document.body.removeAttribute("data-overlay-open");
+  }, [overlayOpen]);
+
   if (store.loading) {
     return <div className="town-loading">불러오는 중…</div>;
   }

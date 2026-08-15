@@ -19,6 +19,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BALANCE } from "./balance.approved";
 import { fusionChunkWrites, type FusionChunkWrite } from "./fusionActions";
+import { placeMany } from "./placement";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
 import { tier, townScale } from "./selectors";
@@ -272,6 +273,58 @@ describe("fuseBuildings — §3", () => {
     const parked = latest!.buildings.find((b) => b.id === "b3")!;
     expect(parked.plotIndex).toBeGreaterThanOrEqual(0); // seated on the next reconcile, never dropped
     expect(parked.plotIndex).toBe(cell(1)); // the exact cell the fusion vacated
+  });
+
+  // Gate-3-rerun fix (panel's UNANIMOUS top finding, all five expert
+  // lenses, reproduced twice each): the freed cell used to sit empty until
+  // the NEXT boot, because the F14 materials queue only drained at app-open
+  // — a full-town fusion showed the count drop live but the queued building
+  // stayed queued and the "자리가 나면" wait state was unchanged until a
+  // reload. Built through the REAL `placeMany` (RX1-N2 spacing and all) with
+  // a constant rng, not the raw "every ground cell occupied" shape the
+  // pre-existing test above uses — that shape violates RX1-N2 everywhere and
+  // would make even the live drain unable to find the cell fusion frees
+  // (RX1-N2 spacing rejects a 1x1 seated with no gap on every side, exactly
+  // what "every ground cell occupied" produces). A genuinely full town, built
+  // the same way the app itself packs one, always leaves fusion's freed cell
+  // legally placeable — that is the whole point of RX1-N2 being symmetric.
+  it("drains the F14 queue LIVE the moment a fusion frees a cell — no reload needed", async () => {
+    const rng0 = () => 0; // matches `setRandomOverride(() => 0)` above — same footprint (1x1) and anchor-pick rule the live drain will use
+    const packed = placeMany([], CELL_COUNT, rng0); // packs to the real, spacing-legal capacity — `placeMany` stops on its own once no anchor (even 1x1) fits
+    expect(packed.length).toBeGreaterThan(2); // sanity: the map actually holds more than the 2 buildings this test fuses
+    const full = packed.map((p, i) => building(`f${i}`, p.anchor, "2026-08"));
+    seedTown(full, [entry("eq1", null, "2026-08-01")]);
+    const core = JSON.parse(window.localStorage.getItem("ait.v1.core")!);
+    core.town.queue = [
+      { entryId: "eq1", entryYm: "2026-08", categoryId: "cafe", variantIndex: 0, queuedOn: "2026-08-01", amountKrw: 5_000 },
+    ];
+    window.localStorage.setItem("ait.v1.core", JSON.stringify(core));
+    await mountAndWaitForBoot();
+    expect(latest!.buildingCount).toBe(full.length); // town is genuinely, legally full — boot's own drain found nowhere to put the material either
+    expect(latest!.queueLength).toBe(1);
+    const seedsBefore = latest!.economy.seeds;
+
+    act(() => {
+      latest!.fuseBuildings("f0", "f1");
+    });
+
+    // Fuse (-1 building) and drain (+1 building) net back to the starting
+    // count, but the count alone can't tell "filled live" from "still
+    // queued" — the queue length and the drained building's real seat can.
+    expect(latest!.queueLength).toBe(0); // NOT still 1, waiting for next boot
+    expect(latest!.buildingCount).toBe(full.length);
+    const drained = latest!.buildings.find((b) => b.source.kind === "entry" && b.source.entryId === "eq1");
+    expect(drained).toBeDefined();
+    expect(drained!.plotIndex).toBeGreaterThanOrEqual(0); // a real seat, not parked at -1 or still in the queue
+    expect(latest!.notice).toEqual({ kind: "drained", count: 1 }); // the "return promise kept" toast fires now, not on a future reload
+    expect(latest!.economy.seeds).toBeGreaterThan(seedsBefore); // the drain pays its own build award, same as boot's drain
+
+    // And it's actually persisted, not just an in-memory patch this render happened to show.
+    flush();
+    await mountAndWaitForBoot();
+    expect(latest!.queueLength).toBe(0);
+    expect(latest!.buildingCount).toBe(full.length);
+    expect(latest!.buildings.some((b) => b.source.kind === "entry" && b.source.entryId === "eq1")).toBe(true);
   });
 });
 

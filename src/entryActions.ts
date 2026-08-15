@@ -238,7 +238,20 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
   // buildings so it was written off as unreachable. It holds ~81 now, which a
   // 10-slot day reaches in about a week, so the pre-existing follow-up
   // ("teach decideBuildOrQueue to force-queue when placement fails") is done here.
-  if (remaining > 0 && (plotIndex !== null || growTarget)) {
+  //
+  // Gate-3-rerun fix (panel's UNANIMOUS top finding, all five expert lenses):
+  // `deferGrowChoice` must ALSO admit this branch even when `plotIndex` is
+  // null. Growing consumes a slot but no cell — the old condition required a
+  // free CELL before it would even open the 새로짓기/키우기 dialog, so once
+  // the town filled, every entry in an existing category silently fell
+  // through to the plain queue and 키우기 (which never needed the cell it was
+  // being gated on) became unreachable for the rest of the game. `growTarget`
+  // itself is deliberately left alone in this OR: a resolved (non-deferred)
+  // grow call already knows it is growing and must keep working exactly as
+  // before. `resolveGrowChoice` below already handles a deferred choice that
+  // resolves to 새로 짓기 on a still-full town — it queues that half
+  // gracefully — so admitting the defer case here loses nothing on that path.
+  if (remaining > 0 && (plotIndex !== null || growTarget || deferGrowChoice)) {
     const usedToday = dailyBuildSlots - remaining;
     const gain = expGain ?? 1;
 

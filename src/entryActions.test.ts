@@ -596,13 +596,19 @@ describe("applyNewEntry — deferGrowChoice", () => {
     expect(result.town.highestTierSeen).toBe(0);
   });
 
-  it("still queues (and leaves no marker) when the town is full — a choice it could not honour is never offered", () => {
+  // Gate-3-rerun fix (panel's unanimous top finding): growing needs no cell,
+  // so a full town (`plotIndex: null`) must still open the choice instead of
+  // silently queuing — 키우기 was reachable the whole time, the old gate just
+  // never offered it. `resolveGrowChoice`'s own full-town fallback (queues
+  // gracefully when the player answers 새로 짓기 instead) is what makes this
+  // safe: the choice is never presented for an outcome the app cannot honour.
+  it("still offers the choice when the town is full — growing needs no cell, so a full town must not skip it", () => {
     const result = applyNewEntry(callArgs({ deferGrowChoice: true, plotIndex: null }));
 
-    expect(result.pendingGrowChoice).toBeNull();
-    expect(result.town.pendingGrowChoice).toBeUndefined();
-    expect(result.queuedMaterial).not.toBeNull();
-    expect(result.entry.queued).toBe(true);
+    expect(result.pendingGrowChoice).toEqual({ entryId: "e1", entryYm: "2026-08", categoryId: "cafe", expGain: 1 });
+    expect(result.town.pendingGrowChoice).toEqual(result.pendingGrowChoice);
+    expect(result.queuedMaterial).toBeNull();
+    expect(result.entry.queued).toBe(false);
   });
 });
 

@@ -1278,6 +1278,84 @@ export function useTownStore() {
     stateRef.current = next;
     setState(next);
 
+    // Gate-3-rerun fix (panel finding E2, all five experts): the fusion just
+    // freed `result.consumed`'s cell(s), but nothing drained the F14 queue
+    // to fill it — that only ran at next boot, so a full-town fusion showed
+    // an emptied cell AND an unchanged "waiting for space" header in the
+    // SAME session; the queued building only appeared after a reload. This
+    // runs the exact same pure `drainQueue` boot already uses
+    // (`settleAndDrainAndPersist`), right here, against the post-fusion
+    // occupancy — no new drain logic, just wiring the existing one into the
+    // moment a cell actually frees, same as boot wires it to app-open.
+    const today = clock.today();
+    const now = clock.now();
+    const drainResult = drainQueue(
+      next.town,
+      townScale(next.buildings),
+      today,
+      BALANCE.dailyBuildSlots,
+      BALANCE.tierThresholds,
+      (i) => makeId("b", now + i),
+      now,
+      (count) => placeManyPlots(next.buildings, count, random.next),
+      BALANCE.expAmountTiers,
+    );
+    if (drainResult.drained.length > 0) {
+      const drainCore: CoreState = { town: drainResult.town, budget: next.budget, onboarded: next.onboarded };
+      // Same "patch each drained material's own LedgerEntry" shape
+      // `settleAndDrainAndPersist` uses — see that function's doc for why
+      // `entryYm` (not `queuedOn`'s month) locates the chunk.
+      const patchesByMonth = new Map<string, Map<string, string>>();
+      for (const { material, building } of drainResult.drained) {
+        if (material.entryYm === undefined || material.entryId === undefined) continue; // 무지출 park material — no ledger entry behind it
+        const ym = material.entryYm;
+        const patches = patchesByMonth.get(ym) ?? new Map<string, string>();
+        patches.set(material.entryId, building.id);
+        patchesByMonth.set(ym, patches);
+      }
+      const patchEntries = (entries: LedgerEntry[], patches: Map<string, string>) =>
+        entries.map((e) => (patches.has(e.id) ? { ...e, buildingId: patches.get(e.id)!, queued: false } : e));
+      for (const [ym, patches] of patchesByMonth) {
+        const { entries } = storageClient.loadEntriesForMonth(ym);
+        storageClient.saveEntriesForMonth(ym, patchEntries(entries, patches), drainCore);
+      }
+      const drainedBuildings = drainResult.drained.map((d) => d.building);
+      const buildYm = today.slice(0, 7);
+      mutateBuildingsForMonth(storageClient, buildYm, (existing) => [...existing, ...drainedBuildings]);
+      storageClient.saveCore(drainCore);
+
+      let drainHistoryEntries = next.historyEntries;
+      for (const [ym, patches] of patchesByMonth) {
+        if (ym === buildYm) continue;
+        const cached = drainHistoryEntries[ym];
+        if (cached === undefined) continue; // not loaded into this session yet — the storage write above is enough, `ensureMonthLoaded` reads it fresh later
+        drainHistoryEntries = { ...drainHistoryEntries, [ym]: patchEntries(cached, patches) };
+      }
+      const todaysPatches = patchesByMonth.get(buildYm);
+      const postDrain: LoadedState = {
+        ...next,
+        town: drainResult.town,
+        buildings: [...next.buildings, ...drainedBuildings],
+        entries: todaysPatches ? patchEntries(next.entries, todaysPatches) : next.entries,
+        historyEntries: drainHistoryEntries,
+      };
+      stateRef.current = postDrain;
+      setState(postDrain);
+
+      // Same award shape boot grants for its own drain (F-ECON table row 1);
+      // `grantSeeds` is idempotent per building/tier id so this can never
+      // double-pay if a future path also drains the same material.
+      for (const b of drainedBuildings) {
+        if (b.source.kind === "nospend") continue; // already paid on claim day (see settleAndDrainAndPersist's own note)
+        grantSeeds({ kind: "build", buildingId: b.id });
+      }
+      if (drainResult.celebrateTier !== null) grantSeeds({ kind: "tier", tier: drainResult.celebrateTier });
+      pushNotices(
+        { kind: "drained", count: drainResult.drained.length },
+        ...(drainResult.celebrateTier !== null ? [{ kind: "tier", tier: drainResult.celebrateTier } as const] : []),
+      );
+    }
+
     // §5.3 — the idempotency key carries the RESULTING fuse tier, so the same
     // survivor pays again at every rung on its way to Lv.10 (an id-only key
     // would read a Lv.7 as an already-paid Lv.6). Granted after `stateRef` is
@@ -1291,7 +1369,7 @@ export function useTownStore() {
       level: totalLevelOf(result.survivor, BALANCE.expPerLevel, BALANCE.maxLevel),
       seedsGranted,
     };
-  }, [grantSeeds]);
+  }, [grantSeeds, pushNotices]);
 
   /**
    * ADDENDUM-02 §4.2/§4.5 — the ONLY store action that mutates a building's

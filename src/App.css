@@ -99,6 +99,17 @@
   pointer-events: auto;
 }
 
+/* Gate-3-rerun fix (panel finding, all five experts) — a toast already
+ * showing when a sheet/dialog opens over it (App.tsx's `overlayOpen` race:
+ * the toast's own auto-dismiss timer keeps it on screen after the sheet
+ * appears) stays hidden for as long as any overlay is open, instead of
+ * sitting at z-index 30000 on top of the sheet's content. `visibility`, not
+ * `display`, so the vendor component's own internal timers/measurements are
+ * never disrupted by an unmount it doesn't expect. */
+body[data-overlay-open] #tds-mobile-portal-container > [aria-live="polite"] {
+  visibility: hidden;
+}
+
 /* ── §9 balance banner ── */
 
 .balance-banner {

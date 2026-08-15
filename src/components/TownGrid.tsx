@@ -529,6 +529,26 @@ function TownGridImpl({
   // height stays pinned for the whole pinch (see `activeFit` below) and a pinch
   // pointermove preventDefaults native scroll, so the grid's layout position
   // cannot move mid-gesture.
+  // Gate-3-rerun fix (panel finding, all five expert lenses — zoom snapping
+  // at the start of a two-finger pan): seeds the baseline/layout/sample refs
+  // from the SYNCHRONOUS 2-finger-pointerdown state instead of leaving it to
+  // the first `onPinchMove` sample. See `onPinchStart`'s own doc
+  // (`useTileGestures.ts`) for why waiting for that first move sample was
+  // the bug — it could be a half-sample (one finger already moved, the other
+  // still at its down position), corrupting the baseline for the WHOLE
+  // gesture, not just one frame. `handlePinchMove`'s own `!prevSample`
+  // branch below still runs the same seeding logic as a fallback for any
+  // caller that doesn't wire `onPinchStart` (defensive only — every real
+  // caller does).
+  const handlePinchStart = (midX: number, midY: number, distance: number) => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const rect = grid.getBoundingClientRect();
+    pinchLayoutRef.current = { left: rect.left - scale * tx, top: rect.top - scale * ty };
+    pinchBaselineRef.current = { scale, distance };
+    pinchSampleRef.current = { midX, midY, distance };
+  };
+
   const handlePinchMove = (midX: number, midY: number, distance: number) => {
     const prevSample = pinchSampleRef.current;
     pinchSampleRef.current = { midX, midY, distance };
@@ -795,6 +815,7 @@ function TownGridImpl({
     onCursorMove,
     onActivate: handleActivate,
     onEscape: onCancel,
+    onPinchStart: handlePinchStart,
     onPinchMove: handlePinchMove,
     onPinchEnd: handlePinchEnd,
     onInvalidDrop,
