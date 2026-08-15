@@ -1,0 +1,1679 @@
+{
+  "tag": "after",
+  "fixtures": [
+    "full-town",
+    "fusion-ready-lv6"
+  ],
+  "cssVars": {
+    "--terrace-a": "#fdf7ec",
+    "--terrace-b": "#f2e2cd",
+    "--terrace-c": "#e4cbaf",
+    "--town-asphalt": "#b9bec6",
+    "--town-grass": "#cdeccb",
+    "--town-water": "#7fb8e0"
+  },
+  "levelsShotArchetype": {
+    "archetype": "restaurant",
+    "levels": [
+      4,
+      5,
+      6
+    ]
+  },
+  "buildingCount": 87,
+  "buildings": [
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "8",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "9",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "11",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "22",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "24",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "26",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "32",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "33",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "35",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "36",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "61",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "62",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "67",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "69",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "71",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "72",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "74",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "76",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "85",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "86",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "88",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "90",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "95",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "102",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "109",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "114",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "116",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "125",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "126",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "130",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "131",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "135",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "163",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "165",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "166",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "174",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "176",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "178",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "181",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "191",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "192",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "195",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "206",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "214",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "217",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "218",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "223",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "225",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "227",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "229",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "230",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "235",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "262",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "263",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "268",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "269",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cinema",
+      "label": "문화",
+      "level": 1,
+      "plotIndex": "271",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "276",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "278",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "281",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "shop",
+      "label": "쇼핑",
+      "level": 1,
+      "plotIndex": "294",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "302",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "310",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "315",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "323",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "326",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "328",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "hall",
+      "label": "경조사",
+      "level": 1,
+      "plotIndex": "331",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "332",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "334",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "337",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "clinic",
+      "label": "건강",
+      "level": 1,
+      "plotIndex": "364",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "townhouse",
+      "label": "생활",
+      "level": 1,
+      "plotIndex": "365",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "370",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "372",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 1,
+      "plotIndex": "375",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "school",
+      "label": "교육",
+      "level": 1,
+      "plotIndex": "376",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 1,
+      "plotIndex": "388",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "transport",
+      "label": "교통",
+      "level": 1,
+      "plotIndex": "389",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "full-town @ fit",
+      "archetype": "cottage",
+      "label": "기타",
+      "level": 1,
+      "plotIndex": "394",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "fusion-ready-lv6 @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 6,
+      "plotIndex": "103",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "fusion-ready-lv6 @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 4,
+      "plotIndex": "111",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "fusion-ready-lv6 @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 6,
+      "plotIndex": "172",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "fusion-ready-lv6 @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 5,
+      "plotIndex": "269",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "fusion-ready-lv6 @ fit",
+      "archetype": "cafe",
+      "label": "카페",
+      "level": 5,
+      "plotIndex": "303",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "fusion-ready-lv6 @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 5,
+      "plotIndex": "335",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    },
+    {
+      "source": "fusion-ready-lv6 @ fit",
+      "archetype": "restaurant",
+      "label": "식비",
+      "level": 5,
+      "plotIndex": "393",
+      "wall": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "roof": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "3.52px"
+      },
+      "window": {
+        "stroke": "rgb(51, 61, 75)",
+        "strokeWidth": "1.76px"
+      }
+    }
+  ]
+}

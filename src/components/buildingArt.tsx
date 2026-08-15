@@ -89,8 +89,21 @@ function shade(hue: Hue, n: number): string {
 // a tier-1 step has to read against every category, including the orange-hued
 // ones (food/cafe), so each step is picked for contrast against a LIGHT
 // default roofLite (shade 100-300) rather than for hue-matching.
-const FUSE_TRIM: readonly string[] = [colors.orange700, colors.grey400, colors.yellow500, colors.blue200, colors.purple600];
-const FUSE_RIDGE: readonly string[] = [colors.orange800, colors.grey600, colors.yellow700, colors.blue500, colors.purple800];
+//
+// 2026-08-15 — four of the ten steps were BYTE-IDENTICAL to a roof plane some
+// category already paints, so on exactly those categories the fusion the player
+// just paid for showed nothing at all:
+//   bronze  orange700 === food.top / food.roofMid       (a fused restaurant)
+//   silver  grey400   === etc.roofLite                  (a fused cottage)
+//   jewel   purple600 === shopping.roofDark / culture.roofLite
+//   gold(R) yellow700 === bonus.top / bonus.roofMid
+// Each moved to the nearest free step of its OWN hue, so the bronze/silver/gold/
+// platinum/jewel reading is unchanged and only the collision is gone. The
+// trim->ridge relationship every tier had (ridge is the darker step of the same
+// hue) is preserved. `buildingArt.contrast.test.tsx` now fails if any future
+// roof-tone edit re-creates a collision.
+const FUSE_TRIM: readonly string[] = [colors.orange500, colors.grey300, colors.yellow500, colors.blue200, colors.purple500];
+const FUSE_RIDGE: readonly string[] = [colors.orange800, colors.grey600, colors.yellow800, colors.blue500, colors.purple800];
 
 /** fuseTier 0 (or absent) returns `palette` untouched — the byte-identical guarantee for unfused buildings. */
 function withFuseMaterial(palette: Palette, fuseTier: number): Palette {
@@ -314,6 +327,49 @@ const FLOOR_SQUEEZE = 0.07;
 const RIDGE_R = 3.5;
 
 /**
+ * ── the keyline (2026-08-15, `ui-ux-pro-max` DB) ──
+ *
+ * The skill's product row for a casual game recommends "Claymorphism + Vibrant &
+ * Block-based" — chunky shapes with thick borders. Here that is not taste, it is
+ * a MEASURED legibility fix. Every building surface is a flat fill sitting
+ * directly on a flat terrain fill, and 8 of the 14 category roofs fall below
+ * 1.5:1 against a terrain colour they actually touch:
+ *
+ *   cafe #ffa927 vs --town-asphalt #b9bec6 = 1.03    bonus  #faa131 vs --town-water = 1.04
+ *   sidejob #15c47e vs --town-water #7fb8e0 = 1.07   social #ffd158 vs --terrace-c = 1.08
+ *   living 1.16 · food 1.30 · etc 1.42 · education 1.44
+ *
+ * The window panes are worse, and they are the cue that says "building" at all:
+ * the lit pane (yellow100) sits at 1.14:1 on the clinic's white wall and 1.26:1
+ * on a yellow-hued wall, so the windows simply vanish on those categories.
+ *
+ * One neutral keyline fixes every one of those cases at once, which is why this
+ * is a stroke and not fourteen retuned roof colours: grey800 holds >= 5.15:1
+ * against EVERY terrain colour in App.css, so the silhouette separates from the
+ * ground whatever is behind it, and a framed pane reads on a wall of any colour.
+ * Neutral rather than hue-derived on purpose — a hue-800 outline scores 1.15
+ * (yellow) to 1.75 (orange) against the terrace tones, i.e. exactly the
+ * categories that needed help would not have got any.
+ *
+ * Opaque, not translucent: walls and roof facets share edges, and a translucent
+ * stroke would compound at every seam, drawing the INTERIOR creases heavier than
+ * the outer silhouette.
+ *
+ * Freeze safety (d8ce379 / afc7cd6): a stroke paints, it does not move a vertex.
+ * `points` is untouched everywhere below, so the fill metric and the base
+ * footprint are byte-identical. `scripts/check-art-contrast.mjs` re-measures.
+ */
+const EDGE = colors.grey800;
+/**
+ * Widths in ART_UNIT (view units per tile px), NOT as a share of the box — the
+ * rendered scale is the same for every footprint, so this is a constant ~0.8px
+ * on screen whether the building is 1x1 or 2x2. A keyline that thickened with
+ * the footprint would make landmarks read as outlined stickers.
+ */
+const EDGE_W = ART_UNIT * 0.8;
+const PANE_EDGE_W = ART_UNIT * 0.4;
+
+/**
  * ── height growth (user instruction 2026-08-13: "레벨이 오를수록 건물이 높아져야 한다") ──
  *
  * ADDENDUM-11 §4.0's "커지지 않고 고급화" is REVOKED BY THE USER (see CLAUDE.md).
@@ -422,6 +478,8 @@ function windowGrid(
           data-part="window"
           points={pointsAttr(quadPts(A, B, C, D, u0, u0 + paneU, v0, v0 + paneV))}
           fill={unlit ? palette.winDark : palette.win}
+          stroke={EDGE}
+          strokeWidth={PANE_EDGE_W}
         />,
       );
     }
@@ -545,8 +603,12 @@ function buildingCube(
   }
 
   // walls
-  parts.push(<polygon key="wall-left" data-part="wall" points={pointsAttr([FB, LB, LT, FT])} fill={palette.left} />);
-  parts.push(<polygon key="wall-right" data-part="wall" points={pointsAttr([FB, RB, RT, FT])} fill={palette.right} />);
+  parts.push(
+    <polygon key="wall-left" data-part="wall" points={pointsAttr([FB, LB, LT, FT])} fill={palette.left} stroke={EDGE} strokeWidth={EDGE_W} strokeLinejoin="round" />,
+  );
+  parts.push(
+    <polygon key="wall-right" data-part="wall" points={pointsAttr([FB, RB, RT, FT])} fill={palette.right} stroke={EDGE} strokeWidth={EDGE_W} strokeLinejoin="round" />,
+  );
 
   // level-growth belt lines — one per floor above the first, evenly spread up the wall
   for (let i = 0; i < floors; i++) {
@@ -580,7 +642,14 @@ function buildingCube(
   // door + door windows (right face) — wideDoor widens the door quad
   const doorU1 = spec.decor?.wideDoor ? 0.48 : 0.4;
   parts.push(
-    <polygon key="door" data-part="door" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.14, doorU1, 0.02, 0.52))} fill={palette.door} />,
+    <polygon
+      key="door"
+      data-part="door"
+      points={pointsAttr(quadPts(FB, RB, RT, FT, 0.14, doorU1, 0.02, 0.52))}
+      fill={palette.door}
+      stroke={EDGE}
+      strokeWidth={PANE_EDGE_W}
+    />,
   );
   parts.push(
     <polygon key="lintel" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.2, 0.34, 0.55, 0.6))} fill={colors.yellow200} />,
@@ -611,10 +680,11 @@ function buildingCube(
   // roof
   if (roof === "pyramid") {
     const apex: Vec = { x: cx, y: cy - h - roofH };
-    parts.push(<polygon key="roof-bl" data-part="roof" points={pointsAttr([LT, BT, apex])} fill={palette.roofDark} />);
-    parts.push(<polygon key="roof-br" data-part="roof" points={pointsAttr([RT, BT, apex])} fill={palette.roofDark} />);
-    parts.push(<polygon key="roof-fl" data-part="roof" points={pointsAttr([LT, FT, apex])} fill={palette.roofLite} />);
-    parts.push(<polygon key="roof-fr" data-part="roof" points={pointsAttr([RT, FT, apex])} fill={palette.roofMid} />);
+    const roofEdge = { stroke: EDGE, strokeWidth: EDGE_W, strokeLinejoin: "round" } as const;
+    parts.push(<polygon key="roof-bl" data-part="roof" points={pointsAttr([LT, BT, apex])} fill={palette.roofDark} {...roofEdge} />);
+    parts.push(<polygon key="roof-br" data-part="roof" points={pointsAttr([RT, BT, apex])} fill={palette.roofDark} {...roofEdge} />);
+    parts.push(<polygon key="roof-fl" data-part="roof" points={pointsAttr([LT, FT, apex])} fill={palette.roofLite} {...roofEdge} />);
+    parts.push(<polygon key="roof-fr" data-part="roof" points={pointsAttr([RT, FT, apex])} fill={palette.roofMid} {...roofEdge} />);
     {
       /* ADDENDUM-11 §4.1 "crown / spire ornament" — same node, same position, same
        * radius as the always-present ridge dot; fuseTier only recolours it toward the
@@ -624,7 +694,9 @@ function buildingCube(
       <circle key="ridge" cx={apex.x} cy={apex.y} r={RIDGE_R} fill={fuseTier > 0 ? FUSE_RIDGE[fuseTier - 1] : "#ffffff"} opacity={0.85} />,
     );
   } else {
-    parts.push(<polygon key="roof-top" data-part="roof" points={pointsAttr([FT, RT, BT, LT])} fill={palette.top} />);
+    parts.push(
+      <polygon key="roof-top" data-part="roof" points={pointsAttr([FT, RT, BT, LT])} fill={palette.top} stroke={EDGE} strokeWidth={EDGE_W} strokeLinejoin="round" />,
+    );
     // Flat roofs have no ridge dot to recolour, so fuseTier adds a small accent
     // INSET at the roof plane's own vertical midpoint (cy - h), never at BT (the
     // topmost vertex) — its radius is capped at `hh`, so its top edge can never

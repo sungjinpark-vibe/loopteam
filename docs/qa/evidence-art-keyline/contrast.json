@@ -1,0 +1,202 @@
+{
+  "generatedAt": "2026-08-15",
+  "keyline": {
+    "color": "#333d4b",
+    "minRatioAgainstTerrain": 5.15
+  },
+  "terrain": {
+    "--terrace-a": "#fdf7ec",
+    "--terrace-b": "#f2e2cd",
+    "--terrace-c": "#e4cbaf",
+    "--town-asphalt": "#b9bec6",
+    "--town-grass": "#cdeccb",
+    "--town-water": "#7fb8e0"
+  },
+  "keylineVsTerrain": [
+    {
+      "terrain": "--terrace-a",
+      "hex": "#fdf7ec",
+      "keylineRatio": 10.31
+    },
+    {
+      "terrain": "--terrace-b",
+      "hex": "#f2e2cd",
+      "keylineRatio": 8.66
+    },
+    {
+      "terrain": "--terrace-c",
+      "hex": "#e4cbaf",
+      "keylineRatio": 7.05
+    },
+    {
+      "terrain": "--town-asphalt",
+      "hex": "#b9bec6",
+      "keylineRatio": 5.89
+    },
+    {
+      "terrain": "--town-grass",
+      "hex": "#cdeccb",
+      "keylineRatio": 8.62
+    },
+    {
+      "terrain": "--town-water",
+      "hex": "#7fb8e0",
+      "keylineRatio": 5.15
+    }
+  ],
+  "roofVsTerrain": [
+    {
+      "category": "food",
+      "roofTop": "#f57800",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.3,
+      "needsKeyline": true
+    },
+    {
+      "category": "cafe",
+      "roofTop": "#ffa927",
+      "worstTerrain": "--town-asphalt",
+      "worstRatio": 1.03,
+      "needsKeyline": true
+    },
+    {
+      "category": "transport",
+      "roofTop": "#1b64da",
+      "worstTerrain": "--town-water",
+      "worstRatio": 2.53,
+      "needsKeyline": false
+    },
+    {
+      "category": "shopping",
+      "roofTop": "#b44bd7",
+      "worstTerrain": "--town-water",
+      "worstRatio": 2,
+      "needsKeyline": false
+    },
+    {
+      "category": "living",
+      "roofTop": "#30b6b6",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.16,
+      "needsKeyline": true
+    },
+    {
+      "category": "health",
+      "roofTop": "#f04452",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.74,
+      "needsKeyline": false
+    },
+    {
+      "category": "culture",
+      "roofTop": "#8222a2",
+      "worstTerrain": "--town-water",
+      "worstRatio": 3.64,
+      "needsKeyline": false
+    },
+    {
+      "category": "education",
+      "roofTop": "#4593fc",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.44,
+      "needsKeyline": true
+    },
+    {
+      "category": "social",
+      "roofTop": "#ffd158",
+      "worstTerrain": "--terrace-c",
+      "worstRatio": 1.08,
+      "needsKeyline": true
+    },
+    {
+      "category": "etc",
+      "roofTop": "#8b95a1",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.42,
+      "needsKeyline": true
+    },
+    {
+      "category": "salary",
+      "roofTop": "#029359",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.85,
+      "needsKeyline": false
+    },
+    {
+      "category": "sidejob",
+      "roofTop": "#15c47e",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.07,
+      "needsKeyline": true
+    },
+    {
+      "category": "bonus",
+      "roofTop": "#faa131",
+      "worstTerrain": "--town-water",
+      "worstRatio": 1.04,
+      "needsKeyline": true
+    },
+    {
+      "category": "other_income",
+      "roofTop": "#0c8585",
+      "worstTerrain": "--town-water",
+      "worstRatio": 2.09,
+      "needsKeyline": false
+    }
+  ],
+  "fuseLadder": [
+    {
+      "tier": 1,
+      "material": "bronze",
+      "trim": "#fe9800",
+      "ridge": "#ed6700",
+      "trimCollidesWith": [],
+      "ridgeCollidesWith": []
+    },
+    {
+      "tier": 2,
+      "material": "silver",
+      "trim": "#d1d6db",
+      "ridge": "#6b7684",
+      "trimCollidesWith": [],
+      "ridgeCollidesWith": []
+    },
+    {
+      "tier": 3,
+      "material": "gold",
+      "trim": "#ffc342",
+      "ridge": "#ee8f11",
+      "trimCollidesWith": [],
+      "ridgeCollidesWith": []
+    },
+    {
+      "tier": 4,
+      "material": "platinum",
+      "trim": "#90c2ff",
+      "ridge": "#3182f6",
+      "trimCollidesWith": [],
+      "ridgeCollidesWith": []
+    },
+    {
+      "tier": 5,
+      "material": "jewel",
+      "trim": "#a234c7",
+      "ridge": "#73228e",
+      "trimCollidesWith": [],
+      "ridgeCollidesWith": []
+    }
+  ],
+  "verdict": {
+    "roofsThatWouldVanishWithoutTheKeyline": [
+      "food",
+      "cafe",
+      "living",
+      "education",
+      "social",
+      "etc",
+      "sidejob",
+      "bonus"
+    ],
+    "fuseStepsInvisibleOnSomeCategory": []
+  }
+}
