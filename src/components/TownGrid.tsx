@@ -46,7 +46,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { colors } from "@toss/tds-colors";
 import { useTileGestures } from "../hooks/useTileGestures";
-import { anchorsFor, cellOwners, footprintOf } from "../placement";
+import { footprintOf, moveAnchorsFor } from "../placement";
 import { fuseOf, totalLevelOf } from "../selectors";
 import {
   CELL_COUNT,
@@ -672,14 +672,13 @@ function TownGridImpl({
     // the caller only ever sees anchor indices.
     const dropAnchors = new Map<number, number>();
     const movingBuilding = movingId === null ? undefined : buildings.find((b) => b.id === movingId);
-    if (movingBuilding) {
+    if (movingBuilding && movingId !== null) {
       const { w, h } = footprintOf(movingBuilding);
-      // `cellOwners`, not `occupiedCells`: `anchorsFor` now enforces the RX1-N2
-      // spacing rule, whose run limit counts buildings and so needs identity.
-      // The highlighted drop targets are therefore exactly the set
-      // `moveBuilding` will accept — the grid never offers a drop it rejects.
-      const occupied = cellOwners(buildings.filter((b) => b.id !== movingId));
-      for (const anchor of anchorsFor(w, h, occupied)) {
+      // `moveAnchorsFor` — the one function this and `moveBuilding` both route
+      // through — already excludes the mover's own current anchor, so the
+      // highlighted drop targets are exactly the set `moveBuilding` will
+      // accept: the grid never offers a drop it rejects.
+      for (const anchor of moveAnchorsFor(buildings, movingId, w, h)) {
         for (const cell of footprintCells(anchor, w, h)) dropAnchors.set(cell, anchor);
       }
     }

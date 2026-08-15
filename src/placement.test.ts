@@ -9,6 +9,7 @@ import {
   cellOwners,
   fits,
   footprintOf,
+  moveAnchorsFor,
   moveBuilding,
   occupiedCells,
   pickAnchor,
@@ -317,6 +318,70 @@ describe("moveBuilding", () => {
     const result = moveBuilding([a], "a", target);
     expect(result.ok).toBe(true);
     if (result.ok) expectNoOverlap(result.buildings);
+  });
+});
+
+// ── moveAnchorsFor — the shared predicate `TownGrid`'s droppable highlight
+// and `moveBuilding`'s decision both route through (regression for the
+// same-plot highlight/reject mismatch a lead hypothesis raised: excluding the
+// mover's own cells from occupancy, so a footprint can overlap its own old
+// spot while nudging, also makes that old spot look like free ground —
+// `anchorsFor` alone includes it; `moveAnchorsFor` must not). ──
+
+describe("moveAnchorsFor", () => {
+  it("unknown building id -> no anchors", () => {
+    expect(moveAnchorsFor([building("a", 0)], "ghost", 1, 1)).toEqual([]);
+  });
+
+  it("1x1: excludes the mover's own current anchor even though it is otherwise legal", () => {
+    const anchor = indexFromCell({ row: 3, col: 1 });
+    const a = building("a", anchor);
+    const anchors = moveAnchorsFor([a], "a", 1, 1);
+    expect(anchors).not.toContain(anchor);
+    // Sanity: `anchorsFor` alone (excluding the mover from occupancy, same as
+    // `moveAnchorsFor` does internally) WOULD include it — that's the bug this
+    // function exists to close.
+    expect(anchorsFor(1, 1, cellOwners([]))).toContain(anchor);
+  });
+
+  it("2x2: excludes the mover's own current anchor even though it is otherwise legal", () => {
+    const anchor = indexFromCell({ row: 3, col: 1 });
+    const a = building("a", anchor, 2, 2);
+    const anchors = moveAnchorsFor([a], "a", 2, 2);
+    expect(anchors).not.toContain(anchor);
+    expect(anchorsFor(2, 2, cellOwners([]))).toContain(anchor);
+  });
+
+  it("INVARIANT: every anchor moveAnchorsFor offers, moveBuilding accepts — 1x1 and 2x2, across many random towns", () => {
+    for (const seed of [1, 7, 42, 1337, 90210]) {
+      for (const shape of [
+        { w: 1 as const, h: 1 as const },
+        { w: 2 as const, h: 2 as const },
+      ]) {
+        const rng = seededRandom(seed);
+        let buildings: Building[] = [];
+        for (let i = 0; i < 60; i++) {
+          const placed = placeNew(buildings, rng);
+          if (!placed) break;
+          buildings.push(building(`b${i}`, placed.anchor, placed.w, placed.h, i));
+        }
+        // A fresh mover of exactly this test's shape, legally seated by the
+        // same picker `placeNew` uses — a real footprint, not a hand-forced
+        // one, so its current anchor genuinely does obey RX1-N2 among its
+        // neighbours (the scenario the highlight/reject mismatch needs).
+        const moverAnchor = pickAnchor(buildings, shape.w, shape.h, rng);
+        if (moverAnchor === null) continue; // town filled up before we got a slot for this shape — skip, not a failure
+        const mover = building("mover", moverAnchor, shape.w, shape.h, 999);
+        buildings = [...buildings, mover];
+
+        const anchors = moveAnchorsFor(buildings, "mover", shape.w, shape.h);
+        expect(anchors).not.toContain(mover.plotIndex); // the current-anchor case, specifically
+        for (const anchor of anchors) {
+          const result = moveBuilding(buildings, "mover", anchor);
+          expect(result.ok).toBe(true);
+        }
+      }
+    }
   });
 });
 

@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analytics } from "../platform/analytics";
 import { haptics } from "../platform/haptics";
-import type { MoveResult } from "../placement";
+import type { MoveRejection, MoveResult } from "../placement";
 import type { Building } from "../types";
 import { useBackGuard } from "./useBackGuard";
 
@@ -21,10 +21,43 @@ const REJECT_MESSAGE_MS = 2500;
 
 /** Placeholder copy (D-36) — the director may edit; only the mechanism is MUST. */
 const OCCUPIED_MESSAGE = "이미 건물이 있는 자리예요";
-/** Placeholder copy — a drag-release that landed on no tile at all (round-3 finding, all five experts). */
+/** `no-fit` — the footprint doesn't clear the RX1-N2 spacing rule (or, rarer, the town state moved under it). */
+const NO_FIT_MESSAGE = "위아래 줄을 비워야 해요";
+/** `out-of-town` — outside the grid, or on terrain that isn't buildable ground. */
+const OUT_OF_TOWN_MESSAGE = "그 자리엔 지을 수 없어요";
+/** Placeholder copy — a drag-release that landed on no tile at all (round-3 finding, all five experts); also the
+ *  fallback for `same-plot`/`not-found`, both unreachable from the normal UI (see `rejectionMessage` below). */
 const INVALID_DROP_MESSAGE = "그 자리로는 옮길 수 없어요";
 /** Placeholder copy — shown when 되돌리기 itself is rejected (round-2 finding C2 #3). */
 const UNDO_FAILED_MESSAGE = "원래 자리에 다른 건물이 생겼어요";
+
+/**
+ * One short line per `MoveResult` rejection reason, for the same reject
+ * banner `onPlotTap` already shows (`TownScreen` renders `move.rejectMessage`
+ * — this is the only place that string is composed).
+ *   - `occupied`/`no-fit`/`out-of-town` are all reachable from a real tap: the
+ *     grid only highlights anchors `moveBuilding` accepts (`moveAnchorsFor`),
+ *     but the town can change under a stale highlight (another move/build
+ *     landing between paint and tap), and `no-fit` is also `undo`'s own path.
+ *   - `same-plot`/`not-found` stay mapped to the generic line as a safe
+ *     fallback — `same-plot` is intercepted earlier in `onPlotTap` (tapping
+ *     the moving building cancels, it never reaches `moveBuilding`), and
+ *     `not-found` means the mover vanished, which the guard effect below
+ *     already exits move mode for.
+ */
+function rejectionMessage(reason: MoveRejection): string {
+  switch (reason) {
+    case "occupied":
+      return OCCUPIED_MESSAGE;
+    case "no-fit":
+      return NO_FIT_MESSAGE;
+    case "out-of-town":
+      return OUT_OF_TOWN_MESSAGE;
+    case "same-plot":
+    case "not-found":
+      return INVALID_DROP_MESSAGE;
+  }
+}
 
 export interface JustMoved {
   id: string;
@@ -196,10 +229,7 @@ export function useMoveMode(
 
       const result = moveBuilding(movingId, plotIndex);
       if (!result.ok) {
-        // ("out-of-town"/"not-found"/"same-plot" are unreachable here in the
-        // normal UI, since only droppable — free, in-pool — lots are tappable
-        // as a destination; the same reject copy is a safe fallback either way.)
-        showReject(OCCUPIED_MESSAGE);
+        showReject(rejectionMessage(result.reason));
         return;
       }
 

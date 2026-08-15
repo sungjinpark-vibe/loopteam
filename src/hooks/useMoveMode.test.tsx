@@ -151,6 +151,41 @@ describe("useMoveMode — onInvalidDrop (round-3 finding, drag-release with no t
   });
 });
 
+// Deliverable 2 of the move-mode defect fix: the reject banner (`TownScreen`
+// renders `move.rejectMessage`, composed nowhere else) must say WHY, not just
+// that it failed. `moveBuilding`'s discriminated `reason` drives the copy.
+describe("useMoveMode — rejection reason drives the banner copy (one short line per MoveRejection)", () => {
+  it.each([
+    ["occupied", "이미 건물이 있는 자리예요"],
+    ["no-fit", "위아래 줄을 비워야 해요"], // RX1-N2 spacing rule
+    ["out-of-town", "그 자리엔 지을 수 없어요"],
+    // `same-plot`/`not-found` are unreachable from the real UI (see the tests
+    // below) but still need a message if `moveBuilding` ever returns one
+    // directly — both fall back to the generic line.
+    ["same-plot", "그 자리로는 옮길 수 없어요"],
+    ["not-found", "그 자리로는 옮길 수 없어요"],
+  ] as const)("reason %s -> %s", (reason, expectedMessage) => {
+    render([building], () => ({ ok: false, reason }));
+    act(() => latest!.onPlotLongPress(0));
+    act(() => latest!.onPlotTap(5)); // 5 !== moving.plotIndex (0): reaches moveBuilding, not the same-plot cancel guard
+    expect(latest!.rejectMessage).toBe(expectedMessage);
+    expect(latest!.movingId).toBe("b1"); // rejection keeps move mode open
+  });
+
+  it("same-plot is actually intercepted before moveBuilding is ever called — tapping the moving building cancels, it never shows a reject message", () => {
+    const calls: number[] = [];
+    render([building], (_id, to) => {
+      calls.push(to);
+      return { ok: false, reason: "same-plot" };
+    });
+    act(() => latest!.onPlotLongPress(0));
+    act(() => latest!.onPlotTap(0)); // taps the moving building's own current plot
+    expect(calls).toEqual([]); // moveBuilding never reached
+    expect(latest!.movingId).toBeNull(); // cancelled, not rejected
+    expect(latest!.rejectMessage).toBeNull();
+  });
+});
+
 describe("useMoveMode — AC C1 #4: Android/gesture back cancels move mode (useBackGuard wiring)", () => {
   it("a popstate while movingId is set exits move mode", () => {
     render([building], () => ({ ok: false, reason: "not-found" }));

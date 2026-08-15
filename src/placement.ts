@@ -247,6 +247,30 @@ export type MoveResult =
   | { ok: false; reason: MoveRejection };
 
 /**
+ * Every anchor a move-mode drag of `buildingId` may legally land on — the
+ * ONE function both the grid's droppable highlight (`TownGrid.tsx`) and
+ * `moveBuilding`'s accept/reject decision route through, so they can never
+ * drift apart on what counts as a legal destination.
+ *
+ * `anchorsFor(w, h, otherCells)` alone is not quite this: it happily
+ * includes the building's OWN current anchor, since excluding the mover's
+ * cells from `otherCells` (so a footprint can overlap its own old spot while
+ * nudging) also makes its old spot look like free ground. `moveBuilding`
+ * rejects that exact anchor as `same-plot` — tapping the moving building
+ * again is already the documented cancel gesture (ADDENDUM-02 §4.3), not a
+ * destination — so it must never be offered as one. Filtered out here, at
+ * the shared root, instead of trusted to accidentally never render (which
+ * held only because a multi-cell building paints as a single merged DOM
+ * tile — see `placement.moveAnchor.test.ts`).
+ */
+export function moveAnchorsFor(buildings: readonly Building[], buildingId: string, w: 1 | 2, h: 1 | 2): number[] {
+  const building = buildings.find((b) => b.id === buildingId);
+  if (!building) return [];
+  const otherCells = cellOwners(buildings.filter((b) => b.id !== buildingId));
+  return anchorsFor(w, h, otherCells).filter((anchor) => anchor !== building.plotIndex);
+}
+
+/**
  * Checked in order:
  *   not-found  - the building must exist
  *   same-plot  - `toAnchor === building.plotIndex` (UI treats this as cancel)
