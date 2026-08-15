@@ -26,6 +26,8 @@ import {
   slotsRemainingToday,
   tier,
   progressToNextSegment,
+  queueWaitsOnRoom,
+  streakDisplay,
   towerSegments,
   unsettledPeriods,
 } from "./selectors";
@@ -346,6 +348,59 @@ describe("advanceStreak", () => {
   it("first-ever act (lastActOn null) starts the streak at 1", () => {
     const town = { lastActOn: null, streakDays: 0, longestStreakDays: 0 };
     expect(advanceStreak(town, "2026-08-02")).toEqual({ lastActOn: "2026-08-02", streakDays: 1, longestStreakDays: 1 });
+  });
+});
+
+// ── streakDisplay — header-honesty fix ──
+// The header used to show `streakDays` with "continues" copy for ANY day
+// `lastActOn !== today`, including long after the streak had already died
+// (`advanceStreak` would RESET it to 1 on the next save, not extend it).
+// `streakDisplay` derives from the exact same `dayBefore` predicate
+// `advanceStreak` uses, so the two can never disagree.
+describe("streakDisplay", () => {
+  it("recorded today: passes the stored count through, status 'recorded'", () => {
+    const town = { lastActOn: "2026-08-10", streakDays: 5 };
+    expect(streakDisplay(town, "2026-08-10")).toEqual({ streakDays: 5, status: "recorded" });
+  });
+
+  it("last acted yesterday: ALIVE, keeps the stored count — a save today truly extends it", () => {
+    const town = { lastActOn: "2026-08-09", streakDays: 7 };
+    expect(streakDisplay(town, "2026-08-10")).toEqual({ streakDays: 7, status: "alive" });
+    // Cross-check against the save path's own rule: alive here must mean advanceStreak extends, not resets.
+    expect(advanceStreak({ ...town, longestStreakDays: 7 }, "2026-08-10").streakDays).toBe(8);
+  });
+
+  it("the panel's exact repro (31 days, lastActOn 2026-07-31, today 2026-08-10): BROKEN, shows 0 not the stale 31", () => {
+    const town = { lastActOn: "2026-07-31", streakDays: 31 };
+    expect(streakDisplay(town, "2026-08-10")).toEqual({ streakDays: 0, status: "broken" });
+    // Cross-check: advanceStreak resets here, it does not extend — the stale 31 was never a real continuation.
+    expect(advanceStreak({ ...town, longestStreakDays: 31 }, "2026-08-10").streakDays).toBe(1);
+  });
+
+  it("no streak yet (lastActOn null): also BROKEN — 0, same as any other dead streak", () => {
+    const town = { lastActOn: null, streakDays: 0 };
+    expect(streakDisplay(town, "2026-08-10")).toEqual({ streakDays: 0, status: "broken" });
+  });
+
+  it("gap of exactly two days (not yesterday, not today): BROKEN, not alive", () => {
+    const town = { lastActOn: "2026-08-08", streakDays: 4 };
+    expect(streakDisplay(town, "2026-08-10")).toEqual({ streakDays: 0, status: "broken" });
+  });
+});
+
+// ── queueWaitsOnRoom — FT-1 header honesty fix ──
+describe("queueWaitsOnRoom", () => {
+  it("false when the queue is empty regardless of slots", () => {
+    expect(queueWaitsOnRoom(3, 0)).toBe(false);
+    expect(queueWaitsOnRoom(0, 0)).toBe(false);
+  });
+
+  it("true when items are queued despite slots remaining — decideBuildOrQueue would have built them if room existed", () => {
+    expect(queueWaitsOnRoom(2, 1)).toBe(true);
+  });
+
+  it("false when slots are exhausted — the cap alone explains the queue, room may still exist tomorrow", () => {
+    expect(queueWaitsOnRoom(0, 3)).toBe(false);
   });
 });
 
