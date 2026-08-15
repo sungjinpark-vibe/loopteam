@@ -176,8 +176,11 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // uses for this same honesty fix (selectors.ts, FT-1) — `slotsRemaining`
       // is safe to read here even though it's the pre-save closure value,
       // because the queue branch never spends a slot (entryActions.ts).
+      // Names the way out (라이브옵스 PD TOP FIX): a player stuck here has one
+      // lever — fuse two Lv.MAX buildings to free a cell — and nothing on
+      // this screen said so before.
       const queueReason = queueWaitsOnRoom(store.slotsRemaining, result.queueLength)
-        ? "마을이 꽉 찼어요."
+        ? `마을이 꽉 찼어요. Lv.${BALANCE.maxLevel} 건물 두 채를 합치면 자리가 생겨요.`
         : "오늘 슬롯을 다 썼어요.";
       openToast(`${queueReason} ${QUEUED_BUILD_PROMISE} (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.queueOverflow) {
@@ -465,8 +468,11 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // Town full — the park deferred onto the same queue an over-cap entry
       // uses, so it shares that path's `QUEUED_BUILD_PROMISE` fragment
       // (see the queued branch of `handleAddEntry` above): 공원 for 건물,
-      // nothing else new.
-      openToast(`오늘은 무지출! 공원은 ${QUEUED_BUILD_PROMISE} (대기 ${claimed.queueLength}개)`);
+      // nothing else new. `claimNoSpendDay` only ever reaches this branch on
+      // `plotIndex === null` (a slot-exhausted claim is rejected earlier by
+      // `canClaimNoSpend`), so the cause is always room — names the same
+      // fusion way-out as the entry path, for the same reason.
+      openToast(`마을이 꽉 찼어요. Lv.${BALANCE.maxLevel} 건물 두 채를 합치면 자리가 생겨요. 오늘은 무지출! 공원은 ${QUEUED_BUILD_PROMISE} (대기 ${claimed.queueLength}개)`);
       return;
     }
     openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
