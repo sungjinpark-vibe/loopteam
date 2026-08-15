@@ -215,7 +215,11 @@ function App() {
         />
       )}
 
-      <SettlementCard summary={notice?.kind === "settlement" ? notice.summary : null} onDismiss={dismissNotice} />
+      <SettlementCard
+        summary={notice?.kind === "settlement" ? notice.summary : null}
+        seedsGranted={notice?.kind === "settlement" ? notice.seedsGranted : 0}
+        onDismiss={dismissNotice}
+      />
 
       <SettingsSheet
         open={settingsOpen}

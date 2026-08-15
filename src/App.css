@@ -366,6 +366,12 @@ button.town-fab {
   --town-grass: #cdeccb; /* park base */
   --town-water: #7fb8e0; /* lake fill */
   --lake-shore: #e3f4fc; /* lighter shoreline ring on a lake cell touching non-lake */
+  /* S8 마을 꾸미기 — a stable containing block for the `::after` skin overlay
+   * below, so it anchors to `.town-grid` itself instead of drifting to
+   * whatever positioned ancestor happens to be nearest (the zoom transform
+   * only creates one conditionally — see App.css's own S8 comment). Grid
+   * layout is unaffected by `position`. */
+  position: relative;
   display: grid;
   gap: var(--town-gap); /* was 8px, now GRID_GAP_PX from townLayout.ts */
   /* gridTemplateRows arrives inline from TownGrid.tsx (GRID_TEMPLATE_ROWS,
@@ -908,6 +914,42 @@ button.town-fab {
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
+}
+
+/* S8 건물 꾸미기 — opposite corner from `.building-level-badge` so a Lv.N
+ * building with a cosmetic never has the two collide. Plain emoji glyph,
+ * no background chip: it should read as decor sitting ON the building, not
+ * as another status pill. */
+.town-tile-deco {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* S8 마을 꾸미기 — a pseudo-element, not a real child, so `.town-grid`'s
+ * AC-M7 direct-children guard stays untouched. Absent by default
+ * (`data-town-deco` unset), so the frozen map baseline (afc7cd6) renders
+ * byte-identical until a player actually buys and applies a skin. Ground/
+ * street tint only (rule R-12 keeps the sky off limits) — a soft overlay,
+ * not a repaint of the terrain art underneath it. */
+.town-grid[data-town-deco]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.town-grid[data-town-deco="deco.town.cherryBlossom.v1"]::after {
+  background: radial-gradient(circle at 20% 15%, rgba(255, 183, 213, 0.16), transparent 45%), radial-gradient(circle at 75% 65%, rgba(255, 183, 213, 0.14), transparent 50%);
+}
+.town-grid[data-town-deco="deco.town.snowyVillage.v1"]::after {
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.22), transparent 45%), radial-gradient(circle at 70% 70%, rgba(214, 236, 255, 0.16), transparent 50%);
+}
+.town-grid[data-town-deco="deco.town.nightMarket.v1"]::after {
+  background: linear-gradient(180deg, rgba(40, 24, 8, 0.1), rgba(255, 176, 59, 0.08));
 }
 
 /* F16 — monument: a plaque-style ring (never used by a category tile or the
@@ -1532,6 +1574,20 @@ button.town-fab {
 .onboarding-dot--active {
   background: var(--town-blue500);
   width: 16px;
+}
+
+/* Gate-3-rerun fix, round 2 (Onboarding.tsx's own comment on the effect that
+ * sets `aria-disabled`): `!important` so this wins over the vendor TDS
+ * Button's own re-asserted inline style on every re-render (a plain inline
+ * style loses to `!important` author CSS regardless of how many times it's
+ * rewritten), instead of the previous one-shot inline-style patch that
+ * measurably eroded back toward the vendor's own opacity between keystrokes. */
+.onboarding-card button[aria-disabled="true"] {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+.onboarding-card button[aria-disabled="false"] {
+  opacity: 1 !important;
 }
 
 /* ── F5 tier celebration — non-blocking banner (round-1 playtest: the prior

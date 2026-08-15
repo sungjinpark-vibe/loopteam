@@ -70,3 +70,38 @@ export function speciesForIndex(npcIndex: number): NpcSpeciesDef {
   const i = ((npcIndex % SPECIES.length) + SPECIES.length) % SPECIES.length;
   return SPECIES[i];
 }
+
+/** The first 6 (`kNpcIds` "base" set) render for everyone with no purchase — the shop-tier 6 are what S8's NPC section is selling. */
+const BASE_SPECIES_COUNT = 6;
+
+/**
+ * S8 shop sku id -> the SPECIES entry it unlocks. Gate-3-rerun fix
+ * (게임 디자이너 TOP FIX): before this, `speciesForIndex` cycled through all
+ * 12 species unconditionally, so every shop-tier species already appeared
+ * for free — buying `npc.species.*.v1` changed nothing observable. Only 3 of
+ * the 5 NPC-species skus have a clean match to today's `SPECIES` table.
+ * ponytail: `npc.species.fox.v1` re-sells a species that's already in the
+ * free base 6, and `npc.species.raccoon.v1` has no matching `SPECIES` entry
+ * at all — pre-existing catalogue/species-table drift, not something to
+ * silently paper over here. Both skus stay purchasable (ownership is still
+ * tracked) but unlock nothing new until an artist either retires them or
+ * adds a real "raccoon" `SPECIES` def and repoints fox at a different one.
+ */
+const SKU_TO_SPECIES_ID: Readonly<Record<string, string>> = {
+  "npc.species.hamster.v1": "hamster",
+  "npc.species.panda.v1": "panda",
+  "npc.species.penguin.v1": "penguin",
+};
+
+/** Base 6 (always shown) plus any shop-tier species the player has actually bought. */
+export function unlockedSpecies(ownedSkus: readonly string[]): readonly NpcSpeciesDef[] {
+  const ownedSpeciesIds = new Set(ownedSkus.map((sku) => SKU_TO_SPECIES_ID[sku]).filter((id): id is string => id !== undefined));
+  return SPECIES.filter((s, i) => i < BASE_SPECIES_COUNT || ownedSpeciesIds.has(s.id));
+}
+
+/** Same determinism as `speciesForIndex`, scoped to what `ownedSkus` has actually unlocked. */
+export function speciesForIndexUnlocked(npcIndex: number, ownedSkus: readonly string[]): NpcSpeciesDef {
+  const pool = unlockedSpecies(ownedSkus);
+  const i = ((npcIndex % pool.length) + pool.length) % pool.length;
+  return pool[i];
+}

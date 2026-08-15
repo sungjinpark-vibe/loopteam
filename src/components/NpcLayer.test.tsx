@@ -66,4 +66,14 @@ describe("NpcLayer", () => {
     mounted = mountComponent(<NpcLayer npcCount={2} />);
     expect(setSpy).not.toHaveBeenCalled();
   });
+
+  it("owning a species sku changes what renders vs. the default base-6 pool (Gate-3-rerun: buying a species used to change nothing)", () => {
+    const base = mountComponent(<NpcLayer npcCount={12} ownedSkus={[]} />);
+    const baseHtml = base.container.querySelector(".npc-layer")!.innerHTML;
+    base.unmount();
+    const unlocked = mountComponent(<NpcLayer npcCount={12} ownedSkus={["npc.species.panda.v1"]} />);
+    const unlockedHtml = unlocked.container.querySelector(".npc-layer")!.innerHTML;
+    mounted = unlocked;
+    expect(unlockedHtml).not.toBe(baseHtml);
+  });
 });

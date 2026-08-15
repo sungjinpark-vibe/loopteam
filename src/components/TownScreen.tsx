@@ -25,7 +25,7 @@ import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
 import { useGrowPickMode } from "../hooks/useGrowPickMode";
 import { useMoveMode } from "../hooks/useMoveMode";
-import { budgetPace, firstFusablePair, moodTier, queueWaitsOnRoom, totalLevelOf, tier as computeTier } from "../selectors";
+import { budgetPace, expGainFor, firstFusablePair, moodTier, queueWaitsOnRoom, totalLevelOf, tier as computeTier } from "../selectors";
 import type { Building } from "../types";
 import type { AddEntryResult, TownStore } from "../useTownStore";
 
@@ -368,8 +368,20 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
 
   function handleSave(draft: EntryDraft) {
     // ADDENDUM-04 §4 — the choice trigger, evaluated once at save time.
+    // Gate-3-rerun fix (UX 리서처/타깃 플레이어 TOP FIX): `growCandidates`
+    // alone used to be the whole gate, so the dialog fired even when this
+    // amount is worth 0 exp (below `expAmountTiers`' first band) — 키우기
+    // would then change literally nothing (no exp, no level), while 새로
+    // 짓기 still produces a real future fusion partner. That is not a
+    // decision, it is a coin flip with one side stapled to the floor, so a
+    // 0-exp amount now skips the dialog outright and founds new the same
+    // way a brand-new category already does — no copy change needed, the
+    // existing founding toast already says what happened.
     const canGrow =
-      draft.type !== "saving" && store.slotsRemaining > 0 && store.growCandidates(draft.categoryId).length > 0;
+      draft.type !== "saving" &&
+      store.slotsRemaining > 0 &&
+      store.growCandidates(draft.categoryId).length > 0 &&
+      expGainFor(draft.amountKrw, BALANCE.expAmountTiers) > 0;
     // Close the sheet FIRST — the dialog must never nest inside an open
     // BottomSheet (the vendor backdrop bug `useConfirmDialogBackdropFix`
     // exists for; avoided here by construction, not patched a second time).
@@ -620,6 +632,12 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         movingId={move.movingId}
         cursorIndex={move.cursorIndex}
         npcCount={store.npcCount}
+        // S8 — Gate-3-rerun fix (게임 디자이너 TOP FIX): a shop purchase used to
+        // change nothing the player could see. These three read straight off
+        // `store.economy`, the same state ShopSheet already writes.
+        ownedSkus={store.economy.ownedSkus}
+        appliedByBuildingId={store.economy.appliedByBuildingId}
+        appliedTownSku={store.economy.appliedTownSku}
         // ADDENDUM-04 §4 — the two grid modes are mutually exclusive (see
         // this file's own state comments): while pick mode is active, a
         // long-press must not also start move mode, and a tap routes to the
@@ -776,7 +794,16 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
           pendingGrow?.expGain === 0
             ? "이 금액으로는 키워도 레벨이 오르지 않아요."
             : "키우면 지금 있는 건물의 레벨이 올라가요."
-        } 둘 다 건축 슬롯 1개를 써요.`}
+        } 둘 다 건축 슬롯 1개를 써요.${
+          // Gate-3-rerun fix (E4, all 5 experts): nothing used to warn that
+          // 키우기 can demand a SECOND tap (grid pick-mode) when there's more
+          // than one same-category building to choose from — an expert QA
+          // driver hit that overlay "not anticipating it". Said here, before
+          // the tap, instead of only after.
+          pendingGrow && store.growCandidates(pendingGrow.categoryId).length > 1
+            ? " 같은 종류 건물이 여러 채라 키우기를 누르면 어떤 건물을 키울지 화면에서 골라야 해요."
+            : ""
+        }`}
         // Dismissing without choosing defaults to 새로 짓기 (the entry is
         // already saved; this only settles which building effect it gets).
         onClose={handleBuildNew}

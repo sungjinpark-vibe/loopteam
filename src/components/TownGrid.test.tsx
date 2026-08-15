@@ -101,7 +101,7 @@ const NOOP_MOVE_PROPS: MoveProps = {
 function mountGrid(
   buildings: readonly Building[] = [],
   moveProps: Partial<MoveProps> = {},
-  extra: Partial<Pick<TownGridProps, "growCandidateIds" | "justBuiltId">> = {},
+  extra: Partial<Pick<TownGridProps, "growCandidateIds" | "justBuiltId" | "appliedByBuildingId" | "appliedTownSku">> = {},
 ): HTMLElement {
   mounted = mountComponent(
     <TownGrid
@@ -118,6 +118,8 @@ function mountGrid(
       {...NOOP_MOVE_PROPS}
       {...moveProps}
       growCandidateIds={extra.growCandidateIds}
+      appliedByBuildingId={extra.appliedByBuildingId}
+      appliedTownSku={extra.appliedTownSku}
     />,
   );
   return mounted.container;
@@ -1436,5 +1438,27 @@ describe("TownGrid — the overhang fade (occlusion)", () => {
       building({ id: "front", plotIndex: PAIR.front }),
     ]);
     expect(artAt(container, PAIR.front).hasAttribute("data-occludes")).toBe(false);
+  });
+});
+
+// Gate-3-rerun fix (game-designer/target-player TOP FIX): a shop purchase
+// used to change nothing the player could see. Minimal regression that the
+// wiring from `economy.appliedByBuildingId`/`appliedTownSku` actually reaches
+// the DOM, so this can't silently regress back to invisible.
+describe("TownGrid — S8 꾸미기 renders what the shop applied", () => {
+  it("a building with an applied deco sku shows its badge glyph", () => {
+    const container = mountGrid([building({ id: "b1" })], {}, { appliedByBuildingId: { b1: "deco.building.flowerbed.v1" } });
+    const badge = container.querySelector(`[data-plot-index="${GROUND_A}"] .town-tile-deco`);
+    expect(badge?.textContent).toBe("🌷");
+  });
+
+  it("a building with no applied sku shows no badge", () => {
+    const container = mountGrid([building({ id: "b1" })]);
+    expect(container.querySelector(`[data-plot-index="${GROUND_A}"] .town-tile-deco`)).toBeNull();
+  });
+
+  it("an applied town skin sets data-town-deco on .town-grid", () => {
+    const container = mountGrid([], {}, { appliedTownSku: "deco.town.cherryBlossom.v1" });
+    expect(container.querySelector(".town-grid")?.getAttribute("data-town-deco")).toBe("deco.town.cherryBlossom.v1");
   });
 });

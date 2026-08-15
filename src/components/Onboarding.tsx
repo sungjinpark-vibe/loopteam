@@ -68,16 +68,19 @@ export function Onboarding({ onSetBudget, onComplete }: OnboardingProps) {
     if (!btn) return;
     btn.toggleAttribute("disabled", isStartDisabled);
     btn.setAttribute("aria-disabled", String(isStartDisabled));
-    // Gate-3-rerun fix (ux-researcher E1/E3): the `disabled`/`aria-disabled`
-    // attributes above gate the click handler correctly, but the vendor
-    // TDS Button's own CSS was confirmed (live Chromium) NOT to key off
-    // either one — computed opacity stayed 1 either way, so a 0/empty
-    // budget looked exactly as tappable as a valid one and absorbed the tap
-    // silently. This inline style is the actual visual signal, driven
-    // directly off `isStartDisabled` instead of trusting the vendor to
-    // react to the DOM attribute it doesn't style.
-    (btn as HTMLButtonElement).style.opacity = isStartDisabled ? "0.4" : "";
-    (btn as HTMLButtonElement).style.cursor = isStartDisabled ? "not-allowed" : "";
+    // Gate-3-rerun fix, round 2 (게임 디자이너/QA 리드/타깃 플레이어: measured
+    // ~0.42-0.49 disabled vs ~0.60-0.68 enabled, not the intended 0.4-vs-1.0):
+    // the previous fix here set `btn.style.opacity` imperatively, once, only
+    // when `isStartDisabled` flips. Every keystroke in the budget field
+    // re-renders this Button, and the vendor re-asserts its OWN inline style
+    // object on each of ITS re-renders (its own baseline is already <1, which
+    // is why even the ENABLED reading was under 1.0) — silently eroding our
+    // one-shot patch back toward its value between keystrokes, hence the
+    // drift. An external stylesheet rule keyed off `aria-disabled` (App.css,
+    // `.onboarding-card button[aria-disabled]`) wins with `!important`
+    // regardless of how often the vendor re-renders, because `!important`
+    // author CSS always beats a plain (non-`!important`) inline style — so
+    // this effect only needs to keep the attribute itself correct.
   }, [isStartDisabled]);
 
   /** 건너뛰기 — completes without ever writing a budget the player didn't set. */

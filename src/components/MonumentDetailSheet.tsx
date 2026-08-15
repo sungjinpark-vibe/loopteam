@@ -9,8 +9,11 @@
  * than inventing a second stat-row style.
  */
 import { BottomSheet, Button } from "@toss/tds-mobile";
+import { BALANCE } from "../balance.approved";
 import { parseYm } from "../calendar";
 import { monumentOutcomeLabel } from "../content.placeholder";
+import { formatSeedsWithUnit } from "../economy/format";
+import { seeds as toSeedCount } from "../economy/types";
 import { formatKrw } from "../format";
 import { useEscapeToClose } from "../hooks/useEscapeToClose";
 import type { Building } from "../types";
@@ -66,6 +69,19 @@ export function MonumentDetailSheet({ open, monument, onClose }: MonumentDetailS
             <span className="history-total-value">{summary.daysLogged}일</span>
           </div>
         </div>
+        {/* Gate-3-rerun fix (라이브옵스 PD TOP FIX): settlement's own seed grant
+            used to have no line anywhere, including here. `primeLotCount`'s
+            bonus lived only at drain time and isn't part of the frozen
+            `MonthSummary` this sheet reads (reopening an old monument can't
+            know how many prime lots the town had that day), so this states
+            the guaranteed BASE grant only — true for every monument, never
+            an invented exact total. */}
+        {BALANCE.seedAwards.settlementByOutcomeBucket[summary.outcomeBucket] > 0 && (
+          <p className="history-pace-label">
+            이 정산으로 최소 {formatSeedsWithUnit(toSeedCount(BALANCE.seedAwards.settlementByOutcomeBucket[summary.outcomeBucket]))}를 받았어요
+            (명당 보너스는 별도예요)
+          </p>
+        )}
       </div>
     </BottomSheet>
   );

@@ -101,6 +101,12 @@ export interface TownGridProps {
   cursorIndex: number | null;
   /** How many animal NPCs to render. */
   npcCount: number;
+  /** S8 — species skus actually owned, so `NpcLayer` shows only what's been bought (base 6 always show). */
+  ownedSkus?: readonly string[];
+  /** S8 — 건물 꾸미기: buildingId -> applied deco sku. Gate-3-rerun fix (게임 디자이너 TOP FIX): a purchase used to change nothing on screen. */
+  appliedByBuildingId?: Readonly<Record<string, string>>;
+  /** S8 — 마을 꾸미기: the one town-wide skin sku currently applied, or none. */
+  appliedTownSku?: string | null;
   /**
    * A building tile was long-pressed (or Enter'd while not in move mode).
    * Returns whether it actually grabbed a building.
@@ -132,6 +138,23 @@ export interface TownGridProps {
  * (fixed at 20), computed once.
  */
 const BAND_EDGE_ROWS = new Set([4, 9, 14]);
+
+/**
+ * S8 건물 꾸미기 sku -> the glyph its badge shows. A placeholder rendering
+ * (one emoji, not a bespoke SVG asset) is the deliberately lazy version of
+ * the panel's TOP FIX — it proves the earn -> buy -> apply loop actually
+ * ends in something visible, without touching the frozen building-art SVGs.
+ * ponytail: upgrade to a real per-sku SVG if/when an artist has time; the
+ * `appliedByBuildingId` plumbing this reads from doesn't change either way.
+ */
+const BUILDING_DECO_GLYPH: Readonly<Record<string, string>> = {
+  "deco.building.flowerbed.v1": "🌷",
+  "deco.building.mailbox.v1": "📮",
+  "deco.building.signboard.v1": "🪧",
+  "deco.building.balloon.v1": "🎈",
+  "deco.building.streetlamp.v1": "💡",
+  "deco.building.cat.v1": "🐱",
+};
 
 interface TerrainCell {
   index: number;
@@ -435,6 +458,9 @@ function TownGridImpl({
   movingId,
   cursorIndex,
   npcCount,
+  ownedSkus,
+  appliedByBuildingId,
+  appliedTownSku,
   onPlotLongPress,
   onPlotTap,
   onCursorMove,
@@ -728,6 +754,17 @@ function TownGridImpl({
               w={w as 1 | 2}
               h={h as 1 | 2}
             />
+            {/* S8 건물 꾸미기 — Gate-3-rerun fix (게임 디자이너 TOP FIX): a sibling
+                badge over the tile, never inside `PlaceholderBuilding`/
+                `buildingArt.tsx` (both frozen baselines — this must not touch
+                a single polygon). Same absolute-corner pattern as
+                `.building-level-badge`, opposite corner so the two never
+                collide. */}
+            {appliedByBuildingId?.[covering.id] && (
+              <span className="town-tile-deco" aria-hidden="true">
+                {BUILDING_DECO_GLYPH[appliedByBuildingId[covering.id]] ?? "✨"}
+              </span>
+            )}
           </div>,
         );
       } else {
@@ -751,7 +788,7 @@ function TownGridImpl({
       }
     }
     return { groundTiles: elements, dropAnchorFor: dropAnchors, byAnchor: anchorMap };
-  }, [buildings, movingId, growCandidateIds, justBuiltId, expPerLevel, maxLevel]);
+  }, [buildings, movingId, growCandidateIds, justBuiltId, expPerLevel, maxLevel, appliedByBuildingId]);
 
   const resolveDropTarget = useCallback((plotIndex: number) => dropAnchorFor.get(plotIndex) ?? plotIndex, [dropAnchorFor]);
 
@@ -847,6 +884,12 @@ function TownGridImpl({
       <div
         ref={gridRef}
         className={`town-grid${movingId !== null ? " town-grid--moving" : ""}`}
+        // S8 마을 꾸미기 — a data attribute, not a new child (AC-M7's
+        // direct-children guard is about `.town-grid`'s own children; App.css
+        // paints the skin as a ::after pseudo-element, so this stays a no-op
+        // in the default/free case — the frozen map baseline is untouched
+        // until a player actually applies a purchased skin).
+        data-town-deco={appliedTownSku ?? undefined}
         // ADDENDUM-02 §4.3 — one tab stop for the whole town, at any size: no
         // tile ever gets its own `tabIndex`. `aria-activedescendant` is the
         // roving-cursor pattern that lets a single-tab-stop container still
@@ -892,7 +935,7 @@ function TownGridImpl({
         />
         {/* LAST child so it stacks above every tile on DOM order alone
             (App.css deliberately gives `.town-tile`/`.town-cell` no z-index). */}
-        <NpcLayer npcCount={npcCount} />
+        <NpcLayer npcCount={npcCount} ownedSkus={ownedSkus} />
       </div>
       {/* Never a `.town-grid` child — a sibling inside `.town-viewport` instead. */}
       <button

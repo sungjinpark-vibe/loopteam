@@ -199,7 +199,12 @@ describe("§10.5 exploit C — spend-then-delete laundering", () => {
 
     for (const id of ids) deleteById(id, YM);
 
-    const totalClawback = 3 * perEntry; // exactly the 3 entry+build awards — the streak top-up (if any) is untouched (§6)
+    // Gate-3-rerun fix (all 5 experts' TOP FIX): deleting the LAST entry
+    // recorded today now also claws back that day's `seed:streak` grant —
+    // all three entries were founded today (single-day town, streakDays=1),
+    // so once the last one goes, no act remains to justify the streak seed.
+    const streakClawback = Math.min(2 * 1, 20);
+    const totalClawback = 3 * perEntry + streakClawback; // the 3 entry+build awards, plus the now-orphaned streak top-up
     const expectedShortfall = Math.max(0, totalClawback - afterPurchase);
     expect(latest!.economy.seeds).toBe(0);
     expect(latest!.economy.seedDebt ?? 0).toBe(expectedShortfall);
@@ -211,6 +216,19 @@ describe("§10.5 exploit C — spend-then-delete laundering", () => {
     const debtAfter = latest!.economy.seedDebt ?? 0;
     expect(debtAfter).toBe(Math.max(0, debtBefore - perEntry));
     if (debtBefore >= perEntry) expect(latest!.economy.seeds).toBe(0); // fully absorbed by the debt
+  });
+
+  // Panel-reported repro (all 5 experts, Gate-3-rerun): record one entry,
+  // delete it right back — the day's `seed:streak` grant used to survive
+  // because it's a per-DAY act, not per-entry, leaving +2..20 seeds with
+  // zero entries recorded. Net must be exactly zero.
+  it("record-then-delete of the day's ONLY entry nets exactly zero seeds (no orphaned streak grant)", async () => {
+    await mountAndWaitForBoot();
+    const before = latest!.economy.seeds;
+    const id = addAndGetId({ type: "expense", amountKrw: 3_000, categoryId: "cafe", occurredOn: TODAY }, YM);
+    expect(latest!.economy.seeds).toBeGreaterThan(before); // entry + build + streak all granted
+    deleteById(id, YM);
+    expect(latest!.economy.seeds).toBe(before);
   });
 });
 

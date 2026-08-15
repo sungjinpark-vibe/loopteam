@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { awardFor } from "./economy/awards";
-import { defaultEconomyState, type EconomyState } from "./economy/types";
+import { defaultEconomyState, seeds as toSeedCount, type EconomyState } from "./economy/types";
 import { buildingForEntry, deleteEntryEffects, editEntryEffects } from "./historyActions";
 import type { Building, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
@@ -10,8 +10,9 @@ import type { Building, LedgerEntry, QueuedMaterial, TownState } from "./types";
 // entry's/building's award key would be, so a revoke/settle in these
 // pre-existing tests is a real no-op rather than silently skipped because
 // the key was "never granted").
-function freshEconomy(overrides: Partial<EconomyState> = {}): EconomyState {
-  return { ...defaultEconomyState(), ...overrides };
+function freshEconomy(overrides: Partial<Omit<EconomyState, "seeds">> & { seeds?: number } = {}): EconomyState {
+  const { seeds, ...rest } = overrides;
+  return { ...defaultEconomyState(), ...rest, ...(seeds !== undefined ? { seeds: toSeedCount(seeds) } : {}) };
 }
 
 function freshTown(overrides: Partial<TownState> = {}): TownState {

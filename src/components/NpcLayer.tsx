@@ -9,13 +9,14 @@
  * One `setInterval` for the whole layer (~2.5s/step) drives every NPC's
  * `movement.ts` step at once — never one timer per sprite. The interval is
  * a repaint trigger only: NPC position/species is derived (species is a
- * pure function of array index) and never persisted (rule R-2).
+ * pure function of array index + `ownedSkus`, see `species.ts#speciesForIndexUnlocked`)
+ * and never persisted (rule R-2).
  */
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { random } from "../platform/random";
 import { GRID_SIZE, isRoadCell, isWalkable } from "../townLayout";
 import { initialNpcStates, reachableCells, stepNpcs, type NpcState } from "../npc/movement";
-import { speciesForIndex } from "../npc/species";
+import { speciesForIndexUnlocked } from "../npc/species";
 import { NpcSprite } from "../npc/NpcSprite";
 import "../npc.css";
 
@@ -27,6 +28,8 @@ export interface NpcLayerProps {
    * reimplement that rule, it only renders `npcCount` sprites.
    */
   npcCount: number;
+  /** S8 — which shop-tier species are actually unlocked (`species.ts#unlockedSpecies`). Defaults to none (base 6 only). */
+  ownedSkus?: readonly string[];
 }
 
 const STEP_INTERVAL_MS = 2500; // ~2.5s/tick, PM-DECISIONS §F-NPC
@@ -52,7 +55,7 @@ const SPAWN_CELLS: { row: number; col: number }[] = (() => {
   return []; // unreachable in practice — the map always has road cells
 })();
 
-function NpcLayerImpl({ npcCount }: NpcLayerProps) {
+function NpcLayerImpl({ npcCount, ownedSkus = [] }: NpcLayerProps) {
   const [npcs, setNpcs] = useState<NpcState[]>(() => initialNpcStates(npcCount, SPAWN_CELLS));
 
   // Re-seed positions whenever the visible count changes — species/position
@@ -136,7 +139,7 @@ function NpcLayerImpl({ npcCount }: NpcLayerProps) {
         return (
           <div key={i} className="npc-slot" data-npc-cell={`${npc.row},${npc.col}`} style={style}>
             <div className={`npc-sprite${npc.facingLeft ? " npc-sprite--flip" : ""}`}>
-              <NpcSprite species={speciesForIndex(i)} />
+              <NpcSprite species={speciesForIndexUnlocked(i, ownedSkus)} />
             </div>
           </div>
         );

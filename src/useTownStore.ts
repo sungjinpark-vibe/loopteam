@@ -43,7 +43,7 @@ import {
 } from "./placement";
 import { makeId } from "./id";
 import { analytics } from "./platform/analytics";
-import { clock, getTimeTravelDate, subscribeTimeTravel } from "./platform/clock";
+import { clock, getTimeTravelDate, subscribeTimeTravel, ymdToDate } from "./platform/clock";
 import { random } from "./platform/random";
 import { BALANCE } from "./balance.approved";
 import {
@@ -69,7 +69,7 @@ import {
   transferBuildingSku,
 } from "./fusionActions";
 import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
-import { applyAward, awardFor, type AwardEvent } from "./economy/awards";
+import { applyAward, awardFor, revokeAward, type AwardEvent } from "./economy/awards";
 import { defaultEconomyState, NPC_MAX_VISIBLE, NPC_SLOT_SKU, seeds as seedCount, type EconomyState } from "./economy/types";
 import type { Building, BudgetSetting, CategoryId, LedgerEntry, MonthSummary, PendingGrowChoice, SavingCategoryId, TownState } from "./types";
 
@@ -244,7 +244,13 @@ export type Notice =
   // Naturally never reappears on reload (idempotent settlement mints nothing
   // further, so no notice is pushed on a later boot) — same reasoning
   // "drained" already relies on.
-  | { kind: "settlement"; summary: MonthSummary }
+  // `seedsGranted` — 라이브옵스 PD TOP FIX (Gate-3-rerun): the month's biggest
+  // seed grant (`BALANCE.seedAwards.settlementByOutcomeBucket` + prime-lot
+  // bonus) used to land with no on-screen line at all. Carried alongside the
+  // summary so `SettlementCard` can say what this settlement actually paid,
+  // without recomputing the award off stale live state (prime-lot count
+  // drifts after the fact; this is the amount awarded AT settlement time).
+  | { kind: "settlement"; summary: MonthSummary; seedsGranted: number }
   // Gate-3 follow-up (A2) — the town's FIRST building was just founded. Fired
   // exactly once per town (the guard is `countBuildings(prev) === 0`, so a
   // town that later empties out and re-founds legitimately celebrates again).
@@ -726,12 +732,20 @@ export function useTownStore() {
         // reads that correctly instead of an unset field as "undefined".
         economy = applyAward(economy, awardFor({ kind: "build", buildingId: b.id, expGain: b.exp ?? 0 }));
       }
+      // period -> the seeds that settlement's award actually paid (라이브옵스
+      // PD TOP FIX) — captured per-monument so the F16 card below can name
+      // the SPECIFIC month it's showing, not just whichever ran last.
+      const settlementSeedsByPeriod = new Map<string, number>();
       for (const m of settleDrain.monuments) {
         if (m.monumentSummary) {
-          economy = applyAward(
-            economy,
-            awardFor({ kind: "settlement", period: m.monumentSummary.period, outcomeBucket: m.monumentSummary.outcomeBucket, primeLotCount: settleDrain.buildings.filter((b) => isPrimePlotIndex(b.plotIndex)).length }),
-          );
+          const settlementAward = awardFor({
+            kind: "settlement",
+            period: m.monumentSummary.period,
+            outcomeBucket: m.monumentSummary.outcomeBucket,
+            primeLotCount: settleDrain.buildings.filter((b) => isPrimePlotIndex(b.plotIndex)).length,
+          });
+          settlementSeedsByPeriod.set(m.monumentSummary.period, settlementAward.amount);
+          economy = applyAward(economy, settlementAward);
         }
       }
       if (settleDrain.celebrateTier !== null) economy = applyAward(economy, awardFor({ kind: "tier", tier: settleDrain.celebrateTier }));
@@ -746,7 +760,13 @@ export function useTownStore() {
       // boot settled several at once (a long absence never shows more than
       // one 지난달 결산 card).
       const latestMonument = settleDrain.monuments[settleDrain.monuments.length - 1];
-      if (latestMonument?.monumentSummary) bootNotices.push({ kind: "settlement", summary: latestMonument.monumentSummary });
+      if (latestMonument?.monumentSummary) {
+        bootNotices.push({
+          kind: "settlement",
+          summary: latestMonument.monumentSummary,
+          seedsGranted: settlementSeedsByPeriod.get(latestMonument.monumentSummary.period) ?? 0,
+        });
+      }
 
       return {
         state: {
@@ -1513,7 +1533,33 @@ export function useTownStore() {
     // already disables this action (§4 past-month, §5 fused).
     if (!entryMutability(entry, ym).canDelete) return;
 
-    const result = deleteEntryEffects({ town: prev.town, buildings: prev.buildings, entry, expAmountTiers: BALANCE.expAmountTiers, economy: prev.economy });
+    let result = deleteEntryEffects({ town: prev.town, buildings: prev.buildings, entry, expAmountTiers: BALANCE.expAmountTiers, economy: prev.economy });
+
+    // Gate-3-rerun fix (all 5 experts' TOP FIX, record-then-delete streak
+    // leak): `deleteEntryEffects` claws back this entry's own `seed:entry`/
+    // `seed:build` grants, but the day's `seed:streak:<date>` grant is a
+    // separate per-DAY act, not per-entry, so it survived — net +2..20
+    // seeds with zero entries left to justify the streak. Only reversed
+    // when TODAY is the day in question: that's the only day whose
+    // streakDays-at-grant-time we can still recover (`prev.town.streakDays`
+    // — it cannot have advanced again since, because a day only advances
+    // the streak once). A backdated entry deleted on a LATER day would need
+    // that earlier day's streakDays snapshot, which nothing persists.
+    // ponytail: bounded ceiling (today-only); persist streakDays-per-date
+    // if an exact reversal for older days is ever needed.
+    const today = clock.today();
+    const todayStartMs = ymdToDate(today).getTime();
+    const createdToday = entry.createdAt >= todayStartMs && entry.createdAt < todayStartMs + 86_400_000;
+    if (createdToday) {
+      const otherActToday = prev.entries
+        .concat(...Object.values(prev.historyEntries))
+        .some((e) => e.id !== entry.id && e.createdAt >= todayStartMs && e.createdAt < todayStartMs + 86_400_000);
+      const nospendToday = prev.buildings.some((b) => b.source.kind === "nospend" && b.source.date === today);
+      if (!otherActToday && !nospendToday) {
+        result = { ...result, economy: revokeAward(result.economy, awardFor({ kind: "streak", date: today, streakDays: prev.town.streakDays })) };
+      }
+    }
+
     const storageClient = storageRef.current;
     // ADDENDUM-12 §8 — write order: economy FIRST (a mid-write abort here
     // only costs the player seeds, never a live/dead-entry mismatch), THEN

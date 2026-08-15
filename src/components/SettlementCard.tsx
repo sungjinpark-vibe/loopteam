@@ -15,12 +15,25 @@
  */
 import { parseYm } from "../calendar";
 import { monumentOutcomeLabel } from "../content.placeholder";
+import { formatSeedsWithUnit } from "../economy/format";
+import { seeds as toSeedCount } from "../economy/types";
 import { formatKrw } from "../format";
 import type { MonthSummary } from "../types";
 
 export interface SettlementCardProps {
   /** The most recently settled month's frozen summary, or null to render nothing. */
   summary: MonthSummary | null;
+  /**
+   * Gate-3-rerun fix (라이브옵스 PD TOP FIX): settlement is the single
+   * largest seed grant in the game (`BALANCE.seedAwards.settlementByOutcomeBucket`
+   * + a prime-lot bonus) and used to land with no line here at all — a
+   * lapsed player's payday on the 1st, paid silently. Named on its OWN line
+   * below the KRW figures (never inline with them — R-9b bans typographic
+   * parallelism between the two), and only the grant this settlement paid,
+   * never a running balance (rule 6 keeps the ongoing total off every
+   * surface but the shop header and the reward toast).
+   */
+  seedsGranted: number;
   onDismiss: () => void;
 }
 
@@ -29,7 +42,7 @@ function formatPeriodLabel(period: string): string {
   return `${y}년 ${m}월`;
 }
 
-export function SettlementCard({ summary, onDismiss }: SettlementCardProps) {
+export function SettlementCard({ summary, seedsGranted, onDismiss }: SettlementCardProps) {
   if (summary === null) return null;
 
   return (
@@ -44,6 +57,7 @@ export function SettlementCard({ summary, onDismiss }: SettlementCardProps) {
         <span>
           지출 {formatKrw(summary.expenseKrw)} · 수입 {formatKrw(summary.incomeKrw)} · 저축 {formatKrw(summary.savingKrw)}
         </span>
+        {seedsGranted > 0 && <span>이번 달 정산으로 {formatSeedsWithUnit(toSeedCount(seedsGranted))}를 받았어요</span>}
       </div>
       <button type="button" className="tier-celebration-dismiss" aria-label="닫기" onClick={onDismiss}>
         ×

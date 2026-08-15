@@ -258,7 +258,11 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     expect(latest!.buildingCount).toBe(1);
 
     openSheet();
-    fillAndSave("카페");
+    // Gate-3-rerun fix (UX 리서처/타깃 플레이어 TOP FIX): the dialog now only
+    // fires when this amount is actually worth exp — 10,000원 is inside
+    // `expAmountTiers`' second band (gain 3), well above the 1원 default this
+    // suite used to rely on.
+    fillAndSave("카페", undefined, "10000");
     expect(findButton("키우기")).not.toBeUndefined(); // the dialog is up
 
     act(() => {
@@ -266,7 +270,9 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     });
 
     expect(latest!.buildingCount).toBe(2);
-    expect(latest!.buildings.every((b) => (b.exp ?? 0) === 0)).toBe(true); // nothing grew
+    // The NEW building gets this entry's exp; the original one is untouched.
+    expect(latest!.buildings.filter((b) => (b.exp ?? 0) === 3)).toHaveLength(1);
+    expect(latest!.buildings.filter((b) => (b.exp ?? 0) === 0)).toHaveLength(1);
   });
 
   it("키우기 with exactly one candidate grows it immediately, no second step", async () => {
@@ -277,7 +283,7 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     const hostId = latest!.buildings[0].id;
 
     openSheet();
-    fillAndSave("카페");
+    fillAndSave("카페", undefined, "10000");
     act(() => {
       findButton("키우기")!.click();
     });
@@ -285,11 +291,7 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     // No pick-mode bar — a single candidate grows straight away.
     expect(container.querySelector(".town-move-bar")).toBeNull();
     expect(latest!.buildingCount).toBe(1); // still one building — grown, not built
-    // Gate-3-rerun retune: `fillAndSave`'s amount (1원) is under
-    // `BALANCE.expAmountTiers`' bottom tier (5,000) — gain 0, so exp stays 0
-    // through the grow. The mechanic under test here is "grows, doesn't
-    // build a second lot", not the exp curve itself.
-    expect(latest!.buildings.find((b) => b.id === hostId)!.exp ?? 0).toBe(0);
+    expect(latest!.buildings.find((b) => b.id === hostId)!.exp ?? 0).toBe(3);
   });
 
   it("2+ candidates enters pick mode; tapping a candidate grows exactly that building", async () => {
@@ -304,7 +306,7 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     const entriesBefore = monthEntryCount();
 
     openSheet();
-    fillAndSave("카페");
+    fillAndSave("카페", undefined, "10000");
     act(() => {
       findButton("키우기")!.click();
     });
@@ -322,9 +324,7 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     expect(container.querySelector(".town-move-bar")).toBeNull(); // pick mode exited
     expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(0);
     expect(latest!.buildingCount).toBe(2); // no new building — grew in place
-    // Gate-3-rerun retune: all amounts here (1,000/2,000/1원) are under
-    // `BALANCE.expAmountTiers`' bottom tier (5,000) — gain 0 throughout.
-    expect(latest!.buildings.find((b) => b.id === second.id)!.exp ?? 0).toBe(0);
+    expect(latest!.buildings.find((b) => b.id === second.id)!.exp ?? 0).toBe(3);
     expect(latest!.buildings.find((b) => b.id === first.id)!.exp ?? 0).toBe(0);
     expect(monthEntryCount()).toBe(entriesBefore + 1);
   });
@@ -346,7 +346,7 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     const entriesBefore = monthEntryCount();
 
     openSheet();
-    fillAndSave("카페");
+    fillAndSave("카페", undefined, "10000");
     act(() => {
       findButton("키우기")!.click();
     });
@@ -383,7 +383,7 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     const entriesBefore = monthEntryCount();
 
     openSheet();
-    fillAndSave("카페");
+    fillAndSave("카페", undefined, "10000");
     act(() => {
       findButton("키우기")!.click();
     });
@@ -851,7 +851,7 @@ describe("TownScreen — ADDENDUM-11: Android back out of fuse pick mode does no
 
     // A grow flow right after: 2 existing 교통 candidates force pick mode.
     openSheet();
-    fillAndSave("교통");
+    fillAndSave("교통", undefined, "10000");
     act(() => {
       findButton("키우기")!.click();
     });
@@ -937,22 +937,24 @@ describe("TownScreen — A2: the grow dialog states what each choice actually do
     expect(text).toContain("둘 다 건축 슬롯 1개를 써요");
   });
 
-  // 타깃 플레이어 TOP FIX (Gate-3 rerun): below expAmountTiers' bottom rung
-  // (< 5,000원) growing is worth 0 exp, so promising "레벨이 올라가요" here
-  // would be a promise the dialog cannot keep.
-  it("warns instead of promising a level-up when this amount is below the exp floor", async () => {
+  // Gate-3-rerun fix (UX 리서처/타깃 플레이어 TOP FIX) SUPERSEDES the round-5
+  // "warn instead of promising" copy this test used to check: a 0-exp amount
+  // no longer opens the dialog at all — 키우기 would change nothing, while
+  // 새로 짓기 still produces a real fusion partner, so there is no genuine
+  // choice left to ask. The warn copy stays in the component (still correct
+  // for a deferred/edit-repriced grow choice that reaches the dialog some
+  // other way), it just isn't reachable from this everyday save path anymore.
+  it("below expAmountTiers' bottom rung (0 exp), skips the dialog and founds new directly", async () => {
     await mountAndWaitForBoot();
     act(() => {
       latest!.addEntry(cafeExpense(1_000));
     });
+    expect(latest!.buildingCount).toBe(1);
 
     openSheet();
     fillAndSave("카페"); // default amount 1 — below the 5,000원 floor
-    expect(findButton("키우기")).not.toBeUndefined();
-
-    const text = document.body.textContent ?? "";
-    expect(text).toContain("이 금액으로는 키워도 레벨이 오르지 않아요");
-    expect(text).not.toContain("키우면 지금 있는 건물의 레벨이 올라가요");
+    expect(findButton("키우기")).toBeUndefined(); // no dialog — 키우기 would be a no-op
+    expect(latest!.buildingCount).toBe(2); // founds new directly, same as a brand-new category
   });
 });
 
@@ -977,26 +979,16 @@ describe("TownScreen — A4: the grow toast names the resulting level and never 
     });
   }
 
-  it("a grow whose exp does NOT cross a level threshold reports exp, not a level-up", async () => {
-    await mountAndWaitForBoot();
-    act(() => {
-      latest!.addEntry(cafeExpense(1_000));
-    });
-    act(() => latest!.dismissNotice());
-    const before = latest!.levelOfBuilding(latest!.buildings[0]);
-
-    // 1원 is below `expAmountTiers`' bottom rung (5,000) — exp gain 0, so the
-    // level provably cannot move.
-    growExistingCafe("1");
-
-    expect(latest!.levelOfBuilding(latest!.buildings[0])).toBe(before); // level really did not move
-    expect(document.body.textContent).not.toContain("레벨이 올랐어요");
-    // 타깃 플레이어 TOP FIX (Gate-3 rerun): 0 exp actually landed (1원 is below
-    // expAmountTiers' bottom rung), so the toast must not claim "경험치가
-    // 쌓였어요" (exp accumulated) — that used to fire here regardless of gain.
-    expect(document.body.textContent).not.toContain("경험치가 쌓였어요");
-    expect(document.body.textContent).toContain(`이 금액으로는 경험치가 오르지 않았어요 (지금 Lv.${before})`);
-  });
+  // Gate-3-rerun fix (UX 리서처/타깃 플레이어 TOP FIX) SUPERSEDES this test's
+  // old repro: a 0-exp amount no longer opens the dialog at all (see the "A2"
+  // describe block above), so `growExistingCafe`'s `findButton("키우기")!`
+  // can no longer find the button here — this exact scenario is unreachable
+  // through the live entry flow now. The 0-exp branch of the toast's copy
+  // (`grewMessage` in TownScreen.tsx) stays in the component regardless: it
+  // is still the correct fallback for a `pendingGrowChoice` a PRE-upgrade
+  // save persisted before this fix shipped, reloaded into the new build — a
+  // storage-fixture test, not a live-entry one, would be the right coverage
+  // for that path if it's ever needed.
 
   it("a grow that DOES cross a threshold claims the level-up and names the level it ended at", async () => {
     await mountAndWaitForBoot();
@@ -1114,7 +1106,7 @@ describe("TownScreen — a save with an unresolved grow choice survives a reload
     const slotsBefore = latest!.slotsRemaining;
 
     openSheet();
-    fillAndSave("카페");
+    fillAndSave("카페", undefined, "10000");
     expect(findButton("키우기")).not.toBeUndefined(); // the dialog is up
     const pending = latest!.pendingGrowChoice;
     expect(pending).not.toBeNull();
@@ -1151,7 +1143,7 @@ describe("TownScreen — a save with an unresolved grow choice survives a reload
     const buildingsBefore = latest!.buildingCount;
 
     openSheet();
-    fillAndSave("카페");
+    fillAndSave("카페", undefined, "10000");
     act(() => {
       findButton("키우기")!.click();
     });
@@ -1189,7 +1181,7 @@ describe("TownScreen — a save with an unresolved grow choice survives a reload
     });
 
     openSheet();
-    fillAndSave("카페");
+    fillAndSave("카페", undefined, "10000");
     const pending = latest!.pendingGrowChoice!;
     const seedsAtSave = latest!.economy.seeds;
 
