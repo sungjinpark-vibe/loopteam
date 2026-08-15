@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyNewEntry, type EntryDraft } from "./entryActions";
+import { applyNewEntry, resolveGrowChoice, type EntryDraft } from "./entryActions";
 import type { Building, TownState } from "./types";
 
 function freshTown(overrides: Partial<TownState> = {}): TownState {
@@ -568,5 +568,138 @@ describe("applyNewEntry — ADDENDUM-04 §7 founding parity (expGain > 1)", () =
     );
     expect(grown.grownBuilding?.exp).toBe(3);
     expect(grown.celebrateTier).toBeNull(); // still 9 buildings — no new plot, no tier, regardless of expGain
+  });
+});
+
+// ── ADDENDUM-04 §4 deferred grow choice (data-loss fix) ────────────────────
+//
+// `deferGrowChoice` is what makes 저장 durable while the 새로짓기/키우기 dialog
+// is up: the entry, the slot and the streak commit immediately and ONLY the
+// building effect waits on `town.pendingGrowChoice`.
+describe("applyNewEntry — deferGrowChoice", () => {
+  it("saves the entry, spends the slot and advances the streak, but builds nothing yet", () => {
+    const result = applyNewEntry(callArgs({ deferGrowChoice: true }));
+
+    expect(result.entry.id).toBe("e1");
+    expect(result.entry.buildingId).toBeNull();
+    expect(result.entry.queued).toBe(false); // NOT on F14's queue — drainQueue must never touch it
+    expect(result.building).toBeNull();
+    expect(result.grownBuilding).toBeNull();
+    expect(result.queuedMaterial).toBeNull();
+    expect(result.town.slotsUsedToday).toBe(1);
+    expect(result.town.lastActOn).toBe("2026-08-02");
+    expect(result.pendingGrowChoice).toEqual({ entryId: "e1", entryYm: "2026-08", categoryId: "cafe", expGain: 1 });
+    expect(result.town.pendingGrowChoice).toEqual(result.pendingGrowChoice);
+    // The tier check is NOT run here — both branches score differently, and
+    // `highestTierSeen` only ever increases.
+    expect(result.celebrateTier).toBeNull();
+    expect(result.town.highestTierSeen).toBe(0);
+  });
+
+  it("still queues (and leaves no marker) when the town is full — a choice it could not honour is never offered", () => {
+    const result = applyNewEntry(callArgs({ deferGrowChoice: true, plotIndex: null }));
+
+    expect(result.pendingGrowChoice).toBeNull();
+    expect(result.town.pendingGrowChoice).toBeUndefined();
+    expect(result.queuedMaterial).not.toBeNull();
+    expect(result.entry.queued).toBe(true);
+  });
+});
+
+describe("resolveGrowChoice — the deferred half", () => {
+  const pendingTown = (overrides: Partial<TownState> = {}): TownState =>
+    freshTown({
+      slotsUsedOn: "2026-08-02",
+      slotsUsedToday: 1,
+      pendingGrowChoice: { entryId: "e1", entryYm: "2026-08", categoryId: "cafe", expGain: 3 },
+      ...overrides,
+    });
+
+  const savedEntry = {
+    id: "e1",
+    type: "expense" as const,
+    amountKrw: 4_500,
+    categoryId: "cafe" as const,
+    occurredOn: "2026-08-02",
+    createdAt: 1000,
+    updatedAt: 1000,
+    buildingId: null,
+    queued: false,
+  };
+
+  const host: Building = {
+    id: "host",
+    source: { kind: "entry", entryId: "e0" },
+    categoryId: "cafe",
+    variantIndex: 0,
+    plotIndex: 5,
+    builtOn: "2026-07-10",
+    createdAt: 10,
+    exp: 2,
+  };
+
+  function resolveArgs(overrides: Partial<Parameters<typeof resolveGrowChoice>[0]> = {}): Parameters<typeof resolveGrowChoice>[0] {
+    return {
+      town: pendingTown(),
+      buildings: [host],
+      entry: savedEntry,
+      buildingId: "b9",
+      variantIndex: 0,
+      createdAt: 2000,
+      today: "2026-08-02",
+      tierThresholds: [0, 10, 30, 80, 200],
+      materialQueueMax: 10,
+      plotIndex: 7,
+      w: 1,
+      h: 1,
+      ...overrides,
+    };
+  }
+
+  it("새로 짓기: founds the building, points the saved entry at it, clears the marker", () => {
+    const result = resolveGrowChoice(resolveArgs())!;
+
+    expect(result.building?.id).toBe("b9");
+    expect(result.building?.plotIndex).toBe(7);
+    expect(result.building?.exp).toBe(3);
+    expect(result.building?.source).toEqual({ kind: "entry", entryId: "e1" });
+    expect(result.entry.buildingId).toBe("b9");
+    expect(result.town.pendingGrowChoice).toBeUndefined();
+    // The slot was spent at 저장 time and must NOT be charged a second time.
+    expect(result.town.slotsUsedToday).toBe(1);
+  });
+
+  it("키우기: adds the exp to the named host, builds nothing, charges no second slot", () => {
+    const result = resolveGrowChoice(resolveArgs({ growTargetId: "host" }))!;
+
+    expect(result.building).toBeNull();
+    expect(result.grownBuilding?.id).toBe("host");
+    expect(result.grownBuilding?.exp).toBe(5); // 2 + expGain 3
+    expect(result.entry.buildingId).toBe("host");
+    expect(result.town.pendingGrowChoice).toBeUndefined();
+    expect(result.town.slotsUsedToday).toBe(1);
+  });
+
+  it("a stale growTargetId falls back to 새로 짓기 rather than dropping the choice", () => {
+    const result = resolveGrowChoice(resolveArgs({ growTargetId: "deleted" }))!;
+
+    expect(result.building?.id).toBe("b9");
+    expect(result.grownBuilding).toBeNull();
+    expect(result.town.pendingGrowChoice).toBeUndefined();
+  });
+
+  it("a town that filled up between 저장 and the answer defers the building onto F14's queue", () => {
+    const result = resolveGrowChoice(resolveArgs({ plotIndex: null }))!;
+
+    expect(result.building).toBeNull();
+    expect(result.queuedMaterial?.entryId).toBe("e1");
+    expect(result.entry.queued).toBe(true);
+    expect(result.town.queue).toHaveLength(1);
+    expect(result.town.pendingGrowChoice).toBeUndefined();
+  });
+
+  it("returns null when there is nothing pending, or when the marker outlived its entry", () => {
+    expect(resolveGrowChoice(resolveArgs({ town: freshTown() }))).toBeNull();
+    expect(resolveGrowChoice(resolveArgs({ entry: undefined }))).toBeNull();
   });
 });

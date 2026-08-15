@@ -360,14 +360,19 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
 
     expect(container.querySelector(".town-move-bar")?.textContent).toContain("표시된 건물 중에서 골라주세요");
     expect(container.querySelectorAll(".town-tile--grow-candidate").length).toBe(2); // still in pick mode
-    expect(monthEntryCount()).toBe(entriesBefore); // nothing committed by a stray tap
+    // The ENTRY was committed by 저장 itself (durability fix — it is no longer
+    // held hostage by the dialog/pick mode). What a stray tap must not commit
+    // is the CHOICE: no building grew, and the decision is still pending.
+    expect(monthEntryCount()).toBe(entriesBefore + 1);
+    expect(latest!.pendingGrowChoice).not.toBeNull();
+    expect(latest!.buildings.every((b) => (b.exp ?? 0) === 0)).toBe(true);
     const cancelStillThere = [...container.querySelectorAll<HTMLButtonElement>(".town-move-bar button")].some(
       (b) => b.textContent === "취소",
     );
     expect(cancelStillThere).toBe(true);
   });
 
-  it("cancelling pick mode (취소) saves nothing and leaves no state stuck", async () => {
+  it("cancelling pick mode (취소) returns to the choice dialog, keeps the saved entry, and leaves no state stuck", async () => {
     await mountAndWaitForBoot();
     act(() => {
       latest!.addEntry(cafeExpense(1_000));
@@ -393,8 +398,13 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
 
     expect(container.querySelector(".town-move-bar")).toBeNull();
     expect(latest!.buildingCount).toBe(2);
-    expect(latest!.buildings.every((b) => (b.exp ?? 0) === 0)).toBe(true); // nothing was saved
-    expect(monthEntryCount()).toBe(entriesBefore); // the entry itself was never saved
+    expect(latest!.buildings.every((b) => (b.exp ?? 0) === 0)).toBe(true); // no CHOICE was committed
+    // 취소 used to throw the entry away with the draft it was holding. The
+    // entry is saved at 저장 now, so backing out of pick mode only unwinds the
+    // pick — it returns to the dialog the pick came from.
+    expect(monthEntryCount()).toBe(entriesBefore + 1);
+    expect(latest!.pendingGrowChoice).not.toBeNull();
+    expect(findButton("키우기")).not.toBeUndefined(); // the choice dialog is back
     expect(container.querySelector(".town-fab")).not.toBeNull(); // FAB is back — no stuck mode
   });
 
@@ -852,8 +862,11 @@ describe("TownScreen — ADDENDUM-11: Android back out of fuse pick mode does no
     const entriesBefore = monthEntryCount();
     tapTile(transport2.plotIndex);
 
-    // Committed as a GROW: the entry saved, no fusion confirm ever appeared.
-    expect(monthEntryCount()).toBe(entriesBefore + 1);
+    // Committed as a GROW: `entriesBefore` was read AFTER 저장 already wrote the
+    // row, so the pick adds no row — it points the existing one at the host.
+    expect(monthEntryCount()).toBe(entriesBefore);
+    expect(latest!.getMonthEntries(TODAY.slice(0, 7)).at(-1)!.buildingId).toBe("transport2");
+    expect(latest!.pendingGrowChoice).toBeNull(); // choice resolved, marker gone
     expect(latest!.buildings.length).toBe(4); // grew in place, no fusion, no new building
     expect(document.body.textContent).not.toContain("건물을 융합할까요?");
   });
@@ -1029,5 +1042,150 @@ describe("TownScreen — FT-1: the no-spend park deferral toast", () => {
     expect(latest?.queueLength).toBe(1); // deferred, not built — proves this exercised the full-town branch
     expect(document.body.textContent).toContain("자리가 나면 지어드릴게요");
     expect(document.body.textContent).not.toContain("내일 아침");
+  });
+});
+
+// ── Durability of a save whose 새로짓기/키우기 choice is still open ──────────
+//
+// The defect (evaluation panel, 2026-08-15): 저장 with the ConfirmDialog — or
+// grid pick mode — showing parked the entry in TownScreen's React state
+// (`growDraft`) and wrote NOTHING. A reload at that moment destroyed the
+// record outright: not in `entries`, not in `economy`, not in 기록. Total loss
+// of the user's input.
+//
+// Every test here reloads by unmounting (which flushes storage.ts's ~300ms
+// write buffer through the store's own pagehide/cleanup path) and mounting a
+// fresh root over the SAME localStorage — the same "simulate a reload" the
+// store's own tests use.
+describe("TownScreen — a save with an unresolved grow choice survives a reload (data-loss regression)", () => {
+  async function reload(): Promise<void> {
+    act(() => root.unmount());
+    await mountAndWaitForBoot();
+  }
+
+  /** The three places the panel demanded the record be found after a reload. */
+  function assertRecordSurvived(entryId: string): void {
+    const ym = TODAY.slice(0, 7);
+    // 1. `entries` — the store's current-month slice.
+    expect(latest!.getMonthEntries(ym).map((e) => e.id)).toContain(entryId);
+    // 2. `economy` — the entry award is idempotent by `seed:entry:<id>`, so
+    //    finding the key proves it was paid ONCE and persisted, not re-paid.
+    expect(latest!.economy.grantedEventKeys).toContain(`seed:entry:${entryId}`);
+    expect(latest!.economy.seeds).toBeGreaterThan(0);
+    // 3. 기록 — the S3 screen's own read path (a lazily loaded month chunk),
+    //    not the in-memory array above.
+    expect(latest!.getMonthEntries(ym).find((e) => e.id === entryId)).not.toBeUndefined();
+  }
+
+  it("dialog showing at reload: the record is in entries + economy + 기록, and the choice is re-presented", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    const buildingsBefore = latest!.buildingCount;
+    const slotsBefore = latest!.slotsRemaining;
+
+    openSheet();
+    fillAndSave("카페");
+    expect(findButton("키우기")).not.toBeUndefined(); // the dialog is up
+    const pending = latest!.pendingGrowChoice;
+    expect(pending).not.toBeNull();
+    // Committed BEFORE the choice: the slot is spent, so nothing about the
+    // decision can be double-charged when it lands.
+    expect(latest!.slotsRemaining).toBe(slotsBefore - 1);
+    assertRecordSurvived(pending!.entryId);
+
+    await reload();
+
+    assertRecordSurvived(pending!.entryId);
+    expect(latest!.pendingGrowChoice?.entryId).toBe(pending!.entryId);
+    expect(findButton("키우기")).not.toBeUndefined(); // re-presented, not silently dropped
+    expect(latest!.buildingCount).toBe(buildingsBefore); // building effect still deferred
+    expect(latest!.slotsRemaining).toBe(slotsBefore - 1); // slot stayed spent across the reload
+
+    // …and answering it after the reload still works, exactly once.
+    act(() => {
+      findButton("새로 짓기")!.click();
+    });
+    expect(latest!.buildingCount).toBe(buildingsBefore + 1);
+    expect(latest!.pendingGrowChoice).toBeNull();
+    expect(latest!.getMonthEntries(TODAY.slice(0, 7)).find((e) => e.id === pending!.entryId)!.buildingId).not.toBeNull();
+  });
+
+  it("pick mode (2+ candidates) showing at reload: same three surfaces, and the choice comes back", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+    act(() => {
+      latest!.addEntry(cafeExpense(2_000));
+    });
+    const buildingsBefore = latest!.buildingCount;
+
+    openSheet();
+    fillAndSave("카페");
+    act(() => {
+      findButton("키우기")!.click();
+    });
+    // 2+ candidates — the dialog handed off to grid pick mode, the state the
+    // panel's second repro reloads in.
+    expect(container.querySelector(".town-move-bar")?.textContent).toContain("키울 건물을 선택하세요");
+    const pending = latest!.pendingGrowChoice;
+    expect(pending).not.toBeNull();
+    assertRecordSurvived(pending!.entryId);
+
+    await reload();
+
+    assertRecordSurvived(pending!.entryId);
+    expect(latest!.pendingGrowChoice?.entryId).toBe(pending!.entryId);
+    // Pick mode itself is session state; the DECISION is what has to come
+    // back, and it comes back as the dialog it started from.
+    expect(findButton("키우기")).not.toBeUndefined();
+    expect(latest!.buildingCount).toBe(buildingsBefore);
+
+    // Resolving as 키우기 after the reload grows a host instead of building.
+    act(() => {
+      findButton("키우기")!.click();
+    });
+    const host = latest!.buildings.find((b) => b.categoryId === "cafe")!;
+    tapTile(host.plotIndex);
+    expect(latest!.buildingCount).toBe(buildingsBefore); // grew in place
+    expect(latest!.pendingGrowChoice).toBeNull();
+    expect(latest!.getMonthEntries(TODAY.slice(0, 7)).find((e) => e.id === pending!.entryId)!.buildingId).toBe(host.id);
+  });
+
+  it("an unresolved choice is never double-counted: the entry award is paid once across the reload", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+
+    openSheet();
+    fillAndSave("카페");
+    const pending = latest!.pendingGrowChoice!;
+    const seedsAtSave = latest!.economy.seeds;
+
+    await reload();
+    expect(latest!.economy.seeds).toBe(seedsAtSave); // a reload pays nothing
+
+    act(() => {
+      findButton("새로 짓기")!.click();
+    });
+    // Resolving adds the BUILD award on top; the entry award's key was already
+    // recorded, so `applyAward` no-ops it rather than paying twice.
+    expect(latest!.economy.grantedEventKeys.filter((k) => k === `seed:entry:${pending.entryId}`).length).toBe(1);
+    expect(latest!.economy.seeds).toBeGreaterThan(seedsAtSave);
+  });
+
+  it("a town persisted before this shipped has no marker and loads with no pending choice", async () => {
+    // The absent-marker case: seed storage the way every pre-existing save
+    // looks (no `pendingGrowChoice` key anywhere) and boot over it.
+    seedFuseTown([fuseBuilding("cafe1", fuseCell(0))]);
+    await mountAndWaitForBoot();
+
+    expect(latest!.loading).toBe(false);
+    expect(latest!.pendingGrowChoice).toBeNull();
+    expect(findButton("키우기")).toBeUndefined(); // no phantom dialog
+    expect(latest!.buildingCount).toBe(1);
   });
 });
