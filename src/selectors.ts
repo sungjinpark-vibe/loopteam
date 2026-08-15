@@ -185,6 +185,19 @@ export function slotsRemainingToday(
 }
 
 /**
+ * F7's own "does today extend the streak" predicate — the ONE place that
+ * decides it, shared by `advanceStreak` (what a save actually does) and
+ * `streakDisplay` (what the header honestly shows) below. Extracted so the
+ * header's copy can never drift from the save path's real behavior again
+ * (header-honesty defect: it used to re-derive `lastActOn !== today` on its
+ * own, which is true both the day after a live streak AND months after a
+ * dead one — this is the narrower, correct check).
+ */
+function streakAlive(town: Pick<TownState, "lastActOn">, today: string): boolean {
+  return town.lastActOn === dayBefore(today);
+}
+
+/**
  * F7 streak: advances `lastActOn`/`streakDays`/`longestStreakDays` for the
  * day's first build-producing act (a new ledger entry that builds or queues,
  * or a claimed 무지출 데이 — spec §5 F7). Idempotent within a day — a second
@@ -196,8 +209,51 @@ export function advanceStreak(
   today: string,
 ): Pick<TownState, "lastActOn" | "streakDays" | "longestStreakDays"> {
   if (town.lastActOn === today) return town;
-  const streakDays = town.lastActOn === dayBefore(today) ? town.streakDays + 1 : 1;
+  const streakDays = streakAlive(town, today) ? town.streakDays + 1 : 1;
   return { lastActOn: today, streakDays, longestStreakDays: Math.max(town.longestStreakDays, streakDays) };
+}
+
+/** Header-honesty status for the streak line — see `streakDisplay` below. */
+export type StreakStatus = "recorded" | "alive" | "broken";
+
+/**
+ * Header-honesty fix: what the streak line should HONESTLY show right now,
+ * derived from `streakAlive` (the exact predicate `advanceStreak` — the save
+ * path's real source of truth — uses), not restated by hand. Three cases:
+ *
+ *  - `lastActOn === today`: already recorded today. Shows the stored count,
+ *    no continuation copy.
+ *  - `streakAlive`: yesterday was the last act — today genuinely continues
+ *    it. Shows the stored count with the "이어져요" copy.
+ *  - otherwise: the streak is dead (`advanceStreak` would RESET it to 1, not
+ *    extend it, on the next save) — the stored `streakDays` is stale and
+ *    must not be shown as if it were still live. Shows 0, with "새로
+ *    시작해요" copy instead of a continuation claim.
+ */
+export function streakDisplay(
+  town: Pick<TownState, "lastActOn" | "streakDays">,
+  today: string,
+): { streakDays: number; status: StreakStatus } {
+  if (town.lastActOn === today) return { streakDays: town.streakDays, status: "recorded" };
+  if (streakAlive(town, today)) return { streakDays: town.streakDays, status: "alive" };
+  return { streakDays: 0, status: "broken" };
+}
+
+/**
+ * FT-1 header honesty check (commit e5da901): whether the header's
+ * queue-length line should promise "자리가 나면" (room-based) instead of
+ * "내일" (a specific-morning promise it may not be able to keep).
+ *
+ * `decideBuildOrQueue` (entryActions.ts) only queues instead of building when
+ * EITHER today's daily cap is spent OR the town has no legal plot — and it
+ * never queues while a slot AND a plot both exist (it builds immediately
+ * instead). So a queue that is still non-empty despite slots remaining today
+ * can only be explained by the second reason: the town is full, not merely
+ * capped for today. When slots are already spent, the cap alone explains the
+ * queue and "내일" (it drains tomorrow's reset) stays honest.
+ */
+export function queueWaitsOnRoom(slotsRemaining: number, queueLength: number): boolean {
+  return queueLength > 0 && slotsRemaining > 0;
 }
 
 // ── Ledger selectors ──

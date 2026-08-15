@@ -10,6 +10,7 @@
  * same `bgmMuted` flag the parent owns.
  */
 import "../bgm.css";
+import { queueWaitsOnRoom, streakDisplay } from "../selectors";
 
 export interface TownHeaderProps {
   townName: string;
@@ -20,6 +21,19 @@ export interface TownHeaderProps {
   streakDays: number;
   /** Gate-3-rerun fix (liveops-pd's TOP FIX): a streak exists but today hasn't extended it yet. */
   streakAtRisk: boolean;
+  /**
+   * Header-honesty fix: the raw `TownState` fields `selectors.streakDisplay`
+   * needs to tell an ALIVE streak (yesterday was the last act — today
+   * genuinely continues it) from a BROKEN one (longer ago — the stale
+   * `streakDays` above must not be shown as if it were still counting).
+   * Optional and additive: when both are supplied, they take over from
+   * `streakDays`/`streakAtRisk` above via the shared `advanceStreak` rule
+   * (selectors.ts) so the header can never claim a continuation a save
+   * wouldn't actually grant. Until the caller is wired to pass them, the
+   * header keeps its pre-existing `streakAtRisk`-boolean behavior.
+   */
+  lastActOn?: string | null;
+  today?: string;
   /**
    * Gate-3 round-5 fix (A1): the tier badge was a number that "silently
    * changes someday" — nothing on screen said what the NEXT tier costs or how
@@ -58,6 +72,8 @@ export function TownHeader({
   tier,
   streakDays,
   streakAtRisk,
+  lastActOn,
+  today,
   nextTierLabel,
   queueLength,
   moodLabel,
@@ -67,6 +83,13 @@ export function TownHeader({
   bgmMuted,
   onSetBgmMuted,
 }: TownHeaderProps) {
+  // Header-honesty fix — see `lastActOn`/`today`'s doc above. Falls back to
+  // the pre-existing `streakAtRisk`-boolean behavior (which cannot tell an
+  // alive streak from a broken one) until the caller passes real dates.
+  const streak =
+    lastActOn !== undefined && today !== undefined
+      ? streakDisplay({ lastActOn, streakDays }, today)
+      : { streakDays, status: streakAtRisk ? ("alive" as const) : ("recorded" as const) };
   return (
     <header className="town-header">
       <div className="town-header-top">
@@ -101,10 +124,18 @@ export function TownHeader({
             extends (useTownStore.ts's `advanceStreak`-detection), the fire
             icon is the universal streak convention so it reads without
             onboarding copy, and the at-risk state is the one thing worth
-            spelling out — a streak silently resets otherwise. */}
-        <span className={`town-header-streak${streakAtRisk ? " town-header-streak--risk" : ""}`}>
-          {streakDays > 0 && <span aria-hidden="true">🔥</span>} 연속 {streakDays}일
-          {streakAtRisk && " · 오늘 기록하면 이어져요"}
+            spelling out — a streak silently resets otherwise.
+
+            Header-honesty fix: "risk" styling now covers BOTH the alive
+            (today extends it) and broken (today would reset it) statuses —
+            either way there's something to say — but only "alive" gets the
+            "이어져요" continuation claim. A broken streak shows the honest
+            reset count (0, not the stale stored value) with "새로 시작해요"
+            instead — see `selectors.streakDisplay`. */}
+        <span className={`town-header-streak${streak.status !== "recorded" ? " town-header-streak--risk" : ""}`}>
+          {streak.streakDays > 0 && <span aria-hidden="true">🔥</span>} 연속 {streak.streakDays}일
+          {streak.status === "alive" && " · 오늘 기록하면 이어져요"}
+          {streak.status === "broken" && " · 오늘 기록하면 새로 시작해요"}
         </span>
         {/* A1 — see `nextTierLabel`'s doc for why the unit is 채분, not 채. */}
         {nextTierLabel !== null && (
@@ -126,7 +157,19 @@ export function TownHeader({
           <span aria-hidden="true">{moodIcon}</span> {moodLabel}
         </p>
       )}
-      {queueLength > 0 && <div className="town-header-queue-promise">내일 지을 건물 {queueLength}개 대기 중</div>}
+      {/* FT-1 (commit e5da901, "fix the promise the app cannot keep"): "내일"
+          is only honest when today's cap is the sole reason for the wait —
+          a full town has no morning that fixes it. `queueWaitsOnRoom`
+          (selectors.ts) tells the two apart from data already on this
+          component (slots remaining today, queue length): `decideBuildOrQueue`
+          never queues while a slot AND a plot both exist, so a non-empty
+          queue with slots to spare can only mean the town is full. */}
+      {queueLength > 0 &&
+        (queueWaitsOnRoom(slotsRemaining, queueLength) ? (
+          <div className="town-header-queue-promise">자리가 나면 지을 건물 {queueLength}개 대기 중</div>
+        ) : (
+          <div className="town-header-queue-promise">내일 지을 건물 {queueLength}개 대기 중</div>
+        ))}
     </header>
   );
 }
