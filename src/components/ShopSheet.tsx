@@ -36,7 +36,9 @@
 import { useState } from "react";
 import { BottomSheet } from "@toss/tds-mobile";
 import "../shop.css";
+import { BALANCE } from "../balance.approved";
 import { CATEGORY_CONTENT } from "../content.placeholder";
+import { awardFor } from "../economy/awards";
 import { NPC_MAX_VISIBLE, NPC_SLOT_SKU, seeds as toSeedCount, type EconomyState, type SeedCount } from "../economy/types";
 import { hasAffordableUnowned, skusBySection, type ShopSku } from "../economy/skus";
 import { useBackGuard } from "../hooks/useBackGuard";
@@ -90,6 +92,22 @@ const PURCHASE_ERROR_LABEL: Record<Exclude<PurchaseSkuResult, "ok">, string> = {
   // "already at the display cap", not as a broken row.
   maxed: `NPC가 이미 최대(${NPC_MAX_VISIBLE}마리)예요`,
 };
+
+// Gate-3 round-5 panel finding: nothing anywhere told the player what earns
+// 씨앗 or how much, so the economy read as arbitrary. Built from
+// `BALANCE.seedAwards` (never retyped as literals) so a dial retune can't go
+// stale here. `entry`/`build` are 5-row tables indexed by the amount rung
+// (see `balance.approved.ts`'s own doc) — the honest copy is the [first,
+// last] row range plus "bigger amount = more seeds", not a flattened single
+// number. `streak`'s cap isn't a `BALANCE` dial (it's a local formula in
+// `awards.ts`) — read it by calling that formula's own authority, `awardFor`,
+// instead of retyping its constant.
+const EARN_HINT = (() => {
+  const { entry, build, nospend, tier, settlementByOutcomeBucket } = BALANCE.seedAwards;
+  const streakMax = awardFor({ kind: "streak", date: "", streakDays: 999 }).amount;
+  const settlementMax = Math.max(...settlementByOutcomeBucket);
+  return `지출 기록·건물 신축은 금액이 클수록 씨앗도 커져요(기록 ${entry[0]}~${entry[4]} · 신축 ${build[0]}~${build[4]}) · 무지출 ${nospend} · 연속기록 최대 ${streakMax} · 티어 달성 ${tier} · 월말 정산 최대 ${settlementMax}`;
+})();
 
 /** A building eligible for 건물 꾸미기 — excludes the monument (F16) and the park tile (F15), neither of which may change behaviour or visual rarity from a cosmetic. */
 function decoTargetBuildings(buildings: Building[]): Building[] {
@@ -227,7 +245,7 @@ export function ShopSheet({
       }
     >
       <div className="shop-sheet-body">
-        <p className="shop-earn-hint">지출을 기록하거나 무지출을 지키면 씨앗을 모아요</p>
+        <p className="shop-earn-hint">{EARN_HINT}</p>
         {notice && (
           <p className="shop-notice" role="status">
             {notice}

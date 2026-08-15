@@ -8,6 +8,8 @@
  * every selector unit-testable with no React and fully time-travelable.
  */
 import { daysInMonth as daysInMonthOf, dayBefore, monthBefore, parseYm, shiftMonth, ymOnly } from "./calendar";
+import { canFuse, MAX_FUSE_TIER } from "./fusionActions";
+import { footprintOf } from "./placement";
 import { savingsOf } from "./types";
 import type { Building, CategoryId, EntryType, LedgerEntry, SavingCategoryId, TownState } from "./types";
 
@@ -160,6 +162,41 @@ export function growCandidates(buildings: readonly Building[], categoryId: Categ
     .filter((b) => b.source.kind === "entry" && b.categoryId === categoryId)
     .slice()
     .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * Gate-3 round-5 follow-up: `FUSION_WAY_OUT_HINT` (TownScreen.tsx) tells a
+ * full town to fuse two Lv.`maxLevel` buildings, but never checked whether
+ * such a pair actually EXISTS — advice that can point at a door that isn't
+ * there. Finds one in O(n), not a naive O(n²) all-pairs scan (this runs on
+ * render, and the dense fixture is ~5,400 buildings — devtools/fixtures.ts):
+ * buildings that pass the cheap per-building conditions
+ * (`source.kind === "entry"`, at `maxLevel`, below `MAX_FUSE_TIER`) are
+ * bucketed by `categoryId|footprint|fuseTier`; the first bucket to reach two
+ * is the pair, an early exit. `canFuse` (fusionActions.ts §2.2, the one place
+ * F1-F6 live) re-confirms the pair before it's returned, so this only
+ * narrows the search — it never restates a fusion condition.
+ */
+export function firstFusablePair(
+  buildings: readonly Building[],
+  expPerLevel: number,
+  maxLevel: number,
+): [Building, Building] | null {
+  const firstByKey = new Map<string, Building>();
+  for (const b of buildings) {
+    if (b.source.kind !== "entry") continue; // F4
+    if (levelOf(b, expPerLevel, maxLevel) !== maxLevel) continue; // F1
+    if (fuseOf(b) >= MAX_FUSE_TIER) continue; // F6
+    const { w, h } = footprintOf(b);
+    const key = `${b.categoryId}|${w}x${h}|${fuseOf(b)}`; // F2/F3/F5
+    const partner = firstByKey.get(key);
+    if (partner === undefined) {
+      firstByKey.set(key, b);
+      continue;
+    }
+    if (canFuse(partner, b, expPerLevel, maxLevel)) return [partner, b];
+  }
+  return null;
 }
 
 /** Largest i where buildingCount >= tierThresholds[i]; 0 if below every threshold. */

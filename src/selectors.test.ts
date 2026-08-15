@@ -9,6 +9,7 @@ import {
   dayGroups,
   expGainFor,
   expOf,
+  firstFusablePair,
   fuseOf,
   totalLevelOf,
   townScale,
@@ -143,6 +144,65 @@ describe("townScale", () => {
     const town = [...Array(6)].map((_, i) => ({ ...makeBuilding(i), fuse: 5 as const }));
     expect(townScale(oneLv10)).toBe(32);
     expect(tier(townScale(town) + 8, thresholds)).toBe(4);
+  });
+});
+
+// Gate-3 round-5 follow-up (panel finding): whether the "합치면 자리가
+// 생겨요" full-town advice is actually true right now. `canFuse`
+// (fusionActions.ts §2.2) is the one source of truth for F1-F6, so these
+// tests check that `firstFusablePair` finds/rejects a pair the same way
+// `canFuse` would — not a second copy of the conditions.
+describe("firstFusablePair", () => {
+  const MAXED_EXP = 12; // (maxLevel - 1) * expPerLevel = (5-1)*3 — Lv.5 at the same 3/5 convention as fuseOf/totalLevelOf above
+  function pairable(id: string, extra: Partial<Building> = {}): Building {
+    return { ...makeBuilding(0), id, source: { kind: "entry", entryId: `e-${id}` }, exp: MAXED_EXP, ...extra };
+  }
+
+  it("finds a real pair — two distinct maxed entry buildings of the same category and footprint", () => {
+    const result = firstFusablePair([pairable("a"), pairable("c")], 3, 5);
+    expect(result).not.toBeNull();
+    expect(new Set(result!.map((b) => b.id))).toEqual(new Set(["a", "c"]));
+  });
+
+  it("returns null when categories differ", () => {
+    const a = pairable("a", { categoryId: "food" });
+    const c = pairable("c", { categoryId: "cafe" });
+    expect(firstFusablePair([a, c], 3, 5)).toBeNull();
+  });
+
+  it("returns null when footprints differ", () => {
+    const a = pairable("a", { w: 2, h: 2 });
+    const c = pairable("c"); // 1x1 (absent w/h)
+    expect(firstFusablePair([a, c], 3, 5)).toBeNull();
+  });
+
+  it("returns null when only one building is at maxLevel", () => {
+    const a = pairable("a");
+    const c = pairable("c", { exp: 0 });
+    expect(firstFusablePair([a, c], 3, 5)).toBeNull();
+  });
+
+  it("returns null for monuments and 무지출 parks — never entry-founded", () => {
+    const monument1 = pairable("m1", { source: { kind: "monument", period: "2026-07" }, categoryId: null });
+    const monument2 = pairable("m2", { source: { kind: "monument", period: "2026-06" }, categoryId: null });
+    const park1 = pairable("p1", { source: { kind: "nospend", date: "2026-08-01" }, categoryId: "park" });
+    const park2 = pairable("p2", { source: { kind: "nospend", date: "2026-08-02" }, categoryId: "park" });
+    expect(firstFusablePair([monument1, monument2], 3, 5)).toBeNull();
+    expect(firstFusablePair([park1, park2], 3, 5)).toBeNull();
+  });
+
+  it("returns null when the pair is already Lv.10 (fuse tier at the cap)", () => {
+    const a = pairable("a", { fuse: 5 });
+    const c = pairable("c", { fuse: 5 });
+    expect(firstFusablePair([a, c], 3, 5)).toBeNull();
+  });
+
+  it("skips a lone unmatched building and finds the real pair elsewhere in the array", () => {
+    const lonely = pairable("lonely", { categoryId: "transport" });
+    const a = pairable("a");
+    const c = pairable("c");
+    const result = firstFusablePair([lonely, a, c], 3, 5);
+    expect(result?.map((b) => b.id).sort()).toEqual(["a", "c"]);
   });
 });
 

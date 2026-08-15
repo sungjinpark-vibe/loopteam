@@ -16,7 +16,9 @@
 import { act } from "react";
 import { ThemeProvider } from "@toss/tds-mobile";
 import { afterEach, describe, expect, it } from "vitest";
+import { BALANCE } from "../balance.approved";
 import { moodContentFor } from "../content.placeholder";
+import { awardFor } from "../economy/awards";
 import { defaultEconomyState, seeds as seedCount, type EconomyState } from "../economy/types";
 import { formatSeeds } from "../economy/format";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
@@ -104,6 +106,26 @@ describe("ShopSheet", () => {
     const { props } = makeProps({ economy: { ...defaultEconomyState(), seeds: seedCount(420) } });
     render(props);
     expect(document.body.textContent).toContain("420개");
+  });
+
+  it("shows an earn hint whose numbers track BALANCE.seedAwards (Gate-3 round-5: what earns 씨앗)", () => {
+    const { props } = makeProps();
+    render(props);
+    const hint = document.body.querySelector(".shop-earn-hint");
+    expect(hint).not.toBeNull();
+
+    const { entry, build, nospend, tier, settlementByOutcomeBucket } = BALANCE.seedAwards;
+    const streakMax = awardFor({ kind: "streak", date: "", streakDays: 999 }).amount;
+    const settlementMax = Math.max(...settlementByOutcomeBucket);
+
+    // Ranges (entry/build are amount-scaled tables — first row to last row),
+    // not a single flattened number.
+    expect(hint!.textContent).toContain(`${entry[0]}~${entry[4]}`);
+    expect(hint!.textContent).toContain(`${build[0]}~${build[4]}`);
+    expect(hint!.textContent).toContain(`${nospend}`);
+    expect(hint!.textContent).toContain(`${tier}`);
+    expect(hint!.textContent).toContain(`${streakMax}`);
+    expect(hint!.textContent).toContain(`${settlementMax}`);
   });
 
   it("renders all three sections", () => {

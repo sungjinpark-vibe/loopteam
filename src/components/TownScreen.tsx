@@ -25,7 +25,7 @@ import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
 import { useGrowPickMode } from "../hooks/useGrowPickMode";
 import { useMoveMode } from "../hooks/useMoveMode";
-import { budgetPace, moodTier, queueWaitsOnRoom, totalLevelOf, tier as computeTier } from "../selectors";
+import { budgetPace, firstFusablePair, moodTier, queueWaitsOnRoom, totalLevelOf, tier as computeTier } from "../selectors";
 import type { Building } from "../types";
 import type { AddEntryResult, TownStore } from "../useTownStore";
 
@@ -83,12 +83,13 @@ const QUEUED_BUILD_PROMISE = "자리가 나면 지어드릴게요";
 // Gate-3 round-5 (게임 디자이너's E4 finding): the old wording ("Lv.5 건물
 // 두 채를 합치면 자리가 생겨요") never said the pair must match BOTH category
 // AND footprint, so a player with two unrelated Lv.5 buildings read this as
-// actionable advice when it wasn't. Spelling out the real requirement here
-// doesn't fix the scarcity of qualifying pairs itself (a bigger, product-level
-// question — ADDENDUM-11 fusion's own design), but it stops the app from
-// pointing at a door that may not open. A shared constant for the same reason
-// `QUEUED_BUILD_PROMISE` is one — two call sites, must not drift apart.
-const FUSION_WAY_OUT_HINT = `같은 크기·같은 카테고리의 Lv.${BALANCE.maxLevel} 건물 두 채를 합치면 자리가 생겨요.`;
+// actionable advice when it wasn't. Round-5 round-2 follow-up (panel finding):
+// spelling out the requirement still doesn't say whether a qualifying pair
+// EXISTS, or where it is on a 20x20 map — `fusionWayOutHint` below (computed
+// per-render off `firstFusablePair`, selectors.ts) closes both gaps. Kept as
+// a function of live state rather than a module constant for that reason; the
+// two call sites (this file) still read one shared value, same discipline
+// `QUEUED_BUILD_PROMISE` uses.
 
 // Gate-3 follow-up (A6): the toast layer's clearance above the bottom tab bar
 // and the FAB column is owned entirely by App.css's
@@ -141,6 +142,30 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const { openToast } = useToast();
   const move = useMoveMode(store.buildings, store.moveBuilding);
+
+  // Gate-3 round-5 follow-up (panel finding): whether the "합치면 자리가
+  // 생겨요" advice below is actually true right now. `store.buildings` is a
+  // stable reference the store only replaces wholesale on a real change
+  // (same basis `HistoryScreen`'s own memos key on), so this only rescans the
+  // town — up to ~5,400 buildings on the dense fixture — when it moved.
+  const fusablePair = useMemo(
+    () => firstFusablePair(store.buildings, BALANCE.expPerLevel, BALANCE.maxLevel),
+    [store.buildings],
+  );
+  // A pair exists -> names its category so the player knows what to look for
+  // on the map. Highlighting the exact two buildings would reuse
+  // `growPick`/pick mode (ADDENDUM-11 §6's own precedent for fusion), but
+  // that mode hides the FAB and wires the back button for an explicit CTA tap
+  // (`handleFuseStart` below) — auto-entering it as a side effect of a
+  // passive queued-entry toast would hijack the screen with no tap to explain
+  // why. Naming the category is the fallback that stays honest without that
+  // side effect; tapping any matching building still reaches the real
+  // highlight through the existing 건물 상세 -> 합치기 flow.
+  // No pair -> say so, plus the real requirement — still `BALANCE.maxLevel`,
+  // never a hardcoded 5.
+  const fusionWayOutHint = fusablePair
+    ? `${CATEGORY_CONTENT[fusablePair[0].categoryId!].label} Lv.${BALANCE.maxLevel} 건물 두 채를 합치면 자리가 생겨요.`
+    : `지금은 합칠 수 있는 쌍이 없어요 — 같은 종류·같은 크기 Lv.${BALANCE.maxLevel} 두 채가 필요해요.`;
 
   // Gate-3-rerun fix (near-unanimous finding): the persistent "건물을 길게
   // 누르면 옮길 수 있어요" moveHint toast could still be showing when the
@@ -195,7 +220,7 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // lever — fuse two Lv.MAX buildings to free a cell — and nothing on
       // this screen said so before.
       const queueReason = queueWaitsOnRoom(store.slotsRemaining, result.queueLength)
-        ? `마을이 꽉 찼어요. ${FUSION_WAY_OUT_HINT}`
+        ? `마을이 꽉 찼어요. ${fusionWayOutHint}`
         : "오늘 슬롯을 다 썼어요.";
       openToast(`${queueReason} ${QUEUED_BUILD_PROMISE} (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.queueOverflow) {
@@ -495,7 +520,7 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // `plotIndex === null` (a slot-exhausted claim is rejected earlier by
       // `canClaimNoSpend`), so the cause is always room — names the same
       // fusion way-out as the entry path, for the same reason.
-      openToast(`마을이 꽉 찼어요. ${FUSION_WAY_OUT_HINT} 오늘은 무지출! 공원은 ${QUEUED_BUILD_PROMISE} (대기 ${claimed.queueLength}개)`);
+      openToast(`마을이 꽉 찼어요. ${fusionWayOutHint} 오늘은 무지출! 공원은 ${QUEUED_BUILD_PROMISE} (대기 ${claimed.queueLength}개)`);
       return;
     }
     openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
