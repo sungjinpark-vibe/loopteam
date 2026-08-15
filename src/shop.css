@@ -66,6 +66,15 @@ button.shop-fab {
   padding-bottom: 8px;
 }
 
+/* Gate-3-rerun fix (design/liveops/target-player E4, all three): the shop
+ * showed 15 priced items with no in-app statement anywhere of how seeds are
+ * earned. One line, same visual weight as `.shop-notice` below it. */
+.shop-earn-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--town-grey600);
+}
+
 .shop-notice {
   margin: 0;
   padding: 8px 12px;

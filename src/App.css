@@ -653,6 +653,19 @@ button.town-fab {
    * whole track wider than the column actually is — "grid blowout" — which
    * is what pushed the signboard past the lot and onto the road. */
   min-width: 0;
+  /* Gate-3-rerun fix (5-expert panel, all five flagged this): the plot's
+   * inline `height` (savingsPlotHeightPx) is deliberately taller than one
+   * grid row track — that's what lets a tall structure's sprite stand above
+   * its own cell. But this is a purely decorative element (no onClick
+   * anywhere in SavingsRow.tsx) sitting in normal paint order with
+   * pointer-events:auto by default, so the overflow portion silently
+   * absorbed real taps aimed at whatever building tile sits underneath it —
+   * a click landed on .savings-structure-board, not the tile, with no error
+   * and no feedback. Root-caused in one shared rule instead of per-cell
+   * z-index nudges: the whole lot is inert to pointer events, restored only
+   * on the interactive children below that actually need it (currently
+   * none — this is future-proofing if a savings lot ever becomes tappable). */
+  pointer-events: none;
 }
 .savings-plot--empty {
   border: 1px dashed var(--town-grey300);

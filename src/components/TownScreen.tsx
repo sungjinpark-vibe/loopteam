@@ -714,7 +714,13 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         // of hidden payoff this finding was about), 키우기 moves the existing
         // building's level now. `BALANCE.maxLevel` rather than a literal 5 so
         // the copy cannot drift from the rule it describes.
-        description={`새로 지으면 같은 건물이 한 채 더 생겨요 — 둘 다 Lv.${BALANCE.maxLevel}가 되면 합쳐서 더 높은 건물 한 채로 만들 수 있어요. 키우면 지금 있는 건물의 레벨이 올라가요. 둘 다 건축 슬롯 1개를 써요.`}
+        // Gate-3-rerun fix (game-designer E4): the payoff line above already
+        // named "같은 건물" (same category, same footprint by construction —
+        // 새로 짓기 always founds the category's own fixed footprint) but never
+        // said so explicitly, so a player could not tell whether two
+        // same-category buildings of different SIZES would ever fuse. Spelled
+        // out here instead of left implicit.
+        description={`새로 지으면 같은 건물이 한 채 더 생겨요 — 크기와 카테고리가 같은 두 건물이 둘 다 Lv.${BALANCE.maxLevel}가 되면 합쳐서 더 높은 건물 한 채로 만들 수 있어요. 키우면 지금 있는 건물의 레벨이 올라가요. 둘 다 건축 슬롯 1개를 써요.`}
         // Dismissing without choosing defaults to 새로 짓기 (the entry is
         // already saved; this only settles which building effect it gets).
         onClose={handleBuildNew}

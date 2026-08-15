@@ -69,6 +69,16 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
     if (!btn) return;
     btn.toggleAttribute("disabled", isStartDisabled);
     btn.setAttribute("aria-disabled", String(isStartDisabled));
+    // Gate-3-rerun fix (ux-researcher E1/E3): the `disabled`/`aria-disabled`
+    // attributes above gate the click handler correctly, but the vendor
+    // TDS Button's own CSS was confirmed (live Chromium) NOT to key off
+    // either one — computed opacity stayed 1 either way, so a 0/empty
+    // budget looked exactly as tappable as a valid one and absorbed the tap
+    // silently. This inline style is the actual visual signal, driven
+    // directly off `isStartDisabled` instead of trusting the vendor to
+    // react to the DOM attribute it doesn't style.
+    (btn as HTMLButtonElement).style.opacity = isStartDisabled ? "0.4" : "";
+    (btn as HTMLButtonElement).style.cursor = isStartDisabled ? "not-allowed" : "";
   }, [isStartDisabled]);
 
   /** 건너뛰기 — completes without ever writing a budget the player didn't set. */
@@ -97,6 +107,7 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
             </div>
             <h2>지출을 기록하면 우리 동네에 건물이 하나 생겨요</h2>
             <p>커피 한 잔, 버스비 하나까지 — 기록할 때마다 동네가 자라나요.</p>
+            <p>기록할 때마다 씨앗도 모여요. 오른쪽 아래 🎨 상점에서 동네를 꾸미는 데 쓸 수 있어요.</p>
           </div>
         )}
 

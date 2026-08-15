@@ -222,6 +222,7 @@ export function ShopSheet({
       }
     >
       <div className="shop-sheet-body">
+        <p className="shop-earn-hint">지출을 기록하거나 무지출을 지키면 씨앗을 모아요</p>
         {notice && (
           <p className="shop-notice" role="status">
             {notice}
