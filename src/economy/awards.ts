@@ -122,6 +122,13 @@ export function awardFor(event: AwardEvent): SeedAward {
   }
 }
 
+/** ADDENDUM-12 §3.3 — a positive seed credit pays down `seedDebt` FIRST, crediting only the remainder to `seeds`. Shared by `applyAward` and `settleAward`'s upward-delta branch so the debt-first rule lives in exactly one place. */
+function creditSeeds(economy: EconomyState, amount: number): EconomyState {
+  const debt = economy.seedDebt ?? 0;
+  const debtPaid = Math.min(debt, amount);
+  return { ...economy, seeds: toSeedCount(economy.seeds + (amount - debtPaid)), seedDebt: debt - debtPaid };
+}
+
 /**
  * Applies one award to an economy state. Returns the SAME object reference,
  * unchanged, when the award is a no-op (zero amount, or `eventKey` already
@@ -132,9 +139,48 @@ export function awardFor(event: AwardEvent): SeedAward {
 export function applyAward(economy: EconomyState, award: SeedAward): EconomyState {
   if (award.amount <= 0 || economy.grantedEventKeys.includes(award.eventKey)) return economy;
   return {
-    ...economy,
-    seeds: toSeedCount(economy.seeds + award.amount),
+    ...creditSeeds(economy, award.amount),
     // Ring buffer — see `GRANTED_EVENT_KEYS_CAP`'s own doc comment (types.ts).
     grantedEventKeys: [...economy.grantedEventKeys, award.eventKey].slice(-GRANTED_EVENT_KEYS_CAP),
   };
+}
+
+/**
+ * ADDENDUM-12 §3.1/§3.3 — reverses one previously-granted award (F9 delete's
+ * clawback). No-op (same reference) when there's nothing to claw back: a
+ * non-positive amount, or a key never granted — either not yet paid, or aged
+ * out of the `grantedEventKeys` ring buffer (§3.1: deliberately conservative,
+ * the opposite direction — revoking an ungranted key — would be the real
+ * loss). Floors `seeds` at 0 and carries any shortfall into `seedDebt`
+ * instead of ever going negative.
+ */
+export function revokeAward(economy: EconomyState, award: SeedAward): EconomyState {
+  if (award.amount <= 0 || !economy.grantedEventKeys.includes(award.eventKey)) return economy;
+  const shortfall = Math.max(0, award.amount - economy.seeds);
+  return {
+    ...economy,
+    seeds: toSeedCount(Math.max(0, economy.seeds - award.amount)),
+    seedDebt: (economy.seedDebt ?? 0) + shortfall,
+    grantedEventKeys: economy.grantedEventKeys.filter((k) => k !== award.eventKey),
+  };
+}
+
+/**
+ * ADDENDUM-12 §3.2 — settles an amount edit on an already-granted key:
+ * applies just the DELTA between the old and new award, bypassing
+ * `applyAward`'s idempotency check (the key stays granted throughout — an
+ * edit is not a fresh event, §10.6). No-op when the two awards don't share a
+ * key, the key was never granted (nothing to settle — same conservative call
+ * as `revokeAward`), or the delta is zero (same rung). A positive delta pays
+ * down `seedDebt` first like any other credit; a negative delta floors
+ * `seeds` at 0 and carries the shortfall into `seedDebt`, same as `revokeAward`.
+ */
+export function settleAward(economy: EconomyState, oldAward: SeedAward, newAward: SeedAward): EconomyState {
+  if (oldAward.eventKey !== newAward.eventKey || !economy.grantedEventKeys.includes(oldAward.eventKey)) return economy;
+  const delta = newAward.amount - oldAward.amount;
+  if (delta === 0) return economy;
+  if (delta > 0) return creditSeeds(economy, delta);
+  const amount = -delta;
+  const shortfall = Math.max(0, amount - economy.seeds);
+  return { ...economy, seeds: toSeedCount(Math.max(0, economy.seeds - amount)), seedDebt: (economy.seedDebt ?? 0) + shortfall };
 }

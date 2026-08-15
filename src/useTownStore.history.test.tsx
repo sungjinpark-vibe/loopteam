@@ -235,7 +235,14 @@ describe("updateEntry — F9", () => {
     expect(buildingAfter.builtOn).toBe(buildingBefore.builtOn);
   });
 
-  it("re-dating across a month boundary moves the entry between chunks and updates both months' totals; a reload confirms it", async () => {
+  // ADDENDUM-12 §4/§10.10 — cross-month re-dating out of the current month is
+  // now refused at the store's own trust boundary (past months are settled/
+  // monumented, ADDENDUM-12 §4). This used to move the entry between chunks;
+  // that capability is still exercised directly on the pure function in
+  // `historyActions.test.ts` (`editEntryEffects` itself is unchanged), but
+  // nothing reachable through the store's public `updateEntry` can trigger it
+  // anymore, since `occurredOn` must stay inside the current month either way.
+  it("rejects an occurredOn edit that would move the entry OUT of the current month (ADDENDUM-12 §4)", async () => {
     await mountAndWaitForBoot();
     act(() => {
       latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY });
@@ -249,46 +256,34 @@ describe("updateEntry — F9", () => {
       latest!.updateEntry(entry.id, thisYm, { occurredOn: "2026-07-20" });
     });
 
-    expect(latest!.getMonthEntries(thisYm)).toHaveLength(0);
+    // Refused — the entry never left its month, nothing else moved either.
+    expect(latest!.getMonthEntries(thisYm)).toHaveLength(1);
+    expect(latest!.getMonthEntries(thisYm)[0].occurredOn).toBe(TODAY);
     latest!.ensureMonthLoaded(lastYm);
-    const movedMonth = latest!.getMonthEntries(lastYm);
-    expect(movedMonth).toHaveLength(1);
-    expect(movedMonth[0].occurredOn).toBe("2026-07-20");
-
-    // The building stays in its builtOn chunk (it rose "today", F2/F4) —
-    // re-dating the entry must never move it.
+    expect(latest!.getMonthEntries(lastYm)).toHaveLength(0);
     const buildingAfter = latest!.buildings.find((b) => b.id === buildingBefore.id)!;
-    expect(buildingAfter.builtOn).toBe(buildingBefore.builtOn);
     expect(buildingAfter.plotIndex).toBe(buildingBefore.plotIndex);
-
-    act(() => {
-      window.dispatchEvent(new Event("pagehide"));
-      root.unmount();
-    });
-    await mountAndWaitForBoot();
-    expect(latest!.getMonthEntries(thisYm)).toHaveLength(0);
-    latest!.ensureMonthLoaded(lastYm);
-    expect(latest!.getMonthEntries(lastYm)).toHaveLength(1);
-    expect(latest!.buildingCount).toBe(1); // the building itself is untouched by the re-date
   });
 
-  it("moving an entry INTO an already-visited month appends rather than overwriting its cached chunk", async () => {
+  it("rejects deleting/editing a PAST month's entry directly through the store, even bypassing the UI (ADDENDUM-12 §4/§9/§10.9)", async () => {
     await mountAndWaitForBoot();
-    const lastYm = "2026-07";
     act(() => {
       latest!.addEntry({ type: "expense", amountKrw: 1_000, categoryId: "food", occurredOn: "2026-07-05" });
-      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY });
     });
+    const lastYm = "2026-07";
     latest!.ensureMonthLoaded(lastYm);
-    expect(latest!.getMonthEntries(lastYm)).toHaveLength(1); // visited BEFORE the move below
+    const pastEntry = latest!.getMonthEntries(lastYm)[0];
 
-    const thisYm = TODAY.slice(0, 7);
-    const toMove = latest!.getMonthEntries(thisYm)[0];
+    const mutability = latest!.entryMutability(pastEntry, lastYm);
+    expect(mutability).toEqual({ canEdit: false, canEditAmount: false, canDelete: false, reason: "past-month" });
+
     act(() => {
-      latest!.updateEntry(toMove.id, thisYm, { occurredOn: "2026-07-20" });
+      latest!.updateEntry(pastEntry.id, lastYm, { memo: "should not apply" });
+      latest!.deleteEntry(pastEntry.id, lastYm);
     });
 
-    expect(latest!.getMonthEntries(lastYm)).toHaveLength(2); // appended, not overwritten
+    expect(latest!.getMonthEntries(lastYm)).toHaveLength(1);
+    expect(latest!.getMonthEntries(lastYm)[0].memo).not.toBe("should not apply");
   });
 
   // Round-4 finding C1: `type` is now editable (was display-only).

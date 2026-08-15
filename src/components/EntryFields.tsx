@@ -25,6 +25,8 @@ export interface EntryFieldsProps {
   onSelectCategory: (id: CategoryId) => void;
   date: string; // 'YYYY-MM-DD'
   today: string; // max selectable date — never future (§8.3)
+  /** Min selectable date, 'YYYY-MM-DD'. ADDENDUM-12 §4/§9: an edit may never move an entry out of the current month. Optional — `EntrySheet`'s new-entry flow (S4) has no such floor. */
+  minDate?: string;
   onDateChange: (date: string) => void;
   memo: string;
   onMemoChange: (memo: string) => void;
@@ -39,6 +41,7 @@ export function EntryFields({
   onSelectCategory,
   date,
   today,
+  minDate,
   onDateChange,
   memo,
   onMemoChange,
@@ -78,6 +81,7 @@ export function EntryFields({
         value={ymdToDate(date)}
         initialDate={ymdToDate(date)}
         max={ymdToDate(today)}
+        min={minDate ? ymdToDate(minDate) : undefined}
         onChange={(d) => onDateChange(dateToYmd(d))}
       />
 

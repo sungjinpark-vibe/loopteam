@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BALANCE } from "../balance.approved";
-import { applyAward, awardFor, type AwardEvent } from "./awards";
+import { applyAward, awardFor, revokeAward, settleAward, type AwardEvent } from "./awards";
 import { defaultEconomyState } from "./types";
 
 describe("awardFor", () => {
@@ -136,5 +136,87 @@ describe("applyAward", () => {
     expect(economy.grantedEventKeys.length).toBe(64);
     expect(economy.grantedEventKeys[economy.grantedEventKeys.length - 1]).toBe("seed:build:b69");
     expect(economy.seeds).toBe(70); // seeds themselves are never reclaimed when a key ages out of the ring
+  });
+
+  // ADDENDUM-12 §3.3 — a fresh grant pays down any outstanding seedDebt first.
+  it("pays down seedDebt before crediting seeds", () => {
+    const economy = { ...defaultEconomyState(), seeds: 0, seedDebt: 5 } as ReturnType<typeof defaultEconomyState>;
+    const next = applyAward(economy, { eventKey: "seed:entry:e1", amount: 8 });
+    expect(next.seedDebt).toBe(0);
+    expect(next.seeds).toBe(3); // 8 - 5 debt = 3 remainder
+  });
+
+  it("a grant smaller than the debt pays it down partially, leaves seeds at 0", () => {
+    const economy = { ...defaultEconomyState(), seeds: 0, seedDebt: 10 };
+    const next = applyAward(economy, { eventKey: "seed:entry:e1", amount: 4 });
+    expect(next.seedDebt).toBe(6);
+    expect(next.seeds).toBe(0);
+  });
+});
+
+describe("revokeAward — ADDENDUM-12 §3.1", () => {
+  it("subtracts the granted amount and drops the key", () => {
+    const economy = { ...defaultEconomyState(), seeds: 10, grantedEventKeys: ["seed:entry:e1"] };
+    const next = revokeAward(economy, { eventKey: "seed:entry:e1", amount: 4 });
+    expect(next.seeds).toBe(6);
+    expect(next.grantedEventKeys).toEqual([]);
+    expect(next.seedDebt ?? 0).toBe(0);
+  });
+
+  it("floors at 0 and carries the shortfall into seedDebt when the balance can't cover it", () => {
+    const economy = { ...defaultEconomyState(), seeds: 2, grantedEventKeys: ["seed:entry:e1"] };
+    const next = revokeAward(economy, { eventKey: "seed:entry:e1", amount: 6 });
+    expect(next.seeds).toBe(0);
+    expect(next.seedDebt).toBe(4);
+    expect(next.grantedEventKeys).toEqual([]);
+  });
+
+  it("is a no-op (same reference) when the key was never granted", () => {
+    const economy = { ...defaultEconomyState(), seeds: 10, grantedEventKeys: [] };
+    expect(revokeAward(economy, { eventKey: "seed:entry:e1", amount: 4 })).toBe(economy);
+  });
+
+  it("is a no-op when the award amount is non-positive", () => {
+    const economy = { ...defaultEconomyState(), seeds: 10, grantedEventKeys: ["seed:entry:e1"] };
+    expect(revokeAward(economy, { eventKey: "seed:entry:e1", amount: 0 })).toBe(economy);
+  });
+});
+
+describe("settleAward — ADDENDUM-12 §3.2", () => {
+  it("credits the upward delta without touching the granted key (bypasses applyAward's idempotency check)", () => {
+    const economy = { ...defaultEconomyState(), seeds: 10, grantedEventKeys: ["seed:entry:e1"] };
+    const next = settleAward(economy, { eventKey: "seed:entry:e1", amount: 4 }, { eventKey: "seed:entry:e1", amount: 10 });
+    expect(next.seeds).toBe(16); // +6 delta
+    expect(next.grantedEventKeys).toEqual(["seed:entry:e1"]); // key untouched
+  });
+
+  it("pays down seedDebt first on an upward delta", () => {
+    const economy = { ...defaultEconomyState(), seeds: 0, seedDebt: 3, grantedEventKeys: ["seed:entry:e1"] };
+    const next = settleAward(economy, { eventKey: "seed:entry:e1", amount: 4 }, { eventKey: "seed:entry:e1", amount: 10 });
+    expect(next.seedDebt).toBe(0);
+    expect(next.seeds).toBe(3); // 6 delta - 3 debt
+  });
+
+  it("revokes the downward delta, flooring at 0 and carrying the shortfall to seedDebt", () => {
+    const economy = { ...defaultEconomyState(), seeds: 2, grantedEventKeys: ["seed:entry:e1"] };
+    const next = settleAward(economy, { eventKey: "seed:entry:e1", amount: 10 }, { eventKey: "seed:entry:e1", amount: 4 });
+    expect(next.seeds).toBe(0);
+    expect(next.seedDebt).toBe(4); // wanted to pull 6, only had 2
+    expect(next.grantedEventKeys).toEqual(["seed:entry:e1"]); // key stays (still granted, just a different amount)
+  });
+
+  it("is a no-op (same reference) on a same-rung edit (zero delta)", () => {
+    const economy = { ...defaultEconomyState(), seeds: 10, grantedEventKeys: ["seed:entry:e1"] };
+    expect(settleAward(economy, { eventKey: "seed:entry:e1", amount: 4 }, { eventKey: "seed:entry:e1", amount: 4 })).toBe(economy);
+  });
+
+  it("is a no-op when the key was never granted", () => {
+    const economy = { ...defaultEconomyState(), seeds: 10, grantedEventKeys: [] };
+    expect(settleAward(economy, { eventKey: "seed:entry:e1", amount: 4 }, { eventKey: "seed:entry:e1", amount: 10 })).toBe(economy);
+  });
+
+  it("is a no-op when the two awards don't share a key", () => {
+    const economy = { ...defaultEconomyState(), seeds: 10, grantedEventKeys: ["seed:entry:e1"] };
+    expect(settleAward(economy, { eventKey: "seed:entry:e1", amount: 4 }, { eventKey: "seed:entry:e2", amount: 10 })).toBe(economy);
   });
 });

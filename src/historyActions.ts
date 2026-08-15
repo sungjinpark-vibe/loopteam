@@ -22,6 +22,8 @@
  *    to the tower instead.
  */
 import { adjustSavings, decideBuildOrQueue } from "./entryActions";
+import { awardFor, revokeAward, settleAward } from "./economy/awards";
+import type { EconomyState } from "./economy/types";
 import { expGainFor, expOf, townScale } from "./selectors";
 import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
 
@@ -55,6 +57,8 @@ export interface DeleteEntryArgs {
   entry: LedgerEntry;
   /** ADDENDUM-04 §7 — the EXP-per-amount dial, passed in so this module stays balance-free like `tierThresholds` elsewhere; only consulted when `entry` is a grow contribution. */
   expAmountTiers: readonly (readonly [number, number])[] | null;
+  /** ADDENDUM-12 §3 — clawed back here: `seed:entry:<id>` always (no-op if never granted), `seed:build:<buildingId>` only when this delete actually removes a building. */
+  economy: EconomyState;
 }
 
 export interface DeleteEntryResult {
@@ -64,6 +68,8 @@ export interface DeleteEntryResult {
   removedBuilding: { id: string; ym: string } | null;
   /** ADDENDUM-04 §6 — set when `entry` was a grow contribution: the host with its EXP backed out (floored at 0, D-10: the slot is not refunded either way). The host is NOT removed; the caller persists this into ITS OWN `builtOn` month chunk (may differ from `entry`'s month). */
   grownBuilding: Building | null;
+  /** ADDENDUM-12 §3 — economy after clawback. */
+  economy: EconomyState;
 }
 
 /**
@@ -81,7 +87,7 @@ export interface DeleteEntryResult {
  * (unchanged) — a dangling `buildingId` on the contributor entries is an
  * accepted ceiling, ADDENDUM-04 §6.
  */
-export function deleteEntryEffects({ town, buildings, entry, expAmountTiers }: DeleteEntryArgs): DeleteEntryResult {
+export function deleteEntryEffects({ town, buildings, entry, expAmountTiers, economy }: DeleteEntryArgs): DeleteEntryResult {
   let nextTown = town;
   let nextBuildings = buildings as Building[];
   let removedBuilding: DeleteEntryResult["removedBuilding"] = null;
@@ -105,8 +111,25 @@ export function deleteEntryEffects({ town, buildings, entry, expAmountTiers }: D
 
   if (entry.queued) nextTown = dropFromQueue(nextTown, entry.id);
   if (entry.type === "saving") nextTown = adjustSavings(nextTown, entry.categoryId, -entry.amountKrw);
+  // ADDENDUM-12 §3.1 — a choice naming this now-dead entry can't survive it.
+  if (nextTown.pendingGrowChoice?.entryId === entry.id) {
+    const clearedTown = { ...nextTown };
+    delete clearedTown.pendingGrowChoice;
+    nextTown = clearedTown;
+  }
 
-  return { town: nextTown, buildings: nextBuildings, removedBuilding, grownBuilding };
+  // ADDENDUM-12 §2.1/§3.1 — recomputed from the stored entry, never a
+  // persisted `seedsGranted` field (INV-12.1): `revokeAward` itself no-ops
+  // when the key was never granted (저축 entries, a queue-overflow save), so
+  // this is safe to call unconditionally rather than re-deriving "did this
+  // entry earn a seed" from `result.building`/`queuedMaterial` etc. here too.
+  const entryExpGain = expGainFor(entry.amountKrw, expAmountTiers);
+  let nextEconomy = revokeAward(economy, awardFor({ kind: "entry", entryId: entry.id, expGain: entryExpGain }));
+  if (removedBuilding) {
+    nextEconomy = revokeAward(nextEconomy, awardFor({ kind: "build", buildingId: removedBuilding.id, expGain: entryExpGain }));
+  }
+
+  return { town: nextTown, buildings: nextBuildings, removedBuilding, grownBuilding, economy: nextEconomy };
 }
 
 /** F9 edit fields — `type` included (round-4 finding C1: was display-only). */
@@ -138,6 +161,8 @@ export interface EditEntryArgs {
   now: number;
   /** ADDENDUM-04 §7 — same dial `deleteEntryEffects` takes; only consulted when `entry` is a grow contribution converting 지출/수입 -> 저축. */
   expAmountTiers: readonly (readonly [number, number])[] | null;
+  /** ADDENDUM-12 §3.2 — settled here on an amount edit (same-type case only, spec §3.2/§10.6): `seed:entry:<id>` always, `seed:build:<buildingId>` too when this entry founded a building. */
+  economy: EconomyState;
 }
 
 export interface EditEntryResult {
@@ -149,6 +174,8 @@ export interface EditEntryResult {
   newBuilding: Building | null;
   /** ADDENDUM-04 §6 — set when a grow-contribution entry converted 지출/수입 -> 저축: the host with its EXP backed out (floored at 0). The host is NOT removed; the caller persists this into ITS OWN `builtOn` month chunk. */
   grownBuilding: Building | null;
+  /** ADDENDUM-12 §3.2 — economy after settling any amount-driven rung delta. */
+  economy: EconomyState;
 }
 
 export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
@@ -171,6 +198,7 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
   let grownBuilding: EditEntryResult["grownBuilding"] = null;
   let buildingId = oldEntry.buildingId;
   let queued = oldEntry.queued;
+  let economy = args.economy;
 
   const wasSaving = oldEntry.type === "saving";
   const willBeSaving = newType === "saving";
@@ -208,6 +236,20 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
           grownBuilding = updated;
           buildings = buildings.map((b) => (b.id === host.id ? updated : b));
         }
+      }
+    }
+    // ADDENDUM-12 §3.2/§10.6 — same-type amount edit settles the rung delta
+    // on whatever keys this entry already holds (`settleAward` no-ops on a
+    // key that was never granted — 저축 never earns one, a queue-overflow
+    // save never earns one — so this is safe unconditionally on amountChanged).
+    if (amountChanged) {
+      const oldEntryAward = awardFor({ kind: "entry", entryId: oldEntry.id, expGain: expGainFor(oldEntry.amountKrw, expAmountTiers) });
+      const newEntryAward = awardFor({ kind: "entry", entryId: oldEntry.id, expGain: expGainFor(newAmountKrw, expAmountTiers) });
+      economy = settleAward(economy, oldEntryAward, newEntryAward);
+      if (bound) {
+        const oldBuildAward = awardFor({ kind: "build", buildingId: bound.id, expGain: expGainFor(oldEntry.amountKrw, expAmountTiers) });
+        const newBuildAward = awardFor({ kind: "build", buildingId: bound.id, expGain: expGainFor(newAmountKrw, expAmountTiers) });
+        economy = settleAward(economy, oldBuildAward, newBuildAward);
       }
     }
     // F14 (round-4 finding C2): a still-queued material follows the same
@@ -309,5 +351,5 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     queued,
   };
 
-  return { entry, town, buildings, removedBuilding, newBuilding, grownBuilding };
+  return { entry, town, buildings, removedBuilding, newBuilding, grownBuilding, economy };
 }

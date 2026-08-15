@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
+import { awardFor } from "./economy/awards";
+import { defaultEconomyState, type EconomyState } from "./economy/types";
 import { buildingForEntry, deleteEntryEffects, editEntryEffects } from "./historyActions";
 import type { Building, LedgerEntry, QueuedMaterial, TownState } from "./types";
+
+// ADDENDUM-12 — every `deleteEntryEffects`/`editEntryEffects` call now takes
+// an `economy`; most tests below don't care about the clawback and just want
+// a neutral starting point (`grantedEventKeys` seeded with whatever this
+// entry's/building's award key would be, so a revoke/settle in these
+// pre-existing tests is a real no-op rather than silently skipped because
+// the key was "never granted").
+function freshEconomy(overrides: Partial<EconomyState> = {}): EconomyState {
+  return { ...defaultEconomyState(), ...overrides };
+}
 
 function freshTown(overrides: Partial<TownState> = {}): TownState {
   return {
@@ -74,7 +86,7 @@ describe("deleteEntryEffects — F9", () => {
     const b = building();
     const survivor = building({ id: "b2", plotIndex: 7, source: { kind: "entry", entryId: "e2" } });
     const town = freshTown({ slotsUsedOn: "2026-08-15", slotsUsedToday: 2 });
-    const result = deleteEntryEffects({ town, buildings: [b, survivor], entry: entry(), expAmountTiers });
+    const result = deleteEntryEffects({ town, buildings: [b, survivor], entry: entry(), expAmountTiers, economy: freshEconomy() });
     expect(result.buildings).toEqual([survivor]);
     expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
     expect(result.town.slotsUsedToday).toBe(2); // not refunded
@@ -87,7 +99,7 @@ describe("deleteEntryEffects — F9", () => {
     ];
     const town = freshTown({ queue });
     const queuedEntry = entry({ buildingId: null, queued: true });
-    const result = deleteEntryEffects({ town, buildings: [], entry: queuedEntry, expAmountTiers });
+    const result = deleteEntryEffects({ town, buildings: [], entry: queuedEntry, expAmountTiers, economy: freshEconomy() });
     expect(result.town.queue.map((m) => m.entryId)).toEqual(["e2"]);
     expect(result.removedBuilding).toBeNull(); // never built yet
   });
@@ -95,7 +107,7 @@ describe("deleteEntryEffects — F9", () => {
   it("deleting a 저축 entry backs its amount out of the tower total, floored at 0", () => {
     const town = freshTown({ cumulativeSavingsKrw: 5_000, savingsByCategoryKrw: { goal: 5_000 } });
     const savingEntry = entry({ type: "saving", categoryId: "goal", amountKrw: 50_000, buildingId: null });
-    const result = deleteEntryEffects({ town, buildings: [], entry: savingEntry, expAmountTiers });
+    const result = deleteEntryEffects({ town, buildings: [], entry: savingEntry, expAmountTiers, economy: freshEconomy() });
     expect(result.town.cumulativeSavingsKrw).toBe(0);
     expect(result.town.savingsByCategoryKrw).toEqual({ goal: 0 });
   });
@@ -118,6 +130,7 @@ function editArgs(overrides: Partial<Parameters<typeof editEntryEffects>[0]> = {
     h: 1,
     now: 2000,
     expAmountTiers,
+    economy: freshEconomy(),
     ...overrides,
   };
 }
@@ -269,7 +282,7 @@ describe("deleteEntryEffects — ADDENDUM-04 grow contribution", () => {
   it("decrements the host's exp instead of removing it — the host survives", () => {
     const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 2 });
     const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 });
-    const result = deleteEntryEffects({ town: freshTown(), buildings: [host], entry: growEntry, expAmountTiers });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [host], entry: growEntry, expAmountTiers, economy: freshEconomy() });
     expect(result.removedBuilding).toBeNull();
     expect(result.grownBuilding).toEqual({ ...host, exp: 1 });
     expect(result.buildings).toEqual([{ ...host, exp: 1 }]);
@@ -278,14 +291,14 @@ describe("deleteEntryEffects — ADDENDUM-04 grow contribution", () => {
   it("floors the host's exp at 0 rather than going negative", () => {
     const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 0 });
     const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 });
-    const result = deleteEntryEffects({ town: freshTown(), buildings: [host], entry: growEntry, expAmountTiers });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [host], entry: growEntry, expAmountTiers, economy: freshEconomy() });
     expect(result.grownBuilding?.exp).toBe(0);
   });
 
   it("deleting the FOUNDING entry of a grown building still removes the whole building, EXP included (unchanged)", () => {
     const founding = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 5 });
     const foundingEntry = entry({ id: "founding1", buildingId: "host1" });
-    const result = deleteEntryEffects({ town: freshTown(), buildings: [founding], entry: foundingEntry, expAmountTiers });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [founding], entry: foundingEntry, expAmountTiers, economy: freshEconomy() });
     expect(result.removedBuilding).toEqual({ id: "host1", ym: "2026-08" });
     expect(result.grownBuilding).toBeNull();
     expect(result.buildings).toEqual([]);
@@ -332,5 +345,92 @@ describe("editEntryEffects — ADDENDUM-04 grow contribution", () => {
     const result = editEntryEffects(editArgs({ buildings: [host], entry: growEntry, patch: { amountKrw: 60_000 } }));
     expect(result.grownBuilding).toBeNull();
     expect(result.buildings).toEqual([host]);
+  });
+});
+
+// ADDENDUM-12 §3.1 — delete claws back the seeds this entry (and, if a
+// building was removed, that building) actually earned, recomputed from the
+// stored fields (INV-12.1), never a persisted "seedsGranted" field.
+describe("deleteEntryEffects — ADDENDUM-12 §3.1 seed clawback", () => {
+  it("revokes the entry's seed award when the key was granted", () => {
+    const entryAward = awardFor({ kind: "entry", entryId: "e1", expGain: 1 }); // expAmountTiers=null -> flat gain 1
+    const economy = freshEconomy({ seeds: 10, grantedEventKeys: [entryAward.eventKey] });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [], entry: entry({ buildingId: null }), expAmountTiers, economy });
+    expect(result.economy.seeds).toBe(10 - entryAward.amount);
+    expect(result.economy.grantedEventKeys).toEqual([]);
+  });
+
+  it("revokes both the entry AND build seed awards when the delete removes a building", () => {
+    const b = building(); // id b1, source.entryId e1
+    const entryAward = awardFor({ kind: "entry", entryId: "e1", expGain: 1 });
+    const buildAward = awardFor({ kind: "build", buildingId: "b1", expGain: 1 });
+    const economy = freshEconomy({ seeds: 20, grantedEventKeys: [entryAward.eventKey, buildAward.eventKey] });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [b], entry: entry(), expAmountTiers, economy });
+    expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
+    expect(result.economy.seeds).toBe(20 - entryAward.amount - buildAward.amount);
+    expect(result.economy.grantedEventKeys).toEqual([]);
+  });
+
+  it("floors at 0 and carries the shortfall into seedDebt when the balance can't cover the clawback", () => {
+    const entryAward = awardFor({ kind: "entry", entryId: "e1", expGain: 1 });
+    const economy = freshEconomy({ seeds: 0, grantedEventKeys: [entryAward.eventKey] });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [], entry: entry({ buildingId: null }), expAmountTiers, economy });
+    expect(result.economy.seeds).toBe(0);
+    expect(result.economy.seedDebt).toBe(entryAward.amount);
+  });
+
+  it("is a no-op on economy when the entry never earned a seed (e.g. a 저축 entry)", () => {
+    const economy = freshEconomy({ seeds: 10 });
+    const result = deleteEntryEffects({ town: freshTown(), buildings: [], entry: entry({ type: "saving", buildingId: null }), expAmountTiers, economy });
+    expect(result.economy).toBe(economy);
+  });
+
+  // §3.1 — a pending 새로짓기/키우기 choice naming a now-dead entry can't survive it (previously missing).
+  it("clears a pendingGrowChoice that names this entry", () => {
+    const town = freshTown({ pendingGrowChoice: { entryId: "e1", entryYm: "2026-08", categoryId: "cafe", expGain: 1 } });
+    const result = deleteEntryEffects({ town, buildings: [], entry: entry({ buildingId: null }), expAmountTiers, economy: freshEconomy() });
+    expect(result.town.pendingGrowChoice).toBeUndefined();
+  });
+
+  it("leaves an UNRELATED pendingGrowChoice untouched", () => {
+    const town = freshTown({ pendingGrowChoice: { entryId: "other-entry", entryYm: "2026-08", categoryId: "cafe", expGain: 1 } });
+    const result = deleteEntryEffects({ town, buildings: [], entry: entry({ buildingId: null }), expAmountTiers, economy: freshEconomy() });
+    expect(result.town.pendingGrowChoice).toEqual(town.pendingGrowChoice);
+  });
+});
+
+// ADDENDUM-12 §3.2/§10.6 — an amount edit settles the rung delta on whatever
+// seed keys this entry (and its founded building, if any) already hold,
+// bypassing `applyAward`'s idempotency check on purpose (the key stays granted).
+describe("editEntryEffects — ADDENDUM-12 §3.2 seed settle", () => {
+  it("settles the seed delta for both the entry and build keys on a founding entry's amount edit", () => {
+    const entryAward = awardFor({ kind: "entry", entryId: "e1", expGain: 1 });
+    const buildAward = awardFor({ kind: "build", buildingId: "b1", expGain: 1 });
+    const newEntryAward = awardFor({ kind: "entry", entryId: "e1", expGain: 3 });
+    const newBuildAward = awardFor({ kind: "build", buildingId: "b1", expGain: 3 });
+    const economy = freshEconomy({ seeds: 100, grantedEventKeys: [entryAward.eventKey, buildAward.eventKey] });
+    const result = editEntryEffects(editArgs({ patch: { amountKrw: 60_000 }, expAmountTiers: tieredExpAmountTiers, economy }));
+    const expectedDelta = newEntryAward.amount - entryAward.amount + (newBuildAward.amount - buildAward.amount);
+    expect(expectedDelta).toBeGreaterThan(0); // sanity: this edit actually crosses a rung
+    expect(result.economy.seeds).toBe(100 + expectedDelta);
+    expect(result.economy.grantedEventKeys).toEqual([entryAward.eventKey, buildAward.eventKey]); // keys unchanged — settle, not a fresh grant
+  });
+
+  it("settles only the entry key on a grow-contribution entry's amount edit (it founded no building of its own)", () => {
+    const host = building({ id: "host1", source: { kind: "entry", entryId: "founding1" }, exp: 3 });
+    const growEntry = entry({ id: "grow1", buildingId: "host1", amountKrw: 4_500 });
+    const entryAward = awardFor({ kind: "entry", entryId: "grow1", expGain: 1 });
+    const newEntryAward = awardFor({ kind: "entry", entryId: "grow1", expGain: 3 });
+    const economy = freshEconomy({ seeds: 50, grantedEventKeys: [entryAward.eventKey] });
+    const result = editEntryEffects(
+      editArgs({ buildings: [host], entry: growEntry, patch: { amountKrw: 60_000 }, expAmountTiers: tieredExpAmountTiers, economy }),
+    );
+    expect(result.economy.seeds).toBe(50 + (newEntryAward.amount - entryAward.amount));
+  });
+
+  it("a non-amount edit leaves economy untouched (same reference)", () => {
+    const economy = freshEconomy({ seeds: 5 });
+    const result = editEntryEffects(editArgs({ patch: { categoryId: "food" }, economy }));
+    expect(result.economy).toBe(economy);
   });
 });

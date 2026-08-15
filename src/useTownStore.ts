@@ -104,6 +104,20 @@ function entriesForMonth(
   return ym === todayYm ? state.entries : state.historyEntries[ym];
 }
 
+/**
+ * ADDENDUM-12 §5 — fusion entanglement: `entry.buildingId` names a fused
+ * survivor (catches a remapped post-fusion entry — `remapEntryBuildingRefs`,
+ * ADDENDUM-11 §5.4) OR this entry itself founded/grew a now-fused survivor
+ * (`buildingForEntry`). Either shape means deleting/amount-editing this entry
+ * would silently corrupt the fused tower's EXP (spec §5's table).
+ */
+function isFusionEntangled(buildings: readonly Building[], entry: LedgerEntry): boolean {
+  const viaRef = entry.buildingId !== null ? buildings.find((b) => b.id === entry.buildingId) : undefined;
+  if (viaRef && fuseOf(viaRef) > 0) return true;
+  const bound = buildingForEntry(buildings, entry.id);
+  return bound !== undefined && fuseOf(bound) > 0;
+}
+
 /** ADDENDUM-11 §3 — what one committed fusion produced, for the confirming UI's toast. */
 export interface FuseBuildingsResult {
   /** The surviving building, `fuse` already incremented — same id, plotIndex and footprint it had before. */
@@ -155,6 +169,19 @@ export type { EntryEditPatch };
 
 /** `purchaseSku`'s outcome (ADDENDUM-05 §F-ECON shop). `"maxed"` — NPC_SLOT_SKU only: buildings.length + purchasedNpcSlots already saturates NPC_MAX_VISIBLE, so the slot would buy nothing (checked BEFORE any seed deduction). */
 export type PurchaseSkuResult = "ok" | "insufficient" | "alreadyOwned" | "maxed";
+
+/**
+ * ADDENDUM-12 §9 — the store's edit/delete contract. `entryMutability` is the
+ * single source of truth BOTH the UI (to grey things out, §7) and the store
+ * itself (`deleteEntry`/`updateEntry`'s own first-line self-check, the real
+ * trust boundary — a disabled button is only ever a hint) read.
+ */
+export interface EntryMutability {
+  canEdit: boolean;
+  canEditAmount: boolean;
+  canDelete: boolean;
+  reason: null | "past-month" | "fused";
+}
 
 function freshCore(now: number, today: string): LoadedState {
   return {
@@ -1441,6 +1468,32 @@ export function useTownStore() {
     return entriesForMonth(prev, ym, clock.today().slice(0, 7)) ?? [];
   }, []);
 
+  /** ADDENDUM-12 §9 — see `EntryMutability`'s own doc. `ym` is the month chunk the caller has `entry` loaded from (same param `deleteEntry`/`updateEntry` take). */
+  const entryMutability = useCallback((entry: LedgerEntry, ym: string): EntryMutability => {
+    const todayYm = clock.today().slice(0, 7);
+    if (ym !== todayYm) return { canEdit: false, canEditAmount: false, canDelete: false, reason: "past-month" };
+    if (isFusionEntangled(stateRef.current?.buildings ?? [], entry)) {
+      return { canEdit: true, canEditAmount: false, canDelete: false, reason: "fused" };
+    }
+    return { canEdit: true, canEditAmount: true, canDelete: true, reason: null };
+  }, []);
+
+  /** ADDENDUM-12 §3.3/§7 — the delete confirm dialog's honest preview: seeds this delete would actually claw back, and the shortfall (if any) that would land on `seedDebt` instead. Mirrors `deleteEntryEffects`' own recompute-from-stored-fields math (INV-12.1) without mutating anything. */
+  const seedClawbackPreview = useCallback((entry: LedgerEntry): { seeds: number; shortfall: number } => {
+    const prev = stateRef.current;
+    if (prev === null) return { seeds: 0, shortfall: 0 };
+    const gain = expGainFor(entry.amountKrw, BALANCE.expAmountTiers);
+    let total = 0;
+    const entryAward = awardFor({ kind: "entry", entryId: entry.id, expGain: gain });
+    if (prev.economy.grantedEventKeys.includes(entryAward.eventKey)) total += entryAward.amount;
+    const bound = buildingForEntry(prev.buildings, entry.id);
+    if (bound) {
+      const buildAward = awardFor({ kind: "build", buildingId: bound.id, expGain: gain });
+      if (prev.economy.grantedEventKeys.includes(buildAward.eventKey)) total += buildAward.amount;
+    }
+    return { seeds: total, shortfall: Math.max(0, total - prev.economy.seeds) };
+  }, []);
+
   /**
    * F9 delete — thin wiring over `historyActions.deleteEntryEffects` (pure):
    * persists the removed building's OLD month chunk (if any — round-4
@@ -1456,9 +1509,16 @@ export function useTownStore() {
     const list = entriesForMonth(prev, ym, todayYm);
     const entry = list?.find((e) => e.id === entryId);
     if (!entry) return;
+    // ADDENDUM-12 §9 — the trust boundary: self-check even though the UI
+    // already disables this action (§4 past-month, §5 fused).
+    if (!entryMutability(entry, ym).canDelete) return;
 
-    const result = deleteEntryEffects({ town: prev.town, buildings: prev.buildings, entry, expAmountTiers: BALANCE.expAmountTiers });
+    const result = deleteEntryEffects({ town: prev.town, buildings: prev.buildings, entry, expAmountTiers: BALANCE.expAmountTiers, economy: prev.economy });
     const storageClient = storageRef.current;
+    // ADDENDUM-12 §8 — write order: economy FIRST (a mid-write abort here
+    // only costs the player seeds, never a live/dead-entry mismatch), THEN
+    // the building chunk, THEN entries.
+    if (result.economy !== prev.economy) storageClient.saveEconomy(result.economy);
     if (result.removedBuilding) {
       const { id, ym: buildYm } = result.removedBuilding;
       mutateBuildingsForMonth(storageClient, buildYm, (existing) => existing.filter((b) => b.id !== id));
@@ -1478,12 +1538,13 @@ export function useTownStore() {
       ...prev,
       town: result.town,
       buildings: result.buildings,
+      economy: result.economy,
       entries: ym === todayYm ? newList : prev.entries,
       historyEntries: ym === todayYm ? prev.historyEntries : { ...prev.historyEntries, [ym]: newList },
     };
     stateRef.current = next;
     setState(next);
-  }, []);
+  }, [entryMutability]);
 
   /**
    * F9 edit — thin wiring over `historyActions.editEntryEffects` (pure, see
@@ -1500,6 +1561,15 @@ export function useTownStore() {
     const list = entriesForMonth(prev, ym, todayYm);
     const oldEntry = list?.find((e) => e.id === entryId);
     if (!oldEntry) return;
+    // ADDENDUM-12 §9 — the trust boundary: self-check even though the UI
+    // already disables the relevant fields (§4 past-month, §5 fused).
+    const mutability = entryMutability(oldEntry, ym);
+    if (!mutability.canEdit) return;
+    // canEditAmount also gates `type` (spec §9 doc: "금액·타입(경제에 영향)").
+    if ((patch.amountKrw !== undefined || patch.type !== undefined) && !mutability.canEditAmount) return;
+    // ADDENDUM-12 §4 — occurredOn must stay inside the current month; `ym`
+    // is already known === todayYm here (mutability.canEdit ruled out past-month).
+    if (patch.occurredOn !== undefined && patch.occurredOn.slice(0, 7) !== todayYm) return;
 
     const now = clock.now();
     const needsFreshBuilding = oldEntry.type === "saving" && patch.type !== undefined && patch.type !== "saving";
@@ -1528,9 +1598,12 @@ export function useTownStore() {
       h,
       now,
       expAmountTiers: BALANCE.expAmountTiers,
+      economy: prev.economy,
     });
 
     const storageClient = storageRef.current;
+    // ADDENDUM-12 §8 — economy FIRST, same order/reasoning as `deleteEntry`.
+    if (result.economy !== prev.economy) storageClient.saveEconomy(result.economy);
     const oldBound = buildingForEntry(prev.buildings, entryId);
     if (result.removedBuilding) {
       const { id, ym: buildYm } = result.removedBuilding;
@@ -1583,10 +1656,10 @@ export function useTownStore() {
       else historyEntries = { ...historyEntries, [newYm]: newDestList };
     }
 
-    const next: LoadedState = { ...prev, town: result.town, buildings: result.buildings, entries, historyEntries };
+    const next: LoadedState = { ...prev, town: result.town, buildings: result.buildings, economy: result.economy, entries, historyEntries };
     stateRef.current = next;
     setState(next);
-  }, []);
+  }, [entryMutability]);
 
   // ── S6 설정 — F6's "editable from 기록" half + town name + 데이터 초기화 ──
 
@@ -1875,6 +1948,8 @@ export function useTownStore() {
     ensureMonthLoaded,
     deleteEntry,
     updateEntry,
+    entryMutability,
+    seedClawbackPreview,
     // ── S6 설정 ──
     setBudget,
     setTownName,

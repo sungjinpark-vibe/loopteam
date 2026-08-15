@@ -27,7 +27,7 @@ import { act } from "react";
 import { ThemeProvider } from "@toss/tds-mobile";
 import { afterEach, describe, expect, it } from "vitest";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
-import type { EntryEditPatch } from "../useTownStore";
+import type { EntryEditPatch, EntryMutability } from "../useTownStore";
 import type { LedgerEntry } from "../types";
 import { EntryDetailSheet, type EntryDetailSheetProps } from "./EntryDetailSheet";
 
@@ -74,7 +74,13 @@ const ENTRY_A: LedgerEntry = {
   type: "expense",
   amountKrw: 4_500,
   categoryId: "cafe",
-  occurredOn: "2026-07-31",
+  // ADDENDUM-12 §4/§9: kept within TODAY's month (2026-08) — the date field
+  // now carries a `min` of the current month's first day (real usage: only a
+  // current-month entry is ever editable at all, so its own `occurredOn`
+  // can never legitimately sit below that floor). A previous-month value
+  // here would conflict with that floor and make WheelDatePicker clamp the
+  // untouched-apply repro this file exists to guard (round-1 finding C1).
+  occurredOn: "2026-08-05",
   memo: "americano",
   createdAt: 1,
   updatedAt: 1,
@@ -95,9 +101,14 @@ const ENTRY_B: LedgerEntry = {
   queued: false,
 };
 
-const NOOP_PROPS: Pick<EntryDetailSheetProps, "open" | "today" | "onClose" | "onSave" | "onDelete"> = {
+const NOOP_PROPS: Pick<
+  EntryDetailSheetProps,
+  "open" | "today" | "mutability" | "clawbackPreview" | "onClose" | "onSave" | "onDelete"
+> = {
   open: true,
   today: TODAY,
+  mutability: null,
+  clawbackPreview: null,
   onClose: () => {},
   onSave: () => {},
   onDelete: () => {},
@@ -189,5 +200,69 @@ describe("EntryDetailSheet — date field (T013 fix-forward, round-1 finding C1'
 
     expect(saved).toEqual({ memo: "iced americano" });
     expect(saved).not.toHaveProperty("occurredOn");
+  });
+});
+
+describe("EntryDetailSheet — ADDENDUM-12 §7 mutability + clawback UI", () => {
+  const PAST_MONTH: EntryMutability = { canEdit: false, canEditAmount: false, canDelete: false, reason: "past-month" };
+  const FUSED: EntryMutability = { canEdit: true, canEditAmount: false, canDelete: false, reason: "fused" };
+  const OPEN: EntryMutability = { canEdit: true, canEditAmount: true, canDelete: true, reason: null };
+
+  it("past-month: save and delete are both disabled, and the reason is shown", () => {
+    renderSheet({ entry: ENTRY_A, mutability: PAST_MONTH, clawbackPreview: { seeds: 0, shortfall: 0 } });
+
+    expect(findByText(document.body, "지난달 기록은 정산이 끝나 수정할 수 없어요.")).not.toBeNull();
+    expect(findButton("저장")!.disabled).toBe(true);
+    expect(findButton("삭제")!.disabled).toBe(true);
+  });
+
+  it("fused: delete and the amount/type fields are locked, but memo stays editable and its own edit still saves", () => {
+    let saved: EntryEditPatch | undefined;
+    renderSheet({
+      entry: ENTRY_B,
+      mutability: FUSED,
+      clawbackPreview: { seeds: 0, shortfall: 0 },
+      onSave: (patch) => (saved = patch),
+    });
+
+    expect(
+      findByText(
+        document.body,
+        "이 기록은 합쳐진 건물에 들어가 있어 금액 수정·삭제를 할 수 없어요. 메모와 분류는 바꿀 수 있어요."
+      )
+    ).not.toBeNull();
+    expect(findButton("삭제")!.disabled).toBe(true);
+    expect(document.body.querySelector(".entry-sheet-body--amount-locked")).not.toBeNull();
+
+    const memoInput = document.body.querySelector<HTMLInputElement>('input[placeholder="메모 (선택)"]')!;
+    const nativeValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => {
+      nativeValueSetter.call(memoInput, "note");
+      memoInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => findButton("저장")!.click());
+
+    expect(saved).toEqual({ memo: "note" });
+  });
+
+  it("delete confirm description states the seed clawback, and adds the shortfall sentence when the balance is short", () => {
+    renderSheet({ entry: ENTRY_B, mutability: OPEN, clawbackPreview: { seeds: 8, shortfall: 3 } });
+
+    act(() => findButton("삭제")!.click()); // opens the destructive-action ConfirmDialog
+
+    expect(
+      findByText(
+        document.body,
+        "함께 지어진 건물이 사라지고, 씨앗 8개를 돌려받아요. 이 작업은 되돌릴 수 없어요. 지금 씨앗이 부족해서 다음 적립에서 차감돼요."
+      )
+    ).not.toBeNull();
+  });
+
+  it("delete confirm description says nothing about seeds when the preview is 0", () => {
+    renderSheet({ entry: ENTRY_B, mutability: OPEN, clawbackPreview: { seeds: 0, shortfall: 0 } });
+
+    act(() => findButton("삭제")!.click());
+
+    expect(findByText(document.body, "함께 지어진 건물도 사라져요. 이 작업은 되돌릴 수 없어요.")).not.toBeNull();
   });
 });

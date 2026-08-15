@@ -985,6 +985,35 @@ button.town-fab {
   padding-bottom: 8px;
 }
 
+/* ADDENDUM-12 §7.2/§7.3 — past-month/fused reason copy, same quiet-hint
+ * register as `.history-donut-empty`/`.history-pace-empty` (grey600, no
+ * emphasis chrome — this is an explanation, not an error). */
+.entry-sheet-reason {
+  font-size: 13px;
+  color: var(--town-grey600);
+  background: var(--town-grey100);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+/* ADDENDUM-12 §7.3 — fused entries keep memo/category/date editable; only
+ * amount + type are economy-bearing and locked. `EntryFields` renders the
+ * amount readout/keypad as a plain Fragment (no wrapper element), so these
+ * target its own stable classnames as descendants of the locked body instead
+ * of requiring a new wrapper component. `.category-grid` is deliberately NOT
+ * listed — category stays editable per spec. */
+.entry-sheet-body--amount-locked .entry-amount-display,
+.entry-sheet-body--amount-locked .entry-amount-hint,
+.entry-sheet-body--amount-locked .entry-keypad {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.entry-type-toggle--locked {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
 .entry-amount-display {
   display: flex;
   align-items: baseline;
@@ -1287,7 +1316,7 @@ button.town-fab {
 
 .history-row {
   display: grid;
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 28px 1fr auto auto;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -1298,6 +1327,22 @@ button.town-fab {
   text-align: left;
   font-size: 14px;
   color: var(--town-grey900);
+  transition: background-color 100ms ease;
+}
+
+/* ADDENDUM-12 §7.1 — Gate-3's actual finding: the row was always tappable
+ * (onClick already opened EntryDetailSheet), it just looked inert. A trailing
+ * chevron + pressed state are the whole fix — no new component, quiet enough
+ * to still read as a ledger row rather than a CTA (`.history-row--nospend`
+ * doesn't render one — that row is a static div, not a button). */
+.history-row-chevron {
+  color: var(--town-grey400);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.history-row:active {
+  background: var(--town-grey100);
 }
 
 .history-row-icon {

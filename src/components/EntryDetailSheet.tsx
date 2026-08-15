@@ -40,20 +40,49 @@ import { appendAmountDigit } from "../format";
 import { useBackGuard } from "../hooks/useBackGuard";
 import { useConfirmDialogBackdropFix } from "../hooks/useConfirmDialogBackdropFix";
 import type { CategoryId, EntryType, LedgerEntry } from "../types";
-import type { EntryEditPatch } from "../useTownStore";
+import type { EntryEditPatch, EntryMutability } from "../useTownStore";
 import { EntryFields } from "./EntryFields";
+
+// ADDENDUM-12 §7.4 — the confirm dialog tells the truth about what deleting
+// actually gives back, instead of the generic warning alone.
+function deleteDescription(preview: { seeds: number; shortfall: number } | null): string {
+  if (preview === null || preview.seeds <= 0) {
+    return "함께 지어진 건물도 사라져요. 이 작업은 되돌릴 수 없어요.";
+  }
+  let text = `함께 지어진 건물이 사라지고, 씨앗 ${preview.seeds}개를 돌려받아요. 이 작업은 되돌릴 수 없어요.`;
+  if (preview.shortfall > 0) text += " 지금 씨앗이 부족해서 다음 적립에서 차감돼요.";
+  return text;
+}
+
+const REASON_TEXT: Record<"past-month" | "fused", string> = {
+  "past-month": "지난달 기록은 정산이 끝나 수정할 수 없어요.",
+  fused: "이 기록은 합쳐진 건물에 들어가 있어 금액 수정·삭제를 할 수 없어요. 메모와 분류는 바꿀 수 있어요.",
+};
 
 export interface EntryDetailSheetProps {
   open: boolean;
   /** The entry being viewed/edited. Stays non-null while `open` is true; may already be null while the sheet is closing. */
   entry: LedgerEntry | null;
   today: string; // 'YYYY-MM-DD' — the date field may never go past it
+  /** ADDENDUM-12 §9 — store-computed edit/delete permissions for `entry`. `null` only when `entry` is null. */
+  mutability: EntryMutability | null;
+  /** ADDENDUM-12 §7.4 — honest seed clawback preview for the delete confirm dialog. `null` only when `entry` is null. */
+  clawbackPreview: { seeds: number; shortfall: number } | null;
   onClose: () => void;
   onSave: (patch: EntryEditPatch) => void;
   onDelete: () => void;
 }
 
-export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete }: EntryDetailSheetProps) {
+export function EntryDetailSheet({
+  open,
+  entry,
+  today,
+  mutability,
+  clawbackPreview,
+  onClose,
+  onSave,
+  onDelete,
+}: EntryDetailSheetProps) {
   const [type, setType] = useState<EntryType>("expense");
   const [amountDigits, setAmountDigits] = useState("");
   const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
@@ -100,8 +129,25 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
     setCategoryId(null); // the category grid is filtered by type — the old selection may not exist in the new list (EntrySheet's own selectType does the same)
   }
 
+  // ADDENDUM-12 §4 — an edit may never carry `occurredOn` out of the current
+  // month (the store refuses it; this is the UI-side hint). `today`'s own
+  // month, not the viewed month's — only the current month is ever editable
+  // at all (`mutability.canEdit` gates everything else).
+  const minDate = `${today.slice(0, 7)}-01`;
+
+  const canEditAny = mutability?.canEdit ?? true;
+  const canEditAmount = mutability?.canEditAmount ?? true;
+  const canDeleteEntry = mutability?.canDelete ?? true;
+  const reason = mutability?.reason ?? null;
+
+  // The lower bound itself is enforced by `WheelDatePicker`'s native `min`
+  // prop (passed down via `EntryFields`) — it already stops the user from
+  // ever PICKING a date below `minDate`, so re-checking it here would only
+  // re-reject an entry's own already-loaded `occurredOn` on an unrelated
+  // save (e.g. amount/memo-only edits), which is never sent as a patch
+  // field anyway since it's unchanged.
   const amountKrw = Number(amountDigits || "0");
-  const canSave = entry !== null && amountKrw > 0 && categoryId !== null && date <= today;
+  const canSave = entry !== null && canEditAny && amountKrw > 0 && categoryId !== null && date <= today;
   const touched =
     entry !== null &&
     (type !== entry.type ||
@@ -158,8 +204,15 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
           </Button>
         }
       >
-        <div className="entry-sheet-body">
-          <SegmentedControl value={type} onChange={selectType} aria-label="거래 유형">
+        <div className={`entry-sheet-body${canEditAmount ? "" : " entry-sheet-body--amount-locked"}`}>
+          {reason !== null && <div className="entry-sheet-reason">{REASON_TEXT[reason]}</div>}
+
+          <SegmentedControl
+            value={type}
+            onChange={selectType}
+            aria-label="거래 유형"
+            className={canEditAmount ? undefined : "entry-type-toggle--locked"}
+          >
             <SegmentedControl.Item value="expense">지출</SegmentedControl.Item>
             <SegmentedControl.Item value="income">수입</SegmentedControl.Item>
             <SegmentedControl.Item value="saving">저축</SegmentedControl.Item>
@@ -174,6 +227,7 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
             onSelectCategory={setCategoryId}
             date={date}
             today={today}
+            minDate={minDate}
             onDateChange={setDate}
             memo={memo}
             onMemoChange={setMemo}
@@ -185,6 +239,7 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
             variant="weak"
             display="block"
             size="large"
+            disabled={!canDeleteEntry}
             onClick={() => setConfirmDeleteOpen(true)}
           >
             삭제
@@ -207,7 +262,7 @@ export function EntryDetailSheet({ open, entry, today, onClose, onSave, onDelete
       <ConfirmDialog
         open={confirmDeleteOpen}
         title="이 내역을 삭제할까요?"
-        description="함께 지어진 건물도 사라져요. 이 작업은 되돌릴 수 없어요."
+        description={deleteDescription(clawbackPreview)}
         onClose={() => setConfirmDeleteOpen(false)}
         cancelButton={<ConfirmDialog.CancelButton onClick={() => setConfirmDeleteOpen(false)}>취소</ConfirmDialog.CancelButton>}
         confirmButton={<ConfirmDialog.ConfirmButton onClick={onDelete}>삭제</ConfirmDialog.ConfirmButton>}

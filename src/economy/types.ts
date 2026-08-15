@@ -57,6 +57,8 @@ export interface EconomyState {
   purchasedNpcSlots: number;
   /** Idempotency ledger for `awards.ts` grants — see `GRANTED_EVENT_KEYS_CAP` above. */
   grantedEventKeys: string[];
+  /** ADDENDUM-12 §3.3 — unpaid clawback shortfall (a revoke/settle that overran the seed balance). Absent === 0, no migration — same discipline as `Building.exp`. Paid down first by the next `applyAward` credit. */
+  seedDebt?: number;
 }
 
 export function defaultEconomyState(): EconomyState {

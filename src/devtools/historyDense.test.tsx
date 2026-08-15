@@ -12,7 +12,18 @@
  * the REAL `useTownStore` boot over the REAL `dense` fixture through the
  * REAL chunked-storage round trip, mounts the REAL `HistoryScreen`, and
  * measures with `performance.now()` what each operation actually costs in
- * wall time — numbers logged, not just a pass/fail bound. jsdom has no
+ * wall time — numbers logged, not just a pass/fail bound.
+ *
+ * ADDENDUM-12 §4/§10.9 update: `deleteEntry`/`updateEntry` now REFUSE any
+ * entry outside the current month, so the delete half of the S5 dense claim
+ * above can no longer be exercised on the fixture's 300-entry heavy month
+ * (structurally always in the past — see `monthsBack > 0` below). This file
+ * now asserts the REFUSAL on the heavy month (a dense-conditions regression
+ * test for §10.9 — a refused delete must leave all ~300 rows in place) and
+ * moves the memoized-re-render measurement itself to the current month, the
+ * only month a delete is still legal in.
+ *
+ * jsdom has no
  * compositor, so "scrolls without jank" itself is proxied by render/paint
  * wall-time the same way `TownGrid`'s own dense test already documents
  * doing for frame-drop claims it can't literally measure either.
@@ -110,7 +121,7 @@ afterEach(() => {
 });
 
 describe("HistoryScreen over the REAL dense fixture (~5,400 buildings, 36 months, one 300-entry month) — spec line 266/352", () => {
-  it("first paints the 300-entry month within a smoke budget, deleting from it re-renders only the affected day group, and 36-month ‹ navigation never blocks > 100ms per step", async () => {
+  it("first paints the 300-entry month within a smoke budget, refuses a delete from that past month (ADDENDUM-12 §4/§10.9), deletes from the current month re-rendering only the affected day group, and 36-month ‹ navigation never blocks > 100ms per step", async () => {
     const fixture = FIXTURES.dense();
     setTimeTravelDate(fixture.today);
     const storageClient = createChunkedStorage();
@@ -168,40 +179,77 @@ describe("HistoryScreen over the REAL dense fixture (~5,400 buildings, 36 months
     expect(avgStepMs).toBeLessThan(100);
     expect(maxStepMs).toBeLessThan(500);
 
-    // Land back on the heavy month for the delete measurement below.
+    // Land back on the heavy (past) month first. ADDENDUM-12 §4 now REFUSES
+    // deleteEntry/updateEntry on any entry outside the current month, and
+    // this fixture's 300-entry month is structurally always in the past
+    // (`monthsBack > 0` above) — so instead of the old "delete succeeds
+    // here" measurement, this is exactly the dense-conditions shape §10.9
+    // wants covered: a refusal that must leave every one of the ~300 rows
+    // in place, not just a thin fixture's worth.
     for (let i = 0; i < 36 - monthsBack; i++) {
       const btn = [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "다음 달")!;
       act(() => btn.click());
     }
     expect(container.querySelector(".history-month-label")?.textContent).toContain(String(Number(heavyYm.slice(5, 7))));
 
-    const rowsBefore = container.querySelectorAll(".history-row:not(.history-row--nospend)").length;
-    expect(rowsBefore).toBeGreaterThanOrEqual(300);
-    const dayGroupCountBeforeDelete = container.querySelectorAll(".history-day-group").length;
+    const heavyRowsBefore = container.querySelectorAll(".history-row:not(.history-row--nospend)").length;
+    expect(heavyRowsBefore).toBeGreaterThanOrEqual(300);
 
-    const toDelete = fixture.entries.find((e) => e.occurredOn.slice(0, 7) === heavyYm)!;
+    const heavyEntry = fixture.entries.find((e) => e.occurredOn.slice(0, 7) === heavyYm)!;
+    // §4's own reason code, straight from the store's mutability check —
+    // not just "nothing happened" but "refused for the documented reason".
+    expect(latest!.entryMutability(heavyEntry, heavyYm).reason).toBe("past-month");
+    act(() => {
+      latest!.deleteEntry(heavyEntry.id, heavyYm);
+    });
+    const heavyRowsAfter = container.querySelectorAll(".history-row:not(.history-row--nospend)").length;
+    console.info(`[AC-dense-history] refused delete from the 300-entry past month (${heavyYm}): rowsBefore=${heavyRowsBefore} rowsAfter=${heavyRowsAfter}`);
+    expect(heavyRowsAfter).toBe(heavyRowsBefore); // refused — ADDENDUM-12 §4, row count untouched
+    expect(heavyRowsAfter).toBeGreaterThanOrEqual(300);
+
+    // Now navigate the rest of the way forward to the CURRENT month — under
+    // ADDENDUM-12 §4 the only month a delete is still legal in — to measure
+    // the S5 dense memoization claim (spec line 352: "deleting ... re-renders
+    // only the affected day group") somewhere the delete can actually go
+    // through.
+    for (let i = 0; i < monthsBack; i++) {
+      const btn = [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "다음 달")!;
+      act(() => btn.click());
+    }
+    expect(container.querySelector(".history-month-label")?.textContent).toContain(String(Number(currentYm.slice(5, 7))));
+
+    const rowsBefore = container.querySelectorAll(".history-row:not(.history-row--nospend)").length;
+    const dayGroupCountBeforeDelete = container.querySelectorAll(".history-day-group").length;
+    console.info(`[AC-dense-history] current month (${currentYm}) density: rows=${rowsBefore} dayGroups=${dayGroupCountBeforeDelete}`);
+    // The memoization claim only means something if there's more than one
+    // day group to skip re-rendering — guard the fixture's own shape rather
+    // than assuming it, per this file's own established discipline above.
+    expect(dayGroupCountBeforeDelete).toBeGreaterThanOrEqual(2);
+    expect(rowsBefore).toBeGreaterThanOrEqual(2);
+
+    const toDelete = fixture.entries.find((e) => e.occurredOn.slice(0, 7) === currentYm)!;
     dayGroupRenderStats.count = 0; // reset AFTER the settled paint above — isolates just the delete's own re-render cost
     const deleteStart = performance.now();
     act(() => {
-      latest!.deleteEntry(toDelete.id, heavyYm);
+      latest!.deleteEntry(toDelete.id, currentYm);
     });
     const deleteElapsedMs = performance.now() - deleteStart;
-    console.info(`[AC-dense-history] delete from the 300-entry month elapsedMs=${deleteElapsedMs.toFixed(1)} dayGroupRendersTriggered=${dayGroupRenderStats.count}`);
+    console.info(`[AC-dense-history] delete from the current month elapsedMs=${deleteElapsedMs.toFixed(1)} dayGroupRendersTriggered=${dayGroupRenderStats.count}`);
 
     const rowsAfter = container.querySelectorAll(".history-row:not(.history-row--nospend)").length;
     expect(rowsAfter).toBe(rowsBefore - 1); // the delete actually applied
     expect(container.querySelectorAll(".history-day-group").length).toBeLessThanOrEqual(dayGroupCountBeforeDelete); // never GAINS a group from a delete
 
     // The memoization guard itself (S5's own dense note): exactly ONE day
-    // group's own render function ran — every other day in this ~300-entry
-    // month was skipped by `HistoryDayGroup`'s custom `React.memo`
-    // comparator, not just "produced identical DOM the hard way".
+    // group's own render function ran — every other day in the current month
+    // was skipped by `HistoryDayGroup`'s custom `React.memo` comparator, not
+    // just "produced identical DOM the hard way".
     expect(dayGroupRenderStats.count).toBe(1);
     // Smoke bound consistent with this repo's own established dense budget
     // (`reconcileDense.test.tsx`'s literal AC-R4 number) — a single day
     // group re-rendering should be far cheaper than that; this just guards
     // against a structural regression (e.g. losing the memo and re-rendering
-    // all ~300 rows), not a coin-flip timing assertion.
+    // every row in the month), not a coin-flip timing assertion.
     expect(deleteElapsedMs).toBeLessThan(1_000);
   });
 });

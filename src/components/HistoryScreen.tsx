@@ -26,7 +26,15 @@ import { EntryDetailSheet } from "./EntryDetailSheet";
 export interface HistoryScreenProps {
   store: Pick<
     TownStore,
-    "today" | "budgetKrw" | "noSpendDays" | "getMonthEntries" | "ensureMonthLoaded" | "updateEntry" | "deleteEntry"
+    | "today"
+    | "budgetKrw"
+    | "noSpendDays"
+    | "getMonthEntries"
+    | "ensureMonthLoaded"
+    | "updateEntry"
+    | "deleteEntry"
+    | "entryMutability"
+    | "seedClawbackPreview"
   >;
   /** Settings now mounts once at the app shell (Town header also links here) — HistoryScreen only owns the entry-point button. */
   onOpenSettings: () => void;
@@ -136,6 +144,9 @@ const HistoryDayGroup = memo(function HistoryDayGroup({ group, onOpenRow }: Hist
             {e.type === "expense" ? "-" : e.type === "income" ? "+" : ""}
             {formatKrw(e.amountKrw)}
           </span>
+          <span className="history-row-chevron" aria-hidden="true">
+            ›
+          </span>
         </button>
       ))}
     </li>
@@ -143,9 +154,27 @@ const HistoryDayGroup = memo(function HistoryDayGroup({ group, onOpenRow }: Hist
 }, sameDayGroup);
 
 export function HistoryScreen({ store, onOpenSettings }: HistoryScreenProps) {
-  const { today, budgetKrw, noSpendDays, getMonthEntries, ensureMonthLoaded, updateEntry, deleteEntry } = store;
+  const {
+    today,
+    budgetKrw,
+    noSpendDays,
+    getMonthEntries,
+    ensureMonthLoaded,
+    updateEntry,
+    deleteEntry,
+    entryMutability,
+    seedClawbackPreview,
+  } = store;
   const [ym, setYm] = useState(() => today.slice(0, 7));
   const [selected, setSelected] = useState<{ entry: LedgerEntry; ym: string } | null>(null);
+
+  // ADDENDUM-12 §7/§9 — the sheet stays prop-driven (house pattern): mutability
+  // and the clawback preview are cheap, pure re-derivations off the store's own
+  // `entryMutability`/`seedClawbackPreview` (same "recompute, don't cache a
+  // stored field" discipline as `expGainFor`), so no memoization is needed —
+  // this only recomputes for the single open entry, never the list.
+  const mutability = selected ? entryMutability(selected.entry, selected.ym) : null;
+  const clawbackPreview = selected ? seedClawbackPreview(selected.entry) : null;
 
   // F8 AC / §8.4: only the VIEWED month's entries chunk loads — a no-op for
   // the current month (already resident in `useTownStore`'s own state) and a
@@ -317,6 +346,8 @@ export function HistoryScreen({ store, onOpenSettings }: HistoryScreenProps) {
         open={selected !== null}
         entry={selected?.entry ?? null}
         today={today}
+        mutability={mutability}
+        clawbackPreview={clawbackPreview}
         onClose={() => setSelected(null)}
         onSave={handleSave}
         onDelete={handleDelete}
