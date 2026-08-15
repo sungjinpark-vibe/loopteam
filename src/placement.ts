@@ -261,7 +261,7 @@ export type MoveResult =
  * destination — so it must never be offered as one. Filtered out here, at
  * the shared root, instead of trusted to accidentally never render (which
  * held only because a multi-cell building paints as a single merged DOM
- * tile — see `placement.moveAnchor.test.ts`).
+ * tile — see the `moveAnchorsFor` block in `placement.test.ts`).
  */
 export function moveAnchorsFor(buildings: readonly Building[], buildingId: string, w: 1 | 2, h: 1 | 2): number[] {
   const building = buildings.find((b) => b.id === buildingId);
