@@ -481,6 +481,8 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         tier={tier}
         streakDays={store.streakDays}
         streakAtRisk={store.streakAtRisk}
+        lastActOn={store.lastActOn}
+        today={store.today}
         nextTierLabel={nextTierLabel}
         queueLength={store.queueLength}
         moodLabel={moodContent.headerLabel}

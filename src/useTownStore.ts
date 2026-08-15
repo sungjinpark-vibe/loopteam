@@ -1751,6 +1751,13 @@ export function useTownStore() {
     dailyBuildSlots: BALANCE.dailyBuildSlots,
     streakDays: state?.town.streakDays ?? 0,
     longestStreakDays: state?.town.longestStreakDays ?? 0,
+    // Header-honesty fix: `streakAtRisk` below collapses "alive, act today to
+    // extend" and "already broken, today restarts from 1" into one boolean,
+    // so the header showed a dead 31-day streak as if it were still running.
+    // The raw date goes out too, and `selectors.streakDisplay` derives the
+    // shown number/copy from it through the SAME `advanceStreak` rule the
+    // save path uses — the display can't drift from what a save will do.
+    lastActOn: state?.town.lastActOn ?? null,
     // Gate-3-rerun fix (liveops-pd's TOP FIX): true once a streak exists AND
     // today's act hasn't happened yet — the header's one visible "act today
     // or the streak resets tonight" signal. `lastActOn !== today` alone would
