@@ -434,3 +434,57 @@ describe("editEntryEffects — ADDENDUM-12 §3.2 seed settle", () => {
     expect(result.economy).toBe(economy);
   });
 });
+
+// ADDENDUM-12 §3.2 — the settle runs where all four edit branches CONVERGE, so
+// a type flip cannot walk around it. This is a regression guard for a real
+// laundering loop: 지출 -> 저축 removes the founded building (D-10, the slot is
+// not refunded), and while the settle lived inside the same-type branch it left
+// `seed:build:<id>` standing. By the time the player deleted the now-저축 entry,
+// `deleteEntryEffects` saw `removedBuilding === null` — the building was already
+// gone — so it revoked only the entry award, and "record 150,000원, collect,
+// flip to 저축, delete" banked the whole build award every cycle.
+describe("editEntryEffects — ADDENDUM-12 §3.2 type-flip seed settle", () => {
+  it("revokes the build award when a 지출 -> 저축 flip removes the founded building", () => {
+    const entryAward = awardFor({ kind: "entry", entryId: "e1", expGain: 1 });
+    const buildAward = awardFor({ kind: "build", buildingId: "b1", expGain: 1 });
+    const economy = freshEconomy({ seeds: 20, grantedEventKeys: [entryAward.eventKey, buildAward.eventKey] });
+    const result = editEntryEffects(editArgs({ buildings: [building()], patch: { type: "saving" }, expAmountTiers, economy }));
+
+    expect(result.removedBuilding).toEqual({ id: "b1", ym: "2026-08" });
+    expect(result.economy.seeds).toBe(20 - buildAward.amount);
+    // The entry itself survives the flip, so its own award stays granted —
+    // only the building's award dies with the building.
+    expect(result.economy.grantedEventKeys).toEqual([entryAward.eventKey]);
+  });
+
+  it("flip-to-저축 THEN delete nets 0 — neither award can outlive what earned it", () => {
+    const entryAward = awardFor({ kind: "entry", entryId: "e1", expGain: 1 });
+    const buildAward = awardFor({ kind: "build", buildingId: "b1", expGain: 1 });
+    const granted = entryAward.amount + buildAward.amount;
+    // Baseline 7 seeds, then the founding entry's two awards land on top.
+    const economy = freshEconomy({ seeds: 7 + granted, grantedEventKeys: [entryAward.eventKey, buildAward.eventKey] });
+
+    const flipped = editEntryEffects(editArgs({ buildings: [building()], patch: { type: "saving" }, expAmountTiers, economy }));
+    const deleted = deleteEntryEffects({
+      town: flipped.town,
+      buildings: flipped.buildings,
+      entry: flipped.entry,
+      expAmountTiers,
+      economy: flipped.economy,
+    });
+
+    // Exactly back to the pre-record baseline: the loop is worth nothing.
+    expect(deleted.economy.seeds).toBe(7);
+    expect(deleted.economy.seedDebt ?? 0).toBe(0);
+    expect(deleted.economy.grantedEventKeys).toEqual([]);
+  });
+
+  it("a 저축 -> 지출 flip that founds a building grants nothing here (the store owns new grants) and invents no debt", () => {
+    const economy = freshEconomy({ seeds: 5 });
+    const result = editEntryEffects(
+      editArgs({ buildings: [], entry: entry({ type: "saving", buildingId: null }), patch: { type: "expense" }, expAmountTiers, economy }),
+    );
+    expect(result.economy.seeds).toBe(5);
+    expect(result.economy.seedDebt ?? 0).toBe(0);
+  });
+});

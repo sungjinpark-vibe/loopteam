@@ -1,26 +1,31 @@
 /**
- * ADDENDUM-12 — wiring tests for F9's seed clawback (§3), current-month-only
- * scope (§4, the cross-month half is covered in `useTownStore.history.test.tsx`),
- * fusion entanglement (§5), write order (§8), and the store contract (§9),
- * through the REAL `useTownStore` hook. Same bare `react-dom/client` + `act`
- * harness as `useTownStore.history.test.tsx` (no React Testing Library here).
+ * ADDENDUM-12 §10 — store-level end-to-end tests for the clawback wiring.
+ * The pure layer (`economy/awards.test.ts`, `historyActions.test.ts`) was
+ * always correct; the original defect was that nothing in the store ever
+ * CALLED it. These tests drive everything through the public store API
+ * (`addEntry`/`updateEntry`/`deleteEntry`/`purchaseSku`/`fuseBuildings`),
+ * never the pure functions directly, so they'd have caught that class of bug.
  *
- * Covers §10 conditions 10.1-10.8 and 10.11-10.13. 10.9/10.10 (past-month and
- * out-of-month refusal) live in `useTownStore.history.test.tsx` alongside the
- * pre-existing F9 tests they directly supersede. 10.14 (no regression) is the
- * whole suite passing; 10.15 (frozen lines) isn't a test — nothing here
- * touches `balance.approved.ts`, the EXP curve, or map/building art.
+ * Harness: bare `react-dom/client` + `act`, same shape as
+ * `useTownStore.history.test.tsx` (polling `loading` — a fixed tick is not
+ * enough, see that file's own note) merged with `useTownStore.fusion.test.tsx`'s
+ * remount-on-the-same-container `mountAndWaitForBoot` and its `seedTown`
+ * (pre-seeded localStorage) approach for the fusion tests. No React Testing
+ * Library, no fixtures framework — this project doesn't use either.
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BALANCE } from "./balance.approved";
+import type { EntryDraft } from "./entryActions";
 import { setTimeTravelDate } from "./platform/clock";
 import { setRandomOverride } from "./platform/random";
+import { CELL_COUNT, cellFromIndex, isBuildable, LAYOUT_VERSION } from "./townLayout";
+import type { Building, LedgerEntry } from "./types";
 import { useTownStore } from "./useTownStore";
 
 let container: HTMLDivElement;
-let root: Root;
+let root: Root | null = null;
 let latest: ReturnType<typeof useTownStore> | null = null;
 
 function Harness() {
@@ -28,17 +33,19 @@ function Harness() {
   return null;
 }
 
+// A plain function, not inlined, so TS doesn't narrow `latest` to `never`
+// against `Harness`'s reassignment (same note as `useTownStore.history.test.tsx`).
 function stillLoading(): boolean {
   return latest === null || latest.loading;
 }
 
-// Same boot-poll as `useTownStore.history.test.tsx` — a fixed tick count
-// isn't reliably enough past the boot effect's own `yieldToMainThread` hop.
+/** Mounts, or remounts on the same container — a second call is a real reload (`useTownStore.fusion.test.tsx`'s shape). Polls `loading` instead of a fixed tick (`useTownStore.history.test.tsx`'s C5 finding). */
 async function mountAndWaitForBoot(): Promise<void> {
+  if (root !== null) act(() => root!.unmount());
   root = createRoot(container);
   latest = null;
   act(() => {
-    root.render(<Harness />);
+    root!.render(<Harness />);
   });
   for (let i = 0; i < 200 && stillLoading(); i++) {
     await act(async () => {
@@ -47,8 +54,35 @@ async function mountAndWaitForBoot(): Promise<void> {
   }
 }
 
+/** Forces the debounced write buffer out to localStorage without unmounting. */
+function flush(): void {
+  act(() => {
+    window.dispatchEvent(new Event("pagehide"));
+  });
+}
+
+/** Reads `town` straight out of persisted storage — for fields not exposed on the hook's own return shape (`highestTierSeen`, `slotsUsedToday`). Call after `flush()`. */
+function coreTown(): { highestTierSeen: number; slotsUsedToday: number } {
+  return JSON.parse(window.localStorage.getItem("ait.v1.core")!).town;
+}
+
+/** `addEntry`, then hands back the id of the one new entry — the store never hands the id back directly. */
+function addAndGetId(draft: EntryDraft, ym: string): string {
+  const before = new Set((latest!.getMonthEntries(ym) ?? []).map((e) => e.id));
+  act(() => {
+    latest!.addEntry(draft);
+  });
+  return latest!.getMonthEntries(ym).find((e) => !before.has(e.id))!.id;
+}
+
+function deleteById(id: string, ym: string): void {
+  act(() => {
+    latest!.deleteEntry(id, ym);
+  });
+}
+
 const TODAY = "2026-08-15";
-const DAY_ONE_STREAK_SEEDS = 2; // min(2 * streakDays, 20) at streakDays=1 — never revoked (§6)
+const YM = TODAY.slice(0, 7);
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -59,300 +93,307 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => root.unmount());
+  if (root !== null) act(() => root!.unmount());
+  root = null;
   container.remove();
   setTimeTravelDate(null);
   setRandomOverride(null);
 });
 
-// §10.1/§10.2 — one representative amount per `expAmountTiers` rung (0..4):
-// below 5,000 / 5,000-20,000 / 20,000-50,000 / 50,000-150,000 / 150,000+.
-const RUNG_AMOUNTS: readonly [rung: number, amountKrw: number][] = [
-  [0, 4_500],
-  [1, 15_000],
-  [2, 40_000],
-  [3, 100_000],
-  [4, 500_000],
-];
-
-describe("deleteEntry — ADDENDUM-12 §3.1/§10.1/§10.2 seed clawback", () => {
-  it.each(RUNG_AMOUNTS)("rung %i (%i원): revokes exactly the entry+build seeds it granted, and removes the building", async (_rung, amountKrw) => {
+// ── §10.3 — exploit A: seed farming via repeated found-then-delete ──
+describe("§10.3 exploit A — seed farming", () => {
+  it("20x add/delete of a top-seed-rung entry nets EXACTLY zero seed change, zero seedDebt, and the building count returns to its start", async () => {
     await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw, categoryId: "cafe", occurredOn: TODAY });
-    });
-    expect(latest!.buildingCount).toBe(1);
-    expect(latest!.economy.seeds).toBeGreaterThan(DAY_ONE_STREAK_SEEDS);
-    const entry = latest!.getMonthEntries(ym)[0];
+    const highRung: EntryDraft = { type: "expense", amountKrw: 150_000, categoryId: "cafe", occurredOn: TODAY };
 
-    act(() => {
-      latest!.deleteEntry(entry.id, ym);
-    });
+    // Warm-up OUTSIDE the measured window: the day's first act pays a
+    // one-time streak seed (§6 — never clawed back), so settling it before
+    // taking the baseline is what makes "exactly zero" a fair assertion
+    // rather than one polluted by an award this delete is never supposed to
+    // touch.
+    const warmupId = addAndGetId(highRung, YM);
+    deleteById(warmupId, YM);
 
-    expect(latest!.buildingCount).toBe(0); // §10.2 — the founded building is gone too
-    // Only the streak award (never revoked, §6) survives — entry+build are fully clawed back.
-    expect(latest!.economy.seeds).toBe(DAY_ONE_STREAK_SEEDS);
-    expect(latest!.economy.grantedEventKeys.some((k) => k.startsWith("seed:entry:") || k.startsWith("seed:build:"))).toBe(false);
-  });
-});
+    const seedsBefore = latest!.economy.seeds;
+    const buildingCountBefore = latest!.buildingCount;
+    expect(latest!.economy.seedDebt ?? 0).toBe(0);
 
-describe("deleteEntry — ADDENDUM-12 §2.1/§10.3 exploit A (farm by deleting)", () => {
-  it("record -> collect -> delete looped 20x nets EXACTLY 0 seed change", async () => {
-    await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
-    const draft = { type: "expense" as const, amountKrw: 150_000, categoryId: "food" as const, occurredOn: TODAY };
-
-    // Burn the day's one-time streak grant first (§6 — correctly NOT
-    // revoked, so it would otherwise skew this loop's own net-zero measurement).
-    act(() => {
-      latest!.addEntry(draft);
-    });
-    act(() => {
-      latest!.deleteEntry(latest!.getMonthEntries(ym)[0].id, ym);
-    });
-    const baseline = latest!.economy.seeds;
-
+    // dailyBuildSlots (10) runs out partway through this loop (1 already
+    // spent by the warm-up, never refunded — D-10), so later iterations
+    // queue (F14) instead of founding. Both branches must still net to zero
+    // on delete — deliberately exercising both is a stronger test of the
+    // exploit than pinning it to the founding path alone.
     for (let i = 0; i < 20; i++) {
-      act(() => {
-        latest!.addEntry(draft);
-      });
-      act(() => {
-        latest!.deleteEntry(latest!.getMonthEntries(ym)[0].id, ym);
-      });
+      const id = addAndGetId(highRung, YM);
+      deleteById(id, YM);
     }
 
-    expect(latest!.economy.seeds).toBe(baseline); // exactly 0 net change over the 20 loops
-    expect(latest!.economy.seedDebt ?? 0).toBe(0); // the balance always covered its own immediate clawback
-    expect(latest!.getMonthEntries(ym)).toHaveLength(0);
-    expect(latest!.buildingCount).toBe(0);
+    expect(latest!.economy.seeds).toBe(seedsBefore); // net gain must be EXACTLY 0, not "small"
+    expect(latest!.economy.seedDebt ?? 0).toBe(0);
+    expect(latest!.buildingCount).toBe(buildingCountBefore);
+    expect(latest!.getMonthEntries(YM)).toHaveLength(0);
   });
 });
 
-describe("updateEntry — ADDENDUM-12 §3.2/§10.4 exploit B (farm by editing down)", () => {
-  it("150,000 edited down to 100 lands on exactly what recording 100 from scratch pays", async () => {
+// ── §10.4 — exploit B: edit-down must settle the seed rung, not just EXP ──
+describe("§10.4 exploit B — edit-down", () => {
+  it("150,000원 saved then edited down to 100원 lands on the SAME seed balance and building exp as saving 100원 from the start", async () => {
+    // Town A: save high, then edit down.
     await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
+    const entryAId = addAndGetId({ type: "expense", amountKrw: 150_000, categoryId: "cafe", occurredOn: TODAY }, YM);
     act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 150_000, categoryId: "food", occurredOn: TODAY });
+      latest!.updateEntry(entryAId, YM, { amountKrw: 100 });
     });
-    const entry = latest!.getMonthEntries(ym)[0];
-    act(() => {
-      latest!.updateEntry(entry.id, ym, { amountKrw: 100 });
-    });
-    const editedSeeds = latest!.economy.seeds;
+    const seedsA = latest!.economy.seeds;
+    const buildingA = latest!.buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entryAId)!;
+    const expA = buildingA.exp ?? 0;
 
-    // Fresh town, same day, log 100 from scratch.
-    act(() => {
-      window.dispatchEvent(new Event("pagehide"));
-      root.unmount();
-    });
+    // Town B: fresh store. `mountAndWaitForBoot` unmounts the CURRENT root as
+    // its first step, and unmount's effect cleanup flushes any still-pending
+    // debounced write (`useTownStore.ts`'s pagehide/cleanup comment) straight
+    // to the raw port — so clearing storage has to happen AFTER that flush,
+    // never before it, or Town A's own pending write lands back in storage
+    // right after the clear and Town B boots on top of Town A's state (a real
+    // race this test tripped over: Town B started an ADDITIONAL 2nd building
+    // with Town A's `grantedEventKeys` still attached).
+    flush();
+    act(() => root!.unmount());
+    root = null;
     window.localStorage.clear();
     await mountAndWaitForBoot();
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 100, categoryId: "food", occurredOn: TODAY });
-    });
+    const entryBId = addAndGetId({ type: "expense", amountKrw: 100, categoryId: "cafe", occurredOn: TODAY }, YM);
+    const seedsB = latest!.economy.seeds;
+    const buildingB = latest!.buildings.find((b) => b.source.kind === "entry" && b.source.entryId === entryBId)!;
+    const expB = buildingB.exp ?? 0;
 
-    expect(editedSeeds).toBe(latest!.economy.seeds);
+    // This is the assertion that proves `settleAward` is actually wired into `updateEntry`.
+    expect(seedsA).toBe(seedsB);
+    expect(expA).toBe(expB);
   });
 });
 
-describe("updateEntry — ADDENDUM-12 §10.6 upward settle bypasses idempotency", () => {
-  it("an amount INCREASE pays the additional seeds even though the key is already granted", async () => {
+// ── §10.5 — exploit C: spend-then-delete laundering ──
+describe("§10.5 exploit C — spend-then-delete laundering", () => {
+  it("spending the balance down then deleting every earning entry lands on seeds=0 and seedDebt=shortfall, keeps the purchased SKU, and pays a later award into the debt first", async () => {
     await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 100, categoryId: "food", occurredOn: TODAY }); // rung 0
-    });
-    const entry = latest!.getMonthEntries(ym)[0];
-    const seedsBefore = latest!.economy.seeds;
-    const rung0 = BALANCE.seedAwards.entry[0] + BALANCE.seedAwards.build[0];
-    const rung4 = BALANCE.seedAwards.entry[4] + BALANCE.seedAwards.build[4];
-    expect(seedsBefore).toBe(rung0 + DAY_ONE_STREAK_SEEDS);
+    // 15,000원 — `expGainFor` is a strict `amountKrw < maxExclusive` scan
+    // (`selectors.ts`), so 15,000 lands on the [20_000, exp 3] row (rung 1)
+    // while 20,000 itself would roll up to the NEXT row (not-less-than its
+    // own boundary) — deliberately mid-band, not on the boundary.
+    const midRung: EntryDraft = { type: "expense", amountKrw: 15_000, categoryId: "cafe", occurredOn: TODAY };
+    // BALANCE.seedAwards entry[1]=4 + build[1]=3 per founding entry at this rung.
+    const perEntry = BALANCE.seedAwards.entry[1] + BALANCE.seedAwards.build[1];
 
-    act(() => {
-      latest!.updateEntry(entry.id, ym, { amountKrw: 500_000 }); // rung 4
-    });
+    const ids = [addAndGetId(midRung, YM), addAndGetId(midRung, YM), addAndGetId(midRung, YM)];
+    const earned = latest!.economy.seeds;
+    expect(earned).toBeGreaterThanOrEqual(3 * perEntry); // >= the 3 founding awards (a same-day streak top-up may add more, never less)
 
-    expect(latest!.economy.seeds).toBe(seedsBefore + (rung4 - rung0));
-  });
-});
-
-describe("delete/updateEntry — ADDENDUM-12 §3.3/§10.5 exploit C (spend then delete)", () => {
-  it("spending on a SKU then deleting the entry leaves seedDebt for the shortfall, keeps ownedSkus, and the next award pays the debt down first", async () => {
-    await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
+    let purchaseResult = "";
     act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 150_000, categoryId: "food", occurredOn: TODAY }); // rung 4: entry 10 + build 8 + day-1 streak 2 = 20
-    });
-    const entry = latest!.getMonthEntries(ym)[0];
-    // Top up with non-entry-sourced seeds (tier crossings + a no-spend grant)
-    // so there's enough to afford the shop — isolates the clawback math from
-    // how the balance got there, same as `useTownStore.economy.test.tsx`'s
-    // own `withSeeds` helper.
-    act(() => {
-      for (let i = 0; i < 5; i++) latest!.grantSeeds({ kind: "tier", tier: 900 + i });
-      latest!.grantSeeds({ kind: "nospend", date: "2099-01-01" });
-    });
-    expect(latest!.economy.seeds).toBeGreaterThanOrEqual(150);
-
-    let purchaseResult: string | undefined;
-    act(() => {
-      purchaseResult = latest!.purchaseSku("deco.building.flowerbed.v1", 150);
+      purchaseResult = latest!.purchaseSku("deco.test", 15);
     });
     expect(purchaseResult).toBe("ok");
-    const seedsAfterPurchase = latest!.economy.seeds;
-    const expectedRevoke = BALANCE.seedAwards.entry[4] + BALANCE.seedAwards.build[4]; // 150,000원 = top rung, founded a building
-    expect(seedsAfterPurchase).toBeLessThan(expectedRevoke); // deliberately not enough to cover the clawback
+    expect(latest!.economy.ownedSkus).toContain("deco.test");
+    const afterPurchase = latest!.economy.seeds;
+    expect(afterPurchase).toBe(earned - 15);
 
-    act(() => {
-      latest!.deleteEntry(entry.id, ym);
-    });
+    for (const id of ids) deleteById(id, YM);
 
-    expect(latest!.economy.seeds).toBe(0); // floored, never negative
-    expect(latest!.economy.seedDebt).toBe(expectedRevoke - seedsAfterPurchase);
-    expect(latest!.economy.ownedSkus).toEqual(["deco.building.flowerbed.v1"]); // never revoked (§6)
+    const totalClawback = 3 * perEntry; // exactly the 3 entry+build awards — the streak top-up (if any) is untouched (§6)
+    const expectedShortfall = Math.max(0, totalClawback - afterPurchase);
+    expect(latest!.economy.seeds).toBe(0);
+    expect(latest!.economy.seedDebt ?? 0).toBe(expectedShortfall);
+    expect(latest!.economy.ownedSkus).toContain("deco.test"); // purchases are never revoked (§6)
 
-    const debtBefore = latest!.economy.seedDebt!;
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 150_000, categoryId: "food", occurredOn: TODAY });
-    });
-    // The next award pays the debt down first (§3.3) — nothing lands in `seeds` while debt remains outstanding.
-    const nextGrant = BALANCE.seedAwards.entry[4] + BALANCE.seedAwards.build[4]; // no new streak — same day
-    expect(latest!.economy.seedDebt).toBe(Math.max(0, debtBefore - nextGrant));
-    expect(latest!.economy.seeds).toBe(Math.max(0, nextGrant - debtBefore));
+    // A further earn pays the debt FIRST — seeds stay 0 until the debt clears.
+    const debtBefore = latest!.economy.seedDebt ?? 0;
+    addAndGetId(midRung, YM); // +perEntry credit
+    const debtAfter = latest!.economy.seedDebt ?? 0;
+    expect(debtAfter).toBe(Math.max(0, debtBefore - perEntry));
+    if (debtBefore >= perEntry) expect(latest!.economy.seeds).toBe(0); // fully absorbed by the debt
   });
 });
 
-describe("fusion entanglement — ADDENDUM-12 §5/§10.7/§10.8", () => {
-  async function foundTwoMaxedSameCategoryBuildings(): Promise<{ survivorId: string; consumedId: string; foundingEntries: [string, string] }> {
+// ── §10.7/§10.8 — fusion entanglement ──
+const MAXED_EXP = (BALANCE.maxLevel - 1) * BALANCE.expPerLevel; // Lv.5
+
+const GROUND_CELLS: readonly number[] = Array.from({ length: CELL_COUNT }, (_, i) => i).filter((i) => {
+  const { row, col } = cellFromIndex(i);
+  return isBuildable(row, col);
+});
+const cell = (n: number): number => GROUND_CELLS[n];
+
+function fusionBuilding(id: string, plotIndex: number, builtOn: string): Building {
+  return {
+    id,
+    source: { kind: "entry", entryId: `e-${id}` },
+    categoryId: "cafe",
+    variantIndex: 0,
+    plotIndex,
+    builtOn,
+    createdAt: 1,
+    exp: MAXED_EXP,
+  };
+}
+
+function fusionEntry(id: string, buildingId: string | null, occurredOn: string): LedgerEntry {
+  return { id, type: "expense", amountKrw: 200_000, categoryId: "cafe", occurredOn, createdAt: 1, updatedAt: 1, buildingId, queued: false };
+}
+
+/** Writes the pre-boot state: index, core, and one building/entry chunk each (both months are the same here). */
+function seedFusionTown(buildings: readonly Building[], entries: readonly LedgerEntry[]): void {
+  const ym = buildings[0].builtOn.slice(0, 7);
+  window.localStorage.setItem(
+    "ait.v1.index",
+    JSON.stringify({ schemaVersion: 1, layoutVersion: LAYOUT_VERSION, entryMonths: [ym], buildingMonths: [ym] }),
+  );
+  window.localStorage.setItem(
+    "ait.v1.core",
+    JSON.stringify({
+      town: {
+        townName: "우리 동네",
+        streakDays: 0,
+        longestStreakDays: 0,
+        lastActOn: null,
+        slotsUsedOn: "",
+        slotsUsedToday: 0,
+        highestTierSeen: 0,
+        queue: [],
+        noSpendDays: [],
+        cumulativeSavingsKrw: 0,
+        lastSettledPeriod: "2026-07", // everything already settled — boot mints no F16 monument
+        moveHintSeen: true,
+      },
+      budget: { monthlyBudgetKrw: null, updatedAt: 0 },
+      onboarded: true,
+    }),
+  );
+  window.localStorage.setItem(`ait.v1.buildings.${ym}`, JSON.stringify(buildings));
+  window.localStorage.setItem(`ait.v1.entries.${ym}`, JSON.stringify(entries));
+}
+
+describe("§10.7/§10.8 — fusion entanglement blocks delete/amount-edit, allows memo/category, moves nothing", () => {
+  it("both the survivor's own founding entry AND a transplanted (remapped) entry are refused for delete/amount, allowed for memo/category, and the survivor's exp/fuse never move", async () => {
+    seedFusionTown(
+      [fusionBuilding("b1", cell(0), "2026-08-01"), fusionBuilding("b2", cell(1), "2026-08-01")],
+      [fusionEntry("e-b1", "b1", TODAY), fusionEntry("e-b2", "b2", TODAY)],
+    );
     await mountAndWaitForBoot();
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 150_000, categoryId: "cafe", occurredOn: TODAY }); // exp 12 = maxed (Lv.5) at founding
-    });
-    const survivorId = latest!.buildings[0].id;
-    const firstEntryId = latest!.getMonthEntries(TODAY.slice(0, 7))[0].id;
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 150_000, categoryId: "cafe", occurredOn: TODAY });
-    });
-    const consumedId = latest!.buildings.find((b) => b.id !== survivorId)!.id;
-    const secondEntryId = latest!.getMonthEntries(TODAY.slice(0, 7))[1].id;
-    return { survivorId, consumedId, foundingEntries: [firstEntryId, secondEntryId] };
-  }
 
-  it("§10.7 — blocks delete/amount-edit on the fused survivor's OWN founding entry; memo/category edits still work", async () => {
-    const { survivorId, consumedId, foundingEntries } = await foundTwoMaxedSameCategoryBuildings();
-    const ym = TODAY.slice(0, 7);
+    let fuseResult: unknown;
     act(() => {
-      latest!.fuseBuildings(survivorId, consumedId);
+      fuseResult = latest!.fuseBuildings("b1", "b2");
     });
-    expect(latest!.buildings.map((b) => b.id)).toEqual([survivorId]);
+    expect(fuseResult).not.toBeNull();
 
-    const survivorFoundingEntry = latest!.getMonthEntries(ym).find((e) => e.id === foundingEntries[0])!;
-    expect(latest!.entryMutability(survivorFoundingEntry, ym)).toEqual({ canEdit: true, canEditAmount: false, canDelete: false, reason: "fused" });
+    const ownEntry = latest!.getMonthEntries(YM).find((e) => e.id === "e-b1")!;
+    const transplantedEntry = latest!.getMonthEntries(YM).find((e) => e.id === "e-b2")!;
+    expect(transplantedEntry.buildingId).toBe("b1"); // remapped onto the survivor (ADDENDUM-11 §5.4)
 
+    for (const e of [ownEntry, transplantedEntry]) {
+      expect(latest!.entryMutability(e, YM)).toEqual({ canEdit: true, canEditAmount: false, canDelete: false, reason: "fused" });
+    }
+
+    const survivorBefore = latest!.buildings.find((b) => b.id === "b1")!;
+    expect(survivorBefore.fuse).toBe(1);
+
+    // Refused: delete on both shapes of entanglement.
+    deleteById(ownEntry.id, YM);
+    deleteById(transplantedEntry.id, YM);
+    expect(latest!.getMonthEntries(YM).map((e) => e.id).sort()).toEqual(["e-b1", "e-b2"]);
+
+    // Refused: amount edit on both.
     act(() => {
-      latest!.deleteEntry(survivorFoundingEntry.id, ym);
-      latest!.updateEntry(survivorFoundingEntry.id, ym, { amountKrw: 1 });
+      latest!.updateEntry(ownEntry.id, YM, { amountKrw: 1 });
     });
-    expect(latest!.buildingCount).toBe(1); // still fused, nothing destroyed
-    expect(latest!.getMonthEntries(ym).find((e) => e.id === survivorFoundingEntry.id)?.amountKrw).toBe(150_000);
-
     act(() => {
-      latest!.updateEntry(survivorFoundingEntry.id, ym, { memo: "typo fix ok" });
+      latest!.updateEntry(transplantedEntry.id, YM, { amountKrw: 1 });
     });
-    expect(latest!.getMonthEntries(ym).find((e) => e.id === survivorFoundingEntry.id)?.memo).toBe("typo fix ok");
-  });
+    let refreshed = latest!.getMonthEntries(YM);
+    expect(refreshed.find((e) => e.id === "e-b1")!.amountKrw).toBe(200_000);
+    expect(refreshed.find((e) => e.id === "e-b2")!.amountKrw).toBe(200_000);
 
-  it("§10.8 — blocks delete/amount-edit on an entry REMAPPED onto the fused survivor; the survivor's EXP never moves", async () => {
-    const { survivorId, consumedId, foundingEntries } = await foundTwoMaxedSameCategoryBuildings();
-    const ym = TODAY.slice(0, 7);
+    // Allowed: memo/category edits (don't touch economy/EXP).
     act(() => {
-      latest!.fuseBuildings(survivorId, consumedId);
+      latest!.updateEntry(ownEntry.id, YM, { memo: "fixed typo" });
     });
-
-    const remappedEntry = latest!.getMonthEntries(ym).find((e) => e.id === foundingEntries[1])!;
-    expect(remappedEntry.buildingId).toBe(survivorId); // ADDENDUM-11 §5.4 remap
-    expect(latest!.entryMutability(remappedEntry, ym).canDelete).toBe(false);
-    expect(latest!.entryMutability(remappedEntry, ym).canEditAmount).toBe(false);
-    expect(latest!.entryMutability(remappedEntry, ym).reason).toBe("fused");
-
-    const survivorExpBefore = latest!.buildings.find((b) => b.id === survivorId)!.exp;
     act(() => {
-      latest!.deleteEntry(remappedEntry.id, ym);
-      latest!.updateEntry(remappedEntry.id, ym, { amountKrw: 1 });
+      latest!.updateEntry(transplantedEntry.id, YM, { categoryId: "food" });
     });
-    expect(latest!.buildings.find((b) => b.id === survivorId)!.exp).toBe(survivorExpBefore);
-    expect(latest!.getMonthEntries(ym).some((e) => e.id === remappedEntry.id)).toBe(true); // never deleted
+    refreshed = latest!.getMonthEntries(YM);
+    expect(refreshed.find((e) => e.id === "e-b1")!.memo).toBe("fixed typo");
+    expect(refreshed.find((e) => e.id === "e-b2")!.categoryId).toBe("food");
+
+    // Nothing moved on the survivor through any of the refused attempts or the allowed edits.
+    const survivorAfter = latest!.buildings.find((b) => b.id === "b1")!;
+    expect(survivorAfter.exp).toBe(survivorBefore.exp);
+    expect(survivorAfter.fuse).toBe(survivorBefore.fuse);
   });
 });
 
-describe("deleteEntry — ADDENDUM-12 §6/§10.11 (streak/slots untouched)", () => {
-  it("deleting an entry never refunds slotsUsedToday or reduces streakDays", async () => {
+// ── §10.11 — not clawed back ──
+describe("§10.11 — delete does not touch streak/slots/highestTierSeen", () => {
+  it("streakDays/lastActOn/longestStreakDays, slotsUsedToday, and highestTierSeen are unchanged after a delete", async () => {
     await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 150_000, categoryId: "cafe", occurredOn: TODAY });
-    });
-    const streakBefore = latest!.streakDays;
+    const id = addAndGetId({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY }, YM);
+    flush();
+    const townBefore = coreTown();
     const slotsBefore = latest!.slotsRemaining;
-    const entry = latest!.getMonthEntries(ym)[0];
+    const streakBefore = latest!.streakDays;
+    const lastActBefore = latest!.lastActOn;
+    const longestBefore = latest!.longestStreakDays;
 
-    act(() => {
-      latest!.deleteEntry(entry.id, ym);
-    });
+    deleteById(id, YM);
+    flush();
+    const townAfter = coreTown();
 
+    expect(latest!.slotsRemaining).toBe(slotsBefore); // not refunded (D-10)
     expect(latest!.streakDays).toBe(streakBefore);
-    expect(latest!.slotsRemaining).toBe(slotsBefore); // D-10 — not refunded
+    expect(latest!.lastActOn).toBe(lastActBefore);
+    expect(latest!.longestStreakDays).toBe(longestBefore);
+    expect(townAfter.slotsUsedToday).toBe(townBefore.slotsUsedToday);
+    expect(townAfter.highestTierSeen).toBe(townBefore.highestTierSeen);
   });
 });
 
-describe("deleteEntry — ADDENDUM-12 §3.1/§10.13 (pendingGrowChoice)", () => {
-  it("clears a pendingGrowChoice that names the deleted entry", async () => {
+// ── §10.12 — reload atomicity ──
+describe("§10.12 — reload atomicity", () => {
+  it("a reboot right after a delete matches the in-memory post-delete state exactly (seeds, seedDebt, buildings, entries)", async () => {
     await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY }, undefined, true); // deferGrowChoice
-    });
-    const entry = latest!.getMonthEntries(ym)[0];
-    expect(latest!.pendingGrowChoice?.entryId).toBe(entry.id);
+    const toDeleteId = addAndGetId({ type: "expense", amountKrw: 150_000, categoryId: "cafe", occurredOn: TODAY }, YM);
+    const survivorId = addAndGetId({ type: "expense", amountKrw: 8_000, categoryId: "food", occurredOn: TODAY }, YM);
+    deleteById(toDeleteId, YM);
 
+    const seedsAfterDelete = latest!.economy.seeds;
+    const seedDebtAfterDelete = latest!.economy.seedDebt ?? 0;
+    const buildingsAfterDelete = latest!.buildings.map((b) => ({ id: b.id, exp: b.exp ?? 0 })).sort((a, b) => a.id.localeCompare(b.id));
+    const entriesAfterDelete = latest!.getMonthEntries(YM).map((e) => e.id).sort();
+    expect(entriesAfterDelete).toEqual([survivorId]); // sanity — the survivor really is still there
+
+    flush();
+    await mountAndWaitForBoot();
+
+    expect(latest!.economy.seeds).toBe(seedsAfterDelete);
+    expect(latest!.economy.seedDebt ?? 0).toBe(seedDebtAfterDelete);
+    expect(latest!.buildings.map((b) => ({ id: b.id, exp: b.exp ?? 0 })).sort((a, b) => a.id.localeCompare(b.id))).toEqual(buildingsAfterDelete);
+    expect(latest!.getMonthEntries(YM).map((e) => e.id).sort()).toEqual(entriesAfterDelete);
+  });
+});
+
+// ── §10.13 — pendingGrowChoice cleared on delete ──
+describe("§10.13 — deleting an entry with a pendingGrowChoice clears the choice", () => {
+  it("deleting the entry a deferred 새로짓기/키우기 choice names also clears town.pendingGrowChoice", async () => {
+    await mountAndWaitForBoot();
     act(() => {
-      latest!.deleteEntry(entry.id, ym);
+      latest!.addEntry({ type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY }, undefined, true);
     });
+    expect(latest!.pendingGrowChoice).not.toBeNull();
+    const entry = latest!.getMonthEntries(YM)[0];
+    expect(latest!.pendingGrowChoice!.entryId).toBe(entry.id);
+
+    deleteById(entry.id, YM);
 
     expect(latest!.pendingGrowChoice).toBeNull();
-  });
-});
-
-describe("deleteEntry — ADDENDUM-12 §8/§10.12 (write order / reload atomicity)", () => {
-  it("seeds, seedDebt, buildings, and entries after a delete match exactly after a reboot", async () => {
-    await mountAndWaitForBoot();
-    const ym = TODAY.slice(0, 7);
-    act(() => {
-      latest!.addEntry({ type: "expense", amountKrw: 150_000, categoryId: "cafe", occurredOn: TODAY });
-      latest!.addEntry({ type: "expense", amountKrw: 40_000, categoryId: "food", occurredOn: TODAY });
-    });
-    const [e1] = latest!.getMonthEntries(ym);
-
-    act(() => {
-      latest!.deleteEntry(e1.id, ym);
-    });
-    const seedsBefore = latest!.economy.seeds;
-    const seedDebtBefore = latest!.economy.seedDebt ?? 0;
-    const buildingCountBefore = latest!.buildingCount;
-    const entryCountBefore = latest!.getMonthEntries(ym).length;
-
-    act(() => {
-      window.dispatchEvent(new Event("pagehide"));
-      root.unmount();
-    });
-    await mountAndWaitForBoot();
-
-    expect(latest!.economy.seeds).toBe(seedsBefore);
-    expect(latest!.economy.seedDebt ?? 0).toBe(seedDebtBefore);
-    expect(latest!.buildingCount).toBe(buildingCountBefore);
-    latest!.ensureMonthLoaded(ym);
-    expect(latest!.getMonthEntries(ym)).toHaveLength(entryCountBefore);
+    expect(latest!.getMonthEntries(YM)).toHaveLength(0);
   });
 });

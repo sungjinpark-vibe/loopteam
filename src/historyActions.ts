@@ -238,20 +238,6 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
         }
       }
     }
-    // ADDENDUM-12 §3.2/§10.6 — same-type amount edit settles the rung delta
-    // on whatever keys this entry already holds (`settleAward` no-ops on a
-    // key that was never granted — 저축 never earns one, a queue-overflow
-    // save never earns one — so this is safe unconditionally on amountChanged).
-    if (amountChanged) {
-      const oldEntryAward = awardFor({ kind: "entry", entryId: oldEntry.id, expGain: expGainFor(oldEntry.amountKrw, expAmountTiers) });
-      const newEntryAward = awardFor({ kind: "entry", entryId: oldEntry.id, expGain: expGainFor(newAmountKrw, expAmountTiers) });
-      economy = settleAward(economy, oldEntryAward, newEntryAward);
-      if (bound) {
-        const oldBuildAward = awardFor({ kind: "build", buildingId: bound.id, expGain: expGainFor(oldEntry.amountKrw, expAmountTiers) });
-        const newBuildAward = awardFor({ kind: "build", buildingId: bound.id, expGain: expGainFor(newAmountKrw, expAmountTiers) });
-        economy = settleAward(economy, oldBuildAward, newBuildAward);
-      }
-    }
     // F14 (round-4 finding C2): a still-queued material follows the same
     // category/date edits its future building would have gotten.
     if (queued && (categoryChanged || dateChanged)) {
@@ -337,6 +323,43 @@ export function editEntryEffects(args: EditEntryArgs): EditEntryResult {
     buildingId = null;
     queued = false;
     town = adjustSavings(town, newCategoryId, newAmountKrw);
+  }
+
+  // ADDENDUM-12 §3.2/§10.6 — seed settle for EVERY edit path, placed after all
+  // four branches converge rather than inside the same-type one.
+  //
+  // It lived in the same-type branch first, which left a laundering loop the
+  // delete-side clawback structurally could not reach: 지출 -> 저축 removes the
+  // founded building here (D-10, the slot is not refunded), but left
+  // `seed:build:<id>` standing. By the time the player deleted the now-저축
+  // entry, `deleteEntryEffects` saw `removedBuilding === null` — the building
+  // was already gone — so it revoked only the entry award. "Record 150,000원,
+  // collect, flip to 저축, delete" therefore netted the whole build award every
+  // cycle, bypassing the delete clawback entirely. Settling where the paths
+  // MEET is the one-guard fix; per-branch copies would leave the next new
+  // branch broken again.
+  //
+  // `settleAward`/`revokeAward` both no-op on a key that was never granted
+  // (저축 never earns one, a queue-overflow save never earns one), so this is
+  // safe to run unconditionally.
+  const oldGain = expGainFor(oldEntry.amountKrw, expAmountTiers);
+  const newGain = expGainFor(newAmountKrw, expAmountTiers);
+  economy = settleAward(
+    economy,
+    awardFor({ kind: "entry", entryId: oldEntry.id, expGain: oldGain }),
+    awardFor({ kind: "entry", entryId: oldEntry.id, expGain: newGain }),
+  );
+  if (removedBuilding) {
+    // The building this entry founded is gone — its award goes with it, priced
+    // at the amount that actually paid for it (the OLD one; a type flip may be
+    // changing the amount in the same edit).
+    economy = revokeAward(economy, awardFor({ kind: "build", buildingId: removedBuilding.id, expGain: oldGain }));
+  } else if (bound) {
+    economy = settleAward(
+      economy,
+      awardFor({ kind: "build", buildingId: bound.id, expGain: oldGain }),
+      awardFor({ kind: "build", buildingId: bound.id, expGain: newGain }),
+    );
   }
 
   const entry: LedgerEntry = {
