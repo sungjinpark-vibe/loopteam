@@ -11,7 +11,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BALANCE } from "../balance.approved";
 import { LONG_PRESS_MS, LONG_PRESS_TOLERANCE_PX } from "../hooks/useTileGestures";
-import { anchorsFor, cellOwners } from "../placement";
+import { anchorsFor, cellOwners, moveBuilding } from "../placement";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import {
@@ -544,6 +544,69 @@ describe("TownGrid — move mode, footprint-aware droppable targets (ADDENDUM-08
     expect(droppable.length).toBe(expectedFree);
     expect(droppable.length).toBeGreaterThan(0);
     for (const tile of droppable) expect((tile as HTMLElement).querySelector(".building-tile")).toBeNull();
+  });
+});
+
+// Regression for the reported move-mode defect: an evaluation panel saw a
+// drop rejected on a tile the grid itself marked `.town-tile--droppable`. The
+// suspected mechanism — `anchorsFor` including the mover's OWN current anchor
+// (excluded from occupancy so a footprint can overlap its own old spot while
+// nudging) as if it were a legal NEW destination, then `moveBuilding`
+// rejecting that exact anchor as `same-plot` — is closed by `moveAnchorsFor`
+// (`placement.ts`), the one function both `TownGrid`'s highlight and
+// `moveBuilding`'s decision now route through. These assert the invariant
+// directly, at the DOM level: every tile the grid marks droppable resolves
+// (through the real click path, not a hand-computed anchor) to a plotIndex
+// `moveBuilding` genuinely accepts.
+describe("TownGrid — move mode DOM invariant: no marked-droppable tile is ever rejected", () => {
+  function clickAllDroppable(container: HTMLElement): number {
+    const tiles = [...container.querySelectorAll<HTMLElement>(".town-tile--droppable")];
+    for (const tile of tiles) tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    return tiles.length;
+  }
+
+  it("1x1 mover: every droppable tile resolves to an anchor moveBuilding accepts (current-anchor case included)", () => {
+    const mover = building({ id: "mover", plotIndex: GROUND_A });
+    const neighbor = building({ id: "neighbor", plotIndex: GROUND_B });
+    const buildings = [mover, neighbor];
+    const onPlotTap = vi.fn();
+    const container = mountGrid(buildings, { movingId: "mover", onPlotTap });
+
+    const tileCount = clickAllDroppable(container);
+    expect(tileCount).toBeGreaterThan(0);
+    expect(onPlotTap).toHaveBeenCalledTimes(tileCount);
+    for (const [anchor] of onPlotTap.mock.calls as [number][]) {
+      expect(anchor).not.toBe(GROUND_A); // the current-anchor case: never offered as a destination
+      expect(moveBuilding(buildings, "mover", anchor).ok).toBe(true);
+    }
+  });
+
+  it("2x2 mover: every droppable tile resolves to an anchor moveBuilding accepts (current-anchor case included)", () => {
+    const mover = building({ id: "mover", plotIndex: ANCHOR_2X2, w: 2, h: 2 });
+    const buildings = [mover];
+    const onPlotTap = vi.fn();
+    const container = mountGrid(buildings, { movingId: "mover", onPlotTap });
+
+    const tileCount = clickAllDroppable(container);
+    expect(tileCount).toBeGreaterThan(0);
+    expect(onPlotTap).toHaveBeenCalledTimes(tileCount);
+    for (const [anchor] of onPlotTap.mock.calls as [number][]) {
+      expect(anchor).not.toBe(ANCHOR_2X2);
+      expect(moveBuilding(buildings, "mover", anchor).ok).toBe(true);
+    }
+  });
+
+  it("the mover's own tile never carries .town-tile--droppable, and tapping it resolves back to its own anchor (the documented cancel gesture), not a rejectable destination", () => {
+    const mover = building({ id: "mover", plotIndex: ANCHOR_2X2, w: 2, h: 2 });
+    const onPlotTap = vi.fn();
+    const container = mountGrid([mover], { movingId: "mover", onPlotTap });
+
+    const ownTile = container.querySelector(`[data-plot-index="${ANCHOR_2X2}"]`) as HTMLElement;
+    expect(ownTile).not.toBeNull();
+    expect(ownTile.classList.contains("town-tile--droppable")).toBe(false);
+
+    ownTile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onPlotTap).toHaveBeenCalledWith(ANCHOR_2X2);
   });
 });
 
