@@ -26,14 +26,13 @@ import { Button, TextField } from "@toss/tds-mobile";
 import { commaizeAmount, decommaizeAmount } from "../format";
 
 export interface OnboardingProps {
-  dailyBuildSlots: number;
   onSetBudget: (monthlyBudgetKrw: number | null) => void;
   onComplete: () => void;
 }
 
 const BEATS = 3;
 
-export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: OnboardingProps) {
+export function Onboarding({ onSetBudget, onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [budgetDigits, setBudgetDigits] = useState("");
 
@@ -107,21 +106,29 @@ export function Onboarding({ dailyBuildSlots, onSetBudget, onComplete }: Onboard
             </div>
             <h2>지출을 기록하면 우리 동네에 건물이 하나 생겨요</h2>
             <p>커피 한 잔, 버스비 하나까지 — 기록할 때마다 동네가 자라나요.</p>
-            <p>기록할 때마다 씨앗도 모여요. 오른쪽 아래 🎨 상점에서 동네를 꾸미는 데 쓸 수 있어요.</p>
           </div>
         )}
 
+        {/*
+         * Gate-3-rerun fix (ux-researcher TOP FIX, near-unanimous panel
+         * finding): this beat used to teach the daily 10-buildings cap — a
+         * rule a casual logger meets in week three, if ever. Swapped for the
+         * two rules that fire on literally every session and that nothing
+         * else in the app ever explains up front: amount scales the
+         * building (the single most surprising mechanic, and the one the
+         * settled EXP curve depends on), and seeds are for the 🎨 shop. The
+         * cap moved out, not away — it is still taught, at the moment it
+         * first matters, by the existing "오늘 슬롯을 다 썼어요" queue toast
+         * (TownScreen.tsx) rather than pre-empting it here for everyone.
+         */}
         {step === 1 && (
           <div className="onboarding-beat">
             <div className="onboarding-emoji" aria-hidden="true">
-              🧱
+              🏗️
             </div>
-            <h2>
-              하루에 {dailyBuildSlots}채까지 지을 수 있어요.
-              <br />
-              넘으면 내일 아침에 지어드려요.
-            </h2>
-            <p>매일 기록을 이어가면 연속 기록 일수와 Tier가 올라가요. 저축은 슬롯을 쓰지 않고 따로 쌓여요.</p>
+            <h2>금액이 클수록 건물이 커져요</h2>
+            <p>천 원짜리 커피 한 잔은 작은 건물로, 월세 같은 큰 지출은 크고 화려한 건물로 바로 지어져요.</p>
+            <p>기록할 때마다 씨앗도 모여요. 오른쪽 아래 🎨 상점에서 동네를 꾸미는 데 써요.</p>
           </div>
         )}
 

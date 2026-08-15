@@ -169,7 +169,7 @@ describe("ShopSheet", () => {
   it("NPC slot at the cap shows the cap message pre-emptively, no buy control offered", () => {
     const { props } = makeProps({ npcCount: 12 });
     render(props);
-    expect(document.body.textContent).toContain("NPC를 더 놓을 수 없어요");
+    expect(document.body.textContent).toContain("NPC가 이미 최대(12마리)예요");
     expect(findButton("350개")).toBeUndefined();
   });
 
@@ -179,7 +179,7 @@ describe("ShopSheet", () => {
     const buy = findButton("350개")!; // npc.slot.v1, not yet visibly at cap per stale npcCount=11
     act(() => buy.click());
     expect(purchaseCalls).toEqual([{ sku: "npc.slot.v1", price: 350 }]);
-    expect(document.body.textContent).toContain("NPC를 더 놓을 수 없어요");
+    expect(document.body.textContent).toContain("NPC가 이미 최대(12마리)예요");
     expect(document.body.textContent).not.toContain("씨앗이 부족해요");
   });
 

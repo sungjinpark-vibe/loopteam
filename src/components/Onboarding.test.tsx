@@ -47,7 +47,6 @@ function makeProps(): {
   let completed = 0;
   return {
     props: {
-      dailyBuildSlots: 10,
       onSetBudget: (b) => budgets.push(b),
       onComplete: () => completed++,
     },
@@ -95,8 +94,10 @@ describe("Onboarding (S1)", () => {
     // `aria-modal` is only honest if focus actually starts inside the overlay.
     expect(document.activeElement).toBe(mounted!.container.querySelector(".onboarding-card"));
     click("다음");
-    // Beat 2: explains the daily-slots jargon, with the actual slot count.
-    expect(mounted!.container.textContent).toContain("하루에 10채까지");
+    // Beat 2 (Gate-3-rerun fix, ux-researcher TOP FIX): teaches the
+    // amount-scales-building rule and the seed/shop pointer, not the daily
+    // build cap (moved to the queue toast, taught at the point it matters).
+    expect(mounted!.container.textContent).toContain("금액이 클수록 건물이 커져요");
     click("다음");
     // Beat 3: budget field + final CTA relabels to 시작하기.
     expect(mounted!.container.textContent).toContain("이번 달 예산");

@@ -18,8 +18,18 @@ export type AwardEvent =
   // B4 — the ledger entry itself, which is the play action the player actually
   // performs. `build` below only ever fired when the entry FOUNDED a building,
   // so growing (ADDENDUM-04 §5), queueing (F14) and overflowing all paid zero.
-  | { kind: "entry"; entryId: string }
-  | { kind: "build"; buildingId: string }
+  //
+  // Gate-3 round-5 (게임 디자이너's TOP FIX): `expGain` — the same
+  // `expGainFor(amountKrw, BALANCE.expAmountTiers)` value the building EXP
+  // curve already computed for this act — makes the seed payout track the
+  // amount instead of being flat. A flat per-entry amount let 15 same-day
+  // tiny entries (well under the first exp band) mint far more seeds than
+  // that much real spending should buy — past the cheapest shop item on day
+  // one; a building founded by the same entry already reads as "barely
+  // anything" at that amount (expGain 0, Lv.1) — seeds now agree. (Amounts
+  // themselves stay out of this file — rule R-7, `ruleR7.test.ts`.)
+  | { kind: "entry"; entryId: string; expGain: number }
+  | { kind: "build"; buildingId: string; expGain: number }
   | { kind: "nospend"; date: string }
   | { kind: "tier"; tier: number }
   // Gate-3-rerun fix (liveops-pd's TOP FIX, -4 the single biggest deduction of
@@ -63,13 +73,24 @@ export interface SeedAward {
   amount: number;
 }
 
+// Gate-3 round-5 — indexes a 5-entry seed table by the SAME rung
+// `expGainFor` landed on (`BALANCE.expAmountTiers` pairs each band with exp
+// 0/3/6/9/12; dividing by `expPerLevel` (3) recovers the rung 0..4 without
+// re-importing the tiers themselves). Rounds and clamps so a legacy/queued
+// `exp` value slightly off the table (or the 1-point legacy fallback in
+// `queueActions.ts`) still lands on a real row instead of throwing.
+function seedsForExpTier(table: readonly [number, number, number, number, number], expGain: number): number {
+  const rung = Math.min(4, Math.max(0, Math.round(expGain / BALANCE.expPerLevel)));
+  return table[rung];
+}
+
 /** Event descriptor -> the seed grant it earns. Pure — same event always yields the same key and amount. */
 export function awardFor(event: AwardEvent): SeedAward {
   switch (event.kind) {
     case "entry":
-      return { eventKey: `seed:entry:${event.entryId}`, amount: BALANCE.seedAwards.entry };
+      return { eventKey: `seed:entry:${event.entryId}`, amount: seedsForExpTier(BALANCE.seedAwards.entry, event.expGain) };
     case "build":
-      return { eventKey: `seed:build:${event.buildingId}`, amount: BALANCE.seedAwards.build };
+      return { eventKey: `seed:build:${event.buildingId}`, amount: seedsForExpTier(BALANCE.seedAwards.build, event.expGain) };
     case "nospend":
       return { eventKey: `seed:nospend:${event.date}`, amount: BALANCE.seedAwards.nospend };
     case "tier":

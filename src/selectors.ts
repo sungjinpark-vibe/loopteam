@@ -291,6 +291,16 @@ export function budgetPace(
     return null; // future month: nothing elapsed yet
   } else {
     elapsedFraction = dayOfMonth(today) / daysInMonth(ym);
+    // Gate-3 round-5 (타깃 플레이어's TOP FIX): with only 1-2 real days
+    // elapsed, `elapsedFraction` is tiny, so a single ordinary bill (rent, a
+    // card payment) divided by it explodes into an extreme ratio — day 2
+    // already read "🌧️ 빠듯해요" off 13% of the month's budget. Floor the
+    // denominator at a week's worth of the month so the first week is judged
+    // against a week's grace budget instead of against 1-2 days of it;
+    // converges back to the real day-of-month fraction from day 7 on
+    // (continuous at the seam), so nothing changes for the rest of the month.
+    const EARLY_MONTH_GRACE_DAYS = 7;
+    elapsedFraction = Math.max(elapsedFraction, EARLY_MONTH_GRACE_DAYS / daysInMonth(ym));
   }
   const expectedSpend = budgetKrw * elapsedFraction;
   if (expectedSpend <= 0) return null;

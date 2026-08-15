@@ -83,7 +83,12 @@ const RARITY_LABELS: Record<ShopSku["rarity"], string> = {
 const PURCHASE_ERROR_LABEL: Record<Exclude<PurchaseSkuResult, "ok">, string> = {
   insufficient: "씨앗이 부족해요",
   alreadyOwned: "이미 보유하고 있어요",
-  maxed: "NPC를 더 놓을 수 없어요",
+  // Gate-3-rerun fix (게임 디자이너/라이브옵스 PD/QA 리드: a shop row with
+  // neither a price nor a stated reason reads as a dead line item). NPC_MAX_VISIBLE
+  // (12) is a render-perf ceiling (economy/types.ts), not a purchase gate that
+  // more seeds ever clears — name the actual number so "can't buy" reads as
+  // "already at the display cap", not as a broken row.
+  maxed: `NPC가 이미 최대(${NPC_MAX_VISIBLE}마리)예요`,
 };
 
 /** A building eligible for 건물 꾸미기 — excludes the monument (F16) and the park tile (F15), neither of which may change behaviour or visual rarity from a cosmetic. */

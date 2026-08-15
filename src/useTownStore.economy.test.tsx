@@ -66,7 +66,10 @@ describe("seed earn loop", () => {
     // town's `lastActOn` starts unset), so it pays the day-1 streak award too
     // (2 * streakDays(1), see `economy/awards.ts`).
     const streakAward = 2 * 1;
-    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build + streakAward);
+    // Gate-3 round-5: seeds are tiered by amount (`awards.ts`'s
+    // `seedsForExpTier`); this 4,500원 coffee is below the first
+    // `expAmountTiers` band (5,000원), so it lands on rung 0.
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.entry[0] + BALANCE.seedAwards.build[0] + streakAward);
     const keys = latest!.economy.grantedEventKeys;
     expect(keys).toHaveLength(3);
     expect(keys[0]).toMatch(/^seed:entry:/);
@@ -75,7 +78,7 @@ describe("seed earn loop", () => {
     // Gate-3-rerun fix — the caller (TownScreen) folds this into the
     // build toast; see `AddEntryResult.seedsGranted`'s doc for why the grant
     // needs to be surfaced at all (it silently existed before, per the panel).
-    expect(addResult?.seedsGranted).toBe(BALANCE.seedAwards.entry + BALANCE.seedAwards.build + streakAward);
+    expect(addResult?.seedsGranted).toBe(BALANCE.seedAwards.entry[0] + BALANCE.seedAwards.build[0] + streakAward);
   });
 
   // --- B4 — the paths that used to pay nothing at all. -------------------
@@ -93,8 +96,9 @@ describe("seed earn loop", () => {
       grow = latest!.addEntry({ ...coffee, amountKrw: 30_000 }, hostId);
     });
     expect(grow?.grew).not.toBeNull(); // it really took the grow branch, not the build one
-    expect(grow?.seedsGranted).toBe(BALANCE.seedAwards.entry); // was 0 before B4
-    expect(latest?.economy.seeds).toBe(seedsAfterFounding + BALANCE.seedAwards.entry);
+    // 30,000원 is the 20,000-50,000원 band (expGain 6) — rung 2.
+    expect(grow?.seedsGranted).toBe(BALANCE.seedAwards.entry[2]); // was 0 before B4
+    expect(latest?.economy.seeds).toBe(seedsAfterFounding + BALANCE.seedAwards.entry[2]);
   });
 
   it("an entry that QUEUES past the daily slot cap still grants the entry award", async () => {
@@ -110,13 +114,17 @@ describe("seed earn loop", () => {
       queued = latest!.addEntry(coffee);
     });
     expect(queued?.queued).toBe(true); // slots exhausted — nothing was built
-    expect(queued?.seedsGranted).toBe(BALANCE.seedAwards.entry); // was 0 before B4
-    expect(latest?.economy.seeds).toBe(seedsAtCap + BALANCE.seedAwards.entry);
+    expect(queued?.seedsGranted).toBe(BALANCE.seedAwards.entry[0]); // was 0 before B4; 4,500원 = rung 0
+    expect(latest?.economy.seeds).toBe(seedsAtCap + BALANCE.seedAwards.entry[0]);
   });
 
   it("the cheapest shop sku is reachable in days, not months, and not in one sitting", async () => {
     const cheapest = Math.min(...SHOP_SKUS.map((s) => s.priceSeeds));
-    const perNormalEntry = BALANCE.seedAwards.entry + BALANCE.seedAwards.build;
+    // Gate-3 round-5: seeds are tiered by amount now — rung 1 (the
+    // 5,000-20,000원 band, an actual coffee/lunch) is the dial that kept the
+    // old flat entry=4/build=3 value on purpose, so this "normal logger"
+    // sanity check reads the same as it always has.
+    const perNormalEntry = BALANCE.seedAwards.entry[1] + BALANCE.seedAwards.build[1];
     // "a few entries a day" = 3 — between 3 and 14 days to the price floor.
     const days = cheapest / (3 * perNormalEntry);
     expect(days).toBeGreaterThan(3);
@@ -126,7 +134,7 @@ describe("seed earn loop", () => {
     // at `dailyBuildSlots` foundings + one tier crossing + a full queue (whose
     // build bonus lands on a LATER boot's drain, not today).
     const oneDayCeiling =
-      BALANCE.dailyBuildSlots * perNormalEntry + BALANCE.seedAwards.tier + BALANCE.materialQueueMax * BALANCE.seedAwards.entry;
+      BALANCE.dailyBuildSlots * perNormalEntry + BALANCE.seedAwards.tier + BALANCE.materialQueueMax * BALANCE.seedAwards.entry[1];
     expect(oneDayCeiling).toBeLessThan(cheapest);
   });
 

@@ -66,6 +66,16 @@ describe("QA scenarios are actually in the state they promise", () => {
     expect(f.town.queue).toEqual([]); // the deferral is the DRIVER's to produce, not pre-baked
   });
 
+  // Gate-3-rerun fix — the full-town fixture used to leave every building at
+  // its exp default (Lv.1), so no fuse pair existed on a genuinely full map:
+  // the one state where the fuse -> freed-cell -> refound endgame loop
+  // actually runs. Every one of the 5 experts flagged this as unverifiable.
+  it("full-town also ships a legal fuse pair, so the endgame loop is drivable at real capacity", () => {
+    const f = FIXTURES["full-town"]();
+    const [a, b] = f.buildings;
+    expect(fusePartners(f.buildings, a.id, BALANCE.expPerLevel, BALANCE.maxLevel).map((p) => p.id)).toContain(b.id);
+  });
+
   it("no-spend-ready is claimable on its own today, and has room to build the park", () => {
     const f = FIXTURES["no-spend-ready"]();
     expect(canClaimNoSpend(f.entries, f.town, f.today, BALANCE.dailyBuildSlots, BALANCE.noSpendDayCostsSlot)).toBe(true);

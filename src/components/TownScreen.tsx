@@ -80,6 +80,16 @@ function seedSuffix(amount: number, balanceAfter: number): string {
 // enough; a shared constant is).
 const QUEUED_BUILD_PROMISE = "자리가 나면 지어드릴게요";
 
+// Gate-3 round-5 (게임 디자이너's E4 finding): the old wording ("Lv.5 건물
+// 두 채를 합치면 자리가 생겨요") never said the pair must match BOTH category
+// AND footprint, so a player with two unrelated Lv.5 buildings read this as
+// actionable advice when it wasn't. Spelling out the real requirement here
+// doesn't fix the scarcity of qualifying pairs itself (a bigger, product-level
+// question — ADDENDUM-11 fusion's own design), but it stops the app from
+// pointing at a door that may not open. A shared constant for the same reason
+// `QUEUED_BUILD_PROMISE` is one — two call sites, must not drift apart.
+const FUSION_WAY_OUT_HINT = `같은 크기·같은 카테고리의 Lv.${BALANCE.maxLevel} 건물 두 채를 합치면 자리가 생겨요.`;
+
 // Gate-3 follow-up (A6): the toast layer's clearance above the bottom tab bar
 // and the FAB column is owned entirely by App.css's
 // `#tds-mobile-portal-container > [aria-live="polite"]` rule now — see its
@@ -149,7 +159,12 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
   // branches: both paths produce the identical `AddEntryResult`, and a second
   // copy of this toast logic is exactly how the two would drift.
   // `levelBeforeGrow` is captured by the caller BEFORE the mutation.
-  function announce(result: AddEntryResult, levelBeforeGrow: number | null) {
+  // `growExpGain` is the exp this grow act was worth (`pendingGrow.expGain`,
+  // captured by the caller before `resolveGrowChoice` clears it) — needed to
+  // tell "0 exp landed, nothing moved" apart from "exp landed but stayed
+  // inside the same level band", which `levelBeforeGrow`/`levelAfterGrow`
+  // alone cannot: both look identical (level unchanged) from the outside.
+  function announce(result: AddEntryResult, levelBeforeGrow: number | null, growExpGain?: number) {
     // A5 — the balance AFTER this save. `store.economy.seeds` is the pre-save
     // value here (stale render closure, same as `queueLength` below).
     const seedsAfter = store.economy.seeds + result.seedsGranted;
@@ -180,7 +195,7 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // lever — fuse two Lv.MAX buildings to free a cell — and nothing on
       // this screen said so before.
       const queueReason = queueWaitsOnRoom(store.slotsRemaining, result.queueLength)
-        ? `마을이 꽉 찼어요. Lv.${BALANCE.maxLevel} 건물 두 채를 합치면 자리가 생겨요.`
+        ? `마을이 꽉 찼어요. ${FUSION_WAY_OUT_HINT}`
         : "오늘 슬롯을 다 썼어요.";
       openToast(`${queueReason} ${QUEUED_BUILD_PROMISE} (대기 ${result.queueLength}개)${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.queueOverflow) {
@@ -204,11 +219,18 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // Guarded here rather than per call site: `announce` is the single
       // function all three grow paths (handleBuildNew, handleGrow,
       // handleGrowPickCommit) route through.
+      // 타깃 플레이어 TOP FIX (Gate-3 rerun): under `expAmountTiers`'s first
+      // band (< 5,000원), a grow act is worth 0 exp — the toast used to say
+      // "경험치가 쌓였어요" (exp accumulated) regardless, which is simply false
+      // when `growExpGain === 0`. Does not touch the curve itself, only
+      // whether the feedback lies about what it did.
       const levelAfterGrow = totalLevelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel);
       const grewMessage =
         levelBeforeGrow !== null && levelAfterGrow > levelBeforeGrow
           ? `레벨이 올랐어요! (지금 Lv.${levelAfterGrow})`
-          : `경험치가 쌓였어요 (지금 Lv.${levelAfterGrow})`;
+          : growExpGain === 0
+            ? `이 금액으로는 경험치가 오르지 않았어요 (지금 Lv.${levelAfterGrow})`
+            : `경험치가 쌓였어요 (지금 Lv.${levelAfterGrow})`;
       openToast(`${grewMessage}${seedSuffix(result.seedsGranted, seedsAfter)}`);
     } else if (result.building?.categoryId && !isFirstFounding) {
       // Gate-3-rerun fix (ux-researcher/target-player TOP FIX): the reward
@@ -242,9 +264,10 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
   // saved either way, so there is no path left that drops it.
   function resolveGrow(growTargetId?: string) {
     const levelBefore = levelOfTarget(growTargetId);
+    const growExpGain = pendingGrow?.expGain; // read before resolveGrowChoice clears the marker
     const result = store.resolveGrowChoice(growTargetId);
     if (result === null) return; // nothing pending — a double tap, or a resolve racing a reload
-    announce(result, levelBefore);
+    announce(result, levelBefore, growExpGain);
   }
 
   function handleGrowPickCommit(buildingId: string) {
@@ -472,7 +495,7 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       // `plotIndex === null` (a slot-exhausted claim is rejected earlier by
       // `canClaimNoSpend`), so the cause is always room — names the same
       // fusion way-out as the entry path, for the same reason.
-      openToast(`마을이 꽉 찼어요. Lv.${BALANCE.maxLevel} 건물 두 채를 합치면 자리가 생겨요. 오늘은 무지출! 공원은 ${QUEUED_BUILD_PROMISE} (대기 ${claimed.queueLength}개)`);
+      openToast(`마을이 꽉 찼어요. ${FUSION_WAY_OUT_HINT} 오늘은 무지출! 공원은 ${QUEUED_BUILD_PROMISE} (대기 ${claimed.queueLength}개)`);
       return;
     }
     openToast(BALANCE.noSpendDayCostsSlot ? "오늘은 무지출! 공원이 생겼어요. (슬롯 1개 사용)" : "오늘은 무지출! 공원이 생겼어요.");
@@ -720,7 +743,15 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         // said so explicitly, so a player could not tell whether two
         // same-category buildings of different SIZES would ever fuse. Spelled
         // out here instead of left implicit.
-        description={`새로 지으면 같은 건물이 한 채 더 생겨요 — 크기와 카테고리가 같은 두 건물이 둘 다 Lv.${BALANCE.maxLevel}가 되면 합쳐서 더 높은 건물 한 채로 만들 수 있어요. 키우면 지금 있는 건물의 레벨이 올라가요. 둘 다 건축 슬롯 1개를 써요.`}
+        description={`새로 지으면 같은 건물이 한 채 더 생겨요 — 크기와 카테고리가 같은 두 건물이 둘 다 Lv.${BALANCE.maxLevel}가 되면 합쳐서 더 높은 건물 한 채로 만들 수 있어요. ${
+          // 타깃 플레이어 TOP FIX: below expAmountTiers' first band this
+          // grow is worth 0 exp, so "레벨이 올라가요" would be a promise the
+          // dialog cannot keep. Say so instead of leaving the player to
+          // discover a rewardless tap after already spending the slot.
+          pendingGrow?.expGain === 0
+            ? "이 금액으로는 키워도 레벨이 오르지 않아요."
+            : "키우면 지금 있는 건물의 레벨이 올라가요."
+        } 둘 다 건축 슬롯 1개를 써요.`}
         // Dismissing without choosing defaults to 새로 짓기 (the entry is
         // already saved; this only settles which building effect it gets).
         onClose={handleBuildNew}

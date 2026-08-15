@@ -239,6 +239,24 @@ describe("monthTotal, budgetPace, moodTier", () => {
     expect(budgetPace(entries, "2026-08", 600_000, "2026-06-15")).toBeNull();
   });
 
+  // Gate-3 round-5 (타깃 플레이어's TOP FIX): a single ordinary bill early in
+  // the month must not read as a whole-month "over pace" off 1-2 days of
+  // signal.
+  it("day 2 of the month is judged against a week's grace budget, not 2 days of it", () => {
+    const earlyEntries: LedgerEntry[] = [makeEntry("expense", 203_000, "2026-08-02")];
+    // Raw day-of-month pace would be 203,000 / (1,500,000 * 2/31) ≈ 2.10 — the
+    // "빠듯해요" mood. With the week-long floor it's judged against 1,500,000
+    // * 7/31 ≈ 338,700 instead.
+    const pace = budgetPace(earlyEntries, "2026-08", 1_500_000, "2026-08-02");
+    expect(pace).toBeCloseTo(203_000 / (1_500_000 * (7 / 31)));
+    expect(moodTier(pace, [0.9, 1.1])).toBeLessThan(2); // not the worst ("빠듯해요") bucket
+  });
+
+  it("the week-long floor stops mattering once day-of-month passes it (no discontinuity)", () => {
+    const laterEntries: LedgerEntry[] = [makeEntry("expense", 300_000, "2026-08-15")];
+    expect(budgetPace(laterEntries, "2026-08", 600_000, "2026-08-15")).toBeCloseTo(300_000 / (600_000 * (15 / 31)));
+  });
+
   it("moodTier buckets pace by the thresholds, and is -1 (neutral) with no budget", () => {
     const thresholds = [0.9, 1.1];
     expect(moodTier(0.5, thresholds)).toBe(0);

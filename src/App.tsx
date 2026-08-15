@@ -238,7 +238,7 @@ function App() {
           into a half-explained state (round-1 playtest: zero onboarding was
           the single most common finding across all five expert lenses). */}
       {!store.onboarded && (
-        <Onboarding dailyBuildSlots={store.dailyBuildSlots} onSetBudget={store.setBudget} onComplete={store.completeOnboarding} />
+        <Onboarding onSetBudget={store.setBudget} onComplete={store.completeOnboarding} />
       )}
     </div>
   );

@@ -999,6 +999,25 @@ function fullTown(): Fixture {
   const entries: LedgerEntry[] = [];
   const buildings: Building[] = [];
   const dim = daysInMonth(2026, 7);
+
+  // Gate-3-rerun fix — every one of the 5 experts flagged the same gap:
+  // "the full-town fixture ships 0 Lv.5 buildings, so no fuse pair exists on
+  // a genuinely full map" (the exact state the fuse -> freed-cell -> refound
+  // endgame loop runs in). The generic fill loop below always leaves exp at
+  // its default (Lv.1) — same defect `fusionScenario` above exists to avoid.
+  // Seed one legal fuse pair FIRST (same category, same 1x1 footprint, both
+  // maxed) so QA can drive that cadence at true capacity; the fill loop then
+  // finishes the town to its real limit exactly as before.
+  const fusePair = [
+    foundPair({ seq, plots, categoryId: "food", occurredOn: "2026-07-01", amountKrw: 42_000, exp: MAX_LEVEL_EXP, w: 1, h: 1 }),
+    foundPair({ seq, plots, categoryId: "food", occurredOn: "2026-07-02", amountKrw: 38_000, exp: MAX_LEVEL_EXP, w: 1, h: 1 }),
+  ];
+  for (const pair of fusePair) {
+    if (pair === null) continue; // defensive — RX1-N2 always has room this early
+    entries.push(pair.entry);
+    buildings.push(pair.building);
+  }
+
   for (let i = 0; ; i++) {
     const pair = foundPair({
       seq,

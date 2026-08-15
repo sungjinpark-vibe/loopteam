@@ -212,10 +212,10 @@ function openSheet(): void {
   });
 }
 
-/** Fills the minimum viable entry (amount 1) and taps 저장. */
-function fillAndSave(categoryLabel: string, type?: "income" | "saving"): void {
+/** Fills an entry (amount 1 by default) and taps 저장. */
+function fillAndSave(categoryLabel: string, type?: "income" | "saving", amountDigits = "1"): void {
   if (type) selectType(type);
-  pressDigit("1");
+  for (const d of amountDigits) pressDigit(d);
   // ChipItem renders its icon (`left`) and label in the same button, so the
   // rendered text is "☕카페", not "카페" — match by substring, not equality.
   const categoryButton = [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes(categoryLabel));
@@ -461,7 +461,9 @@ describe("TownScreen — Gate-3 follow-up: the reward toast names the currency a
   it("shows the grant with its unit AND the balance after it, growing across saves", async () => {
     await mountAndWaitForBoot();
     // B4: a normal founding save now pays the entry award AND the build bonus.
-    const perBuild = BALANCE.seedAwards.entry + BALANCE.seedAwards.build;
+    // Every save in this test is `cafeExpense(1_000)`/`fillAndSave`'s default
+    // 1원 — tier 0 (below `expAmountTiers`' first 5,000원 band) — so index 0.
+    const perBuild = BALANCE.seedAwards.entry[0] + BALANCE.seedAwards.build[0];
 
     // Building #1 raises A2's celebration banner instead of a toast (A6 — the
     // two are bottom-docked and would otherwise land on the same line), so the
@@ -918,7 +920,10 @@ describe("TownScreen — A2: the grow dialog states what each choice actually do
     });
 
     openSheet();
-    fillAndSave("카페");
+    // 10,000원 — inside expAmountTiers' [5_000, 20_000) band (exp 3, not 0),
+    // so this exercises the normal "레벨이 올라가요" disclosure, not the
+    // zero-gain caveat covered separately below.
+    fillAndSave("카페", undefined, "10000");
     expect(findButton("키우기")).not.toBeUndefined(); // the dialog is up
 
     const text = document.body.textContent ?? "";
@@ -930,6 +935,24 @@ describe("TownScreen — A2: the grow dialog states what each choice actually do
     expect(text).toContain("지금 있는 건물의 레벨이 올라가요");
     // The round-4 disclosure this must not regress.
     expect(text).toContain("둘 다 건축 슬롯 1개를 써요");
+  });
+
+  // 타깃 플레이어 TOP FIX (Gate-3 rerun): below expAmountTiers' bottom rung
+  // (< 5,000원) growing is worth 0 exp, so promising "레벨이 올라가요" here
+  // would be a promise the dialog cannot keep.
+  it("warns instead of promising a level-up when this amount is below the exp floor", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry(cafeExpense(1_000));
+    });
+
+    openSheet();
+    fillAndSave("카페"); // default amount 1 — below the 5,000원 floor
+    expect(findButton("키우기")).not.toBeUndefined();
+
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("이 금액으로는 키워도 레벨이 오르지 않아요");
+    expect(text).not.toContain("키우면 지금 있는 건물의 레벨이 올라가요");
   });
 });
 
@@ -968,7 +991,11 @@ describe("TownScreen — A4: the grow toast names the resulting level and never 
 
     expect(latest!.levelOfBuilding(latest!.buildings[0])).toBe(before); // level really did not move
     expect(document.body.textContent).not.toContain("레벨이 올랐어요");
-    expect(document.body.textContent).toContain(`경험치가 쌓였어요 (지금 Lv.${before})`);
+    // 타깃 플레이어 TOP FIX (Gate-3 rerun): 0 exp actually landed (1원 is below
+    // expAmountTiers' bottom rung), so the toast must not claim "경험치가
+    // 쌓였어요" (exp accumulated) — that used to fire here regardless of gain.
+    expect(document.body.textContent).not.toContain("경험치가 쌓였어요");
+    expect(document.body.textContent).toContain(`이 금액으로는 경험치가 오르지 않았어요 (지금 Lv.${before})`);
   });
 
   it("a grow that DOES cross a threshold claims the level-up and names the level it ended at", async () => {

@@ -43,7 +43,11 @@ function simulateCasualLogger(days: number): number[] {
   for (let day = 1; day <= days; day++) {
     const date = `2026-09-${String(day).padStart(2, "0")}`;
     for (let n = 0; n < ENTRIES_PER_DAY; n++) {
-      economy = applyAward(economy, awardFor({ kind: "entry", entryId: `${date}-${n}` }));
+      // Gate-3 round-5: seeds are now tiered by amount, same as building EXP.
+      // A "casual 2-3 entries/day logger" spending real money (not farming
+      // sub-5,000원 rows) lands in the 5,000-20,000원 band (expGain 3), so
+      // this worst-case simulation uses that rung, not the farming floor.
+      economy = applyAward(economy, awardFor({ kind: "entry", entryId: `${date}-${n}`, expGain: 3 }));
     }
     // The day's first act extends the streak — idempotent by date, so it pays
     // once no matter how many entries that day.

@@ -6,25 +6,43 @@ import { defaultEconomyState } from "./types";
 describe("awardFor", () => {
   // B4 — the entry award is what makes the shop reachable by logging; the
   // build award below only ever fired for an entry that FOUNDED a building.
-  it("keys an entry award by entry id, amount from the balance dial", () => {
-    expect(awardFor({ kind: "entry", entryId: "e1" })).toEqual({
+  // Gate-3 round-5 — both are now tiered by `expGain` (`awards.ts`'s
+  // `seedsForExpTier`), indexed the same way `expAmountTiers` rungs map to
+  // exp: rung index = expGain / expPerLevel.
+  it("keys an entry award by entry id, amount from the tiered balance dial", () => {
+    expect(awardFor({ kind: "entry", entryId: "e1", expGain: 0 })).toEqual({
       eventKey: "seed:entry:e1",
-      amount: BALANCE.seedAwards.entry,
+      amount: BALANCE.seedAwards.entry[0],
     });
-    expect(BALANCE.seedAwards.entry).toBeGreaterThan(0);
+    expect(awardFor({ kind: "entry", entryId: "e1", expGain: 12 })).toEqual({
+      eventKey: "seed:entry:e1",
+      amount: BALANCE.seedAwards.entry[4],
+    });
+    expect(BALANCE.seedAwards.entry.every((n) => n > 0)).toBe(true);
+    // A bigger entry is never worth fewer seeds than a smaller one.
+    expect(awardFor({ kind: "entry", entryId: "e1", expGain: 12 }).amount).toBeGreaterThan(
+      awardFor({ kind: "entry", entryId: "e1", expGain: 0 }).amount,
+    );
   });
 
-  it("keys a build award by building id, amount from the balance dial", () => {
-    expect(awardFor({ kind: "build", buildingId: "b1" })).toEqual({
+  it("keys a build award by building id, amount from the tiered balance dial", () => {
+    expect(awardFor({ kind: "build", buildingId: "b1", expGain: 0 })).toEqual({
       eventKey: "seed:build:b1",
-      amount: BALANCE.seedAwards.build,
+      amount: BALANCE.seedAwards.build[0],
     });
   });
 
-  it("keys a no-spend award by date, larger than a build (§F-ECON table)", () => {
+  it("clamps an out-of-range expGain onto the nearest real rung instead of throwing", () => {
+    expect(awardFor({ kind: "entry", entryId: "e1", expGain: -5 }).amount).toBe(BALANCE.seedAwards.entry[0]);
+    expect(awardFor({ kind: "entry", entryId: "e1", expGain: 999 }).amount).toBe(BALANCE.seedAwards.entry[4]);
+  });
+
+  it("keys a no-spend award by date, larger than a NORMAL build (§F-ECON table)", () => {
     const award = awardFor({ kind: "nospend", date: "2026-08-10" });
     expect(award).toEqual({ eventKey: "seed:nospend:2026-08-10", amount: BALANCE.seedAwards.nospend });
-    expect(award.amount).toBeGreaterThan(BALANCE.seedAwards.build);
+    // Rung 1 (5,000-20,000원) is the dial that kept the old flat build value —
+    // the "biggest bonus dial" comparison this test always meant.
+    expect(award.amount).toBeGreaterThan(BALANCE.seedAwards.build[1]);
   });
 
   it("keys a tier award by the tier number", () => {
@@ -73,7 +91,7 @@ describe("awardFor", () => {
   });
 
   it("the same event always produces the same key (idempotency contract)", () => {
-    const event: AwardEvent = { kind: "build", buildingId: "b1" };
+    const event: AwardEvent = { kind: "build", buildingId: "b1", expGain: 6 };
     expect(awardFor(event).eventKey).toBe(awardFor(event).eventKey);
   });
 });

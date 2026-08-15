@@ -694,7 +694,10 @@ export function useTownStore() {
       // once whichever branch it took.
       for (const b of settleDrain.drained) {
         if (b.source.kind === "nospend") continue;
-        economy = applyAward(economy, awardFor({ kind: "build", buildingId: b.id }));
+        // `b.exp` is the founding gain queueActions.ts stored for this drain
+        // (omitted, not zeroed, when it was 0/1 — see its own doc), so `?? 0`
+        // reads that correctly instead of an unset field as "undefined".
+        economy = applyAward(economy, awardFor({ kind: "build", buildingId: b.id, expGain: b.exp ?? 0 }));
       }
       for (const m of settleDrain.monuments) {
         if (m.monumentSummary) {
@@ -950,7 +953,7 @@ export function useTownStore() {
     // reload this whole deferral exists to survive. The award key is the
     // entryId, so `resolveGrowChoice` re-attempting it later is a no-op.
     if (result.building || result.grownBuilding || result.queuedMaterial || result.pendingGrowChoice) {
-      const entryAward = { kind: "entry", entryId } as const;
+      const entryAward = { kind: "entry", entryId, expGain } as const;
       if (grantSeeds(entryAward)) seedsGranted += awardFor(entryAward).amount;
     }
     // Gate-3-rerun fix (liveops-pd's TOP FIX): pays the day's FIRST act that
@@ -968,7 +971,7 @@ export function useTownStore() {
       // FIFO shows "첫 건물" first if a fresh town somehow crosses a tier on
       // the same save. `prev.buildings` is the pre-save town by construction.
       if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
-      const award = { kind: "build", buildingId: result.building.id } as const; // ADDENDUM-05 — entry-sourced build, § F-ECON table row 1
+      const award = { kind: "build", buildingId: result.building.id, expGain } as const; // ADDENDUM-05 — entry-sourced build, § F-ECON table row 1
       if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
     }
     if (result.celebrateTier !== null) {
@@ -1125,7 +1128,7 @@ export function useTownStore() {
     if (result.building) {
       setJustBuiltId(result.building.id);
       if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
-      const award = { kind: "build", buildingId: result.building.id } as const;
+      const award = { kind: "build", buildingId: result.building.id, expGain: result.building.exp ?? 0 } as const;
       if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
     }
     if (result.celebrateTier !== null) {
@@ -1347,7 +1350,7 @@ export function useTownStore() {
       // double-pay if a future path also drains the same material.
       for (const b of drainedBuildings) {
         if (b.source.kind === "nospend") continue; // already paid on claim day (see settleAndDrainAndPersist's own note)
-        grantSeeds({ kind: "build", buildingId: b.id });
+        grantSeeds({ kind: "build", buildingId: b.id, expGain: b.exp ?? 0 });
       }
       if (drainResult.celebrateTier !== null) grantSeeds({ kind: "tier", tier: drainResult.celebrateTier });
       pushNotices(

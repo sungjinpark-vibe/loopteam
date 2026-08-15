@@ -98,8 +98,21 @@ export const BALANCE = {
   //   month-end settlement (best bucket) pays 120 — a real monthly payout,
   //     ~6 days of normal logging, once per period and idempotent by period.
   seedAwards: {
-    entry: 4, // per ledger entry that built, grew, or queued something (B4)
-    build: 3, // per entry-sourced build, including a queue drain (§F-ECON table row 1)
+    // Gate-3 round-5 (게임 디자이너's TOP FIX, panel's #1 finding for this
+    // dial): was a flat 4/3, amount-blind — 15 same-day 100원 entries
+    // (1,500원 total) minted 197 seeds, clearing the 150-seed shop floor on
+    // day one, and taught "log often" rather than "log real spending". Now a
+    // 5-row table indexed by the entry's own `expAmountTiers` rung (same
+    // 5,000/20,000/50,000/150,000원 bands the building EXP curve already
+    // uses — see `awards.ts`'s `seedsForExpTier`), so the two currencies
+    // finally agree: a 100원 entry is worth little in seeds AND exp, a
+    // 150,000원 entry is worth the top rung of both. Index 1 (the
+    // 5,000–20,000원 band — an actual coffee/lunch, not a farmed row) keeps
+    // the old flat value (4/3) so a real "few entries a day" logger's pacing
+    // is unchanged (see `pacing.test.ts`); only entries BELOW 5,000원 pay
+    // less than before.
+    entry: [2, 4, 6, 8, 10],
+    build: [1, 3, 4, 6, 8], // per entry-sourced build, including a queue drain (§F-ECON table row 1)
     nospend: 8, // larger than a build — the behaviour the app most wants to reward
     tier: 25, // reuses the existing streak-tier threshold crossing, no new counter
     // --- ADDENDUM-11 §5.3 (building fusion). NEW dial, not director-confirmed

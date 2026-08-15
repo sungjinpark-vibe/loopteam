@@ -47,6 +47,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import { colors } from "@toss/tds-colors";
 import { useTileGestures } from "../hooks/useTileGestures";
 import { footprintOf, moveAnchorsFor } from "../placement";
+import { resolvePinchTransform, type PinchBaseline } from "../pinchTransform";
 import { fuseOf, totalLevelOf } from "../selectors";
 import {
   CELL_COUNT,
@@ -472,7 +473,12 @@ function TownGridImpl({
   // gesture's BASELINE distance/scale once, and every later sample compares
   // straight to that fixed baseline (`distance / baseline.distance`) instead
   // of to the noisy previous sample — no chain, no accumulation.
-  const pinchBaselineRef = useRef<{ scale: number; distance: number } | null>(null);
+  //
+  // Gate-3 round-5 — also carries the baseline midpoint (`midX`/`midY`) now,
+  // for `resolvePinchTransform`'s anchor math (see its own doc): the last
+  // residual chaining path was the TRANSLATE anchor, which still read the
+  // previous sample's midpoint / the previously COMMITTED `pinch` state.
+  const pinchBaselineRef = useRef<PinchBaseline | null>(null);
 
   const fitScale = fit?.scale ?? 1;
   const scale = pinch ? pinch.scale : zoomedOut ? fitScale : 1;
@@ -545,7 +551,7 @@ function TownGridImpl({
     if (!grid) return;
     const rect = grid.getBoundingClientRect();
     pinchLayoutRef.current = { left: rect.left - scale * tx, top: rect.top - scale * ty };
-    pinchBaselineRef.current = { scale, distance };
+    pinchBaselineRef.current = { scale, distance, midX, midY };
     pinchSampleRef.current = { midX, midY, distance };
   };
 
@@ -563,8 +569,8 @@ function TownGridImpl({
       const rect = grid.getBoundingClientRect();
       pinchLayoutRef.current = { left: rect.left - scale * tx, top: rect.top - scale * ty };
       // Drift fix (see the ref's own comment): every later sample of this
-      // gesture compares straight against THIS distance, never a chain.
-      pinchBaselineRef.current = { scale, distance };
+      // gesture compares straight against THIS distance/midpoint, never a chain.
+      pinchBaselineRef.current = { scale, distance, midX, midY };
       return;
     }
     const layout = pinchLayoutRef.current;
@@ -573,66 +579,32 @@ function TownGridImpl({
     if (!baseline) return;
 
     setZoomedOut(false); // D1/D2/D4 — a pinch takes ownership of scale away from the toggle
-    setPinch((prevPinch) => {
-      const scale0 = prevPinch ? prevPinch.scale : zoomedOut ? fitScale : 1;
-      const tx0 = prevPinch?.tx ?? 0;
-      const ty0 = prevPinch?.ty ?? 0;
-
-      const rawScale = baseline.scale * (distance / baseline.distance);
-      const nextScale = Math.min(MAX_PINCH_SCALE, Math.max(fitScale, rawScale));
-      // A8 — two different states both land on `nextScale === fitScale`, and
-      // only one of them means "pan is inert" (D1):
-      //
-      //  - GENUINELY at/below the floor (`scale0 <= fitScale`): the whole map
-      //    is already on screen and native `.town-viewport` overflow scrolling
-      //    is the sole pan owner (§3.3), so this gesture contributes no
-      //    translate at all. Pinned to 0 — unchanged behaviour, and the case
-      //    the "pan is inert at fit scale" test covers.
-      //
-      //  - TRANSIENTLY dipped there mid-drag (`scale0 > fitScale`): the user is
-      //    zoomed in and pushing the map. Chromium never coalesces a two-finger
-      //    move (see A7 above), so the intermediate half-sample — one finger
-      //    already moved, the other not yet — reports a shrunken separation and
-      //    dips the raw scale under the floor for one sample even though nobody
-      //    un-zoomed. This branch used to answer that with `{fitScale, 0, 0}`,
-      //    throwing away the translate those fingers had just produced and
-      //    handing the SECOND updater of the same tick `tx0`/`ty0 === 0` — the
-      //    stutter on "zoom in slightly, then push the map", which is the most
-      //    common gesture because fit scale is the default view.
-      //
-      // Pinning the SCALE at the floor is right in both cases (D1) and is what
-      // `nextScale` above already does. Only the first case discards the pan
-      // now; the second falls through and derives its translate like any other
-      // sample, with `clampTranslate` below still deciding how much survives.
-      if (nextScale <= fitScale && scale0 <= fitScale) {
-        return { scale: fitScale, tx: 0, ty: 0 };
-      }
-
-      // transform-origin is top-left and the string is `scale(k) translate(tx,
-      // ty)`, so a client point's local (pre-transform) coordinate is
-      // `(client - left) / k`, where `left = layoutLeft + k * tx` — computed
-      // from the captured layout origin and THIS updater's own scale0/tx0, so
-      // it always describes the state this updater is actually working from
-      // (A7: a live `getBoundingClientRect()` here does not).
-      const { left: layoutLeft, top: layoutTop } = layout;
-      const prevLeft = layoutLeft + scale0 * tx0;
-      const prevTop = layoutTop + scale0 * ty0;
-      const anchorLocalX = (prevSample.midX - prevLeft) / scale0;
-      const anchorLocalY = (prevSample.midY - prevTop) / scale0;
-      const rawTx = (midX - layoutLeft) / nextScale - anchorLocalX;
-      const rawTy = (midY - layoutTop) / nextScale - anchorLocalY;
-
-      const clamped = clampTranslate(
-        rawTx,
-        rawTy,
-        nextScale,
-        grid.scrollWidth,
-        grid.scrollHeight,
-        viewport?.clientWidth ?? 0,
-        viewport?.clientHeight ?? 0,
-      );
-      return { scale: nextScale, tx: clamped.tx, ty: clamped.ty };
-    });
+    // Gate-3 round-5 — `resolvePinchTransform` is pure and derives the whole
+    // next state from `baseline`/`layout` (both fixed for the gesture) plus
+    // THIS sample only; no `prevPinch`/previous-sample chaining left to
+    // corrupt (see the function's own doc). A plain (non-functional)
+    // `setPinch` call is correct here for the same reason: two same-tick
+    // calls each compute a complete, independent, correct state from fixed
+    // inputs, so ordinary last-write-wins batching is exactly right — there
+    // is nothing left that NEEDS to see the other call's result.
+    const { scale: nextScale, tx: rawTx, ty: rawTy } = resolvePinchTransform(
+      baseline,
+      layout,
+      { midX, midY, distance },
+      fitScale,
+      MAX_PINCH_SCALE,
+      prevSample.distance,
+    );
+    const clamped = clampTranslate(
+      rawTx,
+      rawTy,
+      nextScale,
+      grid.scrollWidth,
+      grid.scrollHeight,
+      viewport?.clientWidth ?? 0,
+      viewport?.clientHeight ?? 0,
+    );
+    setPinch({ scale: nextScale, tx: clamped.tx, ty: clamped.ty });
   };
 
   const handlePinchEnd = () => {
