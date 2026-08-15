@@ -110,6 +110,40 @@ export interface Building {
   fusePending?: string;
 }
 
+/**
+ * ADDENDUM-04 §4 — an ALREADY-SAVED entry whose 새로짓기/키우기 choice hasn't
+ * been made yet.
+ *
+ * The dialog used to hold the un-saved draft in React state, so a reload while
+ * it was showing lost the entry outright (not in 기록, no seeds, no building).
+ * The entry, its award, its streak advance and its build slot are all
+ * committed at 저장 time now; the ONLY thing this marker defers is the
+ * building effect (found a new one vs. add EXP to an existing one), because
+ * that is the only thing the two branches of `decideBuildOrQueue` disagree
+ * about. Deferring it rather than materialising 새로짓기 and undoing it on
+ * 키우기 is deliberate: undoing a build would have to walk back a tier
+ * celebration, and `highestTierSeen` only ever increases (entryActions.ts,
+ * round-2 finding C2 #1). The tier check is computed ONCE, when the choice
+ * resolves.
+ *
+ * Lives on `TownState` so it rides `saveCore` — which `saveEntriesForMonth`
+ * calls in the SAME write as the entry chunk, which is what makes "entry
+ * saved" and "choice pending" one atomic persisted fact rather than two.
+ *
+ * OPTIONAL, absent === "no pending choice" — same absent-means-nothing
+ * discipline `moveHintSeen`/`savingsByCategoryKrw` already set here, so every
+ * town persisted before this shipped loads unchanged.
+ */
+export interface PendingGrowChoice {
+  entryId: string;
+  /** 'YYYY-MM' of the entry's `occurredOn` — the ledger chunk to patch when the choice resolves (may be a backdated past month, same distinction `QueuedMaterial.entryYm` documents). */
+  entryYm: string;
+  /** The entry's category — re-derives the candidate set after a reload rather than freezing a building-id list that may be stale by then. */
+  categoryId: CategoryId;
+  /** ADDENDUM-04 §3/§7 — the EXP this act is worth, rolled at 저장 time so the reward can't drift if the dial changes before the choice is made. */
+  expGain: number;
+}
+
 /** Pending material — an over-cap entry waiting for tomorrow (F14). */
 export interface QueuedMaterial {
   // OPTIONAL since 무지출 parks defer through this same queue: a park material
@@ -187,6 +221,10 @@ export interface TownState {
   // itself, so a move still writes exactly one storage key (AC-M10) and the
   // hint costs zero extra writes (AC-H1).
   moveHintSeen?: boolean;
+  // ADDENDUM-04 §4 — see `PendingGrowChoice`. OPTIONAL, absent === no pending
+  // choice; at most one at a time (the entry sheet is unreachable while the
+  // dialog or pick mode is showing).
+  pendingGrowChoice?: PendingGrowChoice;
 }
 
 /** Read discipline for `savingsByCategoryKrw` — so `?? 0` is never open-coded at a call site (ADDENDUM-01 §4.1). */

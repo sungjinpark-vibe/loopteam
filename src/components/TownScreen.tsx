@@ -27,7 +27,7 @@ import { useGrowPickMode } from "../hooks/useGrowPickMode";
 import { useMoveMode } from "../hooks/useMoveMode";
 import { budgetPace, moodTier, totalLevelOf, tier as computeTier } from "../selectors";
 import type { Building } from "../types";
-import type { TownStore } from "../useTownStore";
+import type { AddEntryResult, TownStore } from "../useTownStore";
 
 export interface TownScreenProps {
   store: TownStore;
@@ -107,11 +107,15 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     }, 250);
     return () => window.clearTimeout(id);
   }, [chargePending, shopOpen]);
-  // ADDENDUM-04 §4 — the draft held between the entry sheet closing and the
-  // grow choice being resolved (새 건물 세우기 / 기존 건물 키우기), and again
-  // for the duration of grid pick-mode when there are 2+ candidates. Non-null
-  // for exactly the lifetime of "the ConfirmDialog OR pick mode is showing".
-  const [growDraft, setGrowDraft] = useState<EntryDraft | null>(null);
+  // ADDENDUM-04 §4 — the open 새 건물 세우기 / 기존 건물 키우기 choice, read
+  // straight off the store's PERSISTED marker (`PendingGrowChoice`). This used
+  // to be `useState<EntryDraft | null>` holding an UNSAVED draft, which meant a
+  // reload while the dialog (or pick mode) was showing destroyed the entry
+  // outright — gone from 기록, from 씨앗, from everywhere. The entry is
+  // committed before this is ever non-null now; only the building effect is
+  // still open. Non-null for exactly the lifetime of "the ConfirmDialog OR
+  // pick mode is showing", same as before, but across reloads too.
+  const pendingGrow = store.pendingGrowChoice;
   // F16 — the monument detail popover's subject. Null closes the sheet
   // (`MonumentDetailSheet` mirrors `EntryDetailSheet`'s own contract).
   const [selectedMonumentId, setSelectedMonumentId] = useState<string | null>(null);
@@ -132,18 +136,12 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     if (move.movingId !== null && notice?.kind === "moveHint") dismissNotice();
   }, [move.movingId, notice, dismissNotice]);
 
-  function saveEntry(draft: EntryDraft, growTargetId?: string) {
-    // A4 — the grow target's level BEFORE this save, so the toast below can
-    // tell "the level moved" from "exp landed inside the same level band".
-    // `store.buildings` is still the pre-save array in this render closure,
-    // the same staleness `seedsAfter`/`isFirstFounding` below already rely on.
-    // Read through the SAME `totalLevelOf` the toast uses for the after-value,
-    // so the two sides can never disagree about what a level is.
-    const growTargetBefore = growTargetId ? store.buildings.find((b) => b.id === growTargetId) : undefined;
-    const levelBeforeGrow = growTargetBefore
-      ? totalLevelOf(growTargetBefore, BALANCE.expPerLevel, BALANCE.maxLevel)
-      : null;
-    const result = store.addEntry(draft, growTargetId);
+  // Split out of `saveEntry` so the deferred-choice resolution
+  // (`resolveGrow` below) announces its outcome through the SAME four
+  // branches: both paths produce the identical `AddEntryResult`, and a second
+  // copy of this toast logic is exactly how the two would drift.
+  // `levelBeforeGrow` is captured by the caller BEFORE the mutation.
+  function announce(result: AddEntryResult, levelBeforeGrow: number | null) {
     // A5 — the balance AFTER this save. `store.economy.seeds` is the pre-save
     // value here (stale render closure, same as `queueLength` below).
     const seedsAfter = store.economy.seeds + result.seedsGranted;
@@ -182,8 +180,8 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
       //      (the panel caught exactly this, as "(Lv.1)"). The save still
       //      spent a build slot and still earned seeds, so it must not go
       //      silent either; it gets the honest message instead of the wrong one.
-      // Guarded here rather than per call site: `saveEntry` is the single
-      // function all three grow paths (handleSave, handleGrow,
+      // Guarded here rather than per call site: `announce` is the single
+      // function all three grow paths (handleBuildNew, handleGrow,
       // handleGrowPickCommit) route through.
       const levelAfterGrow = totalLevelOf(result.grew, BALANCE.expPerLevel, BALANCE.maxLevel);
       const grewMessage =
@@ -205,10 +203,31 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
     }
   }
 
+  // A4 — the grow target's level BEFORE the mutation, so `announce` can tell
+  // "the level moved" from "exp landed inside the same level band". Read
+  // through the SAME `totalLevelOf` the toast uses for the after-value, so the
+  // two sides can never disagree about what a level is.
+  function levelOfTarget(growTargetId?: string): number | null {
+    const before = growTargetId ? store.buildings.find((b) => b.id === growTargetId) : undefined;
+    return before ? totalLevelOf(before, BALANCE.expPerLevel, BALANCE.maxLevel) : null;
+  }
+
+  function saveEntry(draft: EntryDraft, deferGrowChoice?: boolean) {
+    announce(store.addEntry(draft, undefined, deferGrowChoice), null);
+  }
+
+  // ADDENDUM-04 §4 — answer the persisted choice. `undefined` means 새로 짓기,
+  // which is also what a dismissed dialog defaults to: the entry is already
+  // saved either way, so there is no path left that drops it.
+  function resolveGrow(growTargetId?: string) {
+    const levelBefore = levelOfTarget(growTargetId);
+    const result = store.resolveGrowChoice(growTargetId);
+    if (result === null) return; // nothing pending — a double tap, or a resolve racing a reload
+    announce(result, levelBefore);
+  }
+
   function handleGrowPickCommit(buildingId: string) {
-    if (growDraft === null) return; // defensive — pick mode can't be active with no held draft
-    saveEntry(growDraft, buildingId);
-    setGrowDraft(null);
+    resolveGrow(buildingId);
   }
 
   // ADDENDUM-11 §6 — fusion reuses `useGrowPickMode` wholesale rather than a
@@ -258,39 +277,39 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   // Dialog and pick-mode are two phases of the SAME `growDraft`, never shown
   // together — the dialog closes the instant pick mode starts (§4: "the
   // sheet is already closed, the town is visible, candidates highlighted").
-  const growDialogOpen = growDraft !== null && !pickModeActive;
+  const growDialogOpen = pendingGrow !== null && !pickModeActive;
 
   function handleSave(draft: EntryDraft) {
     // ADDENDUM-04 §4 — the choice trigger, evaluated once at save time.
     const canGrow =
       draft.type !== "saving" && store.slotsRemaining > 0 && store.growCandidates(draft.categoryId).length > 0;
-    if (!canGrow) {
-      saveEntry(draft);
-      setSheetOpen(false);
-      return;
-    }
     // Close the sheet FIRST — the dialog must never nest inside an open
     // BottomSheet (the vendor backdrop bug `useConfirmDialogBackdropFix`
     // exists for; avoided here by construction, not patched a second time).
     setSheetOpen(false);
-    setGrowDraft(draft);
+    // Either way the entry is WRITTEN by this call. `deferGrowChoice` only
+    // parks the building effect; the dialog below opens off the persisted
+    // marker that write produced. If the town turned out to be full, the store
+    // queues instead and leaves no marker — no dialog, and `announce` already
+    // fired the F14 queued toast.
+    saveEntry(draft, canGrow);
   }
 
   function handleBuildNew() {
-    if (growDraft === null) return;
-    saveEntry(growDraft);
-    setGrowDraft(null);
+    resolveGrow();
   }
 
   function handleGrow() {
-    if (growDraft === null) return;
-    const candidates = store.growCandidates(growDraft.categoryId);
-    if (candidates.length === 1) {
-      saveEntry(growDraft, candidates[0].id);
-      setGrowDraft(null);
+    if (pendingGrow === null) return;
+    const candidates = store.growCandidates(pendingGrow.categoryId);
+    // Zero candidates is reachable only after a reload (the last same-category
+    // building was deleted or fused away while the choice sat open) — 키우기
+    // has nothing to grow, so it resolves as 새로 짓기 rather than dead-ending.
+    if (candidates.length <= 1) {
+      resolveGrow(candidates[0]?.id);
       return;
     }
-    // 2+ candidates — grid pick mode (§4). `growDraft` stays held; the
+    // 2+ candidates — grid pick mode (§4). The pending marker stays put; the
     // ConfirmDialog closes on its own via `growDialogOpen` above.
     growPick.start(new Set(candidates.map((c) => c.id)));
     // Gate-3 follow-up (A1) — the third affordance move mode has and pick
@@ -304,8 +323,10 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
 
   function handleGrowPickCancel() {
     growPick.cancel();
-    setGrowDraft(null);
     setFuseSurvivorId(null);
+    // The pending choice is deliberately NOT cleared: backing out of pick mode
+    // returns to the dialog it came from. This used to drop the held draft,
+    // which silently threw the entry away.
   }
 
   // F16 — a plain tap on a monument (outside move/pick mode, where a plain
@@ -650,7 +671,9 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
         // building's level now. `BALANCE.maxLevel` rather than a literal 5 so
         // the copy cannot drift from the rule it describes.
         description={`새로 지으면 같은 건물이 한 채 더 생겨요 — 둘 다 Lv.${BALANCE.maxLevel}가 되면 합쳐서 더 높은 건물 한 채로 만들 수 있어요. 키우면 지금 있는 건물의 레벨이 올라가요. 둘 다 건축 슬롯 1개를 써요.`}
-        onClose={() => setGrowDraft(null)}
+        // Dismissing without choosing defaults to 새로 짓기 (the entry is
+        // already saved; this only settles which building effect it gets).
+        onClose={handleBuildNew}
         cancelButton={<ConfirmDialog.CancelButton onClick={handleBuildNew}>새로 짓기</ConfirmDialog.CancelButton>}
         confirmButton={<ConfirmDialog.ConfirmButton onClick={handleGrow}>키우기</ConfirmDialog.ConfirmButton>}
       />

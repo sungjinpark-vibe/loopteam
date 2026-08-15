@@ -26,7 +26,7 @@
  * enough for F15's `canClaimNoSpend`, which only ever looks at `today`.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { applyNewEntry, type EntryDraft } from "./entryActions";
+import { applyNewEntry, resolveGrowChoice as applyGrowChoice, type EntryDraft } from "./entryActions";
 import { buildingForEntry, deleteEntryEffects, editEntryEffects, type EntryEditPatch } from "./historyActions";
 import { claimNoSpendDay } from "./noSpendActions";
 import { drainQueue } from "./queueActions";
@@ -71,7 +71,7 @@ import {
 import { createChunkedStorage, defaultTownState, serializeExport, yieldToMainThread, type CoreState, type ImportResult } from "./storage";
 import { applyAward, awardFor, type AwardEvent } from "./economy/awards";
 import { defaultEconomyState, NPC_MAX_VISIBLE, NPC_SLOT_SKU, seeds as seedCount, type EconomyState } from "./economy/types";
-import type { Building, BudgetSetting, CategoryId, LedgerEntry, MonthSummary, SavingCategoryId, TownState } from "./types";
+import type { Building, BudgetSetting, CategoryId, LedgerEntry, MonthSummary, PendingGrowChoice, SavingCategoryId, TownState } from "./types";
 
 interface LoadedState {
   town: TownState;
@@ -827,7 +827,15 @@ export function useTownStore() {
 
   // NOTE (T003, still true): assumes addEntry/claimNoSpend are called once
   // and awaited (via the UI) before the next call.
-  const addEntry = useCallback((draft: EntryDraft, growTargetId?: string): AddEntryResult => {
+  /**
+   * ADDENDUM-04 §4 — `deferGrowChoice` saves the entry and spends its slot NOW
+   * and leaves only the 새로짓기/키우기 building effect open (see
+   * `PendingGrowChoice`). The entry row and the marker land in ONE
+   * `saveEntriesForMonth` call (which writes the chunk AND core), so a reload
+   * while the dialog is showing can never see one without the other — the
+   * defect this replaced held the whole draft in React state and lost it.
+   */
+  const addEntry = useCallback((draft: EntryDraft, growTargetId?: string, deferGrowChoice?: boolean): AddEntryResult => {
     const prev = stateRef.current;
     if (prev === null) return { building: null, grew: null, queued: false, queueOverflow: false, queueLength: 0, seedsGranted: 0 };
 
@@ -877,6 +885,7 @@ export function useTownStore() {
       h,
       growTargetId,
       expGain,
+      deferGrowChoice,
     });
 
     const storageClient = storageRef.current;
@@ -934,7 +943,13 @@ export function useTownStore() {
     // town is full for today — the app itself says "건물 없이 저장했어요") and a
     // 저축 entry, which by F13 never builds, grows, queues or spends a slot,
     // so it has no cap of its own to inherit.
-    if (result.building || result.grownBuilding || result.queuedMaterial) {
+    // A deferred save (`result.pendingGrowChoice`) counts as "produced
+    // something" here: it already spent the build slot and advanced the
+    // streak, so it carries the same bound the build/grow/queue branches do —
+    // and paying at 저장 time is what makes the award durable across the
+    // reload this whole deferral exists to survive. The award key is the
+    // entryId, so `resolveGrowChoice` re-attempting it later is a no-op.
+    if (result.building || result.grownBuilding || result.queuedMaterial || result.pendingGrowChoice) {
       const entryAward = { kind: "entry", entryId } as const;
       if (grantSeeds(entryAward)) seedsGranted += awardFor(entryAward).amount;
     }
@@ -983,7 +998,16 @@ export function useTownStore() {
     // just defers it to the next opportunity with nothing else on screen —
     // next boot, or a later save/claim that itself produces none of these
     // four outcomes (a plain 저축 entry, most commonly).
-    if (!result.building && !result.grownBuilding && !result.queuedMaterial && !result.queueOverflow) {
+    if (
+      !result.building &&
+      !result.grownBuilding &&
+      !result.queuedMaterial &&
+      !result.queueOverflow &&
+      // A deferred save opens the choice ConfirmDialog in the same commit —
+      // exactly the "something else is already on screen" case this guard is
+      // about, so the hint waits for a quieter moment like every other branch.
+      !result.pendingGrowChoice
+    ) {
       maybeQueueMoveHint(result.town, countBuildings(buildings));
     }
 
@@ -996,6 +1020,128 @@ export function useTownStore() {
       seedsGranted,
     };
   }, [pushNotices, maybeQueueMoveHint, grantSeeds]);
+
+  /**
+   * ADDENDUM-04 §4 — answer the pending 새로짓기/키우기 choice for an entry that
+   * is ALREADY saved (`addEntry(..., deferGrowChoice)` above). `growTargetId`
+   * names the building to 키우기; omit it for 새로 짓기, which is also the
+   * default the UI applies when the dialog is dismissed without a choice.
+   *
+   * Returns null when there is nothing pending (a double tap, or a resolve
+   * racing a reload) — storage untouched, same contract `fuseBuildings` has.
+   *
+   * Write order mirrors `fuseBuildings`'s (§5.4): the ledger chunk and core go
+   * FIRST, in a single `saveEntriesForMonth` call, then the buildings chunk.
+   * A crash between the two leaves the entry pointing at a building that
+   * doesn't exist yet — inconsistent but nothing lost and nothing duplicated.
+   * The other order would leave the marker set with the building already
+   * standing, and re-presenting the dialog would build a SECOND one.
+   *
+   * ponytail: the two writes share the ~300ms debounce buffer and normally
+   * flush in one batch, so that window is a formality. A true cross-chunk
+   * transaction would need a boot-repair pass like `repairPendingFusions`;
+   * add one only if the raw port ever stops coalescing.
+   */
+  const resolveGrowChoiceAction = useCallback((growTargetId?: string): AddEntryResult | null => {
+    const prev = stateRef.current;
+    const pending = prev?.town.pendingGrowChoice;
+    if (prev === null || pending === undefined) return null;
+
+    const today = clock.today();
+    const now = clock.now();
+    const storageClient = storageRef.current;
+    const todayYm = today.slice(0, 7);
+    // The persisted row, not the in-memory one: a backdated entry lives in a
+    // month chunk `state.entries` (current month only, F10) may not hold.
+    const { entries: chunkEntries } = storageClient.loadEntriesForMonth(pending.entryYm);
+    // Placement is rolled HERE, not at 저장 time — the town may have filled up
+    // in between (a boot drain, a 무지출 park), and `placeNew`'s answer then
+    // would be stale. Same three values `addEntry` passes.
+    const placed = placeNew(prev.buildings, random.next);
+    const result = applyGrowChoice({
+      town: prev.town,
+      buildings: prev.buildings,
+      entry: chunkEntries.find((e) => e.id === pending.entryId),
+      growTargetId,
+      buildingId: makeId("b", now),
+      variantIndex: Math.floor(random.next() * BALANCE.variantsPerCategory),
+      createdAt: now,
+      today,
+      tierThresholds: BALANCE.tierThresholds,
+      materialQueueMax: BALANCE.materialQueueMax,
+      plotIndex: placed?.anchor ?? null,
+      w: placed?.w ?? 1,
+      h: placed?.h ?? 1,
+    });
+    if (result === null) {
+      // The marker outlived its entry (a corrupt/missing chunk). Clearing it
+      // is the only way out — leaving it would re-present a dialog forever.
+      const town: TownState = { ...prev.town };
+      delete town.pendingGrowChoice;
+      storageClient.saveCore({ town, budget: prev.budget, onboarded: prev.onboarded });
+      const cleared: LoadedState = { ...prev, town };
+      stateRef.current = cleared;
+      setState(cleared);
+      return null;
+    }
+
+    const patchedChunk = chunkEntries.map((e) => (e.id === result.entry.id ? result.entry : e));
+    const core: CoreState = { town: result.town, budget: prev.budget, onboarded: prev.onboarded };
+    storageClient.saveEntriesForMonth(pending.entryYm, patchedChunk, core);
+
+    let buildings = prev.buildings;
+    if (result.building) {
+      const newBuilding = result.building;
+      mutateBuildingsForMonth(storageClient, newBuilding.builtOn.slice(0, 7), (existing) => [...existing, newBuilding]);
+      buildings = [...buildings, newBuilding];
+    } else if (result.grownBuilding) {
+      // The HOST's own builtOn month, which may predate this one — same
+      // reasoning `addEntry`'s grow branch documents.
+      const grownBuilding = result.grownBuilding;
+      mutateBuildingsForMonth(storageClient, grownBuilding.builtOn.slice(0, 7), (existing) =>
+        existing.map((b) => (b.id === grownBuilding.id ? grownBuilding : b)),
+      );
+      buildings = buildings.map((b) => (b.id === grownBuilding.id ? grownBuilding : b));
+    }
+
+    const next: LoadedState = {
+      ...prev,
+      town: result.town,
+      buildings,
+      entries: pending.entryYm === todayYm ? patchedChunk : prev.entries,
+      historyEntries:
+        pending.entryYm !== todayYm && prev.historyEntries[pending.entryYm] !== undefined
+          ? { ...prev.historyEntries, [pending.entryYm]: patchedChunk }
+          : prev.historyEntries,
+    };
+    stateRef.current = next;
+    setState(next);
+
+    // The entry/streak awards were already paid at 저장 time (both are keyed
+    // by something this call can't change), so only the build and tier
+    // bonuses are outstanding — the exact same two `addEntry` grants on its
+    // own build branch.
+    let seedsGranted = 0;
+    if (result.building) {
+      setJustBuiltId(result.building.id);
+      if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
+      const award = { kind: "build", buildingId: result.building.id } as const;
+      if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
+    }
+    if (result.celebrateTier !== null) {
+      pushNotices({ kind: "tier", tier: result.celebrateTier });
+      const award = { kind: "tier", tier: result.celebrateTier } as const;
+      if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
+    }
+    return {
+      building: result.building,
+      grew: result.grownBuilding,
+      queued: result.queuedMaterial !== null,
+      queueOverflow: result.queueOverflow,
+      queueLength: result.town.queue.length,
+      seedsGranted,
+    };
+  }, [pushNotices, grantSeeds]);
 
   /**
    * F15: claim [오늘 무지출!]. Returns null when the domain function rejected
@@ -1627,6 +1773,11 @@ export function useTownStore() {
     onboarded: state?.onboarded ?? true,
     completeOnboarding,
     addEntry,
+    // ADDENDUM-04 §4 — the persisted 새로짓기/키우기 choice, or null. The UI
+    // shows its dialog off THIS, not off a local `useState`, which is what
+    // makes the choice survive a reload instead of taking the entry with it.
+    pendingGrowChoice: (state?.town.pendingGrowChoice ?? null) as PendingGrowChoice | null,
+    resolveGrowChoice: resolveGrowChoiceAction,
     claimNoSpend,
     moveBuilding,
     // ── F8/F9 기록 ──

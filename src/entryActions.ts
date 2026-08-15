@@ -12,7 +12,7 @@
  */
 import { advanceStreak, expOf, slotsRemainingToday, tier, townScale } from "./selectors";
 import { savingsBucketOf } from "./savingsBuckets";
-import type { Building, CategoryId, EntryType, LedgerEntry, QueuedMaterial, TownState } from "./types";
+import type { Building, CategoryId, EntryType, LedgerEntry, PendingGrowChoice, QueuedMaterial, TownState } from "./types";
 
 export interface EntryDraft {
   type: EntryType;
@@ -65,6 +65,8 @@ export interface ApplyNewEntryArgs {
    * Missing/undefined defaults to 1 (flat), same as the dial-off shape.
    */
   expGain?: number;
+  /** ADDENDUM-04 §4 — see `BuildOrQueueArgs.deferGrowChoice`. Mutually exclusive with `growTargetId`. */
+  deferGrowChoice?: boolean;
 }
 
 export interface ApplyNewEntryResult {
@@ -82,6 +84,8 @@ export interface ApplyNewEntryResult {
   revokedNoSpend: { date: string; buildingId: string | null } | null;
   /** Set when this save crosses a new tier threshold upward (F5) — the tier index to celebrate. */
   celebrateTier: number | null;
+  /** ADDENDUM-04 §4 — set when the entry is saved but its 새로짓기/키우기 choice is still open; already parked on `town`. */
+  pendingGrowChoice: PendingGrowChoice | null;
 }
 
 /**
@@ -169,6 +173,16 @@ export interface BuildOrQueueArgs {
    * defaults to 1 (flat).
    */
   expGain?: number;
+  /**
+   * ADDENDUM-04 §4 — take the build slot and the streak now, but park the
+   * "새 건물 / 키우기" choice on `town.pendingGrowChoice` instead of deciding
+   * the building effect here (see `PendingGrowChoice`'s doc for why the
+   * effect, and only the effect, is the deferred part). Ignored on the queue
+   * and overflow branches: those never offered a choice in the first place, so
+   * a full town / a used-up day still behaves exactly as before.
+   * Never combined with `growTarget` — the choice IS what picks one.
+   */
+  deferGrowChoice?: boolean;
 }
 
 export interface BuildOrQueueResult {
@@ -179,6 +193,8 @@ export interface BuildOrQueueResult {
   queueOverflow: boolean;
   town: TownState;
   celebrateTier: number | null;
+  /** ADDENDUM-04 §4 — set when this decision took the slot but parked the building effect; the marker is already on `town`. Null on every other branch. */
+  pendingGrowChoice: PendingGrowChoice | null;
 }
 
 /**
@@ -209,6 +225,7 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
     advancesStreak,
     growTarget,
     expGain,
+    deferGrowChoice,
   } = args;
   const remaining = slotsRemainingToday(town, today, dailyBuildSlots);
 
@@ -225,6 +242,33 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
     const usedToday = dailyBuildSlots - remaining;
     const gain = expGain ?? 1;
 
+    // ADDENDUM-04 §4 — the choice is pending: everything the two branches
+    // agree on (the slot, the streak) lands NOW, alongside the caller's entry
+    // write, and only the building effect waits. No tier check here — both
+    // branches score differently (count vs. count + 1), so it is computed once
+    // in `resolveGrowChoice` when the branch is actually known, which also
+    // means `highestTierSeen` (write-once-upward) is never burned on a
+    // celebration the resolved choice wouldn't have earned.
+    if (deferGrowChoice) {
+      const pendingGrowChoice: PendingGrowChoice = { entryId, entryYm, categoryId, expGain: gain };
+      const newTown: TownState = {
+        ...town,
+        ...(advancesStreak ? advanceStreak(town, today) : {}),
+        slotsUsedOn: today,
+        slotsUsedToday: usedToday + 1,
+        pendingGrowChoice,
+      };
+      return {
+        building: null,
+        grownBuilding: null,
+        queuedMaterial: null,
+        queueOverflow: false,
+        town: newTown,
+        celebrateTier: null,
+        pendingGrowChoice,
+      };
+    }
+
     // ADDENDUM-04 §5: growing consumes a slot and advances the streak
     // exactly like building, but creates no Building and opens no lot.
     if (growTarget) {
@@ -240,7 +284,7 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
         slotsUsedToday: usedToday + 1,
         highestTierSeen: Math.max(town.highestTierSeen, newTier),
       };
-      return { building: null, grownBuilding, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
+      return { building: null, grownBuilding, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier, pendingGrowChoice: null };
     }
 
     // Gate-3-rerun fix: founding exp is the FULL amount-derived gain, not
@@ -275,7 +319,7 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       slotsUsedToday: usedToday + 1,
       highestTierSeen: Math.max(town.highestTierSeen, newTier),
     };
-    return { building, grownBuilding: null, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier };
+    return { building, grownBuilding: null, queuedMaterial: null, queueOverflow: false, town: newTown, celebrateTier, pendingGrowChoice: null };
   }
 
   // ADDENDUM-04 §4/§5: no free slot means no grow either — queues exactly as today.
@@ -286,10 +330,10 @@ export function decideBuildOrQueue(args: BuildOrQueueArgs): BuildOrQueueResult {
       ...(advancesStreak ? advanceStreak(town, today) : {}),
       queue: [...town.queue, queuedMaterial],
     };
-    return { building: null, grownBuilding: null, queuedMaterial, queueOverflow: false, town: newTown, celebrateTier: null };
+    return { building: null, grownBuilding: null, queuedMaterial, queueOverflow: false, town: newTown, celebrateTier: null, pendingGrowChoice: null };
   }
 
-  return { building: null, grownBuilding: null, queuedMaterial: null, queueOverflow: true, town, celebrateTier: null };
+  return { building: null, grownBuilding: null, queuedMaterial: null, queueOverflow: true, town, celebrateTier: null, pendingGrowChoice: null };
 }
 
 /**
@@ -317,6 +361,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     h,
     growTargetId,
     expGain,
+    deferGrowChoice,
   } = args;
 
   // F15: logging a 지출 for an already-claimed date un-claims it. Refund the
@@ -374,6 +419,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
       town: newTown,
       revokedNoSpend,
       celebrateTier: null,
+      pendingGrowChoice: null,
     };
   }
 
@@ -414,7 +460,27 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     advancesStreak: true, // F7: a fresh F1 save is a streak act when it builds, grows, OR queues; `decideBuildOrQueue`'s own overflow branch never advances it
     growTarget,
     expGain,
+    deferGrowChoice,
   });
+
+  // ADDENDUM-04 §4 — saved, slot spent, choice open. `buildingId: null` here
+  // is the same "no building behind this row (yet)" the queue branch below
+  // already writes; `resolveGrowChoice` patches it to the real id. `queued`
+  // stays FALSE — this entry is not on F14's queue and must never be drained
+  // by `drainQueue`.
+  if (decision.pendingGrowChoice) {
+    return {
+      entry: { ...baseEntry, buildingId: null, queued: false },
+      building: null,
+      grownBuilding: null,
+      queuedMaterial: null,
+      queueOverflow: false,
+      town: decision.town,
+      revokedNoSpend,
+      celebrateTier: null,
+      pendingGrowChoice: decision.pendingGrowChoice,
+    };
+  }
 
   if (decision.grownBuilding) {
     return {
@@ -426,6 +492,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
       town: decision.town,
       revokedNoSpend,
       celebrateTier: decision.celebrateTier,
+      pendingGrowChoice: null,
     };
   }
 
@@ -439,6 +506,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
       town: decision.town,
       revokedNoSpend,
       celebrateTier: decision.celebrateTier,
+      pendingGrowChoice: null,
     };
   }
 
@@ -452,6 +520,7 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
       town: decision.town,
       revokedNoSpend,
       celebrateTier: null,
+      pendingGrowChoice: null,
     };
   }
 
@@ -464,6 +533,145 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
     queueOverflow: true,
     town: decision.town,
     revokedNoSpend,
+    celebrateTier: null,
+    pendingGrowChoice: null,
+  };
+}
+
+export interface ResolveGrowChoiceArgs {
+  /** Carries the `pendingGrowChoice` marker; returns null when there is none. */
+  town: TownState;
+  buildings: readonly Building[];
+  /** The already-persisted ledger row named by the marker — returns null when it can't be found (nothing to patch, nothing to build for). */
+  entry: LedgerEntry | undefined;
+  /** The player's answer: a LIVE, entry-founded building's id to 키우기, or undefined for 새로 짓기. A stale id falls back to 새로 짓기 rather than dropping the choice. */
+  growTargetId?: string;
+  buildingId: string;
+  /** Rolled by the caller at resolve time, exactly like `plotIndex` — the deferred branch has no building to skin until now. */
+  variantIndex: number;
+  createdAt: number;
+  today: string;
+  tierThresholds: readonly number[];
+  materialQueueMax: number;
+  /** `placeNew`'s answer AT RESOLVE TIME, not at 저장 time — the town may have filled up in between (a boot drain, a 무지출 park). Null sends the deferred build to F14's queue instead of losing it. */
+  plotIndex: number | null;
+  w: 1 | 2;
+  h: 1 | 2;
+}
+
+export interface ResolveGrowChoiceResult {
+  /** The same ledger row, `buildingId`/`queued` patched to match the branch actually taken. */
+  entry: LedgerEntry;
+  building: Building | null;
+  grownBuilding: Building | null;
+  queuedMaterial: QueuedMaterial | null;
+  queueOverflow: boolean;
+  /** `pendingGrowChoice` cleared, `highestTierSeen` raised if this branch earned it. */
+  town: TownState;
+  celebrateTier: number | null;
+}
+
+/**
+ * ADDENDUM-04 §4 — the other half of a deferred save: apply the building
+ * effect the 새로짓기/키우기 dialog was asking about, and clear the marker.
+ *
+ * Deliberately does NOT touch the slot counter, the streak, or the savings
+ * totals: `decideBuildOrQueue`'s defer branch already committed all of those
+ * at 저장 time, and they are identical in both branches, so re-applying them
+ * here would double-charge the day. The tier check IS here, because it is the
+ * one thing the two branches score differently (count vs. count + 1) and
+ * `highestTierSeen` only ever increases.
+ *
+ * Returns null when there is nothing to resolve (no marker, or its entry is
+ * gone) — the caller leaves storage untouched, exactly like `applyFusion`'s
+ * own illegal-pair null.
+ */
+export function resolveGrowChoice(args: ResolveGrowChoiceArgs): ResolveGrowChoiceResult | null {
+  const { town, buildings, entry, growTargetId, buildingId, variantIndex, createdAt, today, tierThresholds, materialQueueMax, plotIndex, w, h } = args;
+  const pending = town.pendingGrowChoice;
+  if (pending === undefined || entry === undefined) return null;
+
+  // `pendingGrowChoice` gone, everything else on the town untouched — this is
+  // the ONE field this function is allowed to clear, on every branch below.
+  const settled: TownState = { ...town };
+  delete settled.pendingGrowChoice;
+
+  // Same live/entry-founded resolution `applyNewEntry` does for `growTargetId`
+  // — a building deleted between the save and the answer falls through to
+  // 새로 짓기 instead of losing the effect.
+  const growTarget = growTargetId ? buildings.find((b) => b.id === growTargetId && b.source.kind === "entry") : undefined;
+
+  if (growTarget) {
+    const grownBuilding: Building = { ...growTarget, exp: expOf(growTarget) + pending.expGain };
+    const newTier = tier(townScale(buildings), tierThresholds);
+    return {
+      entry: { ...entry, buildingId: grownBuilding.id, queued: false },
+      building: null,
+      grownBuilding,
+      queuedMaterial: null,
+      queueOverflow: false,
+      town: { ...settled, highestTierSeen: Math.max(settled.highestTierSeen, newTier) },
+      celebrateTier: newTier > town.highestTierSeen ? newTier : null,
+    };
+  }
+
+  if (plotIndex !== null) {
+    const building: Building = {
+      id: buildingId,
+      source: { kind: "entry", entryId: pending.entryId },
+      categoryId: pending.categoryId,
+      variantIndex,
+      plotIndex,
+      w,
+      h,
+      builtOn: today,
+      createdAt,
+      ...(pending.expGain > 1 ? { exp: pending.expGain } : {}),
+    };
+    const newTier = tier(townScale(buildings) + 1, tierThresholds);
+    return {
+      entry: { ...entry, buildingId, queued: false },
+      building,
+      grownBuilding: null,
+      queuedMaterial: null,
+      queueOverflow: false,
+      town: { ...settled, highestTierSeen: Math.max(settled.highestTierSeen, newTier) },
+      celebrateTier: newTier > town.highestTierSeen ? newTier : null,
+    };
+  }
+
+  // The town filled up between 저장 and the answer (a boot drain, a 무지출
+  // park). The slot is already spent and cannot be handed back, but the
+  // building can still be owed — same F14 deferral an over-cap save takes.
+  if (settled.queue.length < materialQueueMax) {
+    const queuedMaterial: QueuedMaterial = {
+      entryId: pending.entryId,
+      categoryId: pending.categoryId,
+      variantIndex,
+      amountKrw: entry.amountKrw,
+      queuedOn: today,
+      entryYm: pending.entryYm,
+    };
+    return {
+      entry: { ...entry, buildingId: null, queued: true },
+      building: null,
+      grownBuilding: null,
+      queuedMaterial,
+      queueOverflow: false,
+      town: { ...settled, queue: [...settled.queue, queuedMaterial] },
+      celebrateTier: null,
+    };
+  }
+
+  // Queue full too — the entry keeps everything it already earned, it just
+  // never gets a building. Never a silent no-op: the marker is still cleared.
+  return {
+    entry: { ...entry, buildingId: null, queued: false },
+    building: null,
+    grownBuilding: null,
+    queuedMaterial: null,
+    queueOverflow: true,
+    town: settled,
     celebrateTier: null,
   };
 }
