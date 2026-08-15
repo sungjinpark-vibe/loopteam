@@ -75,6 +75,12 @@ function App() {
   // when no budget is set) open this same sheet instead of each owning a
   // duplicate.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Gate-3-rerun collision fix — `TownScreen` reports "one of my own
+  // BottomSheet/ConfirmDialog overlays is open" through this single flag
+  // (see its own `onOverlayChange` doc). Combined below with the two
+  // overlays THIS component owns (설정 sheet, onboarding) into one signal the
+  // notice-toast effect can check before covering the screen with a toast.
+  const [townOverlayOpen, setTownOverlayOpen] = useState(false);
 
   // One-shot notices (F10 recovered corruption, F14 "return promise kept" on
   // boot, F5 tier celebration, ADDENDUM-02 §4.5 move hint) share one FIFO
@@ -97,13 +103,27 @@ function App() {
   // which is the one place every notice is shown, so it is guarded here
   // once rather than at every future call site that might reorder these deps.
   const shownNoticeRef = useRef<Notice | null>(null);
+  // Gate-3-rerun collision fix — an overlay (설정, onboarding, or anything
+  // TownScreen owns) covers the WHOLE screen, so any toast fired underneath
+  // one is either invisible (stacked behind a ConfirmDialog) or covering
+  // content it shouldn't (a 320px BottomSheet's date field). `moveHint` is
+  // the one notice kind this actually happened to — a low-priority teaching
+  // toast queued independently of whatever the player is doing right now, so
+  // it's the only kind with no guarantee an overlay isn't already open when
+  // it surfaces. The other kinds (corruption/drained/relayout/savings) each
+  // fire as the direct result of an action that, by construction, has
+  // already closed its own sheet first (see `TownScreen.tsx`'s `handleSave`)
+  // — the panel never flagged them colliding, so they still fire immediately
+  // rather than silently changing behavior no one asked for.
+  const overlayOpen = settingsOpen || !store.onboarded || townOverlayOpen;
   useEffect(() => {
     if (notice === null || notice.kind === "tier" || notice.kind === "settlement" || notice.kind === "firstBuilding") return;
     if (shownNoticeRef.current === notice) return;
+    if (notice.kind === "moveHint" && overlayOpen) return; // stays queued (NOT dismissed — see dismissNotice's moveHintSeen doc); shown once the overlay closes
     shownNoticeRef.current = notice;
     openToast(noticeToastMessage(notice)); // placement: App.css's toast-layer rule (A6)
     dismissNotice();
-  }, [notice, dismissNotice, openToast]);
+  }, [notice, dismissNotice, openToast, overlayOpen]);
 
   if (store.loading) {
     return <div className="town-loading">불러오는 중…</div>;
@@ -118,7 +138,7 @@ function App() {
       )}
 
       {tab === "town" ? (
-        <TownScreen store={store} onOpenSettings={() => setSettingsOpen(true)} />
+        <TownScreen store={store} onOpenSettings={() => setSettingsOpen(true)} onOverlayChange={setTownOverlayOpen} />
       ) : (
         <HistoryScreen store={store} onOpenSettings={() => setSettingsOpen(true)} />
       )}

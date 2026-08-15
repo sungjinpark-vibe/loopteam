@@ -32,6 +32,14 @@ import type { AddEntryResult, TownStore } from "../useTownStore";
 export interface TownScreenProps {
   store: TownStore;
   onOpenSettings: () => void;
+  // Gate-3-rerun collision fix — `App.tsx`'s notice-toast effect has no idea
+  // whether one of THIS screen's overlays (BottomSheet/ConfirmDialog) is on
+  // screen, so a low-priority toast (the moveHint teaching hint) could render
+  // underneath a blocking dialog or cover a sheet's content at narrow
+  // viewports. Reported here, once, as a single boolean rather than exposing
+  // every individual `xOpen` flag — the caller only ever needs "is anything
+  // covering the screen right now", never which one.
+  onOverlayChange?: (open: boolean) => void;
 }
 
 // Stable reference so passing it during grow-pick mode doesn't defeat
@@ -79,7 +87,7 @@ const QUEUED_BUILD_PROMISE = "자리가 나면 지어드릴게요";
 // (leaving the wrapper itself over the tab bar, swallowing its taps), so no
 // call site here passes one; a new toast is correctly placed by default.
 
-export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
+export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   // ADDENDUM-05 §6 — the 상점 and the 충전소 stub. Mutually exclusive by
   // construction (see `onOpenCharge` below), never stacked.
@@ -278,6 +286,24 @@ export function TownScreen({ store, onOpenSettings }: TownScreenProps) {
   // together — the dialog closes the instant pick mode starts (§4: "the
   // sheet is already closed, the town is visible, candidates highlighted").
   const growDialogOpen = pendingGrow !== null && !pickModeActive;
+
+  // Gate-3-rerun collision fix — every surface that visually covers the
+  // screen: the entry sheet, 상점/충전소, the grow choice dialog, the fusion
+  // confirm dialog, and both detail sheets. Pick mode is deliberately NOT
+  // included — it has no BottomSheet/ConfirmDialog of its own, just a bottom
+  // banner over the grid, which is not the collision the panel found.
+  const overlayOpen =
+    sheetOpen || shopOpen || chargeOpen || growDialogOpen || fuseConfirm !== null || selectedMonumentId !== null || selectedBuildingId !== null;
+  useEffect(() => {
+    onOverlayChange?.(overlayOpen);
+  }, [overlayOpen, onOverlayChange]);
+  // Reset on unmount (tab switch away from 우리 동네 while a sheet was
+  // somehow still open) — separate effect, empty deps, so it fires ONLY on
+  // teardown and not on every `overlayOpen` flip like the one above.
+  useEffect(() => {
+    return () => onOverlayChange?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSave(draft: EntryDraft) {
     // ADDENDUM-04 §4 — the choice trigger, evaluated once at save time.

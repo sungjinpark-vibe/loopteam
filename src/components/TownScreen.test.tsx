@@ -1189,3 +1189,50 @@ describe("TownScreen — a save with an unresolved grow choice survives a reload
     expect(latest!.buildingCount).toBe(1);
   });
 });
+
+// Commit 9141887 regression guard — the streak logic itself (`selectors
+// .streakDisplay`, unit-tested in `TownHeader.test.tsx`) was correct all
+// along; the app stayed broken because `TownScreen` never passed
+// `lastActOn`/`today` down to `<TownHeader>`, so every unit test for the
+// COMPONENT passed while the real render tree still showed the stale claim.
+// This mounts the panel's exact broken-streak state through the REAL store
+// (not a `TownHeader` prop stub) so deleting either prop from the call site
+// fails it the way the unit tests could not.
+describe("TownScreen — Gate-3-rerun: the honest streak copy actually reaches the mounted header", () => {
+  it("streakDays=31 but lastActOn 10 days before today shows the honest reset, not a stale 연속 31일 claim", async () => {
+    const streakToday = "2026-08-10";
+    window.localStorage.setItem(
+      "ait.v1.index",
+      JSON.stringify({ schemaVersion: 1, layoutVersion: LAYOUT_VERSION, entryMonths: [], buildingMonths: [] }),
+    );
+    window.localStorage.setItem(
+      "ait.v1.core",
+      JSON.stringify({
+        town: {
+          townName: "우리 동네",
+          streakDays: 31,
+          longestStreakDays: 31,
+          lastActOn: "2026-07-31",
+          slotsUsedOn: "",
+          slotsUsedToday: 0,
+          highestTierSeen: 0,
+          queue: [],
+          noSpendDays: [],
+          cumulativeSavingsKrw: 0,
+          lastSettledPeriod: "2026-07", // previous month, already settled — no F16 pending
+          moveHintSeen: true,
+        },
+        budget: { monthlyBudgetKrw: null, updatedAt: 0 },
+        onboarded: true,
+      }),
+    );
+    setTimeTravelDate(streakToday); // overrides this file's module-level TODAY for this test only
+
+    await mountAndWaitForBoot();
+
+    const streakText = container.querySelector(".town-header-streak")?.textContent ?? "";
+    expect(streakText).toContain("오늘 기록하면 새로 시작해요");
+    expect(streakText).not.toContain("이어져요");
+    expect(streakText).not.toContain("연속 31일");
+  });
+});
