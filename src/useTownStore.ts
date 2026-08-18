@@ -988,11 +988,10 @@ export function useTownStore() {
     //
     // Gated on the save having actually PRODUCED something, which is what
     // bounds a day's earnings at `dailyBuildSlots + materialQueueMax` rewarded
-    // saves (see the ceiling arithmetic on `BALANCE.seedAwards`). The two
-    // excluded cases are the two unbounded ones: a queue-overflow save (the
-    // town is full for today — the app itself says "건물 없이 저장했어요") and a
-    // 저축 entry, which by F13 never builds, grows, queues or spends a slot,
-    // so it has no cap of its own to inherit.
+    // saves (see the ceiling arithmetic on `BALANCE.seedAwards`). The one
+    // remaining excluded case is a queue-overflow save (the town is full for
+    // today — the app itself says "건물 없이 저장했어요"), which is unbounded on
+    // purpose: it produced nothing to cap.
     // A deferred save (`result.pendingGrowChoice`) counts as "produced
     // something" here: it already spent the build slot and advanced the
     // streak, so it carries the same bound the build/grow/queue branches do —
@@ -1000,6 +999,23 @@ export function useTownStore() {
     // reload this whole deferral exists to survive. The award key is the
     // entryId, so `resolveGrowChoice` re-attempting it later is a no-op.
     if (result.building || result.grownBuilding || result.queuedMaterial || result.pendingGrowChoice) {
+      const entryAward = { kind: "entry", entryId, expGain } as const;
+      if (grantSeeds(entryAward)) seedsGranted += awardFor(entryAward).amount;
+    } else if (draft.type === "saving" && result.town.lastActOn !== prev.town.lastActOn) {
+      // Gate-3-rerun fix (게임 디자이너's TOP FIX, panel's #1 finding): 저축 used
+      // to pay literally 0 seeds and never advance the streak — the reward
+      // gradient ran backwards for a household-ledger app (a 150,000원 spend
+      // earned 18 seeds and a Lv.5 tower; a 1,000,000원 저축 earned nothing and
+      // read as a broken streak the next morning). It now earns the same
+      // amount-tiered `entry` award every expense already gets — same key
+      // shape (`entryId`), so the existing entryId-keyed clawback/settle in
+      // `historyActions.ts` reverses it correctly on edit/delete with no
+      // changes there. Gated to the day's FIRST act (the same `lastActOn`
+      // transition the streak award above keys off): 저축 has no
+      // `dailyBuildSlots`/`materialQueueMax` cap by design (F13), so paying
+      // every 저축 entry here — unlike a founding/growing/queueing expense —
+      // would reopen the exact day-one seed-farm ceiling `awards.ts` exists to
+      // hold (log N 저축 entries, collect N awards, no cap in sight).
       const entryAward = { kind: "entry", entryId, expGain } as const;
       if (grantSeeds(entryAward)) seedsGranted += awardFor(entryAward).amount;
     }

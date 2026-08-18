@@ -416,13 +416,28 @@ export function applyNewEntry(args: ApplyNewEntryArgs): ApplyNewEntryResult {
   };
 
   if (draft.type === "saving") {
-    // 저축 never builds/queues/consumes a slot and is never a streak act (F13).
+    // 저축 never builds/queues/consumes a slot (F13) — the tower ladder is its
+    // own reward path, not a building. Gate-3-rerun fix (게임 디자이너's TOP
+    // FIX, the panel's #1 finding for this round): it now DOES advance the
+    // streak, same as any other logged act — a 저축-only day used to read
+    // "broken streak" the next morning with nothing the player did wrong. The
+    // seed side of the same fix lives in `useTownStore.ts` (the `entry` award
+    // gate), not here — this module stays award-free by design.
     // `draft.type === "saving"` narrows NOTHING about `draft.categoryId` —
     // EntryDraft's two fields are independent, not a discriminated union.
     // `savingsBucketOf` is total over string and RETURNS SavingCategoryId;
     // that return type is the narrowing, and it also absorbs legacy `invest`
     // (ADDENDUM-01 §4.5/§4.5a).
-    const newTown = adjustSavings(town, draft.categoryId, draft.amountKrw);
+    //
+    // `advanceStreak`'s same-day no-op branch returns its INPUT object as-is
+    // (typed as the 3-field Pick, but at runtime still the full `town` it was
+    // given) — spreading that wholesale on top of `adjustSavings`'s result
+    // would silently overwrite the fresh `cumulativeSavingsKrw`/
+    // `savingsByCategoryKrw` back to their pre-save values on every SECOND+
+    // save of a day. Only the 3 fields the function actually promises are
+    // pulled out, so this is safe whichever shape it returns.
+    const { lastActOn, streakDays, longestStreakDays } = advanceStreak(town, today);
+    const newTown = { ...adjustSavings(town, draft.categoryId, draft.amountKrw), lastActOn, streakDays, longestStreakDays };
     return {
       entry: { ...baseEntry, buildingId: null, queued: false },
       building: null,

@@ -113,7 +113,14 @@ export const BALANCE = {
     // less than before.
     entry: [2, 4, 6, 8, 10],
     build: [1, 3, 4, 6, 8], // per entry-sourced build, including a queue drain (§F-ECON table row 1)
-    nospend: 8, // larger than a build — the behaviour the app most wants to reward
+    // Gate-3-rerun retune (게임 디자이너's TOP FIX): was 8 — below even the
+    // CHEAPEST founding expense (entry[0]+build[0] = 3), so the app's own
+    // "best" day (spending nothing) paid less than its worst one (a tiny
+    // impulse buy). Raised to 18, matching the TOP expense rung
+    // (entry[4]+build[4] = 10+8 = 18) so 무지출 is never mechanically worse
+    // than spending. ADDENDUM-05 tunable, not director-confirmed — same
+    // discipline as every other dial in this block, `expAmountTiers` untouched.
+    nospend: 18,
     tier: 25, // reuses the existing streak-tier threshold crossing, no new counter
     // --- ADDENDUM-11 §5.3 (building fusion). NEW dial, not director-confirmed
     // — same discipline as `primeLot`/`primeLotMax` below. Sits between

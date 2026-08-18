@@ -123,7 +123,7 @@ describe("applyNewEntry — F2/F4 build", () => {
     expect(result.queuedMaterial).not.toBeNull();
   });
 
-  it("saving entries never build, queue, or consume a slot (F13) — AC-F13-1/-2", () => {
+  it("saving entries never build, queue, or consume a slot, but DO advance the streak (F13 + Gate-3-rerun) — AC-F13-1/-2", () => {
     const town = freshTown({ slotsUsedOn: "2026-08-02", slotsUsedToday: 0 });
     const result = applyNewEntry(
       callArgs({
@@ -142,12 +142,19 @@ describe("applyNewEntry — F2/F4 build", () => {
     // ADDENDUM-01 §5.2 break B2 — the branch necessarily returns a NEW town
     // object once it accumulates `savingsByCategoryKrw` (`toBe(town)` no
     // longer holds); AC-F13-1 is the stronger replacement: every OTHER field
-    // stays byte-identical to its pre-save value.
+    // stays byte-identical to its pre-save value, EXCEPT the streak fields —
+    // Gate-3-rerun fix (게임 디자이너's TOP FIX, panel's #1 finding): 저축 used
+    // to be the one logged act that never counted as a streak act, so a
+    // 저축-only day read as a broken streak the next morning. `slotsUsedOn`/
+    // `slotsUsedToday` still never move (F13's actual guarantee, unchanged).
     expect(result.town).not.toBe(town);
     expect(result.town).toEqual({
       ...town,
       cumulativeSavingsKrw: 50_000,
       savingsByCategoryKrw: { goal: 50_000 },
+      lastActOn: "2026-08-02",
+      streakDays: 1,
+      longestStreakDays: 1,
     });
   });
 

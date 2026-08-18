@@ -138,14 +138,33 @@ describe("seed earn loop", () => {
     expect(oneDayCeiling).toBeLessThan(cheapest);
   });
 
-  it("a 저축 entry and a queue-overflow save stay outside the entry award (they have no daily cap of their own)", async () => {
+  it("a 저축 entry earns the day's first-act entry award once; a queue-overflow save stays outside it (no daily cap of its own)", async () => {
     await mountAndWaitForBoot();
     let saving: AddEntryResult | undefined;
     act(() => {
       saving = latest!.addEntry({ type: "saving", amountKrw: 100_000, categoryId: "deposit", occurredOn: TODAY });
     });
-    expect(saving?.seedsGranted).toBe(0); // F13 — 저축 never builds, grows, queues or spends a slot
-    expect(latest?.economy.seeds).toBe(0);
+    // Gate-3-rerun fix (게임 디자이너's TOP FIX): 저축 used to pay 0 unconditionally
+    // — this is that same 100,000원 save, now priced at its own amount rung
+    // (100,000원 lands in the 50,000-150,000원 band, rung 3), plus this is
+    // also the town's day-1 streak act (a fresh town's `lastActOn` starts
+    // unset) — 저축 now advances the streak too, so it pays the day-1 streak
+    // award on top, same as any other first act of the day.
+    const streakAward = 2 * 1;
+    expect(saving?.seedsGranted).toBe(BALANCE.seedAwards.entry[3] + streakAward);
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.entry[3] + streakAward);
+
+    // A second 저축 entry the SAME day earns no further entry OR streak
+    // award — 저축 has no `dailyBuildSlots`/`materialQueueMax` cap of its own
+    // (F13), so paying every 저축 entry would reopen the exact day-one
+    // seed-farm ceiling this suite's "reachable in days, not months" test
+    // guards; the streak is already-advanced-today, same as any other act.
+    let secondSaving: AddEntryResult | undefined;
+    act(() => {
+      secondSaving = latest!.addEntry({ type: "saving", amountKrw: 100_000, categoryId: "deposit", occurredOn: TODAY });
+    });
+    expect(secondSaving?.seedsGranted).toBe(0);
+    expect(latest?.economy.seeds).toBe(BALANCE.seedAwards.entry[3] + streakAward);
 
     const coffee: EntryDraft = { type: "expense", amountKrw: 4_500, categoryId: "cafe", occurredOn: TODAY };
     act(() => {
