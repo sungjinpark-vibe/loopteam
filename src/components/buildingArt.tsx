@@ -931,7 +931,11 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   // smallest thing that still reads as a distinct coloured marker on the roof.
   // Capped at spanW so it can never spill sideways past the tile (the surviving
   // half of the d8ce379 freeze).
-  const plateW = Math.min(geo.box.spanW * (big ? 0.46 : 0.58), big ? 140 : 100);
+  // 2026-08-18 (director: "간판을 조금 더 잘 보이게"): plate share nudged up and the
+  // keyline switched to the shared EDGE below. Deliberately a NUDGE, not a jump —
+  // the cap and the spanW share still bound it, so the plate cannot outgrow the
+  // roof and flatten the chunky silhouette the restyle just bought.
+  const plateW = Math.min(geo.box.spanW * (big ? 0.52 : 0.66), big ? 140 : 100);
   const plateH = plateW * 0.38;
   const plateCx = signAnchor.x;
   // Mounted flush on the roof (bottom edge at the sign anchor), clamped so the plate
@@ -951,8 +955,8 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   const postX = plateW * 0.23;
   const chipInset = plateH * 0.11;
   const out: ReactNode[] = [
-    <line key="post-l" x1={plateCx - postX} y1={plateBottom} x2={plateCx - postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
-    <line key="post-r" x1={plateCx + postX} y1={plateBottom} x2={plateCx + postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
+    <line key="post-l" x1={plateCx - postX} y1={plateBottom} x2={plateCx - postX} y2={signAnchor.y} stroke={EDGE} strokeWidth={EDGE_W * 0.7} />,
+    <line key="post-r" x1={plateCx + postX} y1={plateBottom} x2={plateCx + postX} y2={signAnchor.y} stroke={EDGE} strokeWidth={EDGE_W * 0.7} />,
     <rect
       key="plate"
       data-part="signboard"
@@ -962,8 +966,9 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
       height={plateH}
       rx={3}
       fill={shade(spec.hue, 600)}
-      stroke={shade(spec.hue, 800)}
-      strokeWidth={1.5}
+      stroke={EDGE}
+      strokeWidth={EDGE_W}
+      strokeLinejoin="round"
     />,
     <rect
       key="plate-chip"
