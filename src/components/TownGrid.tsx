@@ -43,7 +43,7 @@
  * relies on the same property: `getBoundingClientRect()` and `clientX/Y` are
  * both in post-transform viewport space, so they compose directly.
  */
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { colors } from "@toss/tds-colors";
 import { useTileGestures } from "../hooks/useTileGestures";
 import { footprintOf, moveAnchorsFor } from "../placement";
@@ -130,6 +130,18 @@ export interface TownGridProps {
   growCandidateIds?: ReadonlySet<string>;
   /** [취소] / Escape / Android back — cancels move mode outright. */
   onCancel: () => void;
+  /**
+   * 명당 (prime lot) ring tapped (user report 2026-08-19, part b). `TownGrid`
+   * only reports the tap — it owns no toast/overlay primitive itself (keeps
+   * this component's own dependency list at zero vendor context providers,
+   * so every bare `mountComponent(<TownGrid ... />)` test, including the
+   * perf-smoke ones in `src/devtools/`, keeps working with no provider
+   * wrapper). The caller (`TownScreen.tsx`, which already owns every other
+   * toast in the app) decides what "explain this" means. Optional: callers
+   * that don't render the ring's tap target at all (none currently) can omit
+   * it — the button still renders either way, it just becomes inert.
+   */
+  onPrimeTap?: () => void;
 }
 
 /**
@@ -358,7 +370,15 @@ const TERRAIN_CELLS: TerrainCell[] = (() => {
       shoreBottom: kind === "lake" && terrainAt(row + 1, col) !== "lake",
       shoreLeft: kind === "lake" && terrainAt(row, col - 1) !== "lake",
       decor,
-      prime: kind === "ground" && isPrimeCell(row, col),
+      // §6 — the ring must never sit on top of an EmptyLot's own tree/sprout
+      // icon (user report 2026-08-19: read as "a bug drawing a circle on a
+      // tree"). `decor` (== `decorVariant(row, col, 3)`) is the SAME value
+      // `EmptyLot`'s `variant` prop gets below in the ground-tile loop — 0 is
+      // its plain, icon-less lot; 1/2 draw the tree/sprout. Gating on it here
+      // keeps the ring off any decorated lot without touching `isPrimeCell`
+      // itself (townLayout.ts, economy-facing — a decorated lot is still
+      // genuinely prime to build on, only its RING is suppressed).
+      prime: kind === "ground" && isPrimeCell(row, col) && decor === 0,
       // Sparse, not one bouquet per cell: only ~1 in 4 park cells gets a
       // single glyph, scattered by `decorVariant` rather than centred on
       // every tile — that's what reads as "a park", not "a grid of parks".
@@ -472,10 +492,53 @@ function TownGridImpl({
   growCandidateIds,
   onCancel,
   onInvalidDrop,
+  onPrimeTap,
 }: TownGridProps) {
   const newestTileRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  // 명당 ring tooltip (user report 2026-08-19, part b). `TownGrid` itself
+  // owns no toast/overlay primitive (peer review 2026-08-19: an earlier
+  // version called `@toss/tds-mobile`'s `useToast` directly here, which made
+  // this component hard-depend on `TDSMobileProvider` sitting somewhere
+  // above it — broke every bare `mountComponent(<TownGrid ... />)` test,
+  // including the perf-smoke ones in `src/devtools/` that intentionally
+  // mount it alone). `onPrimeTap` just reports the tap; `TownScreen.tsx`
+  // (which already owns every other toast in the app) decides what
+  // "explain this" means and fires it with the real mechanic's copy.
+  // A ref, not the `onPrimeTap` prop itself, in `handlePrimeTap`'s closure:
+  // `groundTiles` below is a perf-critical memo (ADDENDUM-08 §7 — the ONLY
+  // part of the grid that rebuilds when `buildings` changes) that this
+  // handler is threaded through. Keeping `handlePrimeTap`'s own identity
+  // permanently stable (empty dep array) means it never forces that memo to
+  // rebuild even if the caller passes a fresh `onPrimeTap` closure every
+  // render — same discipline `useTileGestures.ts`'s own `latest` ref uses.
+  const onPrimeTapRef = useRef(onPrimeTap);
+  useEffect(() => {
+    onPrimeTapRef.current = onPrimeTap;
+  });
+  const handlePrimeTap = useCallback((e: MouseEvent) => {
+    // Stop here, before `useTileGestures`'s delegated `click` listener on
+    // `.town-grid` sees this — otherwise the tap would ALSO resolve through
+    // `onTap`/`onPlotTap` for the tile underneath (this button only ever
+    // renders on a non-droppable prime EMPTY lot — see its render site below
+    // — so that would be a same-tap double-fire, not a move-mode conflict,
+    // but still not what a "just explain this" tap should also trigger).
+    // MUST run on the CAPTURE phase (this handler is wired to `onClickCapture`
+    // below, not `onClick`): `useTileGestures.ts` attaches its `click`
+    // listener with a plain `grid.addEventListener("click", onClick)` — a raw
+    // DOM listener, not a React one — which fires during the REAL bubble
+    // phase as the native event passes through `.town-grid` on its way up,
+    // well before React's own bubble-phase root listener (which is what
+    // would eventually invoke a plain `onClick` here) ever gets a turn.
+    // Calling `stopPropagation()` from `onClick` is therefore too late — the
+    // native listener has already run by then. Capture runs top-down BEFORE
+    // that native bubble pass even starts, so stopping it here keeps the
+    // event from ever reaching `.town-grid`.
+    e.stopPropagation();
+    onPrimeTapRef.current?.();
+  }, []);
 
   // ADDENDUM-08 §7 — the map is always visible on day one, at full size: the
   // player's first impression must be the whole town, not a corner of it.
@@ -774,7 +837,11 @@ function TownGridImpl({
         );
       } else {
         const isDroppable = dropAnchors.has(i);
-        const isPrime = isPrimeCell(row, col);
+        const emptyLotVariant = decorVariant(row, col, 3) as 0 | 1 | 2;
+        // §6 — same gate as `TERRAIN_CELLS`'s own `prime` field above: the
+        // ring must never sit on `EmptyLot`'s tree/sprout icon (variant 1/2),
+        // only on the plain, icon-less lot (variant 0).
+        const isPrime = isPrimeCell(row, col) && emptyLotVariant === 0;
         const a11yProps = isDroppable
           ? { role: "button" as const, "aria-label": isPrime ? "명당 빈 터, 여기로 옮기기" : "빈 터, 여기로 옮기기" }
           : {};
@@ -787,13 +854,22 @@ function TownGridImpl({
             style={{ gridColumn: col + 1, gridRow: row + 1 }}
             {...a11yProps}
           >
-            <EmptyLot variant={decorVariant(row, col, 3) as 0 | 1 | 2} />
+            <EmptyLot variant={emptyLotVariant} />
+            {/* Only outside move mode (`!isDroppable`): a droppable prime
+                lot's WHOLE tile is already the move-mode drop target
+                (`role="button"`, the a11yProps above) — overlaying another
+                interactive element there would both violate the
+                no-nested-interactive-controls a11y rule and physically
+                intercept the drop tap, breaking move mode. */}
+            {isPrime && !isDroppable && (
+              <button type="button" className="town-prime-tap" aria-label="명당 설명 보기" onClickCapture={handlePrimeTap} />
+            )}
           </div>,
         );
       }
     }
     return { groundTiles: elements, dropAnchorFor: dropAnchors, byAnchor: anchorMap };
-  }, [buildings, movingId, growCandidateIds, justBuiltId, expPerLevel, maxLevel, appliedByBuildingId]);
+  }, [buildings, movingId, growCandidateIds, justBuiltId, expPerLevel, maxLevel, appliedByBuildingId, handlePrimeTap]);
 
   const resolveDropTarget = useCallback((plotIndex: number) => dropAnchorFor.get(plotIndex) ?? plotIndex, [dropAnchorFor]);
 

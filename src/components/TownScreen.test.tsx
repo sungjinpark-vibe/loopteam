@@ -23,7 +23,7 @@ import { setTimeTravelDate } from "../platform/clock";
 import { setRandomOverride } from "../platform/random";
 import { MOOD_CONTENT, MOOD_NEUTRAL } from "../content.placeholder";
 import { saturatedTown } from "../testUtils/saturatedTown";
-import { CELL_COUNT, cellFromIndex, isBuildable, LAYOUT_VERSION } from "../townLayout";
+import { CELL_COUNT, LAYOUT_VERSION, cellFromIndex, decorVariant, isBuildable, isPrimeCell, terrainAtIndex } from "../townLayout";
 import type { Building } from "../types";
 import { useTownStore } from "../useTownStore";
 import { TownScreen } from "./TownScreen";
@@ -500,7 +500,7 @@ describe("TownScreen — Gate-3 follow-up: the reward toast names the currency a
     expect(seedsNow).toBeGreaterThan(0);
 
     act(() => {
-      container.querySelector<HTMLElement>(".shop-fab")!.click();
+      container.querySelector<HTMLElement>(".town-header-shop-btn")!.click();
     });
     expect(document.body.querySelector(".shop-balance")?.textContent).toBe(`씨앗 ${seedsNow}개`);
   });
@@ -570,6 +570,38 @@ describe("TownScreen — Gate-3-rerun: tap an ordinary building opens its detail
       emptyLot!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(document.body.querySelector(".entry-sheet-title")).toBeNull();
+  });
+});
+
+// User report 2026-08-19, part b: "동그라미 표시를 터치하면 뭔지 설명하는
+// 툴팁 표시". `TownGrid` only reports the tap (`onPrimeTap`, no toast
+// primitive of its own — peer review 2026-08-19); this is the screen that
+// actually fires the toast, with the real mechanic's numbers.
+describe("TownScreen — 명당 ring tap opens a toast with the real seed-bonus numbers", () => {
+  it("tapping an un-decorated prime lot's ring toasts BALANCE.seedAwards.primeLot/primeLotMax, not an invented number", async () => {
+    await mountAndWaitForBoot();
+    // A fresh boot has zero buildings — every ground cell is still an empty
+    // lot, so a real prime+undecorated cell on the fixed map is guaranteed
+    // reachable (same fixture-finding approach TownGrid.test.tsx uses).
+    let primeCell = -1;
+    for (let i = 0; i < CELL_COUNT; i++) {
+      const { row, col } = cellFromIndex(i);
+      if (terrainAtIndex(i) === "ground" && isPrimeCell(row, col) && decorVariant(row, col, 3) === 0) {
+        primeCell = i;
+        break;
+      }
+    }
+    expect(primeCell).toBeGreaterThanOrEqual(0);
+
+    const ring = container.querySelector<HTMLButtonElement>(`[data-plot-index="${primeCell}"] .town-prime-tap`);
+    expect(ring).not.toBeNull();
+    act(() => {
+      ring!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain("명당");
+    expect(document.body.textContent).toContain(String(BALANCE.seedAwards.primeLot));
+    expect(document.body.textContent).toContain(String(BALANCE.seedAwards.primeLotMax));
   });
 });
 

@@ -26,7 +26,7 @@
  * `.savings-plot--rise` forever.
  */
 import { memo, useEffect, useMemo, useRef, type CSSProperties } from "react";
-import { CATEGORY_CONTENT, SAVINGS_STRUCTURE } from "../content.placeholder";
+import { SAVINGS_STRUCTURE } from "../content.placeholder";
 import { ladderFor, progressToNextSegment, towerSegments } from "../selectors";
 import {
   SAVINGS_ROW_ORDER,
@@ -38,6 +38,7 @@ import {
 } from "../townLayout";
 import { savingsOf } from "../types";
 import type { SavingCategoryId } from "../types";
+import { SavingsArt } from "./savingsArt";
 
 export interface SavingsRowProps {
   /** Per-structure cumulative KRW — undefined/absent id both read as 0 (level 0, empty lot). */
@@ -80,7 +81,6 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
   const plots = SAVINGS_ROW_ORDER.map((id) => {
     const { row, col } = savingsCellFor(id);
     const content = SAVINGS_STRUCTURE[id];
-    const category = CATEGORY_CONTENT[id];
     const ownLadder = ladderFor(id, ladder, ladderOverrides);
     const cumulative = savingsOf({ savingsByCategoryKrw }, id);
     const level = towerSegments(cumulative, ownLadder);
@@ -111,6 +111,16 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
           ? ""
           : ` savings-idle--${content.idleAnim}`);
 
+    // Feedback 2026-08-19 ("특수 건물은 텍스트가 아니라 희귀 외형을 가진 건물이어야
+    // 한다"): the visible `.savings-structure-board`/`-label` text is gone, so the
+    // accessible name has to carry the identity instead — the structure's own
+    // Korean name (`content.signboard`, e.g. "예적금 은행") plus its current state,
+    // same emptyHint string as before when empty, "레벨 N" (this app's existing
+    // level-copy convention — BuildingDetailSheet.tsx, TownScreen.tsx toasts)
+    // otherwise. `role="group"` gives this otherwise-plain div a name-bearing
+    // role (a bare div's implicit "generic" role does not expose aria-label).
+    const plotAriaLabel = `${content.signboard}, ${isEmpty ? content.emptyHint : `레벨 ${level}`}`;
+
     return (
       <div
         key={id}
@@ -119,6 +129,8 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
           `${isEmpty ? " savings-plot--empty" : ""}${isRising ? " savings-plot--rise" : ""}`
         }
         data-structure-id={id}
+        role="group"
+        aria-label={plotAriaLabel}
         style={{
           gridColumn: col + 1,
           gridRow: row + 1,
@@ -128,33 +140,31 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
       >
         {/* Round-2 finding C1 #3 (AC-F13-7 / §2.4a's DOM contract): inline
          * `height`, exactly `structureLevelHeightPx(level)` — not
-         * `minHeight`. A level-0 lot's board+hint can still need more room
-         * than the level-0 floor (32px). `align-self: end` (App.css) bottom-
-         * anchors this div in its OWN reserved grid row (sized to the full
-         * ladder, `structureHeightPx(ladderLength)` — always >= any single
-         * level's floor).
+         * `minHeight`. A level-0 lot's hint can still need more room than the
+         * level-0 floor (32px). `align-self: end` (App.css) bottom-anchors
+         * this div in its OWN reserved grid row (sized to the full ladder,
+         * `structureHeightPx(ladderLength)` — always >= any single level's
+         * floor).
          *
          * Round-4 finding C1 #1/#6: `align-self` only positions the BOX —
          * it does nothing to the overflow DIRECTION of content that doesn't
          * fit inside it, and plain block-flow content overflows a
          * height-constrained box DOWNWARD regardless of where the box sits,
-         * which is exactly what painted the emptyHint over the label row.
+         * which is exactly what painted the emptyHint over the pips row.
          * `display: flex; flexDirection: column; justifyContent: flex-end`
          * is the actual (code, not prose) fix: a flex container that's
          * shorter than its content keeps its LAST child flush with the
          * container's end edge and lets the overflow bleed off the START
          * edge instead — i.e. upward, into the already-reserved room above
-         * this box in its grid row, never down into `.savings-structure-label`. */}
+         * this box in its grid row, never down into `.savings-structure-pips`. */}
         <div
           className={structureClassName}
           ref={isRising ? risingRef : undefined}
           onAnimationEnd={isRising ? onRiseSettled : undefined}
           style={{ height: `${structureLevelHeightPx(level)}px`, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
         >
-          <div className="savings-structure-board">{content.signboard}</div>
-          {isEmpty && <div className="savings-structure-hint">{content.emptyHint}</div>}
+          {isEmpty ? <div className="savings-structure-hint">{content.emptyHint}</div> : <SavingsArt id={id} level={level} />}
         </div>
-        <div className="savings-structure-label">{category.label}</div>
         <div className="savings-structure-pips">
           {ownLadder.map((_, i) => {
             if (i < level) return <span key={i} className="savings-pip savings-pip--on" />;

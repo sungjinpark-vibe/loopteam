@@ -40,7 +40,7 @@ import { BALANCE } from "../balance.approved";
 import { CATEGORY_CONTENT } from "../content.placeholder";
 import { awardFor } from "../economy/awards";
 import { NPC_MAX_VISIBLE, NPC_SLOT_SKU, seeds as toSeedCount, type EconomyState, type SeedCount } from "../economy/types";
-import { hasAffordableUnowned, skusBySection, type ShopSku } from "../economy/skus";
+import { skusBySection, type ShopSku } from "../economy/skus";
 import { useBackGuard } from "../hooks/useBackGuard";
 import type { Building } from "../types";
 import type { PurchaseSkuResult } from "../useTownStore";
@@ -106,7 +106,7 @@ const EARN_HINT = (() => {
   const { entry, build, nospend, tier, settlementByOutcomeBucket } = BALANCE.seedAwards;
   const streakMax = awardFor({ kind: "streak", date: "", streakDays: 999 }).amount;
   const settlementMax = Math.max(...settlementByOutcomeBucket);
-  return `지출 기록·건물 신축은 금액이 클수록 씨앗도 커져요(기록 ${entry[0]}~${entry[4]} · 신축 ${build[0]}~${build[4]}) · 무지출 ${nospend} · 연속기록 최대 ${streakMax} · 티어 달성 ${tier} · 월말 정산 최대 ${settlementMax}`;
+  return `기록·건물 신축은 금액이 클수록 씨앗도 커져요(기록 ${entry[0]}~${entry[4]} · 신축 ${build[0]}~${build[4]}) · 저축도 하루 첫 기록이면 똑같이 받아요 · 무지출 ${nospend} · 연속기록 최대 ${streakMax} · 티어 달성 ${tier} · 월말 정산 최대 ${settlementMax}`;
 })();
 
 /** A building eligible for 건물 꾸미기 — excludes the monument (F16) and the park tile (F15), neither of which may change behaviour or visual rarity from a cosmetic. */
@@ -270,30 +270,5 @@ export function ShopSheet({
         )}
       </div>
     </BottomSheet>
-  );
-}
-
-export interface ShopFabProps {
-  onClick: () => void;
-  economy: EconomyState;
-  /** Current NPC sprite count — see `ShopSheetProps.npcCount`'s own doc comment. */
-  npcCount: number;
-}
-
-/**
- * S8 entry point — a 꾸미기 mini-FAB meant to sit directly above the
- * existing ⊕ FAB (`TownScreen.tsx`'s `button.town-fab`, `App.css`, W1-owned —
- * this component only positions itself relative to it via `shop.css`, never
- * edits that file). Never a nag, never a numeric badge (PM-DECISIONS
- * §F-ECON) — `hasAffordableUnowned` (economy/skus.ts) drives a plain,
- * non-numeric dot, recomputed fresh every render, no persisted "seen" state.
- */
-export function ShopFab({ onClick, economy, npcCount }: ShopFabProps) {
-  const dot = hasAffordableUnowned(economy, npcCount, NPC_MAX_VISIBLE);
-  return (
-    <button type="button" className="shop-fab" aria-label="상점" onClick={onClick}>
-      🎨
-      {dot && <span className="shop-fab-dot" aria-hidden="true" />}
-    </button>
   );
 }

@@ -385,11 +385,22 @@ button.town-fab {
    * scales with the zoom transform like everything else, and no building ever
    * reaches the balance banner above `.town-viewport`. */
   padding: calc(8px + var(--art-overhang)) var(--town-grid-pad-x) 24px; /* the middle 16 is GRID_PADDING_X_PX. No fallback. */
-  /* ADDENDUM-02 §4.3 (break B23): a long-press must not fight the town's
-   * scroll — `pan-x pan-y` (was `pan-y` alone; ADDENDUM-08 §7 adds vertical
-   * scroll too) keeps native scroll working while still letting the gesture
-   * hook see the pointer events it needs. The move gesture wins regardless. */
-  touch-action: pan-x pan-y;
+  /* Real-device pinch bug, user report + measured repro 2026-08-19
+   * (docs/qa/evidence-feedback-2026-08-19/pinch-rootcause.md): this used to
+   * be `pan-x pan-y` (ADDENDUM-02 §4.3, B23) so a 1-finger drag could still
+   * scroll `.town-viewport` natively. touch-action is locked in for a touch
+   * sequence at its FIRST touchstart — a real hand always moves finger 1
+   * slightly before finger 2 lands, and with panning allowed the browser
+   * claims that whole sequence as a native scroll right then, firing
+   * `pointercancel` and never delivering finger 2's `pointerdown` to JS at
+   * all. Measured via CDP-dispatched touch on the live app: pointerdown=1,
+   * pointercancel=1, zoomRatio=1.00 (pinch dead) with `pan-x pan-y`; forcing
+   * `none` instead gave pointerdown=2, pointercancel=0, zoomRatio=5.96
+   * (pinch works). `none` here, permanently, is what that forced case
+   * proved out — `useTileGestures.ts` now drives `.town-viewport`'s
+   * `scrollLeft`/`scrollTop` itself from 1-finger pointermove deltas to
+   * replace the native scroll this revokes. */
+  touch-action: none;
   outline: none; /* the roving `.town-tile--cursor` ring is the focus indicator, not the browser default outline on the container */
 }
 
@@ -414,6 +425,22 @@ button.town-fab {
   border-radius: 999px;
   border: 2px solid var(--prime-marker);
   pointer-events: none;
+}
+
+/* User report 2026-08-19, part b — tapping the ring explains what it is.
+ * Same inset/shape as the `::before` ring right above (so the tap target
+ * sits exactly under what the player sees), but a real element instead of a
+ * pseudo-element: only a real element can be a tap target. Rendered only on
+ * a non-droppable prime EMPTY lot (TownGrid.tsx) — never inside move mode's
+ * own droppable tile, which is already the tap target for a drop there. */
+.town-prime-tap {
+  position: absolute;
+  inset: 4px;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 /* ADDENDUM-05 §2 — zoom-to-fit toggle. Fixed, like `.town-fab`/`.town-move-bar`
@@ -681,74 +708,23 @@ button.town-fab {
   position: relative;
   min-width: 0; /* same grid-blowout guard as .savings-plot, one level down */
 }
-.savings-structure-board,
 .savings-structure-hint {
   /* Round-1 finding C1 #2: contain text to the lot's own width instead of
    * spilling onto the road — `overflow-wrap: anywhere` breaks a run with no
    * natural wrap point (an unbreakable Korean token) as a last resort, while
    * `word-break: keep-all` still prefers wrapping at word boundaries when one
-   * exists, so a two-word signboard like "예적금 은행" wraps there first.
-   *
-   * Round-2 finding C1 #4: narrower than the structure's own box (not 100%)
-   * and centred — a board flush with the box's edges reads as the shape
-   * itself rather than a sign ON it, and the vault's dome
-   * (`border-radius: 50% 50% 6px 6px`) curves its top corners in far enough
-   * that a full-width board pokes out past the silhouette. 78% clears every
-   * capShape's curve at the plot's narrowest (50px) width. */
+   * exists. 78% keeps the text inside the structure's own silhouette. */
   width: 78%;
   margin: 0 auto;
   overflow-wrap: anywhere;
   word-break: keep-all;
-}
-.savings-structure-board {
-  /* Round-1 playtest (ux-researcher C1 #2 follow-up): "증권거래소" (5
-   * unbreakable Hangul syllables, no word boundary) still hit the
-   * `overflow-wrap: anywhere` last resort above and broke mid-word at the
-   * 390px reference viewport — 9px (down from 10px) buys back just enough
-   * width for every current signboard (longest: 5 syllables) to fit its 78%
-   * board without needing the fallback there; the fallback itself stays as
-   * defense-in-depth for a future, longer signboard string. */
-  font-size: 9px;
-  text-align: center;
-}
-.savings-structure-hint {
   /* Gate-3-rerun fix — every expert's #1 cold-start finding, "아직 비어있어요"
-     clipped mid-glyph and overflowing onto the row below. Round-7's fix
-     (above, `.savings-structure-label`) already solved this exact failure
-     mode for the structure NAME, but never got applied here, to the empty-
-     state HINT text right below it — same fixed-height row, same unbreakable
-     Hangul run, same missing containment. Same treatment, same reasoning. */
+     clipped mid-glyph and overflowing onto the row below: a fixed-height row
+     holding an unbreakable Hangul run with no containment. 9px + ellipsis
+     keeps it on its one line. */
   font-size: 9px;
   text-align: center;
   color: var(--town-grey600);
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.savings-structure-label {
-  /* Round-7 finding: at the previous 11px, `min-width: 0` (below) shrinks
-   * this grid item to the plot's real ~38.3px width at 320px, and — unlike
-   * `.savings-structure-board`, which sets `word-break: keep-all` — this
-   * rule had no break-mode override, so the default `word-break: normal`
-   * let a label with no space ("기타저축", "목표저축") wrap BETWEEN Hangul
-   * syllables (CJK is break-anywhere by default) to fit. The row it sits in
-   * is a fixed `LABEL_ROW_PX` (16px, townLayout.ts) grid track, not an
-   * auto-sizing one, so the wrapped second line painted straight over
-   * `.savings-structure-pips` in the row below — confirmed in a real
-   * browser via the wrapped text node's own line rects (a check on this
-   * `<div>`'s single block box, which stays fixed at the 16px row height
-   * regardless of its content, misses this entirely: the box never grows,
-   * only the text painted inside it overflows). 9px (measured, real
-   * browser, 320px, the narrowest supported width) is the largest size at
-   * which every current label's full text still fits on that one line with
-   * no wrap. `overflow`/`white-space`/`text-overflow` are defence in depth
-   * for any wider label or font metrics this measurement didn't cover: an
-   * ellipsis into the fixed row instead of a second line bleeding into the
-   * pips. */
-  font-size: 9px;
-  text-align: center;
-  color: var(--town-grey700);
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -779,24 +755,12 @@ button.town-fab {
 .savings-pip--partial {
   background: radial-gradient(circle, var(--town-blue500) var(--savings-pip-fill, 0%), rgba(0, 0, 0, 0.12) var(--savings-pip-fill, 0%));
 }
-/* One shape per StructureKind (§2.3) — placeholder paint so the five
- * structures read as distinct even before real art (D-22). */
-.savings-plot--bank .savings-structure { background: var(--town-teal400); border-radius: 4px 4px 0 0; }
-.savings-plot--exchange .savings-structure { background: var(--town-purple400); border-radius: 2px; }
-.savings-plot--vault .savings-structure { background: var(--town-blue400); border-radius: 50% 50% 6px 6px; }
-.savings-plot--house .savings-structure { background: var(--town-orange400); border-radius: 3px 3px 0 0; }
-.savings-plot--warehouse .savings-structure { background: var(--town-grey400); border-radius: 3px; }
-.savings-plot--empty .savings-structure { background: transparent; }
-
-/* One roofline per CapShape (§2.3) — a distinct top edge per structure, the
- * same "one cap sprite per member" discipline PlaceholderBuilding's
- * ROOF_SHAPES already uses. Placeholder geometry, not final art. */
-.savings-plot--cap-gable .savings-structure::before { content: ""; position: absolute; top: -6px; left: 15%; right: 15%; height: 8px; background: inherit; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
-.savings-plot--cap-spire .savings-structure::before { content: ""; position: absolute; top: -10px; left: 40%; right: 40%; height: 10px; background: inherit; }
-.savings-plot--cap-dome .savings-structure::before { content: ""; position: absolute; top: -6px; left: 20%; right: 20%; height: 8px; background: inherit; border-radius: 50% 50% 0 0; }
-.savings-plot--cap-pitched .savings-structure::before { content: ""; position: absolute; top: -5px; left: 10%; right: 10%; height: 6px; background: inherit; clip-path: polygon(0 100%, 20% 0, 80% 0, 100% 100%); }
-.savings-plot--cap-sawtooth .savings-structure::before { content: ""; position: absolute; top: -5px; left: 5%; right: 5%; height: 5px; background: inherit; clip-path: polygon(0 100%, 25% 0, 50% 100%, 75% 0, 100% 100%); }
-.savings-plot--empty .savings-structure::before { content: none; }
+/* The per-StructureKind placeholder paint and per-CapShape roofline
+ * pseudo-elements that used to live here are gone: `savingsArt.tsx` now draws
+ * each of the five savings structures as real SVG art (user feedback
+ * 2026-08-19 — "특수 건물은 텍스트가 아니라 희귀 외형을 가진 건물이어야 한다"),
+ * so the CSS shape stand-ins and the signboard/label text they carried are no
+ * longer rendered. */
 
 /* Round-1 finding C1 #3: `idleAnim`/`riseAnim` (content.placeholder.ts §2.3)
  * now reach the DOM — one keyframe per member instead of every structure

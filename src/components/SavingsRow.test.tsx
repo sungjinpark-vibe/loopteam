@@ -5,7 +5,7 @@
  * the per-structure content ACs (ADDENDUM-01 §2.9: AC-F13-8/-9/-10(c)/-11(b)).
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { CATEGORY_CONTENT, SAVINGS_STRUCTURE } from "../content.placeholder";
+import { SAVINGS_STRUCTURE } from "../content.placeholder";
 import { ladderFor, towerSegments } from "../selectors";
 import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
@@ -56,7 +56,7 @@ describe("SavingsRow (ADDENDUM-01 §2.4a/§3.4 item 4)", () => {
     expect(grid.children.length).toBe(SAVING_CATEGORY_IDS.length);
   });
 
-  it("AC-F13-8: a fresh town (no savingsByCategoryKrw) renders 5 empty level-0 plots with signboard + emptyHint", () => {
+  it("AC-F13-8: a fresh town (no savingsByCategoryKrw) renders 5 empty level-0 plots — an empty lot (hint text, no building art), not a building", () => {
     const container = mount();
     const plots = [...container.querySelectorAll(".savings-plot")] as HTMLElement[];
     expect(plots.length).toBe(SAVING_CATEGORY_IDS.length);
@@ -68,10 +68,40 @@ describe("SavingsRow (ADDENDUM-01 §2.4a/§3.4 item 4)", () => {
       expect(plot.classList.contains("savings-plot--empty")).toBe(true);
       expect(plot.classList.contains(`savings-plot--${SAVINGS_STRUCTURE[id].kind}`)).toBe(true);
       expect(plot.classList.contains(`savings-plot--cap-${SAVINGS_STRUCTURE[id].capShape}`)).toBe(true);
-      expect(plot.querySelector(".savings-structure-board")?.textContent).toBe(SAVINGS_STRUCTURE[id].signboard);
       expect(plot.querySelector(".savings-structure-hint")?.textContent).toBe(SAVINGS_STRUCTURE[id].emptyHint);
-      expect(plot.querySelector(".savings-structure-label")?.textContent).toBe(CATEGORY_CONTENT[id].label);
+      // Feedback 2026-08-19: the identifying text label is gone (no board, no
+      // separate label div) — an empty lot renders no building art either.
+      expect(plot.querySelector(".savings-structure-board")).toBeNull();
+      expect(plot.querySelector(".savings-structure-label")).toBeNull();
+      expect(plot.querySelector("svg[data-savings-art]")).toBeNull();
+      // The accessible name survives losing the visible text: a Korean
+      // aria-label naming the bucket + its (empty) state.
+      expect(plot.getAttribute("aria-label")).toBe(`${SAVINGS_STRUCTURE[id].signboard}, ${SAVINGS_STRUCTURE[id].emptyHint}`);
     }
+  });
+
+  it("feedback 2026-08-19 ('특수 건물은 텍스트가 아니라 희귀 외형을 가진 건물이어야 한다'): each filled bucket renders its OWN distinct art archetype and no visible text", () => {
+    const container = mount({
+      savingsByCategoryKrw: { deposit: 3, stock: 3, emergency: 3, goal: 3, other_saving: 3 },
+    });
+    const archetypes = new Set<string>();
+    for (const id of SAVING_CATEGORY_IDS) {
+      const plot = container.querySelector(`[data-structure-id="${id}"]`) as HTMLElement;
+      expect(plot.classList.contains("savings-plot--empty")).toBe(false);
+      const art = plot.querySelector("svg[data-savings-art]") as SVGElement;
+      expect(art).not.toBeNull();
+      expect(art.getAttribute("data-savings-art")).toBe(id);
+      expect(art.getAttribute("aria-hidden")).toBe("true");
+      archetypes.add(art.getAttribute("data-savings-art")!);
+      // No board/label text anywhere on a filled structure, and the SVG itself
+      // carries no <text> node — the art does the identifying, not a string.
+      expect(plot.querySelector(".savings-structure-board")).toBeNull();
+      expect(plot.querySelector(".savings-structure-label")).toBeNull();
+      expect(art.querySelector("text")).toBeNull();
+      // The accessible name still names the bucket, now with its level state.
+      expect(plot.getAttribute("aria-label")).toBe(`${SAVINGS_STRUCTURE[id].signboard}, 레벨 3`);
+    }
+    expect(archetypes.size).toBe(SAVING_CATEGORY_IDS.length); // all 5 distinct
   });
 
   it("the five structures are visually distinct: every kind/capShape pair is unique", () => {

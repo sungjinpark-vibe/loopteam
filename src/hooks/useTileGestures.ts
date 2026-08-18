@@ -117,12 +117,33 @@ export function useTileGestures(
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
+    // `.town-grid` is now permanently `touch-action: none` (App.css — see its
+    // own comment for the measured, real-device reason: `pan-x pan-y` let the
+    // browser claim a 2nd finger's whole touch sequence as a native scroll
+    // before either finger's events ever reached this hook, killing pinch).
+    // That also kills the native 1-finger scroll `.town-viewport` (its
+    // `overflow: auto` ancestor) used to provide, so this hook now drives
+    // that SAME element's `scrollLeft`/`scrollTop` from 1-finger pointermove
+    // deltas instead — see `panPointerId` below. Looked up once here (static
+    // for this effect's lifetime, same discipline as `grid` itself).
+    const viewport = grid.closest<HTMLElement>(".town-viewport");
 
     let pressTimer: ReturnType<typeof setTimeout> | null = null;
     let pressPointerId: number | null = null;
     let startX = 0;
     let startY = 0;
     let suppressNextClick = false;
+    // JS-driven 1-finger pan (replaces the native scroll `touch-action:
+    // pan-x pan-y` used to provide). Tracks the sole active pointer
+    // regardless of whether it hit a tile — `.town-cell` (road/park/lake
+    // terrain) is `pointer-events: none`, so a touch starting there resolves
+    // to no `[data-plot-index]` at all and must still be able to pan.
+    let panPointerId: number | null = null;
+    let panStartX = 0;
+    let panStartY = 0;
+    let panLastX = 0;
+    let panLastY = 0;
+    let panMoved = false; // past LONG_PRESS_TOLERANCE_PX — a pan, not a tap (B22's tolerance, reused)
     // Gate-3-rerun fix (every expert's near-top finding): a long-press grabs
     // a building, but a continuous hold-drag-release to a new spot used to do
     // NOTHING — only a separate discrete tap AFTER releasing committed a
@@ -162,6 +183,7 @@ export function useTileGestures(
         // the second pointer then hijacked `pressPointerId`) — clearPress()
         // sets `pressPointerId = null`, so this pointer never takes it over.
         clearPress();
+        panPointerId = null; // a pinch owns the gesture now — 1-finger JS pan stands down too
         // Only the FIRST two tracked pointers own the gesture (matches
         // `onPointerMove`'s own "only the first two" rule) — a 3rd finger
         // landing while already pinching must not re-seed the baseline.
@@ -173,6 +195,13 @@ export function useTileGestures(
         return;
       }
       if (pinchActive) return; // still mid-pinch settling toward 1 pointer — no new press
+
+      // The sole active pointer — start JS pan-tracking unconditionally,
+      // BEFORE the tile-hit check below (panning must work off-tile too).
+      panPointerId = e.pointerId;
+      panStartX = panLastX = e.clientX;
+      panStartY = panLastY = e.clientY;
+      panMoved = false;
 
       const plotIndex = closestPlotIndex(e.target);
       if (plotIndex === null) return;
@@ -233,6 +262,31 @@ export function useTileGestures(
         return; // a pinch never also runs single-finger press/move logic
       }
 
+      // 1-finger pan — drives the SAME `.town-viewport` element native
+      // overflow scrolling used to own (bounds clamping, `scrollIntoView`,
+      // wheel/keyboard scroll and the fit-to-screen measurement all still
+      // read/write that one element, untouched by this).
+      if (e.pointerId === panPointerId && viewport) {
+        const dx = e.clientX - panLastX;
+        const dy = e.clientY - panLastY;
+        panLastX = e.clientX;
+        panLastY = e.clientY;
+        viewport.scrollLeft -= dx;
+        viewport.scrollTop -= dy;
+        if (!panMoved && Math.hypot(e.clientX - panStartX, e.clientY - panStartY) > LONG_PRESS_TOLERANCE_PX) {
+          panMoved = true;
+          // A real drag, not a tap (peer review 2026-08-19: touch-action:none
+          // means the browser no longer suppresses the tail `click` for us
+          // the way a claimed native scroll gesture used to) — same
+          // tolerance `clearPress()` below already uses to tell "held still"
+          // from "moved", reused rather than inventing a second threshold.
+          suppressNextClick = true;
+        }
+      }
+      // ponytail: no momentum/inertia on release (native scroll's own
+      // fling) — a flick just stops where the finger lifts. Add a simple
+      // decay-velocity rAF loop on pointerup if players actually notice.
+
       if (pressTimer === null || e.pointerId !== pressPointerId) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
@@ -241,6 +295,7 @@ export function useTileGestures(
 
     function onPointerEnd(e: PointerEvent) {
       pointers.delete(e.pointerId);
+      if (e.pointerId === panPointerId) panPointerId = null;
       if (pinchActive && pointers.size < 2) {
         // Back to <2 pointers — clear ownership, do NOT resurrect the press
         // that was abandoned when the pinch started (§3.1).
@@ -268,6 +323,7 @@ export function useTileGestures(
 
     function onScrollOrBlur() {
       clearPress();
+      panPointerId = null;
       // Escape valve for a hung multi-touch gesture too (e.g. the app loses
       // focus mid-pinch and pointerup never fires for one of the fingers).
       if (pinchActive) {

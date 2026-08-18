@@ -10,6 +10,7 @@
  * same `bgmMuted` flag the parent owns.
  */
 import "../bgm.css";
+import "../shop.css";
 import { queueWaitsOnRoom, streakDisplay } from "../selectors";
 
 export interface TownHeaderProps {
@@ -62,6 +63,21 @@ export interface TownHeaderProps {
   bgmMuted: boolean;
   /** F-BGM — flips the shared mute flag; also driven from the settings-sheet row. */
   onSetBgmMuted: (muted: boolean) => void;
+  /**
+   * User feedback fix (2026-08-19): "상점 버튼은 상단에 버튼으로 존재해야 한다" — the
+   * shop entry point moved from a floating FAB (`ShopSheet.tsx`'s now-deleted
+   * `ShopFab`) into this header's icon-button row.
+   */
+  onOpenShop: () => void;
+  /**
+   * Same non-numeric "something new is affordable" dot the old FAB showed
+   * (`hasAffordableUnowned`, computed by the caller from `economy`/`npcCount`
+   * — see `ShopSheet.tsx`'s doc). Deliberately still not a seed count or an
+   * NPC count: ADDENDUM-03 §5.2 rule 6 allows the seed BALANCE on exactly two
+   * surfaces (the shop sheet header and the reward toast) and the town header
+   * is neither, so this stays a plain dot here too.
+   */
+  shopHasNews: boolean;
 }
 
 export function TownHeader({
@@ -82,6 +98,8 @@ export function TownHeader({
   onOpenSettings,
   bgmMuted,
   onSetBgmMuted,
+  onOpenShop,
+  shopHasNews,
 }: TownHeaderProps) {
   // Header-honesty fix — see `lastActOn`/`today`'s doc above. Falls back to
   // the pre-existing `streakAtRisk`-boolean behavior (which cannot tell an
@@ -97,6 +115,14 @@ export function TownHeader({
         <div className="town-header-top-right">
           {/* Game-side quantity, never rendered like money (design invariant 2, spec §7) — a plain "Tier N" label. */}
           <span className="town-header-tier-badge">Tier {tier + 1}</span>
+          {/* User feedback fix (2026-08-19): was a floating circular FAB near
+              the bottom-right (`ShopFab`, now deleted) — moved into the header
+              row, same icon-button family as the bgm toggle and settings gear
+              beside it. */}
+          <button type="button" className="town-header-shop-btn" aria-label="상점" onClick={onOpenShop}>
+            🎨
+            {shopHasNews && <span className="town-header-shop-dot" aria-hidden="true" />}
+          </button>
           <button
             type="button"
             className="town-header-bgm-toggle"

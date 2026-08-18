@@ -35,6 +35,8 @@ function baseProps(overrides: Partial<TownHeaderProps> = {}): TownHeaderProps {
     onOpenSettings: () => {},
     bgmMuted: false,
     onSetBgmMuted: () => {},
+    onOpenShop: () => {},
+    shopHasNews: false,
     ...overrides,
   };
 }
@@ -150,6 +152,37 @@ describe("TownHeader — F7 header-honesty (streak alive vs. broken)", () => {
     expect(mounted.container.textContent).toContain("오늘 기록하면 새로 시작해요");
     expect(mounted.container.textContent).not.toContain("이어져요");
     expect(advanceStreak({ lastActOn: null, streakDays: 0, longestStreakDays: 0 }, "2026-08-10").streakDays).toBe(1);
+  });
+});
+
+// User feedback fix (2026-08-19): "상점 버튼은 상단에 버튼으로 존재해야 한다" — the shop
+// entry point moved from a floating FAB into this header row.
+describe("TownHeader — header shop button", () => {
+  it("is a real button with a Korean aria-label", () => {
+    mounted = mountComponent(<TownHeader {...baseProps()} />);
+    const button = mounted.container.querySelector<HTMLButtonElement>(".town-header-shop-btn")!;
+    expect(button.tagName).toBe("BUTTON");
+    expect(button.getAttribute("aria-label")).toBe("상점");
+  });
+
+  it("tapping it opens the shop", () => {
+    let opened = 0;
+    mounted = mountComponent(<TownHeader {...baseProps({ onOpenShop: () => opened++ })} />);
+    act(() => {
+      mounted!.container.querySelector<HTMLButtonElement>(".town-header-shop-btn")!.click();
+    });
+    expect(opened).toBe(1);
+  });
+
+  it("shows the affordability dot only when shopHasNews is true — no seed count ever rendered here (ADDENDUM-03 §5.2 rule 6)", () => {
+    mounted = mountComponent(<TownHeader {...baseProps({ shopHasNews: false })} />);
+    expect(mounted.container.querySelector(".town-header-shop-dot")).toBeNull();
+
+    mounted.unmount();
+    mounted = mountComponent(<TownHeader {...baseProps({ shopHasNews: true })} />);
+    const dot = mounted.container.querySelector(".town-header-shop-dot");
+    expect(dot).not.toBeNull();
+    expect(dot!.textContent).toBe("");
   });
 });
 

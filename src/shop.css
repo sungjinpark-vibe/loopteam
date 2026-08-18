@@ -11,32 +11,45 @@
  * that don't exist yet outside this shop UI itself.
  */
 
-/* ── mini-FAB entry point (ShopFab) — sits directly above `button.town-fab`
- * (App.css: right 20px, bottom `tab-bar-h + 24px`, 56px). Smaller and
- * centered on the same right edge so the pair reads as one stack. Element +
- * class selector for the same TDS-cascade-ordering reason `button.town-fab`
- * documents in App.css. ── */
-button.shop-fab {
-  position: fixed;
-  right: 26px;
-  bottom: calc(var(--tab-bar-h) + 24px + 56px + 12px);
-  width: 44px;
-  height: 44px;
+/* ── header shop entry point (`.town-header-shop-btn`) — user feedback fix
+ * (2026-08-19): "상점 버튼은 상단에 버튼으로 존재해야 한다". Replaces the old
+ * floating `ShopFab` mini-FAB (deleted). Lives inside `TownHeader.tsx`'s
+ * `.town-header-top-right` row (App.css, W1-owned — this file only adds its
+ * own class, never touches that container), alongside the bgm toggle and
+ * settings gear. Those two siblings are an implicit ~26px box (18px icon +
+ * 4px padding); this one is deliberately bigger via `min-width`/`min-height`
+ * — not by bumping the icon's font-size — so it clears the 44×44 CSS-px
+ * accessible hit-target floor while still reading as the same icon-button
+ * family. ── */
+.town-header-shop-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 44px;
-  border-radius: 50%;
-  padding: 0;
+  min-height: 44px;
   border: none;
-  font-size: 20px;
+  border-radius: 12px;
+  background: none;
+  padding: 0;
+  font-size: 18px;
   line-height: 1;
-  background: var(--town-white);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
-  z-index: 4;
+  cursor: pointer;
 }
 
-.shop-fab-dot {
+.town-header-shop-btn:focus-visible {
+  outline: 2px solid var(--town-blue500);
+  outline-offset: 2px;
+}
+
+/* Same "something newly affordable" signal the old FAB dot gave — plain,
+ * non-numeric (PM-DECISIONS §F-ECON / ADDENDUM-03 §5.2 rule 6: the seed
+ * balance itself may only render on the shop sheet header and the reward
+ * toast, never here). */
+.town-header-shop-dot {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 6px;
+  right: 6px;
   width: 8px;
   height: 8px;
   border-radius: 50%;

@@ -14,18 +14,19 @@ import { Button, ConfirmDialog, useToast } from "@toss/tds-mobile";
 import { BALANCE } from "../balance.approved";
 import { CATEGORY_CONTENT, moodContentFor } from "../content.placeholder";
 import { formatSeeds, formatSeedsWithUnit } from "../economy/format";
-import { seeds as toSeedCount } from "../economy/types";
+import { hasAffordableUnowned } from "../economy/skus";
+import { NPC_MAX_VISIBLE, seeds as toSeedCount } from "../economy/types";
 import { BuildingDetailSheet } from "./BuildingDetailSheet";
 import { ChargeSheet } from "./ChargeSheet";
 import { EntrySheet } from "./EntrySheet";
-import { ShopFab, ShopSheet } from "./ShopSheet";
+import { ShopSheet } from "./ShopSheet";
 import { MonumentDetailSheet } from "./MonumentDetailSheet";
 import { TownGrid } from "./TownGrid";
 import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
 import { useGrowPickMode } from "../hooks/useGrowPickMode";
 import { useMoveMode } from "../hooks/useMoveMode";
-import { budgetPace, expGainFor, firstFusablePair, moodTier, queueWaitsOnRoom, totalLevelOf, tier as computeTier } from "../selectors";
+import { budgetPace, expGainFor, firstFusablePair, levelOf, moodTier, queueWaitsOnRoom, totalLevelOf, tier as computeTier } from "../selectors";
 import type { Building } from "../types";
 import type { AddEntryResult, TownStore } from "../useTownStore";
 
@@ -366,6 +367,18 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Gate-3-rerun fix (타깃 플레이어's TOP FIX): `growCandidates` filters only
+  // by category/source, never by level — at `maxLevel` (5) a candidate is
+  // display-capped, so 키우기 reads as "경험치가 쌓였어요 (지금 Lv.5)" with
+  // nothing visibly changing on the map, every time, forever, once a
+  // category's building hits the cap. Filters the raw candidate list down to
+  // buildings 키우기 can still actually move — same shape as the existing
+  // 0-exp-amount skip below, one level up: not "is this act worth anything"
+  // but "is there anything left for it to grow".
+  function growableCandidates(categoryId: EntryDraft["categoryId"]): Building[] {
+    return store.growCandidates(categoryId).filter((b) => levelOf(b, BALANCE.expPerLevel, BALANCE.maxLevel) < BALANCE.maxLevel);
+  }
+
   function handleSave(draft: EntryDraft) {
     // ADDENDUM-04 §4 — the choice trigger, evaluated once at save time.
     // Gate-3-rerun fix (UX 리서처/타깃 플레이어 TOP FIX): `growCandidates`
@@ -377,10 +390,17 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
     // 0-exp amount now skips the dialog outright and founds new the same
     // way a brand-new category already does — no copy change needed, the
     // existing founding toast already says what happened.
+    //
+    // Same logic now covers "every same-category building is already
+    // Lv.`maxLevel`" (`growableCandidates` above) — 키우기 would be exactly
+    // as rewardless there as at 0 exp, so it gets the same treatment: skip
+    // the dialog, found new. A brand-new same-category building is also the
+    // one path that keeps the fusion pipeline fed once the existing one is
+    // capped.
     const canGrow =
       draft.type !== "saving" &&
       store.slotsRemaining > 0 &&
-      store.growCandidates(draft.categoryId).length > 0 &&
+      growableCandidates(draft.categoryId).length > 0 &&
       expGainFor(draft.amountKrw, BALANCE.expAmountTiers) > 0;
     // Close the sheet FIRST — the dialog must never nest inside an open
     // BottomSheet (the vendor backdrop bug `useConfirmDialogBackdropFix`
@@ -400,10 +420,15 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
 
   function handleGrow() {
     if (pendingGrow === null) return;
-    const candidates = store.growCandidates(pendingGrow.categoryId);
-    // Zero candidates is reachable only after a reload (the last same-category
-    // building was deleted or fused away while the choice sat open) — 키우기
-    // has nothing to grow, so it resolves as 새로 짓기 rather than dead-ending.
+    // `growableCandidates`, not the raw list — a same-category building
+    // already at `maxLevel` would otherwise still show up as a pickable tile
+    // in pick mode below, and tapping it is exactly the no-op `canGrow`
+    // already screens out at save time (Gate-3-rerun fix, 타깃 플레이어's TOP
+    // FIX). Zero candidates is reachable after a reload (the last
+    // still-growable same-category building was deleted, fused, or capped
+    // out while the choice sat open) — 키우기 has nothing left to grow, so it
+    // resolves as 새로 짓기 rather than dead-ending.
+    const candidates = growableCandidates(pendingGrow.categoryId);
     if (candidates.length <= 1) {
       resolveGrow(candidates[0]?.id);
       return;
@@ -454,6 +479,22 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
       }
     }
     move.onPlotTap(plotIndex);
+  }
+
+  // 명당 (prime lot) ring tap (user report 2026-08-19, part b: "동그라미
+  // 표시를 터치하면 뭔지 설명하는 툴팁 표시"). `TownGrid` only reports the
+  // tap (`onPrimeTap`, no toast/overlay primitive of its own — peer review
+  // 2026-08-19, see TownGrid.tsx's own comment); this screen already owns
+  // every other toast, so it fires this one too. Copy sourced from the
+  // actual mechanic, not invented: `BALANCE.seedAwards.primeLot`/
+  // `primeLotMax` (settlement-time seeds per building standing on a 명당,
+  // capped) — same numbers `economy/awards.ts`'s `primeLotCount` scoring
+  // pays out and `MonumentDetailSheet.tsx`'s "명당 보너스는 별도예요" line
+  // already refers to.
+  function handlePrimeTap() {
+    openToast(
+      `명당 — 여기 지은 건물은 정산 때마다 ${formatSeedsWithUnit(toSeedCount(BALANCE.seedAwards.primeLot))}를 받아요 (마을 전체 최대 ${formatSeedsWithUnit(toSeedCount(BALANCE.seedAwards.primeLotMax))})`,
+    );
   }
 
   // Gate-3-rerun fix — the founding/growing entry for `selectedBuildingId`
@@ -593,6 +634,8 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         onOpenSettings={onOpenSettings}
         bgmMuted={store.bgmMuted}
         onSetBgmMuted={store.setBgmMuted}
+        onOpenShop={() => setShopOpen(true)}
+        shopHasNews={hasAffordableUnowned(store.economy, store.npcCount, NPC_MAX_VISIBLE)}
       />
 
       {store.canClaimNoSpend && (
@@ -648,6 +691,7 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         growCandidateIds={growPick.candidateIds ?? undefined}
         onCancel={pickModeActive ? handleGrowPickCancel : move.cancel}
         onInvalidDrop={move.onInvalidDrop}
+        onPrimeTap={handlePrimeTap}
       />
 
       {/* ADDENDUM-02 §4.3/§4.4 + ADDENDUM-04 §4 — rendered OUTSIDE
@@ -704,13 +748,6 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         >
           +
         </Button>
-      )}
-
-      {/* ADDENDUM-05 §6 (F-ECON) — the 꾸미기 mini-FAB sits directly above the ⊕
-          FAB and hides under exactly the same two conditions, so neither grid
-          mode ever has a second floating action competing with its status bar. */}
-      {move.movingId === null && !pickModeActive && (
-        <ShopFab onClick={() => setShopOpen(true)} economy={store.economy} npcCount={store.npcCount} />
       )}
 
       <EntrySheet open={sheetOpen} today={store.today} onClose={() => setSheetOpen(false)} onSave={handleSave} />
@@ -800,7 +837,7 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
           // than one same-category building to choose from — an expert QA
           // driver hit that overlay "not anticipating it". Said here, before
           // the tap, instead of only after.
-          pendingGrow && store.growCandidates(pendingGrow.categoryId).length > 1
+          pendingGrow && growableCandidates(pendingGrow.categoryId).length > 1
             ? " 같은 종류 건물이 여러 채라 키우기를 누르면 어떤 건물을 키울지 화면에서 골라야 해요."
             : ""
         }`}

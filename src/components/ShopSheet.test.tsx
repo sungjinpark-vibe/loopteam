@@ -1,5 +1,5 @@
 /**
- * ShopSheet (S8) + ShopFab component tests. Mirrors `SettingsSheet.test.tsx`'s
+ * ShopSheet (S8) component tests. Mirrors `SettingsSheet.test.tsx`'s
  * mount harness (bare `mountComponent` + `ThemeProvider`, `BottomSheet`
  * portals into `document.body`, jsdom `ResizeObserver`/`matchMedia`
  * workarounds already established there).
@@ -24,7 +24,7 @@ import { formatSeeds } from "../economy/format";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import type { Building } from "../types";
 import type { PurchaseSkuResult } from "../useTownStore";
-import { CHARGE_ENTRY_VISIBLE, ShopFab, ShopSheet, type ShopSheetProps } from "./ShopSheet";
+import { CHARGE_ENTRY_VISIBLE, ShopSheet, type ShopSheetProps } from "./ShopSheet";
 
 class NoopResizeObserver {
   observe() {}
@@ -290,35 +290,8 @@ describe("ShopSheet", () => {
   });
 });
 
-describe("ShopFab", () => {
-  it("calls onClick when tapped", () => {
-    let clicks = 0;
-    mounted = mountComponent(
-      <ThemeProvider>
-        <ShopFab onClick={() => clicks++} economy={defaultEconomyState()} npcCount={1} />
-      </ThemeProvider>,
-    );
-    act(() => document.body.querySelector<HTMLButtonElement>(".shop-fab")!.click());
-    expect(clicks).toBe(1);
-  });
-
-  it("shows a non-numeric dot only when something unowned is affordable — never a count badge", () => {
-    mounted = mountComponent(
-      <ThemeProvider>
-        <ShopFab onClick={() => {}} economy={{ ...defaultEconomyState(), seeds: seedCount(0) }} npcCount={1} />
-      </ThemeProvider>,
-    );
-    expect(document.body.querySelector(".shop-fab-dot")).toBeNull();
-
-    act(() => {
-      mounted!.root.render(
-        <ThemeProvider>
-          <ShopFab onClick={() => {}} economy={{ ...defaultEconomyState(), seeds: seedCount(1200) }} npcCount={1} />
-        </ThemeProvider>,
-      );
-    });
-    const dot = document.body.querySelector(".shop-fab-dot");
-    expect(dot).not.toBeNull();
-    expect(dot!.textContent).toBe(""); // non-numeric — no count is ever rendered into it
-  });
-});
+// The affordability-dot logic itself (`hasAffordableUnowned`, economy/skus.ts)
+// is covered by skus.test.ts. Its consumer moved from the deleted `ShopFab`
+// mini-FAB to `TownHeader`'s `.town-header-shop-btn` — see
+// `TownHeader.test.tsx`'s "header shop button" tests and
+// `TownScreen.test.tsx` for the wiring.

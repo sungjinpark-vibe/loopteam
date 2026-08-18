@@ -16,6 +16,7 @@ import { SAVING_CATEGORY_IDS } from "../savingsBuckets";
 import { mountComponent, type MountedComponent } from "../testUtils/mount";
 import {
   CELL_COUNT,
+  decorVariant,
   GRID_SIZE,
   GRID_TEMPLATE_COLUMNS,
   cellFromIndex,
@@ -70,6 +71,28 @@ const PRIME_GROUND = (() => {
   throw new Error("no prime cell on the map");
 })();
 
+// User report 2026-08-19 (part a): the ring must never sit on top of
+// `EmptyLot`'s own tree/sprout icon. `decorVariant(row, col, 3)` is the SAME
+// call both `TownGrid.tsx`'s `TERRAIN_CELLS` build and its ground-tile loop
+// make for a given (row, col) — 0 is the plain, icon-less lot; 1/2 draw
+// tree/sprout (`EmptyLot.tsx`'s `VARIANT_ICON`). These two fixtures find a
+// real prime cell of each kind on the fixed map, so the regression test
+// below isn't testing a synthetic scenario the real map can't produce.
+const PRIME_GROUND_DECORATED = (() => {
+  for (let i = 0; i < CELL_COUNT; i++) {
+    const { row, col } = cellFromIndex(i);
+    if (terrainAtIndex(i) === "ground" && isPrimeCell(row, col) && decorVariant(row, col, 3) !== 0) return i;
+  }
+  throw new Error("no prime+decorated ground cell on the map — the fix's premise doesn't hold on this map anymore");
+})();
+const PRIME_GROUND_UNDECORATED = (() => {
+  for (let i = 0; i < CELL_COUNT; i++) {
+    const { row, col } = cellFromIndex(i);
+    if (terrainAtIndex(i) === "ground" && isPrimeCell(row, col) && decorVariant(row, col, 3) === 0) return i;
+  }
+  throw new Error("no prime+undecorated ground cell on the map");
+})();
+
 function building(overrides: Partial<Building> = {}): Building {
   return {
     id: "b1",
@@ -101,7 +124,9 @@ const NOOP_MOVE_PROPS: MoveProps = {
 function mountGrid(
   buildings: readonly Building[] = [],
   moveProps: Partial<MoveProps> = {},
-  extra: Partial<Pick<TownGridProps, "growCandidateIds" | "justBuiltId" | "appliedByBuildingId" | "appliedTownSku">> = {},
+  extra: Partial<
+    Pick<TownGridProps, "growCandidateIds" | "justBuiltId" | "appliedByBuildingId" | "appliedTownSku" | "onPrimeTap">
+  > = {},
 ): HTMLElement {
   mounted = mountComponent(
     <TownGrid
@@ -120,6 +145,7 @@ function mountGrid(
       growCandidateIds={extra.growCandidateIds}
       appliedByBuildingId={extra.appliedByBuildingId}
       appliedTownSku={extra.appliedTownSku}
+      onPrimeTap={extra.onPrimeTap}
     />,
   );
   return mounted.container;
@@ -622,6 +648,68 @@ describe("TownGrid — 명당 (prime lot) on the dynamic layer", () => {
       expect(tile.getAttribute("aria-label")).toBe("명당 빈 터, 여기로 옮기기");
     }
   });
+
+  // User report 2026-08-19 (part a): "나무에 동그라미 표시된 것은 제거" — the
+  // ring used to appear on a prime lot's `EmptyLot` tree/sprout icon too,
+  // reading as a rendering bug. Both layers that can paint the ring
+  // (`TownTerrain`'s static `.town-cell` and the dynamic `.town-tile`) must
+  // agree the ring is off on a decorated lot — the static layer sits BEHIND
+  // the tile in DOM order and would show through its translucent background
+  // if it alone kept `--prime` (`.empty-lot--v1`/`v2`'s tint is `rgba(...,
+  // 0.1)`, not opaque).
+  it("suppresses the ring on a prime lot that carries EmptyLot's own tree/sprout decoration", () => {
+    const container = mountGrid();
+    const tile = container.querySelector(`[data-plot-index="${PRIME_GROUND_DECORATED}"]`) as HTMLElement;
+    expect(tile.classList.contains("town-tile--prime")).toBe(false);
+    expect(tile.querySelector(".town-prime-tap")).toBeNull();
+    const { row, col } = cellFromIndex(PRIME_GROUND_DECORATED);
+    const cell = container.querySelector(`.town-cell[style*="grid-column: ${col + 1}"][style*="grid-row: ${row + 1}"]`);
+    expect(cell?.classList.contains("town-cell--prime")).toBe(false); // the layer BEHIND the tile, same gate
+  });
+
+  it("keeps the ring on a genuinely un-decorated prime lot, on both layers", () => {
+    const container = mountGrid();
+    const tile = container.querySelector(`[data-plot-index="${PRIME_GROUND_UNDECORATED}"]`) as HTMLElement;
+    expect(tile.classList.contains("town-tile--prime")).toBe(true);
+    const { row, col } = cellFromIndex(PRIME_GROUND_UNDECORATED);
+    const cell = container.querySelector(`.town-cell[style*="grid-column: ${col + 1}"][style*="grid-row: ${row + 1}"]`);
+    expect(cell?.classList.contains("town-cell--prime")).toBe(true);
+  });
+
+  // User report 2026-08-19 (part b): "동그라미 표시를 터치하면 뭔지 설명하는
+  // 툴팁 표시". `TownGrid` itself owns no toast/overlay primitive (peer
+  // review 2026-08-19 — a `useToast` call inside `TownGrid` made it
+  // hard-depend on `TDSMobileProvider`, breaking every bare-mounted test
+  // including the perf-smoke ones in `src/devtools/`); it only reports the
+  // tap via `onPrimeTap`. `TownScreen.tsx` (which already owns every other
+  // toast) is responsible for the actual copy — the real mechanic
+  // (`BALANCE.seedAwards.primeLot`/`primeLotMax`) is covered by
+  // `TownScreen.test.tsx`'s own test for that wiring.
+  it("tapping an un-decorated prime lot's ring calls onPrimeTap, without also firing onPlotTap", () => {
+    const onPlotTap = vi.fn();
+    const onPrimeTap = vi.fn();
+    const container = mountGrid([], { onPlotTap }, { onPrimeTap });
+    const tapTarget = container.querySelector(
+      `[data-plot-index="${PRIME_GROUND_UNDECORATED}"] .town-prime-tap`,
+    ) as HTMLButtonElement;
+    expect(tapTarget).not.toBeNull();
+    expect(tapTarget.getAttribute("aria-label")).toBe("명당 설명 보기");
+
+    act(() => {
+      tapTarget.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onPrimeTap).toHaveBeenCalledTimes(1);
+    expect(onPlotTap).not.toHaveBeenCalled(); // the ring's own tap, not the tile's move/info tap
+  });
+
+  it("never renders the tap button on a droppable prime lot (move mode owns the whole tile's tap already)", () => {
+    const mover = building({ id: "mover", plotIndex: GROUND_B });
+    const container = mountGrid([mover], { movingId: "mover" });
+    const tile = container.querySelector(`[data-plot-index="${PRIME_GROUND_UNDECORATED}"]`) as HTMLElement;
+    if (tile.classList.contains("town-tile--droppable")) {
+      expect(tile.querySelector(".town-prime-tap")).toBeNull();
+    }
+  });
 });
 
 // Gate-3-rerun fix (QA lead E4): a monument used to render the exact same
@@ -1106,6 +1194,77 @@ describe("TownGrid — pinch zoom & pan (ADDENDUM-09 §3.2/§3.3)", () => {
     const singleFingerMove = new PointerEvent("pointermove", { bubbles: true, cancelable: true, pointerId: 3, clientX: 10, clientY: 0 });
     grid.dispatchEvent(singleFingerMove);
     expect(singleFingerMove.defaultPrevented).toBe(false); // 1-finger scroll-through-a-building stays untouched (§4.3)
+  });
+
+  // Root-cause regression (real-device bug, user report + peer-verified
+  // measurement 2026-08-19 — see docs/qa/evidence-feedback-2026-08-19/
+  // pinch-rootcause.md for the full write-up and harness numbers). The
+  // EARLIER fix here (flipping `.town-grid.style.touchAction` to "none"
+  // from inside the 2-finger `pointerdown` branch, reverting on pinch end)
+  // was a no-op on real hardware: `touch-action` is locked in for a whole
+  // touch SEQUENCE at its very FIRST touchstart, and a real hand always
+  // moves finger 1 slightly before finger 2 lands. With `pan-x pan-y` still
+  // allowed at THAT moment, the browser claims the entire sequence as a
+  // native scroll of `.town-viewport` right then — firing `pointercancel`
+  // and never delivering finger 2's `pointerdown` to JS at all, so the
+  // 2-finger branch this test asserted on never even ran. Measured via CDP
+  // touch on the live app (finger 1 lands and drags 24px, finger 2 arrives
+  // ~100ms later — a real hand's timing): `pan-x pan-y` -> pointerdown=1,
+  // pointercancel=1, zoomRatio=1.00 (dead); forced `none` -> pointerdown=2,
+  // pointercancel=0, zoomRatio=5.96 (works). The real fix is `.town-grid`
+  // permanently `touch-action: none` (App.css) — this test pins THAT, by
+  // reading the actual stylesheet text (jsdom is `css: false`, so nothing
+  // here can assert it any other way — same `css()` pattern the "tall
+  // building overflow" describe block above already uses).
+  it("App.css pins .town-grid to touch-action: none (permanently, not just mid-pinch)", () => {
+    const css = (name: string) => readFileSync(`src/${name}`, "utf8");
+    const rule = css("App.css").match(/^\.town-grid\s*\{[\s\S]*?\n\}/m)?.[0];
+    expect(rule, ".town-grid rule not found in App.css").toBeTruthy();
+    expect(rule).toMatch(/touch-action:\s*none\s*;/);
+    // Not the permissive value this whole bug was about — belt and braces.
+    expect(rule).not.toMatch(/touch-action:\s*(pan-|auto|manipulation)/);
+  });
+
+  // touch-action: none also revokes the native 1-finger scroll
+  // `.town-viewport` (`overflow: auto`) used to provide — `useTileGestures.ts`
+  // now drives that element's `scrollLeft`/`scrollTop` itself from 1-finger
+  // pointermove deltas instead. Regression: a single-finger drag must still
+  // pan the town.
+  it("a single-finger drag scrolls .town-viewport (JS-driven pan, since touch-action:none revoked the native one)", () => {
+    const container = mountGrid();
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+    const viewport = container.querySelector(".town-viewport") as HTMLElement;
+    viewport.scrollTop = 100;
+    viewport.scrollLeft = 100;
+
+    act(() => {
+      pointerDownAt(grid, 1, 200, 200);
+      pointerMoveAt(grid, 1, 170, 150); // dx=-30, dy=-50 -> scroll grows (content dragged down-right)
+    });
+    expect(viewport.scrollLeft).toBe(130);
+    expect(viewport.scrollTop).toBe(150);
+
+    act(() => {
+      pointerUpAt(grid, 1);
+    });
+  });
+
+  // Part of the same fix: a real pan (past the long-press tolerance) must
+  // not ALSO land as a tap on release — `touch-action: none` means the
+  // browser no longer suppresses that tail `click` for us the way a claimed
+  // native scroll gesture used to (peer review 2026-08-19).
+  it("a single-finger drag past the tolerance suppresses the tail click (a pan is not a tap)", () => {
+    const onPlotTap = vi.fn();
+    const container = mountGrid([], { onPlotTap });
+    const grid = container.querySelector(".town-grid") as HTMLElement;
+
+    act(() => {
+      pointerDownAt(grid, 1, 0, 0);
+      pointerMoveAt(grid, 1, LONG_PRESS_TOLERANCE_PX + 20, 0);
+      pointerUpAt(grid, 1);
+      grid.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onPlotTap).not.toHaveBeenCalled();
   });
 
   it("전체 보기 resets both scale and translate after a pinch (D2)", () => {
