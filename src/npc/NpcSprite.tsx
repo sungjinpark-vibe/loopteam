@@ -34,6 +34,34 @@ const HY = 96;
 const HR = 50;
 const TOP = HY - HR;
 
+/**
+ * Body/head-silhouette outline — path-b outline experiment (see
+ * `docs/design/ai-prototypes/path-b-assets/outline-verdict.md`). The AI
+ * reference sprites' readability edge at 26x32 traces almost entirely to
+ * their thick dark contour, not their extra detail (readability-verdict.md).
+ * `OUTLINE`/`OUTLINE_RIM` are the single source of that colour — never
+ * hardcode a per-species stroke color. `rim()` picks the lightened rim for
+ * dark bodies (e.g. penguin `#3A3A52`) so the outline doesn't vanish into the
+ * fill; `STROKE_W` is native-viewBox units, tuned by eye against the real
+ * 220->26px (~8.5x) downscale, not by formula.
+ */
+const OUTLINE = "#241b3a";
+const OUTLINE_RIM = "#9088ae";
+const STROKE_W = 8;
+
+function outlineFor(fill: string): string {
+  const n = parseInt(fill.slice(1), 16);
+  const r = (n >> 16) & 255,
+    g = (n >> 8) & 255,
+    b = n & 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b < 90 ? OUTLINE_RIM : OUTLINE;
+}
+
+/** Stroke props for a shape filled with `fill` — spread onto every body/head-silhouette shape. */
+function rim(fill: string) {
+  return { stroke: outlineFor(fill), strokeWidth: STROKE_W, strokeLinejoin: "round" as const };
+}
+
 function Eyes({ cx, cy, gap = 18, rx = 8.5, ry = 10 }: { cx: number; cy: number; gap?: number; rx?: number; ry?: number }) {
   return (
     <>
@@ -70,42 +98,42 @@ function Ears({ ear, dark, body, inner }: { ear: NpcEarShape; dark: string; body
     case "fox":
       return (
         <>
-          <polygon points={`${CX - 46},${TOP - 6} ${CX - 20},${TOP + 22} ${CX - 54},${TOP + 24}`} fill={body} />
-          <polygon points={`${CX + 46},${TOP - 6} ${CX + 20},${TOP + 22} ${CX + 54},${TOP + 24}`} fill={body} />
-          <polygon points={`${CX - 44},${TOP + 4} ${CX - 28},${TOP + 22} ${CX - 49},${TOP + 22}`} fill={inner} />
-          <polygon points={`${CX + 44},${TOP + 4} ${CX + 28},${TOP + 22} ${CX + 49},${TOP + 22}`} fill={inner} />
+          <polygon points={`${CX - 46},${TOP - 6} ${CX - 20},${TOP + 22} ${CX - 54},${TOP + 24}`} fill={body} {...rim(body)} />
+          <polygon points={`${CX + 46},${TOP - 6} ${CX + 20},${TOP + 22} ${CX + 54},${TOP + 24}`} fill={body} {...rim(body)} />
+          <polygon points={`${CX - 44},${TOP + 4} ${CX - 28},${TOP + 22} ${CX - 49},${TOP + 22}`} fill={inner} {...rim(inner)} />
+          <polygon points={`${CX + 44},${TOP + 4} ${CX + 28},${TOP + 22} ${CX + 49},${TOP + 22}`} fill={inner} {...rim(inner)} />
         </>
       );
     case "round":
       return (
         <>
-          <circle cx={CX - 36} cy={TOP + 8} r={19} fill={body} />
-          <circle cx={CX + 36} cy={TOP + 8} r={19} fill={body} />
-          <circle cx={CX - 36} cy={TOP + 10} r={10} fill={inner} />
-          <circle cx={CX + 36} cy={TOP + 10} r={10} fill={inner} />
+          <circle cx={CX - 36} cy={TOP + 8} r={19} fill={body} {...rim(body)} />
+          <circle cx={CX + 36} cy={TOP + 8} r={19} fill={body} {...rim(body)} />
+          <circle cx={CX - 36} cy={TOP + 10} r={10} fill={inner} {...rim(inner)} />
+          <circle cx={CX + 36} cy={TOP + 10} r={10} fill={inner} {...rim(inner)} />
         </>
       );
     case "roundDark":
       return (
         <>
-          <circle cx={CX - 36} cy={TOP + 8} r={19} fill={dark} />
-          <circle cx={CX + 36} cy={TOP + 8} r={19} fill={dark} />
+          <circle cx={CX - 36} cy={TOP + 8} r={19} fill={dark} {...rim(dark)} />
+          <circle cx={CX + 36} cy={TOP + 8} r={19} fill={dark} {...rim(dark)} />
         </>
       );
     case "floppy":
       return (
         <>
-          <ellipse cx={CX - 44} cy={HY + 14} rx={16} ry={32} fill={dark} />
-          <ellipse cx={CX + 44} cy={HY + 14} rx={16} ry={32} fill={dark} />
+          <ellipse cx={CX - 44} cy={HY + 14} rx={16} ry={32} fill={dark} {...rim(dark)} />
+          <ellipse cx={CX + 44} cy={HY + 14} rx={16} ry={32} fill={dark} {...rim(dark)} />
         </>
       );
     case "rabbit":
       return (
         <>
-          <ellipse cx={CX - 22} cy={TOP - 24} rx={13} ry={36} fill={body} />
-          <ellipse cx={CX + 22} cy={TOP - 24} rx={13} ry={36} fill={body} />
-          <ellipse cx={CX - 22} cy={TOP - 22} rx={6.5} ry={26} fill={inner} />
-          <ellipse cx={CX + 22} cy={TOP - 22} rx={6.5} ry={26} fill={inner} />
+          <ellipse cx={CX - 22} cy={TOP - 24} rx={13} ry={36} fill={body} {...rim(body)} />
+          <ellipse cx={CX + 22} cy={TOP - 24} rx={13} ry={36} fill={body} {...rim(body)} />
+          <ellipse cx={CX - 22} cy={TOP - 22} rx={6.5} ry={26} fill={inner} {...rim(inner)} />
+          <ellipse cx={CX + 22} cy={TOP - 22} rx={6.5} ry={26} fill={inner} {...rim(inner)} />
         </>
       );
     case "antler": {
@@ -141,10 +169,10 @@ function Ears({ ear, dark, body, inner }: { ear: NpcEarShape; dark: string; body
         <>
           {branch(-1)}
           {branch(1)}
-          <ellipse cx={CX - 40} cy={TOP + 16} rx={11} ry={14} fill={body} />
-          <ellipse cx={CX + 40} cy={TOP + 16} rx={11} ry={14} fill={body} />
-          <ellipse cx={CX - 40} cy={TOP + 17} rx={5.5} ry={8} fill={inner} />
-          <ellipse cx={CX + 40} cy={TOP + 17} rx={5.5} ry={8} fill={inner} />
+          <ellipse cx={CX - 40} cy={TOP + 16} rx={11} ry={14} fill={body} {...rim(body)} />
+          <ellipse cx={CX + 40} cy={TOP + 16} rx={11} ry={14} fill={body} {...rim(body)} />
+          <ellipse cx={CX - 40} cy={TOP + 17} rx={5.5} ry={8} fill={inner} {...rim(inner)} />
+          <ellipse cx={CX + 40} cy={TOP + 17} rx={5.5} ry={8} fill={inner} {...rim(inner)} />
         </>
       );
     }
@@ -158,17 +186,17 @@ function Ears({ ear, dark, body, inner }: { ear: NpcEarShape; dark: string; body
         const ty = HY - Math.cos(ang) * 74 - 6;
         const nx = Math.cos(ang) * 8;
         const ny = Math.sin(ang) * 8;
-        spikes.push(<polygon key={i} points={`${bx - nx},${by + ny} ${bx + nx},${by - ny} ${tx},${ty}`} fill={dark} />);
+        spikes.push(<polygon key={i} points={`${bx - nx},${by + ny} ${bx + nx},${by - ny} ${tx},${ty}`} fill={dark} {...rim(dark)} />);
       }
       return <>{spikes}</>;
     }
     case "bird":
-      return <path d={`M${CX} ${TOP - 2} q-9 -18 5 -22 q7 11 -5 22`} fill={dark} />;
+      return <path d={`M${CX} ${TOP - 2} q-9 -18 5 -22 q7 11 -5 22`} fill={dark} {...rim(dark)} />;
     case "bump":
       return (
         <>
-          <circle cx={CX - 24} cy={TOP + 8} r={17} fill={body} />
-          <circle cx={CX + 24} cy={TOP + 8} r={17} fill={body} />
+          <circle cx={CX - 24} cy={TOP + 8} r={17} fill={body} {...rim(body)} />
+          <circle cx={CX + 24} cy={TOP + 8} r={17} fill={body} {...rim(body)} />
         </>
       );
     case "none":
@@ -186,28 +214,28 @@ export function NpcSprite({ species }: { species: NpcSpeciesDef }) {
       {/* ground shadow */}
       <ellipse cx={CX} cy={207} rx={54} ry={12} fill="rgba(90,74,106,0.12)" />
       {/* feet */}
-      <ellipse cx={CX - 20} cy={198} rx={15} ry={11} fill={dark} />
-      <ellipse cx={CX + 20} cy={198} rx={15} ry={11} fill={dark} />
+      <ellipse cx={CX - 20} cy={198} rx={15} ry={11} fill={dark} {...rim(dark)} />
+      <ellipse cx={CX + 20} cy={198} rx={15} ry={11} fill={dark} {...rim(dark)} />
       {/* body + belly */}
-      <ellipse cx={CX} cy={162} rx={46} ry={40} fill={body} />
-      <ellipse cx={CX} cy={170} rx={28} ry={24} fill={belly} />
+      <ellipse cx={CX} cy={162} rx={46} ry={40} fill={body} {...rim(body)} />
+      <ellipse cx={CX} cy={170} rx={28} ry={24} fill={belly} {...rim(belly)} />
       {/* front paws */}
-      <ellipse cx={CX - 28} cy={172} rx={11} ry={12} fill={arm} />
-      <ellipse cx={CX + 28} cy={172} rx={11} ry={12} fill={arm} />
+      <ellipse cx={CX - 28} cy={172} rx={11} ry={12} fill={arm} {...rim(arm)} />
+      <ellipse cx={CX + 28} cy={172} rx={11} ry={12} fill={arm} {...rim(arm)} />
       {/* ears / head decoration, drawn behind the head */}
       <Ears ear={ear} dark={dark} body={body} inner={inner} />
       {/* head */}
-      <circle cx={CX} cy={HY} r={HR} fill={body} />
-      {muzzle && <ellipse cx={CX} cy={HY + 15} rx={27} ry={21} fill="#ffffff" />}
+      <circle cx={CX} cy={HY} r={HR} fill={body} {...rim(body)} />
+      {muzzle && <ellipse cx={CX} cy={HY + 15} rx={27} ry={21} fill="#ffffff" {...rim("#ffffff")} />}
       {patch && (
         <>
-          <ellipse cx={CX - 19} cy={HY - 3} rx={16} ry={19} fill={patch} />
-          <ellipse cx={CX + 19} cy={HY - 3} rx={16} ry={19} fill={patch} />
+          <ellipse cx={CX - 19} cy={HY - 3} rx={16} ry={19} fill={patch} {...rim(patch)} />
+          <ellipse cx={CX + 19} cy={HY - 3} rx={16} ry={19} fill={patch} {...rim(patch)} />
         </>
       )}
       {ear === "bump" ? <Eyes cx={CX} cy={TOP + 7} gap={24} rx={8} ry={9} /> : <Eyes cx={CX} cy={HY} />}
       {beak || ear === "bird" ? (
-        <polygon points={`${CX - 8},${HY + 13} ${CX + 8},${HY + 13} ${CX},${HY + 26}`} fill="#ffb347" />
+        <polygon points={`${CX - 8},${HY + 13} ${CX + 8},${HY + 13} ${CX},${HY + 26}`} fill="#ffb347" {...rim("#ffb347")} />
       ) : ear === "bump" ? (
         <Grin cx={CX} cy={HY + 20} />
       ) : (
@@ -218,7 +246,7 @@ export function NpcSprite({ species }: { species: NpcSpeciesDef }) {
       )}
       <Cheeks cx={CX} cy={HY + 11} />
       {/* neck scarf — new element, see file header */}
-      {scarfColor && <ellipse cx={CX} cy={HY + HR - 4} rx={34} ry={12} fill={scarfColor} />}
+      {scarfColor && <ellipse cx={CX} cy={HY + HR - 4} rx={34} ry={12} fill={scarfColor} {...rim(scarfColor)} />}
     </svg>
   );
 }
