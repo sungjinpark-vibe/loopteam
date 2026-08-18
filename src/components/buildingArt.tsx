@@ -1151,12 +1151,18 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
       aria-hidden="true"
     >
       {geo.parts}
-      {decor}
       {/* 2026-08-13 "무슨 건물인지 알 수 있게 지붕에 간판을 달아라" — EVERY building gets
           the roof signboard now, not just landmarks. The bare 16px emoji that used to
           stand in for it on ordinary buildings is gone: it was the same glyph with no
-          plate, no hue and no contrast, and it is the thing the user could not read. */}
+          plate, no hue and no contrast, and it is the thing the user could not read.
+          2026-08-18: draws BEFORE `decor`, not after — several decor flags (parasol,
+          chimney, flag, clock) anchor at or above `geo.signAnchor`, the same roofline
+          spot the plate mounts on, so decor has to be the top layer or its own
+          building's signboard paints over it. Found via the cafe archetype (the
+          plate fully hid the parasol underneath it); fixed here for every archetype
+          that shares the renderer, not just cafe. */}
       {roofSignboard(spec, palette, geo, big2x2)}
+      {decor}
     </svg>
   );
 }
