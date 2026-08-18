@@ -75,6 +75,7 @@ import {
 } from "../townLayout";
 import type { Building, SavingCategoryId } from "../types";
 import { MAX_ART_OVERHANG_PX } from "./buildingArt";
+import { DecorIcons } from "./decorArt";
 import { EmptyLot } from "./EmptyLot";
 import { NpcLayer } from "./NpcLayer";
 import { PlaceholderBuilding } from "./PlaceholderBuilding";
@@ -171,8 +172,8 @@ interface TerrainCell {
   shoreLeft: boolean;
   decor: number;
   prime: boolean;
-  /** A single glyph to paint on THIS cell, or none — park decor is sparse across the whole park, not one bouquet per cell (see `TERRAIN_CELLS` build). */
-  glyph: string | null;
+  /** A single decor icon to paint on THIS cell, or none — park decor is sparse across the whole park, not one bouquet per cell (see `TERRAIN_CELLS` build). */
+  glyph: ReactNode | null;
   /** Ripple, at most 2 per lake total (one body of water, not one puddle per cell). */
   ripple: boolean;
   /** Street furniture — ADDENDUM-10. Sparse, road/park only, never on a cell that already carries `glyph`. */
@@ -285,7 +286,11 @@ const FOUNTAIN_SEAT: ReadonlyMap<number, number> = new Map(
  * map is a fixed authored constant (ADDENDUM-08 §1), so there is nothing here
  * that could ever need recomputing at runtime.
  */
-const PARK_GLYPHS: readonly string[] = ["🌳", "🌲", "🪑"];
+// Path-B art upgrade — was literal emoji (🌳🌲🪑), which render differently
+// per platform and clash with the app's own art. `decorArt.tsx`'s vectorized
+// `DecorIcons` replace them 1:1, indexed the same way `decorVariant` already
+// picked an emoji (0/1/2).
+const PARK_GLYPHS: readonly ReactNode[] = [DecorIcons.tree, DecorIcons.pine, DecorIcons.bench];
 
 const TERRAIN_CELLS: TerrainCell[] = (() => {
   const cells: TerrainCell[] = [];

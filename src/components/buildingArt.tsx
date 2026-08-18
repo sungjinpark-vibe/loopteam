@@ -358,16 +358,23 @@ const RIDGE_R = 3.5;
  * Freeze safety (d8ce379 / afc7cd6): a stroke paints, it does not move a vertex.
  * `points` is untouched everywhere below, so the fill metric and the base
  * footprint are byte-identical. `scripts/check-art-contrast.mjs` re-measures.
+ *
+ * 2026-08-18 (`docs/design/ai-prototypes/path-a` — approved art restyle): grey800
+ * -> grey900 and the width roughly triples. Prototyped on the cafe archetype
+ * against `proto-building-cafe.png`/`proto-building-shop.png` (thick dark-navy
+ * outline, chunky toy silhouette) before being applied here as the one shared
+ * constant every archetype already draws through — still the single neutral
+ * colour the contrast test below requires, just a deeper/thicker one.
  */
-const EDGE = colors.grey800;
+const EDGE = colors.grey900;
 /**
  * Widths in ART_UNIT (view units per tile px), NOT as a share of the box — the
- * rendered scale is the same for every footprint, so this is a constant ~0.8px
+ * rendered scale is the same for every footprint, so this is a constant ~2px
  * on screen whether the building is 1x1 or 2x2. A keyline that thickened with
  * the footprint would make landmarks read as outlined stickers.
  */
-const EDGE_W = ART_UNIT * 0.8;
-const PANE_EDGE_W = ART_UNIT * 0.4;
+const EDGE_W = ART_UNIT * 2.1;
+const PANE_EDGE_W = ART_UNIT * 0.55;
 
 /**
  * ── height growth (user instruction 2026-08-13: "레벨이 오를수록 건물이 높아져야 한다") ──
@@ -464,8 +471,11 @@ function windowGrid(
   const out: ReactNode[] = [];
   const cellU = uSpan / cols;
   const cellV = vSpan / rows;
-  const paneU = cellU * 0.625; // pane narrower than its cell — leaves a mullion gap
-  const paneV = cellV * 0.6364;
+  // 2026-08-18 restyle: bigger panes, thinner mullion gap — "simplified large windows"
+  // per the reference (proto-building-cafe/shop.png show one big pane, not a fine grid).
+  // Row/col COUNT still comes from the caller (level/footprint), untouched here.
+  const paneU = cellU * 0.8;
+  const paneV = cellV * 0.82;
   const unlitDivisor = 3 + fuseTier; // fuseTier 0 -> %3, byte-identical to pre-fusion behaviour
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -571,14 +581,22 @@ function buildingCube(
   // it reads as contact shade. It used to sit a further `hh + 6` BELOW the front
   // corner, which cost the art a chunk of its vertical budget for nothing; now its
   // lowest point is exactly the front corner, i.e. the box floor.
+  //
+  // 2026-08-18 restyle: softer/darker/slightly wider ("soft ground shadow" in the
+  // approved reference) via a CSS blur on the fill — no `<filter>`/`<defs>` element,
+  // which would need a document-unique id shared across every building instance on
+  // the town grid. `<ellipse>` is invisible to `artMetrics` (it only reads
+  // `<polygon>` points, see PlaceholderBuilding.test.tsx), so this cannot move the
+  // fill-rate metric.
   parts.push(
     <ellipse
       key="shadow"
       cx={cx + (ux - uy) / 2}
-      cy={cy + hh * 0.28}
-      rx={(box.spanW / 2) * 0.98}
-      ry={hh * 0.72}
-      fill="rgba(90,74,106,0.14)"
+      cy={cy + hh * 0.3}
+      rx={(box.spanW / 2) * 1.02}
+      ry={hh * 0.8}
+      fill="rgba(30,25,45,0.22)"
+      style={{ filter: "blur(2px)" }}
     />,
   );
 
@@ -593,9 +611,9 @@ function buildingCube(
         key="fuse-glow"
         data-part="fuse-glow"
         cx={cx + (ux - uy) / 2}
-        cy={cy + hh * 0.28}
-        rx={(box.spanW / 2) * 0.98}
-        ry={hh * 0.72}
+        cy={cy + hh * 0.3}
+        rx={(box.spanW / 2) * 1.02}
+        ry={hh * 0.8}
         fill={FUSE_TRIM[fuseTier - 1]}
         opacity={0.1 + 0.03 * fuseTier}
       />,
@@ -654,28 +672,17 @@ function buildingCube(
   parts.push(
     <polygon key="lintel" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.2, 0.34, 0.55, 0.6))} fill={colors.yellow200} />,
   );
-  // doorstep/stoop — a small slab just outside the threshold, protruding past
-  // the wall base (v < 0 extrapolates beyond the FB-RB ground edge on purpose).
-  // Scaled off `hh`, not off the wall height: a 1x2 tower's wall is 4x a 1x1's,
-  // and a fixed -0.07 of it would push the stoop clean out of the viewBox.
-  const doorMidU = (0.14 + doorU1) / 2;
-  const stoopV = -(hh * 0.1) / h;
-  parts.push(
-    <polygon key="stoop" points={pointsAttr(quadPts(FB, RB, RT, FT, doorMidU - 0.09, doorMidU + 0.09, stoopV, 0.02))} fill={palette.roofDark} opacity={0.5} />,
-  );
   // right-face window grid starts clear of the door quad (doorU1 max is 0.48)
   const rightWinBase = doorU1 + 0.12;
   parts.push(
     ...windowGrid(FB, RB, RT, FT, rightCols, winRows, rightWinBase, 0.9 - rightWinBase, 0.3, 0.44, palette, variantIndex, "win-r", fuseTier),
   );
-  // window sills — a thin ledge right under each face's window band
-  parts.push(<polygon key="sill-l" points={pointsAttr(quadPts(FB, LB, LT, FT, 0.15, 0.85, 0.3, 0.335))} fill={palette.roofDark} opacity={0.3} />);
-  parts.push(
-    <polygon key="sill-r" points={pointsAttr(quadPts(FB, RB, RT, FT, rightWinBase - 0.02, 0.92, 0.26, 0.295))} fill={palette.roofDark} opacity={0.3} />,
-  );
-  // roof eave — a thin shadow band at the wall/roof seam so the roof reads as its own slab
-  parts.push(<polygon key="eave-l" points={pointsAttr(quadPts(FB, LB, LT, FT, 0.0, 1.0, 0.93, 1.0))} fill={palette.roofDark} opacity={0.28} />);
-  parts.push(<polygon key="eave-r" points={pointsAttr(quadPts(FB, RB, RT, FT, 0.0, 1.0, 0.93, 1.0))} fill={palette.roofDark} opacity={0.28} />);
+  // 2026-08-18 restyle: dropped the door stoop + window sills + roof eave band — all
+  // translucent `palette.roofDark` overlays with no level/variant signal of their own
+  // (static per building), so at in-game scale they only added visual noise the flat
+  // reference art (`docs/design/ai-prototypes/proto-building-*.png`) doesn't have.
+  // Nothing level/variant-driven was removed: floor belts and window row COUNT (both
+  // asserted by `PlaceholderBuilding.test.tsx`) are untouched below.
 
   // roof
   if (roof === "pyramid") {
@@ -694,9 +701,23 @@ function buildingCube(
       <circle key="ridge" cx={apex.x} cy={apex.y} r={RIDGE_R} fill={fuseTier > 0 ? FUSE_RIDGE[fuseTier - 1] : "#ffffff"} opacity={0.85} />,
     );
   } else {
-    parts.push(
-      <polygon key="roof-top" data-part="roof" points={pointsAttr([FT, RT, BT, LT])} fill={palette.top} stroke={EDGE} strokeWidth={EDGE_W} strokeLinejoin="round" />,
-    );
+    // 2026-08-18 restyle: the flat top used to be ONE quad in `palette.top` — a flat
+    // pancake next to the pyramid archetypes' 3-plane roof. Split along the SAME 4
+    // existing corners (FT/RT/BT/LT — no new vertex, no vertex moved) into two faces,
+    // so every flat-roof archetype reads as a two-tone volume like
+    // `docs/design/ai-prototypes/proto-building-shop.png` instead of a single tone.
+    //
+    // Deliberately NOT `palette.roofLite`: that field is what `withFuseMaterial`
+    // overwrites for the fuse-tier trim (pyramid roofs show the material step there
+    // on purpose). A flat roof's whole plane is documented to stay the category
+    // colour when fused ("the material step no longer repaints the whole roof
+    // plane" — PlaceholderBuilding.test.tsx), so this reuses `top` (the existing
+    // fixed-tone field, untouched by fuse) paired with `roofDark` (also untouched —
+    // `withFuseMaterial` only ever overwrites `roofLite`), the same two fields a
+    // fuseTier-0 pyramid roof's own front/back planes already draw from.
+    const roofEdge = { stroke: EDGE, strokeWidth: EDGE_W, strokeLinejoin: "round" } as const;
+    parts.push(<polygon key="roof-top-l" data-part="roof" points={pointsAttr([FT, BT, LT])} fill={palette.top} {...roofEdge} />);
+    parts.push(<polygon key="roof-top-r" data-part="roof" points={pointsAttr([FT, RT, BT])} fill={palette.roofDark} {...roofEdge} />);
     // Flat roofs have no ridge dot to recolour, so fuseTier adds a small accent
     // INSET at the roof plane's own vertical midpoint (cy - h), never at BT (the
     // topmost vertex) — its radius is capped at `hh`, so its top edge can never
@@ -730,9 +751,14 @@ function decorParts(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeo
 
   if (d.parasol) {
     const px = cx + ux * 0.25;
-    const py = cy - h - 26;
-    out.push(<ellipse key="parasol-canopy" cx={px} cy={py} rx={12} ry={5} fill={colors.red400} />);
-    out.push(<rect key="parasol-pole" x={px - 1} y={py} width={2} height={12} fill={colors.grey600} />);
+    // 2026-08-18 restyle: raised from `cy - h - 26` — with the draw-order fix (decor now
+    // paints over the signboard, not under it) the canopy is visible either way, but
+    // sitting closer to the eave keeps it from straddling the plate's corner. Outlined
+    // to match the reference (`proto-building-cafe.png`'s parasol/table both carry the
+    // same thick keyline the walls do).
+    const py = cy - h - 16;
+    out.push(<ellipse key="parasol-canopy" cx={px} cy={py} rx={13} ry={6} fill={colors.red400} stroke={EDGE} strokeWidth={2} />);
+    out.push(<rect key="parasol-pole" x={px - 1.2} y={py} width={2.4} height={13} fill={colors.grey600} stroke={EDGE} strokeWidth={1} />);
   }
 
   if (d.chimney) {
@@ -788,11 +814,14 @@ function decorParts(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<typeo
   }
 
   if (d.cafeTable) {
+    // 2026-08-18 restyle: outlined to match the reference (thick keyline, same as
+    // the parasol above); sizes bumped slightly since a hairline table read as
+    // near-invisible noise under the new bold outline weight.
     const tx = cx + ux * 0.42;
     const ty = cy + hh * 0.5;
-    out.push(<rect key="table-top" x={tx - 5} y={ty - 1} width={10} height={2} fill={colors.grey600} />);
-    out.push(<line key="table-leg" x1={tx} y1={ty + 1} x2={tx} y2={ty + 6} stroke={colors.grey600} strokeWidth={1.2} />);
-    out.push(<circle key="cup" cx={tx - 3} cy={ty - 3} r={1.6} fill={colors.white} stroke={palette.roofDark} strokeWidth={0.6} />);
+    out.push(<rect key="table-top" x={tx - 5.5} y={ty - 1.5} width={11} height={3} rx={1.5} fill={colors.grey600} stroke={EDGE} strokeWidth={1} />);
+    out.push(<line key="table-leg" x1={tx} y1={ty + 1.5} x2={tx} y2={ty + 7} stroke={EDGE} strokeWidth={2} />);
+    out.push(<circle key="cup" cx={tx - 3} cy={ty - 3} r={2} fill={colors.white} stroke={EDGE} strokeWidth={1.4} />);
   }
 
   if (d.displayWindow) {
@@ -902,7 +931,11 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   // smallest thing that still reads as a distinct coloured marker on the roof.
   // Capped at spanW so it can never spill sideways past the tile (the surviving
   // half of the d8ce379 freeze).
-  const plateW = Math.min(geo.box.spanW * (big ? 0.46 : 0.58), big ? 140 : 100);
+  // 2026-08-18 (director: "간판을 조금 더 잘 보이게"): plate share nudged up and the
+  // keyline switched to the shared EDGE below. Deliberately a NUDGE, not a jump —
+  // the cap and the spanW share still bound it, so the plate cannot outgrow the
+  // roof and flatten the chunky silhouette the restyle just bought.
+  const plateW = Math.min(geo.box.spanW * (big ? 0.52 : 0.66), big ? 140 : 100);
   const plateH = plateW * 0.38;
   const plateCx = signAnchor.x;
   // Mounted flush on the roof (bottom edge at the sign anchor), clamped so the plate
@@ -922,8 +955,8 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   const postX = plateW * 0.23;
   const chipInset = plateH * 0.11;
   const out: ReactNode[] = [
-    <line key="post-l" x1={plateCx - postX} y1={plateBottom} x2={plateCx - postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
-    <line key="post-r" x1={plateCx + postX} y1={plateBottom} x2={plateCx + postX} y2={signAnchor.y} stroke={palette.roofDark} strokeWidth={2} />,
+    <line key="post-l" x1={plateCx - postX} y1={plateBottom} x2={plateCx - postX} y2={signAnchor.y} stroke={EDGE} strokeWidth={EDGE_W * 0.7} />,
+    <line key="post-r" x1={plateCx + postX} y1={plateBottom} x2={plateCx + postX} y2={signAnchor.y} stroke={EDGE} strokeWidth={EDGE_W * 0.7} />,
     <rect
       key="plate"
       data-part="signboard"
@@ -933,8 +966,9 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
       height={plateH}
       rx={3}
       fill={shade(spec.hue, 600)}
-      stroke={shade(spec.hue, 800)}
-      strokeWidth={1.5}
+      stroke={EDGE}
+      strokeWidth={EDGE_W}
+      strokeLinejoin="round"
     />,
     <rect
       key="plate-chip"
@@ -1151,12 +1185,18 @@ export function BuildingArt({ categoryId, variantIndex, level, monumentPeriod, w
       aria-hidden="true"
     >
       {geo.parts}
-      {decor}
       {/* 2026-08-13 "무슨 건물인지 알 수 있게 지붕에 간판을 달아라" — EVERY building gets
           the roof signboard now, not just landmarks. The bare 16px emoji that used to
           stand in for it on ordinary buildings is gone: it was the same glyph with no
-          plate, no hue and no contrast, and it is the thing the user could not read. */}
+          plate, no hue and no contrast, and it is the thing the user could not read.
+          2026-08-18: draws BEFORE `decor`, not after — several decor flags (parasol,
+          chimney, flag, clock) anchor at or above `geo.signAnchor`, the same roofline
+          spot the plate mounts on, so decor has to be the top layer or its own
+          building's signboard paints over it. Found via the cafe archetype (the
+          plate fully hid the parasol underneath it); fixed here for every archetype
+          that shares the renderer, not just cafe. */}
       {roofSignboard(spec, palette, geo, big2x2)}
+      {decor}
     </svg>
   );
 }

@@ -1,4 +1,5 @@
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
+import { DecorIcons } from "./decorArt";
 
 export interface EmptyLotProps {
   /**
@@ -11,7 +12,19 @@ export interface EmptyLotProps {
   variant?: 0 | 1 | 2;
 }
 
+// Path-B art upgrade — variant 1/2 used to paint their icon via CSS
+// `::after { content: "🌳" }` / `"🌱"`; a vector replacement can't live in a
+// CSS content string, so it's a child element instead (see decorArt.tsx).
+const VARIANT_ICON: Partial<Record<0 | 1 | 2, ReactNode>> = {
+  1: DecorIcons.tree,
+  2: DecorIcons.sprout,
+};
+
 /** An unbuilt plot — dashed outline, no content, plus a ground variant. */
 export const EmptyLot = memo(function EmptyLot({ variant = 0 }: EmptyLotProps) {
-  return <div className={`empty-lot empty-lot--v${variant}`} aria-hidden="true" />;
+  return (
+    <div className={`empty-lot empty-lot--v${variant}`} aria-hidden="true">
+      {VARIANT_ICON[variant]}
+    </div>
+  );
 });
