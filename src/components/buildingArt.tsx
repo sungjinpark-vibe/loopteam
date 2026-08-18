@@ -936,7 +936,12 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
   // the cap and the spanW share still bound it, so the plate cannot outgrow the
   // roof and flatten the chunky silhouette the restyle just bought.
   const plateW = Math.min(geo.box.spanW * (big ? 0.52 : 0.66), big ? 140 : 100);
-  const plateH = plateW * 0.38;
+  // 2026-08-18 (director: "간판 안 아이콘이 더 잘 보이게"): the GLYPH is what has to
+  // grow, and its ceiling is plateH — a square emoji inside a letterbox bar is
+  // height-bound, so widening the plate does nothing for it. Hence the plate gets
+  // squarer (0.38 -> 0.52 of its width) rather than wider, and the glyph takes a
+  // bigger share of that taller plate below. Net glyph ~1.6x its previous size.
+  const plateH = plateW * 0.52;
   const plateCx = signAnchor.x;
   // Mounted flush on the roof (bottom edge at the sign anchor), clamped so the plate
   // never rises past the box ceiling. Note the roof plane sits at a CONSTANT offset
@@ -980,7 +985,7 @@ function roofSignboard(spec: ArchetypeSpec, palette: Palette, geo: ReturnType<ty
       rx={2}
       fill={colors.white}
     />,
-    <text key="plate-sign" x={plateCx} y={plateCy + plateH * 0.32} fontSize={plateH * 0.76} textAnchor="middle">
+    <text key="plate-sign" x={plateCx} y={plateCy + plateH * 0.33} fontSize={plateH * 0.9} textAnchor="middle">
       {spec.sign}
     </text>,
   ];
