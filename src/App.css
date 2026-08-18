@@ -502,8 +502,10 @@ button.town-fab {
 /* ADDENDUM-06 §8 "Empty lots" — the dashed border + faint tint used to be the
  * only ground an unbuilt lot had; now the terrace underneath is the ground,
  * so this is transparent and lets it show through. `EmptyLotProps` is
- * unchanged (WP-A owns this CSS, not the component) — the 🌳/🌱 variant glyphs
- * below are untouched. */
+ * unchanged. Path-B art upgrade: the v1/v2 icon used to be a CSS
+ * `::after { content: "🌳"/"🌱" }` glyph; it's a real child element now
+ * (`EmptyLot.tsx`'s `DecorIcons.tree`/`.sprout`, an inline SVG, can't live in
+ * a CSS content string) — this block just centers it. */
 .empty-lot {
   width: 100%;
   height: 100%;
@@ -517,19 +519,12 @@ button.town-fab {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
 }
 .empty-lot--v1 {
   background: rgba(76, 175, 80, 0.1); /* 잔디 + 나무 두 그루 */
 }
-.empty-lot--v1::after {
-  content: "🌳";
-}
 .empty-lot--v2 {
   background: rgba(255, 193, 7, 0.1); /* 텃밭 */
-}
-.empty-lot--v2::after {
-  content: "🌱";
 }
 
 /* ADDENDUM-08 §6/§7 — the static terrain layer (`TownGrid.tsx`'s
@@ -582,19 +577,22 @@ button.town-fab {
 }
 
 /* Park — grass base, contiguous (bleed above merges same-kind neighbors into
- * one lawn). A single deterministic glyph on ~1 in 4 park cells (TownGrid.tsx
- * — sparse and scattered, not one bouquet per tile), so it reads as a park
- * at a glance, not a grid of identical green squares. */
+ * one lawn). A single deterministic decor icon on ~1 in 4 park cells
+ * (TownGrid.tsx — sparse and scattered, not one bouquet per tile), so it
+ * reads as a park at a glance, not a grid of identical green squares. */
 .town-cell--park {
   background: var(--town-grass);
 }
+/* Path-B art upgrade — was a 14px emoji glyph; now an inline SVG
+ * (`decorArt.tsx`'s `DecorIcons`, sized by its own width/height), so this is
+ * just centering — same `line-height: 0` baseline-gap fix `.town-prop`
+ * already uses for the same reason. */
 .town-park-glyph {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 14px;
-  line-height: 1;
+  line-height: 0;
 }
 
 /* Lake — water fill, contiguous (bleed above merges same-kind neighbors into
