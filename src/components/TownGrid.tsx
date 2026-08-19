@@ -48,6 +48,7 @@ import { colors } from "@toss/tds-colors";
 import { useTileGestures } from "../hooks/useTileGestures";
 import { footprintOf, moveAnchorsFor } from "../placement";
 import { resolvePinchTransform, type PinchBaseline } from "../pinchTransform";
+import { scrollTileIntoView } from "../scrollTileIntoView";
 import { fuseOf, totalLevelOf } from "../selectors";
 import {
   CELL_COUNT,
@@ -74,6 +75,7 @@ import {
   type TerrainKind,
 } from "../townLayout";
 import type { Building, SavingCategoryId } from "../types";
+import type { Spotlight } from "../useTownStore";
 import { MAX_ART_OVERHANG_PX } from "./buildingArt";
 import { DecorIcons } from "./decorArt";
 import { EmptyLot } from "./EmptyLot";
@@ -96,6 +98,16 @@ export interface TownGridProps {
   justGrew: { id: SavingCategoryId; seq: number } | null;
   /** The rise animation ended — clears `justGrew`. */
   onRiseSettled: () => void;
+  /**
+   * Guided highlight sequence (건물 건축/레벨업/병합 → 딤처리 → 하이라이트 →
+   * 안내 팝업, TownScreen.tsx owns the popup itself). Non-null dims the whole
+   * grid and lifts this one building's tile out of it; also suppresses every
+   * map gesture (pan/zoom/tap/long-press) for as long as it's active — see
+   * `useTileGestures`'s `suppressed` param below for why.
+   */
+  spotlight: Spotlight | null;
+  /** Tapping the dim layer dismisses the sequence (standard scrim behavior). */
+  onSpotlightDismiss: () => void;
   /** The building currently being moved, or null outside move mode. */
   movingId: string | null;
   /** Roving keyboard cursor (`aria-activedescendant`) — null until the first arrow key. */
@@ -480,6 +492,8 @@ function TownGridImpl({
   maxLevel,
   justGrew,
   onRiseSettled,
+  spotlight,
+  onSpotlightDismiss,
   movingId,
   cursorIndex,
   npcCount,
@@ -495,6 +509,12 @@ function TownGridImpl({
   onPrimeTap,
 }: TownGridProps) {
   const newestTileRef = useRef<HTMLDivElement | null>(null);
+  // Guided highlight sequence — the tile `spotlight.buildingId` currently
+  // points at, so its own scroll effect (below) has something to center on.
+  // Deliberately a SEPARATE ref from `newestTileRef` even though a "built"
+  // spotlight targets the exact same tile: a level-up/fusion spotlight has no
+  // `justBuiltId` at all, so this ref must work standalone.
+  const spotlightTileRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -781,18 +801,27 @@ function TownGridImpl({
         const isNewest = covering.id === justBuiltId;
         const isMoving = covering.id === movingId;
         const isGrowCandidate = growCandidateIds?.has(covering.id) ?? false;
+        const isSpotlight = covering.id === spotlight?.buildingId;
         // §6 — a multi-cell building counts as prime if ANY cell of its footprint is prime.
         const isPrime = footprintCells(i, w, h).some(isPrimePlotIndex);
         const stateClasses =
           (isMoving ? " town-tile--moving" : "") +
           (isGrowCandidate ? " town-tile--grow-candidate" : "") +
-          (isPrime ? " town-tile--prime" : "");
+          (isPrime ? " town-tile--prime" : "") +
+          (isSpotlight ? " town-tile--spotlight" : "");
         elements.push(
           <div
             key={i}
             id={`plot-${i}`}
             data-plot-index={i}
-            ref={isNewest ? newestTileRef : undefined}
+            ref={
+              isNewest || isSpotlight
+                ? (el: HTMLDivElement | null) => {
+                    if (isNewest) newestTileRef.current = el;
+                    if (isSpotlight) spotlightTileRef.current = el;
+                  }
+                : undefined
+            }
             className={`town-tile${stateClasses}`}
             style={{ gridColumn: `${col + 1} / span ${w}`, gridRow: `${row + 1} / span ${h}` }}
             role="button"
@@ -869,7 +898,7 @@ function TownGridImpl({
       }
     }
     return { groundTiles: elements, dropAnchorFor: dropAnchors, byAnchor: anchorMap };
-  }, [buildings, movingId, growCandidateIds, justBuiltId, expPerLevel, maxLevel, appliedByBuildingId, handlePrimeTap]);
+  }, [buildings, movingId, growCandidateIds, justBuiltId, spotlight?.buildingId, expPerLevel, maxLevel, appliedByBuildingId, handlePrimeTap]);
 
   const resolveDropTarget = useCallback((plotIndex: number) => dropAnchorFor.get(plotIndex) ?? plotIndex, [dropAnchorFor]);
 
@@ -899,17 +928,33 @@ function TownGridImpl({
     [movingId, byAnchor, onPlotTap, onPlotLongPress, resolveDropTarget],
   );
 
-  useTileGestures(gridRef, CELL_COUNT, cursorIndex, {
-    onLongPress: onPlotLongPress,
-    onTap: (plotIndex) => onPlotTap(resolveDropTarget(plotIndex)),
-    onCursorMove,
-    onActivate: handleActivate,
-    onEscape: onCancel,
-    onPinchStart: handlePinchStart,
-    onPinchMove: handlePinchMove,
-    onPinchEnd: handlePinchEnd,
-    onInvalidDrop,
-  });
+  useTileGestures(
+    gridRef,
+    CELL_COUNT,
+    cursorIndex,
+    {
+      onLongPress: onPlotLongPress,
+      onTap: (plotIndex) => onPlotTap(resolveDropTarget(plotIndex)),
+      onCursorMove,
+      onActivate: handleActivate,
+      onEscape: onCancel,
+      onPinchStart: handlePinchStart,
+      onPinchMove: handlePinchMove,
+      onPinchEnd: handlePinchEnd,
+      onInvalidDrop,
+    },
+    // Guided highlight sequence — this is a short guided moment; letting the
+    // player pan/zoom/long-press mid-sequence would drag the spotlighted
+    // tile off-screen or start a phantom move, defeating the point. The dim
+    // layer below also sits INSIDE `.town-grid` and above every tile
+    // (z-index), so a pointerdown landing on it would otherwise bubble
+    // straight to this hook's own `.town-grid` listener and could start a
+    // phantom pinch/pan (two pointers down on the dim = pinch) — this early
+    // bail is what stops that, for the dim AND for the spotlighted tile
+    // itself (which pokes back above the dim, so it's a real gesture
+    // target too).
+    spotlight !== null,
+  );
 
   // F3: "New buildings animate in; the view auto-scrolls to the newest."
   //
@@ -935,8 +980,28 @@ function TownGridImpl({
     // got nudged the minimum distance instead of centered, landing at the
     // frame edge under the FAB/전체보기 chrome exactly as the panel's
     // screenshots showed. Both axes now explicitly center.
-    newestTileRef.current?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    scrollTileIntoView(newestTileRef.current);
   }, [justBuiltId, zoomedOut]);
+
+  // Guided highlight sequence — same two-effect zoom-then-scroll shape as
+  // `justBuiltId` right above (a level-up/fusion spotlight has no
+  // `justBuiltId` of its own, so this can't just piggyback on that pair).
+  // Keyed on `spotlight?.seq`, not the bare object: the SAME building can be
+  // spotlighted twice in one session (e.g. levels up, then later fuses) and
+  // each occurrence must re-scroll/re-zoom even though `buildingId` repeats.
+  useEffect(() => {
+    if (spotlight !== null) setZoomedOut(false);
+    // Deliberately keyed on `spotlight?.seq` alone, not the bare `spotlight`
+    // object — same reasoning `SavingsRow.tsx`'s `justGrew` effect documents:
+    // an object-identity dependency would fire on any unrelated re-render
+    // that happens to reconstruct an equivalent-looking object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotlight?.seq]);
+  useEffect(() => {
+    if (spotlight === null) return;
+    scrollTileIntoView(spotlightTileRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotlight?.seq, zoomedOut]);
 
   // Inline viewport height is a fit-to-screen concern only (§7). A pinch
   // always sets `zoomedOut` false in the same update as `pinch` becomes
@@ -1017,6 +1082,19 @@ function TownGridImpl({
         {/* LAST child so it stacks above every tile on DOM order alone
             (App.css deliberately gives `.town-tile`/`.town-cell` no z-index). */}
         <NpcLayer npcCount={npcCount} ownedSkus={ownedSkus} />
+        {/* Guided highlight sequence's dim layer — MUST be a `.town-grid`
+            CHILD, not a `position: fixed` overlay mounted elsewhere: this
+            element carries a `transform` (the zoom/pinch above), which opens
+            its OWN stacking context, so nothing outside it could ever beat a
+            z-index set on a tile inside it. `.town-tile--spotlight`
+            (App.css) sits at a higher z-index than this, which is the whole
+            trick — the spotlighted tile visually pokes back out above the
+            dim. `onClick` (not `onPointerDown`): dismissing on the full tap
+            is the standard "tap the scrim to close" gesture, and
+            `useTileGestures` above is already suppressed for the whole
+            grid while a spotlight is active, so there is no gesture left to
+            race here. */}
+        {spotlight !== null && <div className="town-spotlight-dim" aria-hidden="true" onClick={onSpotlightDismiss} />}
       </div>
       {/* Never a `.town-grid` child — a sibling inside `.town-viewport` instead. */}
       <button

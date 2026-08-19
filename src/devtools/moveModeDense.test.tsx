@@ -84,6 +84,8 @@ function renderGrid(
       maxLevel={BALANCE.maxLevel}
       justGrew={null}
       onRiseSettled={() => {}}
+      spotlight={null}
+      onSpotlightDismiss={() => {}}
       npcCount={0}
       {...NOOP}
       {...overrides}

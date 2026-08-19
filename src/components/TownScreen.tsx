@@ -21,6 +21,7 @@ import { ChargeSheet } from "./ChargeSheet";
 import { EntrySheet } from "./EntrySheet";
 import { ShopSheet } from "./ShopSheet";
 import { MonumentDetailSheet } from "./MonumentDetailSheet";
+import { SpotlightPopup } from "./SpotlightPopup";
 import { TownGrid } from "./TownGrid";
 import { TownHeader } from "./TownHeader";
 import type { EntryDraft } from "../entryActions";
@@ -80,6 +81,13 @@ function seedSuffix(amount: number, balanceAfter: number): string {
 // sync (a comment saying "borrows that path's wording verbatim" is not
 // enough; a shared constant is).
 const QUEUED_BUILD_PROMISE = "자리가 나면 지어드릴게요";
+
+// Guided highlight sequence — the gap between the dim+lift (pure CSS,
+// TownGrid.tsx) settling and the popup opening, so "1. dim, 2. highlight,
+// 3. popup" reads as three beats instead of the popup covering the
+// highlight before the player has actually seen it. Not a configurable
+// dial — one fixed pause for one sequence.
+const SPOTLIGHT_POPUP_DELAY_MS = 650;
 
 // Gate-3 round-5 (게임 디자이너's E4 finding): the old wording ("Lv.5 건물
 // 두 채를 합치면 자리가 생겨요") never said the pair must match BOTH category
@@ -141,6 +149,28 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
   const [selectedMonumentId, setSelectedMonumentId] = useState<string | null>(null);
   // Gate-3-rerun fix — same idea, ordinary (non-monument) buildings: null closes `BuildingDetailSheet`.
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+
+  // Guided highlight sequence (건물 건축/레벨업/병합 → 딤처리 → 하이라이트 →
+  // 안내 팝업) — the dim + lifted tile are pure CSS, driven straight off
+  // `store.spotlight` (TownGrid.tsx's own `spotlight` prop below). Only the
+  // POPUP's entrance needs real staging here, so it doesn't appear before
+  // the highlight it's explaining. Keyed on `seq`, not the bare object: the
+  // SAME building can be spotlighted twice in one session, and each
+  // occurrence must re-run the stagger.
+  const [spotlightPopupOpen, setSpotlightPopupOpen] = useState(false);
+  const spotlightSeq = store.spotlight?.seq ?? null;
+  useEffect(() => {
+    setSpotlightPopupOpen(false);
+    if (spotlightSeq === null) return;
+    // prefers-reduced-motion skips the wait outright — the contract is "no
+    // animated transition", not "no highlight at all"; the end state (dim +
+    // lift + popup all visible) is identical either way, just not staggered.
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const id = window.setTimeout(() => setSpotlightPopupOpen(true), reduceMotion ? 0 : SPOTLIGHT_POPUP_DELAY_MS);
+    return () => window.clearTimeout(id);
+  }, [spotlightSeq]);
+  const spotlightBuilding = store.spotlight ? (store.buildings.find((b) => b.id === store.spotlight!.buildingId) ?? null) : null;
+
   const { openToast } = useToast();
   const move = useMoveMode(store.buildings, store.moveBuilding);
 
@@ -355,7 +385,14 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
   // included — it has no BottomSheet/ConfirmDialog of its own, just a bottom
   // banner over the grid, which is not the collision the panel found.
   const overlayOpen =
-    sheetOpen || shopOpen || chargeOpen || growDialogOpen || fuseConfirm !== null || selectedMonumentId !== null || selectedBuildingId !== null;
+    sheetOpen ||
+    shopOpen ||
+    chargeOpen ||
+    growDialogOpen ||
+    fuseConfirm !== null ||
+    selectedMonumentId !== null ||
+    selectedBuildingId !== null ||
+    spotlightPopupOpen;
   useEffect(() => {
     onOverlayChange?.(overlayOpen);
   }, [overlayOpen, onOverlayChange]);
@@ -672,6 +709,8 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         maxLevel={BALANCE.maxLevel}
         justGrew={store.justGrew}
         onRiseSettled={store.clearJustGrew}
+        spotlight={store.spotlight}
+        onSpotlightDismiss={store.clearSpotlight}
         movingId={move.movingId}
         cursorIndex={move.cursorIndex}
         npcCount={store.npcCount}
@@ -789,6 +828,15 @@ export function TownScreen({ store, onOpenSettings, onOverlayChange }: TownScree
         onClose={() => setSelectedBuildingId(null)}
         canFuse={fuseCandidateBuildings.length > 0}
         onFuse={handleFuseStart}
+      />
+
+      <SpotlightPopup
+        open={spotlightPopupOpen}
+        kind={store.spotlight?.kind ?? null}
+        building={spotlightBuilding}
+        expPerLevel={BALANCE.expPerLevel}
+        maxLevel={BALANCE.maxLevel}
+        onClose={store.clearSpotlight}
       />
 
       {/* ADDENDUM-04 §4 — the choice dialog. Opens only after the entry

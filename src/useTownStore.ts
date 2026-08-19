@@ -118,6 +118,23 @@ function isFusionEntangled(buildings: readonly Building[], entry: LedgerEntry): 
   return bound !== undefined && fuseOf(bound) > 0;
 }
 
+/**
+ * Guided highlight sequence (건물 건축/레벨업/병합 → 배경 딤처리 → 하이라이트 →
+ * 안내 팝업) — the ONE building the town-screen UI should dim-and-lift right
+ * now, plus which of the three moments this is (drives the popup copy).
+ * `seq` is the same per-event counter `justGrew` already uses (its own doc,
+ * ~496): re-triggering the SAME building (e.g. two level-ups in one session)
+ * must still produce a fresh scroll/highlight, which a bare `buildingId`
+ * change can't guarantee — React sees no change if the id repeats.
+ */
+export interface Spotlight {
+  buildingId: string;
+  kind: "built" | "levelUp" | "fused";
+  seq: number;
+}
+
+export type SpotlightKind = Spotlight["kind"];
+
 /** ADDENDUM-11 §3 — what one committed fusion produced, for the confirming UI's toast. */
 export interface FuseBuildingsResult {
   /** The surviving building, `fuse` already incremented — same id, plotIndex and footprint it had before. */
@@ -513,6 +530,14 @@ export function useTownStore() {
   const [justGrew, setJustGrew] = useState<{ id: SavingCategoryId; seq: number } | null>(null);
   const clearJustGrew = useCallback(() => setJustGrew(null), []);
   const growSeqRef = useRef(0);
+  // Guided highlight sequence (see `Spotlight`'s own doc) — one state, set at
+  // every trigger site (build/level-up/fusion) below, cleared by the popup's
+  // dismiss. Same seq-number pattern as `justGrew` right above, for the same
+  // reason: the same building can trigger this twice in one session (e.g.
+  // level up, then fuse) and each occurrence must re-run the sequence.
+  const [spotlight, setSpotlight] = useState<Spotlight | null>(null);
+  const clearSpotlight = useCallback(() => setSpotlight(null), []);
+  const spotlightSeqRef = useRef(0);
   // One FIFO queue for every one-shot notice (F10 corruption, F14 "return
   // promise kept" on boot, F5 tier celebration) — see the `Notice` doc
   // comment above. `notice` is always the head; dismissing pops it.
@@ -969,6 +994,20 @@ export function useTownStore() {
       const grownYm = grownBuilding.builtOn.slice(0, 7);
       mutateBuildingsForMonth(storageClient, grownYm, (existing) => existing.map((b) => (b.id === grownBuilding.id ? grownBuilding : b)));
       buildings = buildings.map((b) => (b.id === grownBuilding.id ? grownBuilding : b));
+      // Guided highlight sequence — a genuine level UP only (before < after
+      // `totalLevelOf`), never every exp gain: most grows add exp without
+      // crossing a level boundary, and a highlight for those would fire
+      // constantly and mean nothing. `prev.buildings` is the pre-save
+      // snapshot (same one the tier/streak checks elsewhere in this save
+      // already read from).
+      const grownBefore = prev.buildings.find((b) => b.id === grownBuilding.id);
+      if (
+        grownBefore &&
+        totalLevelOf(grownBefore, BALANCE.expPerLevel, BALANCE.maxLevel) <
+          totalLevelOf(grownBuilding, BALANCE.expPerLevel, BALANCE.maxLevel)
+      ) {
+        setSpotlight({ buildingId: grownBuilding.id, kind: "levelUp", seq: spotlightSeqRef.current++ });
+      }
     }
 
     const todayYm = today.slice(0, 7);
@@ -1030,6 +1069,7 @@ export function useTownStore() {
     }
     if (result.building) {
       setJustBuiltId(result.building.id);
+      setSpotlight({ buildingId: result.building.id, kind: "built", seq: spotlightSeqRef.current++ });
       // Gate-3 follow-up (A2) — queued BEFORE the tier notice below so the
       // FIFO shows "첫 건물" first if a fresh town somehow crosses a tier on
       // the same save. `prev.buildings` is the pre-save town by construction.
@@ -1168,6 +1208,17 @@ export function useTownStore() {
         existing.map((b) => (b.id === grownBuilding.id ? grownBuilding : b)),
       );
       buildings = buildings.map((b) => (b.id === grownBuilding.id ? grownBuilding : b));
+      // Guided highlight sequence — same before/after `totalLevelOf` compare
+      // `addEntry`'s own grow branch documents; this is the OTHER path that
+      // can grow an existing building (the deferred 새로짓기/키우기 choice).
+      const grownBefore = prev.buildings.find((b) => b.id === grownBuilding.id);
+      if (
+        grownBefore &&
+        totalLevelOf(grownBefore, BALANCE.expPerLevel, BALANCE.maxLevel) <
+          totalLevelOf(grownBuilding, BALANCE.expPerLevel, BALANCE.maxLevel)
+      ) {
+        setSpotlight({ buildingId: grownBuilding.id, kind: "levelUp", seq: spotlightSeqRef.current++ });
+      }
     }
 
     const next: LoadedState = {
@@ -1190,6 +1241,7 @@ export function useTownStore() {
     let seedsGranted = 0;
     if (result.building) {
       setJustBuiltId(result.building.id);
+      setSpotlight({ buildingId: result.building.id, kind: "built", seq: spotlightSeqRef.current++ });
       if (countBuildings(prev.buildings) === 0) pushNotices({ kind: "firstBuilding" });
       const award = { kind: "build", buildingId: result.building.id, expGain: result.building.exp ?? 0 } as const;
       if (grantSeeds(award)) seedsGranted += awardFor(award).amount;
@@ -1269,6 +1321,7 @@ export function useTownStore() {
     setState(next);
     if (newBuilding !== null) {
       setJustBuiltId(newBuilding.id);
+      setSpotlight({ buildingId: newBuilding.id, kind: "built", seq: spotlightSeqRef.current++ });
       // Gate-3 follow-up (A2) — same first-building celebration as `addEntry`:
       // on a fresh town the 무지출 park can legitimately be building #1, and the
       // moment shouldn't be celebrated only on one of the two ways to reach it.
@@ -1428,6 +1481,12 @@ export function useTownStore() {
     // updated, same order `addEntry` uses — `grantSeeds` reads it.
     const award = { kind: "fuse", buildingId: survivorId, fuseTier: fuseOf(result.survivor) } as const;
     const seedsGranted = grantSeeds(award) ? awardFor(award).amount : 0;
+
+    // Guided highlight sequence — the survivor is the one building left
+    // standing; the consumed partner is already gone from `store.buildings`
+    // by this point (`result.buildings` above), so there is nothing else it
+    // could point at.
+    setSpotlight({ buildingId: result.survivor.id, kind: "fused", seq: spotlightSeqRef.current++ });
 
     return {
       survivor: result.survivor,
@@ -1989,6 +2048,8 @@ export function useTownStore() {
     savingsByCategoryKrw: state?.town.savingsByCategoryKrw,
     justGrew,
     clearJustGrew,
+    spotlight,
+    clearSpotlight,
     notice,
     dismissNotice,
     // F11 — S1 onboarding: `false` only for a genuinely fresh install

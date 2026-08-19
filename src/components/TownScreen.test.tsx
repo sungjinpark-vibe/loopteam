@@ -304,6 +304,13 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     });
     const [first, second] = latest!.buildings;
     const entriesBefore = monthEntryCount();
+    // Guided highlight sequence — founding building #1 above spotlights it
+    // and (by design) suppresses grid gestures until dismissed; this test is
+    // about grow pick-mode, not the highlight sequence, so dismiss it first
+    // exactly like a player tapping past it would.
+    act(() => {
+      latest!.clearSpotlight();
+    });
 
     openSheet();
     fillAndSave("카페", undefined, "10000");
@@ -344,6 +351,10 @@ describe("TownScreen — ADDENDUM-04 §4 grow dialog / pick mode", () => {
     });
     const occupied = new Set(latest!.buildings.map((b) => b.plotIndex));
     const entriesBefore = monthEntryCount();
+    // Guided highlight sequence — same dismiss as the sibling test above.
+    act(() => {
+      latest!.clearSpotlight();
+    });
 
     openSheet();
     fillAndSave("카페", undefined, "10000");
@@ -548,6 +559,13 @@ describe("TownScreen — Gate-3-rerun: tap an ordinary building opens its detail
     });
     expect(latest!.buildingCount).toBe(1);
     const plotIndex = latest!.buildings[0].plotIndex;
+    // Guided highlight sequence — founding this building spotlights it and
+    // (by design) suppresses grid gestures until dismissed; this test is
+    // about the plain tap-to-open-detail-sheet behavior, not the highlight
+    // sequence itself, so dismiss it first exactly like a player would.
+    act(() => {
+      latest!.clearSpotlight();
+    });
 
     tapTile(plotIndex);
     // Flush the `ensureMonthLoaded` effect the sheet's amount lookup depends on.

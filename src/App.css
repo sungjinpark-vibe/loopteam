@@ -506,6 +506,59 @@ button.town-fab {
   border-radius: 12px;
 }
 
+/* Guided highlight sequence (건물 건축/레벨업/병합 → 딤처리 → 하이라이트 →
+ * 안내 팝업, TownGrid.tsx/TownScreen.tsx) — the dim layer. MUST be a
+ * `.town-grid` child, never a `position: fixed` overlay mounted elsewhere:
+ * `.town-grid` carries a `transform` (the zoom/pinch transform above), which
+ * opens its own stacking context, so a fixed overlay outside it could never
+ * be beaten by a z-index on a tile inside it. `.town-tile--spotlight` below
+ * sits at a HIGHER z-index than this — that's the entire trick: the
+ * spotlighted tile visually pokes back out above the dim.
+ *
+ * Round-trip fix (dev-team review, 2026-08-19): a `position: absolute;
+ * inset: 0` version of this rule sized itself against `.town-grid`'s OWN
+ * layout box — which is only as wide as `.town-viewport`'s visible width (a
+ * block box's `width: auto` fills its containing block, it does not
+ * shrink-wrap to the grid's track content), even though the grid's 20 fixed
+ * TRACKS paint far wider and simply overflow un-clipped. That under-covered
+ * the map (a dim "seam"), and widening `.town-grid` itself to fix it (tried
+ * first) fed the SAME box into the zoom-to-fit scale measurement
+ * (`TownGrid.tsx`'s `recompute()` reads `grid.scrollWidth`), so the frozen
+ * map baseline (CLAUDE.md, commit afc7cd6) rendered ~34% smaller on load —
+ * a real regression, caught and reverted. `grid-area: 1 / 1 / -1 / -1`
+ * instead makes this a GRID ITEM spanning every existing track line
+ * (`.town-grid`'s tracks are already explicitly sized by
+ * `gridTemplateColumns`/`gridTemplateRows`, TownGrid.tsx's inline style —
+ * this claims no NEW implicit track and cannot resize them), so it covers
+ * the whole map with zero effect on `.town-grid`'s own box or the fit-scale
+ * math that reads it. `z-index` still applies with no `position` set — the
+ * Grid spec stacks grid items by z-index exactly like flex items. */
+.town-spotlight-dim {
+  grid-area: 1 / 1 / -1 / -1;
+  z-index: 10;
+  background: rgba(15, 15, 20, 0.6);
+  cursor: pointer;
+}
+
+/* The one tile lifted out of the dim above. Transitions in with a short
+ * delay so the sequence reads as "dim, THEN highlight" rather than both
+ * snapping in at once (no JS timer needed for this half of the sequence —
+ * see TownScreen.tsx for the third beat, the popup, which does use one). */
+.town-tile--spotlight {
+  z-index: 11;
+  border-radius: 12px;
+  transform: scale(1.08);
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .town-tile--spotlight {
+    transition: none;
+  }
+}
+
 /* ADDENDUM-02 §4.3 "Bar" — a fixed bottom bar, rendered in App.tsx OUTSIDE
  * `.town-grid` (AC-M7's direct-children guard). Sits above `.town-fab`. */
 .town-move-bar {

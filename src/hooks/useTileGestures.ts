@@ -105,13 +105,22 @@ export function useTileGestures(
   tileCount: number,
   cursorIndex: number | null,
   callbacks: TileGestureCallbacks,
+  /**
+   * Guided highlight sequence (TownGrid.tsx's `spotlight`) — true for as
+   * long as it's active. This is a short guided moment; letting the player
+   * pan/zoom/tap/long-press mid-sequence would drag the spotlighted tile
+   * off-screen or start a phantom move, defeating the point. Read fresh per
+   * event through `latest` below (same as every other param here), so
+   * flipping it doesn't require re-binding the listeners.
+   */
+  suppressed = false,
 ): void {
   // Read through a ref so the effect below binds its listeners exactly once
   // per `gridRef`/`tileCount` change, not on every render (same discipline
   // `useBackGuard.ts` already uses for `touched`/`onBack`).
-  const latest = useRef({ tileCount, cursorIndex, callbacks });
+  const latest = useRef({ tileCount, cursorIndex, callbacks, suppressed });
   useEffect(() => {
-    latest.current = { tileCount, cursorIndex, callbacks };
+    latest.current = { tileCount, cursorIndex, callbacks, suppressed };
   });
 
   useEffect(() => {
@@ -172,6 +181,13 @@ export function useTileGestures(
     }
 
     function onPointerDown(e: PointerEvent) {
+      // Guided highlight sequence — early bail, before ANYTHING else (§3.1's
+      // 2-pointer pinch arbitration included): a pointerdown landing on the
+      // dim layer (TownGrid.tsx) bubbles to this same listener, and without
+      // this it could start a phantom press/pan, or — with a second finger —
+      // a phantom pinch. Never partially processed: nothing below this line
+      // runs while suppressed.
+      if (latest.current.suppressed) return;
       // Populated BEFORE the existing press logic (§3.1) — a 2nd pointer
       // must be seen and act on the press timer before anything else runs.
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -340,6 +356,13 @@ export function useTileGestures(
     }
 
     function onClick(e: MouseEvent) {
+      // Guided highlight sequence — covers the one gap `onPointerDown`'s own
+      // bail can't: a genuine tap (no press timer ever started, so
+      // `suppressNextClick` stays false) landing on the SPOTLIGHTED tile
+      // itself, which sits ABOVE the dim layer (z-index) and is therefore a
+      // real click target, not swallowed by the dim the way every other tile
+      // is.
+      if (latest.current.suppressed) return;
       if (suppressNextClick) {
         suppressNextClick = false;
         return;
@@ -358,7 +381,12 @@ export function useTileGestures(
     }
 
     function onKeyDown(e: KeyboardEvent) {
-      const { tileCount: count, cursorIndex: cursor, callbacks: cb } = latest.current;
+      const { tileCount: count, cursorIndex: cursor, callbacks: cb, suppressed } = latest.current;
+      // Guided highlight sequence — arrow-key roving cursor and Enter/Escape
+      // are map gestures too. The popup's OWN Escape-to-close (TownScreen.tsx,
+      // `useEscapeToClose`) is a separate `window` listener and keeps working
+      // regardless — this only stops THIS grid's cursor/move-mode reaction.
+      if (suppressed) return;
       if (count === 0) return;
 
       if (e.key === "Escape") {

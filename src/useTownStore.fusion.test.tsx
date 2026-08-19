@@ -221,6 +221,20 @@ describe("fuseBuildings — §3", () => {
     expect(latest!.levelOfBuilding(latest!.buildings[0])).toBe(BALANCE.maxLevel + 1);
   });
 
+  // Guided highlight sequence (건물 건축/레벨업/병합 → 딤처리 → 하이라이트 →
+  // 안내 팝업, useTownStore.ts) — the SURVIVOR is spotlighted (the consumed
+  // partner is gone; nothing else for it to point at).
+  it("spotlights the survivor as {kind: 'fused'}", async () => {
+    seedTown([building("b1", cell(0), "2026-08"), building("b2", cell(1), "2026-08")]);
+    await mountAndWaitForBoot();
+    expect(latest!.spotlight).toBeNull();
+
+    act(() => {
+      latest!.fuseBuildings("b1", "b2");
+    });
+    expect(latest!.spotlight).toEqual({ buildingId: "b1", kind: "fused", seq: expect.any(Number) });
+  });
+
   it("refuses an illegal pair without touching the town (the check lives at the mutation, not only at the CTA)", async () => {
     seedTown([building("b1", cell(0), "2026-08"), building("b2", cell(1), "2026-08", { categoryId: "food" })]);
     await mountAndWaitForBoot();

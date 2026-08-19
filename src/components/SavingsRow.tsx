@@ -27,6 +27,7 @@
  */
 import { memo, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { SAVINGS_STRUCTURE } from "../content.placeholder";
+import { scrollTileIntoView } from "../scrollTileIntoView";
 import { ladderFor, progressToNextSegment, towerSegments } from "../selectors";
 import {
   SAVINGS_ROW_ORDER,
@@ -66,7 +67,7 @@ function SavingsRowImpl({ savingsByCategoryKrw, ladder, ladderOverrides, justGre
   // session still re-triggers — same mechanism TownGrid's justBuiltId effect uses.
   useEffect(() => {
     if (justGrew === null) return;
-    risingRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollTileIntoView(risingRef.current);
     // The lint rule wants the whole `justGrew` object in the deps array, but
     // this effect is deliberately keyed on `justGrew.seq` alone (§2.6a): the
     // same structure crossing a threshold twice in one session produces two

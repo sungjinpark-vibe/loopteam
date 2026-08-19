@@ -194,3 +194,57 @@ describe("useTownStore.addEntry — ADDENDUM-04 grow, then reload", () => {
     expect(latest?.growthScore).toBe(4);
   });
 });
+
+// Guided highlight sequence (건물 건축/레벨업/병합 → 딤처리 → 하이라이트 →
+// 안내 팝업) — wiring tests for the store half only (TownGrid.test.tsx covers
+// the dim/gesture-suppression half). Fusion's own spotlight is covered
+// alongside `fuseBuildings` in `useTownStore.fusion.test.tsx` instead, next
+// to its existing fixtures.
+describe("useTownStore — guided highlight sequence (spotlight)", () => {
+  it("founding a building sets spotlight to {kind: 'built'}, re-triggering with a fresh seq on the next build", async () => {
+    await mountAndWaitForBoot();
+    expect(latest?.spotlight).toBeNull();
+
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 3_200, categoryId: "cafe", occurredOn: TODAY });
+    });
+    const first = latest!.buildings[0];
+    expect(latest?.spotlight).toEqual({ buildingId: first.id, kind: "built", seq: 0 });
+
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 4_100, categoryId: "food", occurredOn: TODAY });
+    });
+    const second = latest!.buildings.find((b) => b.id !== first.id)!;
+    // Same shape, but a NEW building and a bumped seq — not the same object
+    // reference `justGrew`'s own doc warns re-triggering on a repeat id needs.
+    expect(latest?.spotlight).toEqual({ buildingId: second.id, kind: "built", seq: 1 });
+  });
+
+  it("clearSpotlight resets it to null", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 3_200, categoryId: "cafe", occurredOn: TODAY });
+    });
+    expect(latest?.spotlight).not.toBeNull();
+
+    act(() => latest!.clearSpotlight());
+    expect(latest?.spotlight).toBeNull();
+  });
+
+  it("a grow that crosses a level boundary sets spotlight to {kind: 'levelUp'}; one that doesn't leaves it null", async () => {
+    await mountAndWaitForBoot();
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 3_200, categoryId: "cafe", occurredOn: TODAY });
+    });
+    const hostId = latest!.buildings[0].id;
+    act(() => latest!.clearSpotlight()); // founding already spotlighted it — start clean for the grow under test
+
+    // BALANCE.expPerLevel = 3: exp 0 -> 3 crosses level 1 -> 2 (levelOf =
+    // 1 + floor(exp/expPerLevel)), the exact grow the sibling describe block
+    // above already exercises.
+    act(() => {
+      latest!.addEntry({ type: "expense", amountKrw: 8_000, categoryId: "cafe", occurredOn: TODAY }, hostId);
+    });
+    expect(latest?.spotlight).toEqual({ buildingId: hostId, kind: "levelUp", seq: expect.any(Number) });
+  });
+});

@@ -125,7 +125,10 @@ function mountGrid(
   buildings: readonly Building[] = [],
   moveProps: Partial<MoveProps> = {},
   extra: Partial<
-    Pick<TownGridProps, "growCandidateIds" | "justBuiltId" | "appliedByBuildingId" | "appliedTownSku" | "onPrimeTap">
+    Pick<
+      TownGridProps,
+      "growCandidateIds" | "justBuiltId" | "appliedByBuildingId" | "appliedTownSku" | "onPrimeTap" | "spotlight" | "onSpotlightDismiss"
+    >
   > = {},
 ): HTMLElement {
   mounted = mountComponent(
@@ -139,6 +142,8 @@ function mountGrid(
       maxLevel={BALANCE.maxLevel}
       justGrew={null}
       onRiseSettled={() => {}}
+      spotlight={extra.spotlight ?? null}
+      onSpotlightDismiss={extra.onSpotlightDismiss ?? (() => {})}
       npcCount={0}
       {...NOOP_MOVE_PROPS}
       {...moveProps}
@@ -385,12 +390,15 @@ describe("TownGrid — tall-building overflow (occlusion + hit targets)", () => 
     const emitted = tiles.map((t) => Number(String(t.style.gridRow).split("/")[0].trim()));
     expect(emitted).toEqual([...emitted].sort((a, b) => a - b)); // strictly top-to-bottom
     // …and nothing lifts an upper tile out of that order with a stacking context.
-    // `.town-tile--moving`'s z-index is the ONE deliberate exception (the tile the
-    // player is dragging is meant to float above everything).
+    // Two deliberate exceptions: `.town-tile--moving` (the tile the player is
+    // dragging is meant to float above everything) and `.town-tile--spotlight`
+    // (the guided highlight sequence's lifted tile MUST out-stack its own
+    // sequence's dim layer, by design — see TownGrid.tsx's own comment on
+    // `.town-spotlight-dim`).
     const tileRules = css("App.css").split(/^\.town-tile\b/m).slice(1);
     for (const rule of tileRules) {
       const block = rule.slice(0, rule.indexOf("}"));
-      if (rule.startsWith("--moving")) continue;
+      if (rule.startsWith("--moving") || rule.startsWith("--spotlight")) continue;
       expect(block, `an unexpected z-index on .town-tile${rule.slice(0, 20)}`).not.toMatch(/z-index/);
     }
   });
@@ -416,6 +424,24 @@ describe("TownGrid — tall-building overflow (occlusion + hit targets)", () => 
     // App.css must spend the reservation as top padding, with no fallback value (R-3)
     expect(css("App.css")).toMatch(/padding:\s*calc\(8px \+ var\(--art-overhang\)\)/);
   });
+
+  // Regression guard (dev-team catch, 2026-08-19): `.town-grid` briefly
+  // carried `width: max-content` — a fix for the spotlight dim under-covering
+  // the map — but a BLOCK box's own layout width is exactly what
+  // `TownGrid.tsx`'s `recompute()` measures (`grid.scrollWidth`) to compute
+  // the zoom-to-fit scale, so widening the box widened that measurement and
+  // shrank the frozen map baseline (CLAUDE.md, commit afc7cd6) ~34% on load
+  // — measured live: fit scale 0.419355 -> 0.277383 for `?scenario=
+  // mixedFootprints` at 390x844. jsdom has no layout engine (this file's own
+  // header comment) so the shrink itself can't be reproduced here; this pins
+  // the INPUT that caused it instead — no `width` declaration on `.town-grid`
+  // — so a future change re-introducing one fails fast, in this suite,
+  // before it ever reaches a real browser.
+  it("`.town-grid` sets no explicit width (a width here feeds the zoom-to-fit scale measurement — see this test's own doc)", () => {
+    const rule = css("App.css").match(/^\.town-grid \{[\s\S]*?\n\}/m)?.[0];
+    expect(rule).toBeDefined();
+    expect(rule).not.toMatch(/\bwidth\s*:/);
+  });
 });
 
 describe("TownGrid — static terrain layer never re-renders (ADDENDUM-08 §7 performance)", () => {
@@ -431,6 +457,8 @@ describe("TownGrid — static terrain layer never re-renders (ADDENDUM-08 §7 pe
         maxLevel={BALANCE.maxLevel}
         justGrew={null}
         onRiseSettled={() => {}}
+        spotlight={null}
+        onSpotlightDismiss={() => {}}
         npcCount={0}
         {...NOOP_MOVE_PROPS}
       />,
@@ -450,6 +478,8 @@ describe("TownGrid — static terrain layer never re-renders (ADDENDUM-08 §7 pe
           maxLevel={BALANCE.maxLevel}
           justGrew={null}
           onRiseSettled={() => {}}
+          spotlight={null}
+          onSpotlightDismiss={() => {}}
           npcCount={0}
           {...NOOP_MOVE_PROPS}
         />,
@@ -1018,6 +1048,8 @@ describe("TownGrid — zoom-to-fit toggle (ADDENDUM-08 §7)", () => {
           maxLevel={BALANCE.maxLevel}
           justGrew={null}
           onRiseSettled={() => {}}
+          spotlight={null}
+          onSpotlightDismiss={() => {}}
           npcCount={0}
           {...NOOP_MOVE_PROPS}
         />,
@@ -1050,6 +1082,81 @@ describe("TownGrid — zoom-to-fit toggle (ADDENDUM-08 §7)", () => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
       expect(onPlotLongPress).toHaveBeenCalledTimes(1);
       expect(onPlotLongPress).toHaveBeenCalledWith(GROUND_A);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// Guided highlight sequence (건물 건축/레벨업/병합 → 딤처리 → 하이라이트 →
+// 안내 팝업) — the dim layer + gesture suppression half; the store's own
+// `spotlight` state wiring is covered in useTownStore.test.tsx/
+// useTownStore.fusion.test.tsx instead.
+describe("TownGrid — guided highlight sequence (spotlight dim + gesture suppression)", () => {
+  const SPOTLIGHT = { buildingId: "b1", kind: "built" as const, seq: 0 };
+
+  it("renders the dim layer only while spotlight is active, and lifts the spotlighted tile above it", () => {
+    const container = mountGrid([building({ id: "b1" })], {}, { spotlight: SPOTLIGHT });
+    expect(container.querySelector(".town-spotlight-dim")).not.toBeNull();
+    const tile = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+    expect(tile.classList.contains("town-tile--spotlight")).toBe(true);
+
+    const idle = mountGrid([building({ id: "b1" })]);
+    expect(idle.querySelector(".town-spotlight-dim")).toBeNull();
+    expect(idle.querySelector(`[data-plot-index="${GROUND_A}"]`)?.classList.contains("town-tile--spotlight")).toBe(false);
+  });
+
+  it("a click on the dim layer calls onSpotlightDismiss", () => {
+    const onSpotlightDismiss = vi.fn();
+    const container = mountGrid([building({ id: "b1" })], {}, { spotlight: SPOTLIGHT, onSpotlightDismiss });
+    const dim = container.querySelector(".town-spotlight-dim") as HTMLElement;
+    dim.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onSpotlightDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  // CRITICAL (design note #5): a pointerdown on the dim BUBBLES to the same
+  // `.town-grid` listener `useTileGestures` attaches its long-press timer to
+  // — without suppression this would start a phantom press, and a 2nd
+  // pointer landing while still down would read as a phantom pinch. This
+  // proves the `suppressed` prop (driven by `spotlight !== null`) stops that
+  // dead, for both the dim itself and the spotlighted tile it lifts above it.
+  it("a pointerdown on the dim (or on the spotlighted tile) never starts a long-press or reaches onPlotTap while spotlight is active", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const onPlotTap = vi.fn();
+      const container = mountGrid([building({ id: "b1" })], { onPlotLongPress, onPlotTap }, { spotlight: SPOTLIGHT });
+
+      const dim = container.querySelector(".town-spotlight-dim") as HTMLElement;
+      dim.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: 0, clientY: 0 }));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      dim.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+      expect(onPlotLongPress).not.toHaveBeenCalled();
+
+      // The spotlighted tile itself is a real, reachable click target (it
+      // sits ABOVE the dim, z-index-wise) — suppression must cover it too,
+      // not just the dim.
+      const tile = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+      tile.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 2, clientX: 0, clientY: 0 }));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      tile.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 2 }));
+      tile.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(onPlotLongPress).not.toHaveBeenCalled();
+      expect(onPlotTap).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gestures work normally again once spotlight clears back to null", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlotLongPress = vi.fn();
+      const container = mountGrid([building({ id: "b1" })], { onPlotLongPress }, { spotlight: null });
+      const tile = container.querySelector(`[data-plot-index="${GROUND_A}"]`) as HTMLElement;
+      tile.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: 0, clientY: 0 }));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(onPlotLongPress).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
